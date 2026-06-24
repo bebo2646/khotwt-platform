@@ -1,0 +1,46 @@
+# Root .gitignore for Khotwt Platform Project
+
+# Local Environment configuration files
+backend/.env
+frontend/.env
+backend/.env.production
+frontend/.env.production
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Package / Dependency folders
+**/node_modules/
+backend/vendor/
+
+# Build and Compilation outputs
+frontend/dist/
+frontend/dist-ssr/
+backend/public/storage
+backend/public/build
+
+# Log files
+*.log
+backend/storage/logs/*.log
+
+# Laravel Cache and Session files
+backend/bootstrap/cache/*.php
+backend/storage/framework/cache/data/*
+backend/storage/framework/sessions/*
+backend/storage/framework/testing/*
+backend/storage/framework/views/*.php
+backend/storage/pail
+backend/storage/*.key
+backend/.phpunit.result.cache
+
+# Editor and OS settings
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
