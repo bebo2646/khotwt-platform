@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, Video, BookOpen } from 'lucide-react'
 import SEO from '../components/SEO'
 import PurchaseModal from '../components/PurchaseModal'
+import { getCourseDisplayPrice } from '../utils/pricing'
 
 interface CourseItem {
   id: number
@@ -147,11 +148,12 @@ export default function CourseDetail() {
 
     if (!course) return
 
+    const pricing = getCourseDisplayPrice(course)
     setPurchaseTarget({
       type: 'course',
       itemId: course.id,
       title: course.title,
-      price: course.enable_discount ? course.final_price! : course.price,
+      price: pricing.finalPrice,
     })
     setPurchaseModalOpen(true)
   }
@@ -233,7 +235,7 @@ export default function CourseDetail() {
           },
           "offers": {
             "@type": "Offer",
-            "price": course.price,
+            "price": getCourseDisplayPrice(course).finalPrice,
             "priceCurrency": "EGP",
             "category": "Paid"
           }
@@ -289,25 +291,28 @@ export default function CourseDetail() {
         <div className="bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] p-8 rounded-2xl flex flex-col justify-between space-y-6">
           <div className="space-y-4">
             <div className="text-xs text-slate-400">سعر الكورس بالكامل:</div>
-            {course.enable_discount ? (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs line-through text-slate-500 font-medium">
-                  {course.price === '0.00' ? 'مجاني' : `${course.price} ج.م`}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-3xl font-black text-emerald-500">
-                    {course.final_price === 0 || course.final_price === '0.00' ? 'مجاني' : `${course.final_price} ج.م`}
+            {(() => {
+              const pricing = getCourseDisplayPrice(course)
+              return pricing.hasDiscount ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs line-through text-slate-500 font-medium">
+                    {pricing.formattedOriginalPrice}
                   </span>
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black px-2 py-0.5 rounded">
-                    {course.discount_type === 'percentage' ? `${course.discount_value}% خصم` : `${course.discount_value} ج.م خصم`}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-3xl font-black text-emerald-500">
+                      {pricing.formattedFinalPrice}
+                    </span>
+                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black px-2 py-0.5 rounded">
+                      {pricing.discountText}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-3xl font-black text-brand-primary">
-                {course.price === '0.00' ? 'مجاني' : `${course.price} ج.م`}
-              </div>
-            )}
+              ) : (
+                <div className="text-3xl font-black text-brand-primary">
+                  {pricing.formattedOriginalPrice}
+                </div>
+              )
+            })()}
             <p className="text-xs text-slate-500 font-light">يمنحك الاشتراك وصولاً فورياً مدى الحياة لجميع دروس وامتحانات الكورس.</p>
           </div>
 

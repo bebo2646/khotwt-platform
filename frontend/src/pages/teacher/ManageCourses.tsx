@@ -4,6 +4,7 @@ import { useModalStore } from '../../store/modalStore'
 import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
+import { getCourseDisplayPrice } from '../../utils/pricing'
 
 interface CourseItem {
   id: number
@@ -921,17 +922,20 @@ export default function ManageCourses() {
                       <div className="space-y-1">
                         <div className="text-sm font-semibold">{course.title}</div>
                         <div className="text-[10px] text-slate-450 font-light flex gap-2 items-center flex-wrap">
-                          {course.enable_discount ? (
-                            <span className="flex items-center gap-1">
-                              <span className="line-through text-slate-500">{course.price} ج.م</span>
-                              <span className="text-emerald-400 font-bold">{course.final_price} ج.م</span>
-                              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-semibold px-1.5 py-0.5 rounded">
-                                {course.discount_type === 'percentage' ? `${course.discount_value}% خصم` : `${course.discount_value} ج.م خصم`}
+                          {(() => {
+                            const pricing = getCourseDisplayPrice(course)
+                            return pricing.hasDiscount ? (
+                              <span className="flex items-center gap-1">
+                                <span className="line-through text-slate-500">{pricing.formattedOriginalPrice}</span>
+                                <span className="text-emerald-400 font-bold">{pricing.formattedFinalPrice}</span>
+                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[8px] font-semibold px-1.5 py-0.5 rounded">
+                                  {pricing.discountText}
+                                </span>
                               </span>
-                            </span>
-                          ) : (
-                            <span>{course.price} ج.م</span>
-                          )}
+                            ) : (
+                              <span>{pricing.formattedOriginalPrice}</span>
+                            )
+                          })()}
                           <span>•</span>
                           <span>{course.students_count} طالب</span>
                         </div>

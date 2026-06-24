@@ -424,6 +424,10 @@ export default function Home() {
                     teacherName={course.teacher?.name || ''}
                     teacherAvatar={course.teacher?.avatar}
                     slug={course.slug}
+                    enableDiscount={course.enable_discount}
+                    discountType={course.discount_type}
+                    discountValue={course.discount_value}
+                    finalPrice={course.final_price}
                   />
                 ))}
               </div>
@@ -467,6 +471,10 @@ export default function Home() {
                 teacherName={course.teacher.name}
                 teacherAvatar={course.teacher.avatar}
                 slug={course.slug}
+                enableDiscount={course.enable_discount}
+                discountType={course.discount_type}
+                discountValue={course.discount_value}
+                finalPrice={course.final_price}
               />
             ))}
           </div>

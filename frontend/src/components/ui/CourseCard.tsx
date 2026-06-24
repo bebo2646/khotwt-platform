@@ -2,6 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, CheckCircle, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { getCourseDisplayPrice } from '../../utils/pricing'
 
 interface CourseCardProps {
   id: number
@@ -50,7 +51,13 @@ export default function CourseCard({
   discountValue = 0,
   finalPrice = 0,
 }: CourseCardProps) {
-  const formattedPrice = price === '0.00' || price === 0 ? 'مجاني' : `${price} ج.م`
+  const pricing = getCourseDisplayPrice({
+    price,
+    enable_discount: enableDiscount,
+    discount_type: discountType,
+    discount_value: discountValue,
+    final_price: finalPrice,
+  })
   
   return (
     <motion.div 
@@ -149,18 +156,18 @@ export default function CourseCard({
           </>
         ) : (
           <>
-            {enableDiscount ? (
+            {pricing.hasDiscount ? (
               <div className="flex flex-col items-start gap-0.5">
-                <span className="text-[10px] line-through text-text-secondary/70">{formattedPrice}</span>
+                <span className="text-[10px] line-through text-text-secondary/70">{pricing.formattedOriginalPrice}</span>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-black text-emerald-500">{finalPrice === 0 || finalPrice === '0.00' ? 'مجاني' : `${finalPrice} ج.م`}</span>
+                  <span className="text-sm font-black text-emerald-500">{pricing.formattedFinalPrice}</span>
                   <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[7px] font-black px-1 py-0.5 rounded scale-90">
-                    {discountType === 'percentage' ? `${discountValue}% خصم` : `${discountValue} ج.م خصم`}
+                    {pricing.discountText}
                   </span>
                 </div>
               </div>
             ) : (
-              <span className="text-base font-black text-brand-primary">{formattedPrice}</span>
+              <span className="text-base font-black text-brand-primary">{pricing.formattedOriginalPrice}</span>
             )}
             <Link 
               to={`/course/${slug || id}`} 

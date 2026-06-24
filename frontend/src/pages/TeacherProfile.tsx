@@ -233,6 +233,10 @@ export default function TeacherProfile() {
                 teacherName={teacher.name}
                 teacherAvatar={teacher.avatar}
                 slug={course.slug}
+                enableDiscount={course.enable_discount}
+                discountType={course.discount_type}
+                discountValue={course.discount_value}
+                finalPrice={course.final_price}
               />
             ))}
           </div>

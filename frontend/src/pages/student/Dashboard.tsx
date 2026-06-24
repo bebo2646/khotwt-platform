@@ -566,6 +566,10 @@ export default function StudentDashboard() {
                     teacherAvatar={course.teacher.avatar}
                     isSubscribed={false}
                     lessonsCount={course.lessons_count}
+                    enableDiscount={course.enable_discount}
+                    discountType={course.discount_type}
+                    discountValue={course.discount_value}
+                    finalPrice={course.final_price}
                   />
                 </motion.div>
               ))}
@@ -604,6 +608,10 @@ export default function StudentDashboard() {
                     teacherAvatar={course.teacher.avatar}
                     isSubscribed={enrolledCourseIds.has(course.id)}
                     lessonsCount={course.lessons_count}
+                    enableDiscount={course.enable_discount}
+                    discountType={course.discount_type}
+                    discountValue={course.discount_value}
+                    finalPrice={course.final_price}
                   />
                 </motion.div>
               ))}
