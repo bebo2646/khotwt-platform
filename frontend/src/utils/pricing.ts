@@ -2,12 +2,12 @@ export interface CourseForPricing {
   price: string | number;
   enable_discount?: boolean;
   enableDiscount?: boolean;
-  discount_type?: 'percentage' | 'fixed';
-  discountType?: 'percentage' | 'fixed';
-  discount_value?: string | number;
-  discountValue?: string | number;
-  final_price?: string | number;
-  finalPrice?: string | number;
+  discount_type?: 'percentage' | 'fixed' | null;
+  discountType?: 'percentage' | 'fixed' | null;
+  discount_value?: string | number | null;
+  discountValue?: string | number | null;
+  final_price?: string | number | null;
+  finalPrice?: string | number | null;
 }
 
 export interface DisplayPriceInfo {

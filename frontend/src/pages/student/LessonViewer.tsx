@@ -329,7 +329,8 @@ export default function LessonViewer() {
     const pos = video.progress?.last_position_seconds || 0;
     
     if (isYoutubeUrl(url)) {
-      return getYoutubeEmbedUrl(url, pos) || url;
+      const embedBase = getYoutubeEmbedUrl(url);
+      return `${embedBase}?enablejsapi=1&start=${pos}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
@@ -433,17 +434,7 @@ export default function LessonViewer() {
                   }
 
                   if (isYoutubeUrl(url)) {
-                    const embedUrlStr = getYoutubeEmbedUrl(url, lastPosition);
-                    
-                    if (!embedUrlStr) {
-                      return (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
-                          <AlertCircle className="h-12 w-12 text-amber-500 mb-3" />
-                          <h4 className="text-sm font-bold text-slate-200 mb-1">رابط YouTube غير صالح</h4>
-                          <p className="text-xs font-light max-w-xs">الرابط الموفر لا يحتوي على معرف فيديو صحيح لـ YouTube.</p>
-                        </div>
-                      );
-                    }
+                    const embedUrlStr = getEmbedUrl(activeVideo);
                     
                     return (
                       <iframe

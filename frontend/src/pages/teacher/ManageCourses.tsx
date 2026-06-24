@@ -16,9 +16,9 @@ interface CourseItem {
   subject: string
   students_count: number
   enable_discount?: boolean
-  discount_type?: 'percentage' | 'fixed'
-  discount_value?: string
-  final_price?: number
+  discount_type?: 'percentage' | 'fixed' | null
+  discount_value?: number | null
+  final_price?: number | null
 }
 
 interface LessonItem {
@@ -251,7 +251,7 @@ export default function ManageCourses() {
     setCourseSubject(course.subject)
     setCourseEnableDiscount(!!course.enable_discount)
     setCourseDiscountType(course.discount_type || 'percentage')
-    setCourseDiscountValue(course.discount_value || '')
+    setCourseDiscountValue(course.discount_value !== null && course.discount_value !== undefined ? course.discount_value.toString() : '')
     setShowCourseForm(true)
   }
 

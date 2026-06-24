@@ -16,9 +16,9 @@ interface CourseItem {
   grade: string
   subject: string
   enable_discount?: boolean
-  discount_type?: 'percentage' | 'fixed'
-  discount_value?: string
-  final_price?: number
+  discount_type?: 'percentage' | 'fixed' | null
+  discount_value?: number | null
+  final_price?: number | null
   teacher: {
     name: string
     avatar?: string
@@ -296,10 +296,10 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     subject={course.subject}
                     teacherName={course.teacher.name}
                     teacherAvatar={course.teacher.avatar}
-                    enableDiscount={course.enable_discount}
-                    discountType={course.discount_type}
-                    discountValue={course.discount_value}
-                    finalPrice={course.final_price}
+                    enableDiscount={course.enable_discount === true}
+                    discountType={course.discount_type ?? undefined}
+                    discountValue={course.discount_value ?? undefined}
+                    finalPrice={course.final_price ?? undefined}
                   />
                 ))}
               </div>

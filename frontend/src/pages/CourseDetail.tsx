@@ -17,9 +17,9 @@ interface CourseItem {
   grade: string
   subject: string
   enable_discount?: boolean
-  discount_type?: 'percentage' | 'fixed'
-  discount_value?: string
-  final_price?: string | number
+  discount_type?: 'percentage' | 'fixed' | null
+  discount_value?: number | null
+  final_price?: number | null
   teacher: {
     id: number
     name: string

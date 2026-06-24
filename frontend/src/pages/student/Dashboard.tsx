@@ -116,9 +116,9 @@ interface AvailableCourse {
   subject: string
   lessons_count: number
   enable_discount?: boolean
-  discount_type?: 'percentage' | 'fixed'
-  discount_value?: string | number
-  final_price?: string | number
+  discount_type?: 'percentage' | 'fixed' | null
+  discount_value?: number | null
+  final_price?: number | null
   teacher: {
     id: number
     name: string
@@ -570,10 +570,10 @@ export default function StudentDashboard() {
                     teacherAvatar={course.teacher.avatar}
                     isSubscribed={false}
                     lessonsCount={course.lessons_count}
-                    enableDiscount={course.enable_discount}
-                    discountType={course.discount_type}
-                    discountValue={course.discount_value}
-                    finalPrice={course.final_price}
+                    enableDiscount={course.enable_discount === true}
+                    discountType={course.discount_type ?? undefined}
+                    discountValue={course.discount_value ?? undefined}
+                    finalPrice={course.final_price ?? undefined}
                   />
                 </motion.div>
               ))}
@@ -612,10 +612,10 @@ export default function StudentDashboard() {
                     teacherAvatar={course.teacher.avatar}
                     isSubscribed={enrolledCourseIds.has(course.id)}
                     lessonsCount={course.lessons_count}
-                    enableDiscount={course.enable_discount}
-                    discountType={course.discount_type}
-                    discountValue={course.discount_value}
-                    finalPrice={course.final_price}
+                    enableDiscount={course.enable_discount === true}
+                    discountType={course.discount_type ?? undefined}
+                    discountValue={course.discount_value ?? undefined}
+                    finalPrice={course.final_price ?? undefined}
                   />
                 </motion.div>
               ))}
