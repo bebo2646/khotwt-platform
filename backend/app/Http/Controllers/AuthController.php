@@ -42,10 +42,12 @@ class AuthController extends Controller
         ]);
 
         $sessionToken = \Illuminate\Support\Str::random(40);
+        $currentSessionToken = (string) \Illuminate\Support\Str::uuid();
         $student->update([
             'session_token' => $sessionToken,
             'device_id' => substr($request->header('User-Agent') . ' (' . $request->ip() . ')', 0, 255),
             'last_activity' => now(),
+            'current_session_token' => $currentSessionToken,
         ]);
 
         $token = $student->createToken('auth_token')->plainTextToken;
@@ -53,7 +55,8 @@ class AuthController extends Controller
         return response()->json([
             'user' => $student,
             'token' => $token,
-            'session_token' => $sessionToken,
+            'session_token' => $currentSessionToken,
+            'current_session_token' => $currentSessionToken,
         ], 201);
     }
 
@@ -83,10 +86,12 @@ class AuthController extends Controller
         $user->tokens()->delete();
 
         $sessionToken = \Illuminate\Support\Str::random(40);
+        $currentSessionToken = (string) \Illuminate\Support\Str::uuid();
         $user->update([
             'session_token' => $sessionToken,
             'device_id' => substr($request->header('User-Agent') . ' (' . $request->ip() . ')', 0, 255),
             'last_activity' => now(),
+            'current_session_token' => $currentSessionToken,
         ]);
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -94,7 +99,8 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user,
             'token' => $token,
-            'session_token' => $sessionToken,
+            'session_token' => $currentSessionToken,
+            'current_session_token' => $currentSessionToken,
         ]);
     }
 
@@ -103,7 +109,13 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        $user = $request->user();
+        if ($user) {
+            $user->update([
+                'current_session_token' => null
+            ]);
+            $user->currentAccessToken()->delete();
+        }
 
         return response()->json(['message' => 'تم تسجيل الخروج بنجاح.']);
     }

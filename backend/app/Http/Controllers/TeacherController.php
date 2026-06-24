@@ -35,6 +35,121 @@ class TeacherController extends Controller
     }
 
     /**
+     * Helper to fetch video metadata from YouTube.
+     */
+    private function fetchYoutubeVideoDetails($url)
+    {
+        preg_match('%(?:youtube\.com/(?:[^/]+/.+/|(?:v|e(?:mbed)?)/|.*[?&]v=)|youtu\.be/)([^"&?/ ]{11})%i', $url, $match);
+        $videoId = $match[1] ?? null;
+        if (!$videoId) {
+            return null;
+        }
+
+        $durationSeconds = 0;
+        $title = null;
+        $thumbnail = "https://img.youtube.com/vi/{$videoId}/hqdefault.jpg";
+
+        // Try getting duration via HTML scrap
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
+            ])->get("https://www.youtube.com/watch?v={$videoId}");
+
+            if ($response->successful()) {
+                $html = $response->body();
+                
+                // 1. Try parsing itemprop="duration"
+                if (preg_match('/<meta itemprop="duration" content="([^"]+)">/', $html, $durationMatches)) {
+                    $xmlDuration = $durationMatches[1];
+                    $durationSeconds = $this->parseISO8601Duration($xmlDuration);
+                }
+                
+                // 2. Try parsing ytInitialPlayerResponse as fallback
+                if ($durationSeconds <= 0 && preg_match('/ytInitialPlayerResponse\s*=\s*({.+?});/s', $html, $playerMatches)) {
+                    $json = json_decode($playerMatches[1], true);
+                    if ($json && isset($json['videoDetails']['lengthSeconds'])) {
+                        $durationSeconds = intval($json['videoDetails']['lengthSeconds']);
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to scrape YouTube page: " . $e->getMessage());
+        }
+
+        // Try getting title via oEmbed
+        try {
+            $oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={$videoId}&format=json";
+            $oembedResponse = \Illuminate\Support\Facades\Http::get($oembedUrl);
+            if ($oembedResponse->successful()) {
+                $oembedData = $oembedResponse->json();
+                $title = $oembedData['title'] ?? null;
+                if (isset($oembedData['thumbnail_url'])) {
+                    $thumbnail = $oembedData['thumbnail_url'];
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to fetch YouTube oEmbed: " . $e->getMessage());
+        }
+
+        $durationText = '';
+        if ($durationSeconds > 0) {
+            $minutes = floor($durationSeconds / 60);
+            $seconds = $durationSeconds % 60;
+            $durationText = sprintf("%d:%02d", $minutes, $seconds);
+        }
+
+        return [
+            'duration_seconds' => $durationSeconds > 0 ? $durationSeconds : 300,
+            'duration_text' => $durationText ?: '5:00',
+            'title' => $title,
+            'thumbnail_path' => $thumbnail,
+        ];
+    }
+
+    /**
+     * Helper to parse ISO 8601 duration to seconds.
+     */
+    private function parseISO8601Duration($xmlDuration)
+    {
+        $dateLen = strlen($xmlDuration);
+        $duration = [
+            'H' => 0,
+            'M' => 0,
+            'S' => 0
+        ];
+        $number = '';
+        for ($i = 0; $i < $dateLen; $i++) {
+            $char = $xmlDuration[$i];
+            if (is_numeric($char)) {
+                $number .= $char;
+            } else if (in_array($char, ['H', 'M', 'S'])) {
+                $duration[$char] = intval($number);
+                $number = '';
+            }
+        }
+        return $duration['H'] * 3600 + $duration['M'] * 60 + $duration['S'];
+    }
+
+    /**
+     * Update parent lesson's total duration.
+     */
+    private function updateLessonDuration($lessonId)
+    {
+        $lesson = Lesson::find($lessonId);
+        if ($lesson) {
+            $totalSeconds = Video::where('lesson_id', $lessonId)->sum('duration_seconds');
+            $minutes = floor($totalSeconds / 60);
+            $seconds = $totalSeconds % 60;
+            $durationText = sprintf("%d:%02d", $minutes, $seconds);
+            
+            $lesson->update([
+                'duration_seconds' => $totalSeconds,
+                'duration_text' => $durationText,
+            ]);
+        }
+    }
+
+    /**
      * Helper to fetch video metadata from Bunny Stream API.
      */
     private function fetchBunnyVideoDetails($videoId)
@@ -596,13 +711,23 @@ class TeacherController extends Controller
             }
         }
 
+        if ($provider === 'youtube') {
+            $ytMeta = $this->fetchYoutubeVideoDetails($url);
+            if ($ytMeta) {
+                $request->merge([
+                    'duration_seconds' => $ytMeta['duration_seconds'],
+                    'thumbnail_path' => $ytMeta['thumbnail_path'],
+                ]);
+            }
+        }
+
         $isBunnyConfigured = !empty(env('BUNNY_STREAM_LIBRARY_ID'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
             'title' => 'required|string|max:255',
             'bunny_embed_url' => 'required|string',
-            'duration_seconds' => 'required|integer|min:1',
+            'duration_seconds' => 'nullable|integer',
             'thumbnail_path' => 'nullable|string',
             'resolution' => 'nullable|string',
         ];
@@ -615,15 +740,22 @@ class TeacherController extends Controller
 
         $request->validate($rules);
 
+        $durationSeconds = $request->duration_seconds;
+        if (empty($durationSeconds) || $durationSeconds <= 0) {
+            $durationSeconds = 300; // fallback default
+        }
+
         $video = Video::create([
             'lesson_id' => $lessonId,
             'title' => $request->title,
             'bunny_stream_id' => $request->bunny_stream_id,
             'bunny_embed_url' => $request->bunny_embed_url,
-            'duration_seconds' => $request->duration_seconds,
+            'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
         ]);
+
+        $this->updateLessonDuration($lessonId);
 
         return response()->json($video, 201);
     }
@@ -697,13 +829,23 @@ class TeacherController extends Controller
             }
         }
 
+        if ($provider === 'youtube') {
+            $ytMeta = $this->fetchYoutubeVideoDetails($url);
+            if ($ytMeta) {
+                $request->merge([
+                    'duration_seconds' => $ytMeta['duration_seconds'],
+                    'thumbnail_path' => $ytMeta['thumbnail_path'],
+                ]);
+            }
+        }
+
         $isBunnyConfigured = !empty(env('BUNNY_STREAM_LIBRARY_ID'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
             'title' => 'required|string|max:255',
             'bunny_embed_url' => 'required|string',
-            'duration_seconds' => 'required|integer|min:1',
+            'duration_seconds' => 'nullable|integer',
             'thumbnail_path' => 'nullable|string',
             'resolution' => 'nullable|string',
         ];
@@ -716,14 +858,21 @@ class TeacherController extends Controller
 
         $request->validate($rules);
 
+        $durationSeconds = $request->duration_seconds;
+        if (empty($durationSeconds) || $durationSeconds <= 0) {
+            $durationSeconds = $video->duration_seconds ?: 300;
+        }
+
         $video->update([
             'title' => $request->title,
             'bunny_stream_id' => $request->bunny_stream_id,
             'bunny_embed_url' => $request->bunny_embed_url,
-            'duration_seconds' => $request->duration_seconds,
+            'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
         ]);
+
+        $this->updateLessonDuration($video->lesson_id);
 
         return response()->json($video);
     }
@@ -737,7 +886,10 @@ class TeacherController extends Controller
         $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
+        $lessonId = $video->lesson_id;
         $video->delete();
+
+        $this->updateLessonDuration($lessonId);
 
         return response()->json(['message' => 'تم حذف الفيديو بنجاح.']);
     }
@@ -1564,4 +1716,48 @@ class TeacherController extends Controller
         $exam->delete();
         return response()->json(['message' => 'تم حذف الامتحان بنجاح']);
     }
+
+    /**
+     * Detect duration/metadata of video from url automatically.
+     */
+    public function detectVideoDurationUrl(Request $request)
+    {
+        $request->validate([
+            'url' => 'required|string',
+        ]);
+
+        $url = $request->input('url');
+        $provider = 'unknown';
+        if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
+            $provider = 'youtube';
+        } elseif (str_contains($url, '.mp4')) {
+            $provider = 'direct';
+        } elseif (str_contains($url, 'iframe.mediadelivery.net')) {
+            $provider = 'bunny';
+        }
+
+        if ($provider === 'youtube') {
+            $meta = $this->fetchYoutubeVideoDetails($url);
+            if ($meta) {
+                return response()->json($meta);
+            }
+        } elseif ($provider === 'bunny') {
+            preg_match('/play\/(\d+)\/([a-zA-Z0-9\-]+)/', $url, $matches);
+            $bunnyId = $matches[2] ?? null;
+            if ($bunnyId) {
+                $meta = $this->fetchBunnyVideoDetails($bunnyId);
+                if ($meta) {
+                    return response()->json($meta);
+                }
+            }
+        }
+
+        return response()->json([
+            'duration_seconds' => 300,
+            'duration_text' => '5:00',
+            'title' => null,
+            'thumbnail_path' => null,
+        ]);
+    }
 }
+

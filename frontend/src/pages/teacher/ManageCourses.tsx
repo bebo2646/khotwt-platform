@@ -133,6 +133,54 @@ export default function ManageCourses() {
   const [replacingVideo, setReplacingVideo] = React.useState<any | null>(null)
   const [replacingPdf, setReplacingPdf] = React.useState<any | null>(null)
 
+  React.useEffect(() => {
+    const url = vidEmbedUrl.trim();
+    if (!url) return;
+
+    const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
+    const isBunny = url.includes('iframe.mediadelivery.net');
+    const isDirectMp4 = url.toLowerCase().endsWith('.mp4') || url.includes('.mp4?');
+
+    if (isYoutube || isBunny) {
+      const controller = new AbortController();
+      const delayDebounceFn = setTimeout(async () => {
+        try {
+          const res = await API.post('/teacher/videos/detect-duration', { url }, { signal: controller.signal });
+          if (res.data) {
+            if (res.data.duration_seconds) {
+              setVidDuration(res.data.duration_seconds.toString());
+            }
+            if (res.data.title && !vidTitle.trim()) {
+              setVidTitle(res.data.title);
+            }
+            if (res.data.thumbnail_path && !vidThumbnail) {
+              setVidThumbnail(res.data.thumbnail_path);
+            }
+          }
+        } catch (e: any) {
+          if (e.name !== 'CanceledError') {
+            console.error('Failed to auto-detect video details:', e);
+          }
+        }
+      }, 800); // 800ms debounce
+
+      return () => {
+        clearTimeout(delayDebounceFn);
+        controller.abort();
+      };
+    } else if (isDirectMp4) {
+      const videoEl = document.createElement('video');
+      videoEl.preload = 'metadata';
+      videoEl.src = url;
+      videoEl.onloadedmetadata = () => {
+        const duration = Math.round(videoEl.duration);
+        if (duration && duration > 0) {
+          setVidDuration(duration.toString());
+        }
+      };
+    }
+  }, [vidEmbedUrl]);
+
   // Package settings
   const [packageTitle, setPackageTitle] = React.useState('')
   const [packagePrice, setPackagePrice] = React.useState('')
@@ -449,6 +497,12 @@ export default function ManageCourses() {
       status: 'جاري إنشاء كائن الفيديو على Bunny Stream...'
     });
 
+    detectVideoDuration(file).then(duration => {
+      setVidDuration(duration.toString());
+    }).catch(e => {
+      console.warn("Could not read local video duration:", e);
+    });
+
     try {
       // 1. Request signed upload credentials from our server
       const signedRes = await API.post('/teacher/videos/signed-upload', {
@@ -499,7 +553,6 @@ export default function ManageCourses() {
           // Success! Set the embed URL, video stream ID, and metadata
           setVidEmbedUrl(embed_url);
           setVidStreamId(video_id);
-          setVidDuration('300'); // Dummy duration, backend will fetch real duration
           
           // Let's set a default thumbnail path using standard schema
           const defaultThumb = `https://iframe.mediadelivery.net/play/${library_id}/${video_id}/thumbnail.jpg`;
@@ -1683,17 +1736,6 @@ export default function ManageCourses() {
                 );
               })()}
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">مدة الفيديو بالثواني</label>
-                <input
-                  type="number"
-                  required
-                  value={vidDuration}
-                  onChange={(e) => setVidDuration(e.target.value)}
-                  placeholder="سيتم استخراجها تلقائياً عند الرفع، أو اكتبها هنا..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                />
-              </div>
 
               {/* Thumbnail Display & Manual replacement */}
               <div className="space-y-2">
@@ -1851,17 +1893,6 @@ export default function ManageCourses() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">مدة الفيديو بالثواني</label>
-                <input
-                  type="number"
-                  required
-                  value={vidDuration}
-                  onChange={(e) => setVidDuration(e.target.value)}
-                  placeholder="مثال: 300..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
-                />
-              </div>
 
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-slate-300 block">غلاف الفيديو (تحميل يدوي)</label>
@@ -1966,17 +1997,6 @@ export default function ManageCourses() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">مدة الفيديو بالثواني</label>
-                <input
-                  type="number"
-                  required
-                  value={vidDuration}
-                  onChange={(e) => setVidDuration(e.target.value)}
-                  placeholder="تلقائي عند الرفع أو اكتبها..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
-                />
-              </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
                 <button type="button" onClick={() => setReplacingVideo(null)} className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>

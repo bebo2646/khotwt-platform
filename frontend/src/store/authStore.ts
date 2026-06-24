@@ -36,7 +36,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set) => {
   // Try loading initial credentials from localStorage
-  const savedToken = localStorage.getItem('elm_token')
+  const savedToken = localStorage.getItem('auth_token') || localStorage.getItem('elm_token')
   const savedUser = localStorage.getItem('elm_user')
   
   let user: UserProfile | null = null
@@ -54,16 +54,20 @@ export const useAuthStore = create<AuthState>((set) => {
     isLoggedIn: !!savedToken && !!user,
     isLoading: false,
     login: (user, token, sessionToken) => {
+      localStorage.setItem('auth_token', token)
       localStorage.setItem('elm_token', token)
       localStorage.setItem('elm_user', JSON.stringify(user))
       if (sessionToken) {
+        localStorage.setItem('session_token', sessionToken)
         localStorage.setItem('elm_session_token', sessionToken)
       }
       set({ user, token, isLoggedIn: true })
     },
     logout: () => {
+      localStorage.removeItem('auth_token')
       localStorage.removeItem('elm_token')
       localStorage.removeItem('elm_user')
+      localStorage.removeItem('session_token')
       localStorage.removeItem('elm_session_token')
       set({ user: null, token: null, isLoggedIn: false })
     },

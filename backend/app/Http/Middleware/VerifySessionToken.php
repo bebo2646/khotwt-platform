@@ -18,14 +18,15 @@ class VerifySessionToken
         if ($user) {
             $sessionToken = $request->header('X-Session-Token');
 
-            if ($user->session_token && $sessionToken !== $user->session_token) {
+            if ($user->current_session_token && $sessionToken !== $user->current_session_token) {
                 // Invalidate the current Sanctum token immediately
                 $user->currentAccessToken()->delete();
 
                 return response()->json([
                     'message' => 'تم تسجيل الدخول من جهاز آخر.',
+                    'code' => 'SESSION_EXPIRED',
                     'session_invalid' => true
-                ], 409); // 409 Conflict
+                ], 401); // 401 Unauthorized
             }
 
             // Update last activity

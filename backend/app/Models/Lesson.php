@@ -16,6 +16,8 @@ class Lesson extends Model
         'description',
         'order',
         'price',
+        'duration_seconds',
+        'duration_text',
     ];
 
     protected $casts = [

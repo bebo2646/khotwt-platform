@@ -949,11 +949,11 @@ class StudentController extends Controller
         // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
         $duration = $video->duration_seconds ?: 300;
         
-        $watchedSeconds = $request->watched_seconds;
         $lastPosition = $request->last_position_seconds;
+        $watchedSeconds = max($request->watched_seconds, $lastPosition);
         
-        // Calculate percentage
-        $percentage = min(100.00, round(($watchedSeconds / $duration) * 100, 2));
+        // Calculate percentage using the formula: (currentPositionSeconds / durationSeconds) * 100
+        $percentage = min(100.00, round(($lastPosition / $duration) * 100, 2));
 
         $progress = VideoProgress::where('student_id', $user->id)
             ->where('video_id', $videoId)

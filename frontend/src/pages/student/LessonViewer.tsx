@@ -184,9 +184,11 @@ export default function LessonViewer() {
     if (!video || progressSavingRef.current) return
     progressSavingRef.current = true
     try {
+      const currentPos = lastPositionRef.current;
+      const watched = Math.max(secondsWatchedRef.current, currentPos);
       const res = await API.post(`/videos/${video.id}/progress`, {
-        watched_seconds: secondsWatchedRef.current,
-        last_position_seconds: lastPositionRef.current,
+        watched_seconds: watched,
+        last_position_seconds: currentPos,
       })
       if (res.data) {
         setVideos(prev => prev.map(v => {
@@ -198,6 +200,15 @@ export default function LessonViewer() {
           }
           return v;
         }));
+        setActiveVideo(prev => {
+          if (prev && prev.id === video.id) {
+            return {
+              ...prev,
+              progress: res.data
+            };
+          }
+          return prev;
+        });
       }
     } catch (err) {
       console.error('Failed to sync video progress:', err)
@@ -205,6 +216,47 @@ export default function LessonViewer() {
       progressSavingRef.current = false
     }
   }
+
+  // Completion check hook: works for all videos (YouTube, Bunny, MP4)
+  React.useEffect(() => {
+    if (!activeVideo || activeVideo.duration_seconds <= 0) return;
+    const progressPercentage = (lastPosition / activeVideo.duration_seconds) * 100;
+    
+    if (progressPercentage >= 90 && !activeVideo.progress?.completed && !progressSavingRef.current) {
+      // Temporarily mark completed locally so we don't trigger sync repeatedly
+      setVideos(prev => prev.map(v => {
+        if (v.id === activeVideo.id) {
+          return {
+            ...v,
+            progress: {
+              watched_seconds: v.progress?.watched_seconds || 0,
+              last_position_seconds: v.progress?.last_position_seconds || 0,
+              watched_percentage: v.progress?.watched_percentage || '0.00',
+              ...v.progress,
+              completed: true
+            }
+          };
+        }
+        return v;
+      }));
+      setActiveVideo(prev => {
+        if (prev && prev.id === activeVideo.id) {
+          return {
+            ...prev,
+            progress: {
+              watched_seconds: prev.progress?.watched_seconds || 0,
+              last_position_seconds: prev.progress?.last_position_seconds || 0,
+              watched_percentage: prev.progress?.watched_percentage || '0.00',
+              ...prev.progress,
+              completed: true
+            }
+          };
+        }
+        return prev;
+      });
+      syncProgressToDb();
+    }
+  }, [lastPosition, activeVideo]);
 
   // Message listener for YouTube and Bunny Stream players
   React.useEffect(() => {
@@ -624,22 +676,22 @@ export default function LessonViewer() {
                     {/* Live Progress Stats */}
                     <div className="flex justify-between items-center text-xs text-slate-400">
                       <span className="font-medium">
-                        شاهدت: {formatTime(secondsWatched)} من {formatTime(activeVideo.duration_seconds)}
+                        شاهدت: {formatTime(lastPosition)} من {formatTime(activeVideo.duration_seconds)}
                       </span>
                       <span className="font-black text-brand-primary">
-                        {activeVideo.duration_seconds > 0 ? ((secondsWatched / activeVideo.duration_seconds) * 100).toFixed(0) : '0'}%
+                        {activeVideo.duration_seconds > 0 ? ((lastPosition / activeVideo.duration_seconds) * 100).toFixed(0) : '0'}%
                       </span>
                     </div>
                     {/* Progress Bar */}
                     <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden relative">
                       <div
                         className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all duration-300"
-                        style={{ width: `${activeVideo.duration_seconds > 0 ? (secondsWatched / activeVideo.duration_seconds) * 100 : 0}%` }}
+                        style={{ width: `${activeVideo.duration_seconds > 0 ? (lastPosition / activeVideo.duration_seconds) * 100 : 0}%` }}
                       />
                     </div>
                     {/* Completion status indicator */}
                     <div className="text-xs mt-1">
-                      {(activeVideo.duration_seconds > 0 && (secondsWatched / activeVideo.duration_seconds) * 100 >= 90) ? (
+                      {(activeVideo.duration_seconds > 0 && (lastPosition / activeVideo.duration_seconds) * 100 >= 90) ? (
                         <span className="text-brand-success font-bold flex items-center gap-1">
                           <CheckCircle2 className="h-4 w-4" /> مكتمل المشاهدة (تجاوز 90%)
                         </span>
@@ -867,7 +919,7 @@ export default function LessonViewer() {
 
                           {/* Visual progress bar and stats */}
                           {(() => {
-                            const currentWatched = isActive ? secondsWatched : (vid.progress ? vid.progress.watched_seconds : 0);
+                            const currentWatched = isActive ? lastPosition : (vid.progress ? vid.progress.last_position_seconds : 0);
                             const totalDuration = vid.duration_seconds || 300;
                             const percentage = Math.min(100, (currentWatched / totalDuration) * 100);
 
