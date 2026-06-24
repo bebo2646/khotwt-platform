@@ -10,6 +10,8 @@ import { useModalStore } from './store/modalStore'
 import WhatsAppButton from './components/WhatsAppButton'
 import PWAManager from './components/PWAManager'
 import API from './services/api'
+import AnalyticsTracker from './components/AnalyticsTracker'
+import RobotsTracker from './components/RobotsTracker'
 
 
 // Public Pages (Lazy Loaded)
@@ -137,6 +139,8 @@ function App() {
 
   return (
     <Router>
+      <AnalyticsTracker />
+      <RobotsTracker />
       <ModalProvider />
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
@@ -153,8 +157,11 @@ function App() {
         <Route path="/register" element={<Layout><Register /></Layout>} />
         <Route path="/courses" element={<Layout><Courses /></Layout>} />
         <Route path="/course/:id" element={<Layout><CourseDetail /></Layout>} />
+        <Route path="/courses/:id" element={<Layout><CourseDetail /></Layout>} />
         <Route path="/teachers" element={<Layout><Teachers /></Layout>} />
         <Route path="/teacher/:id" element={<Layout><TeacherProfile /></Layout>} />
+        <Route path="/teachers/:id" element={<Layout><TeacherProfile /></Layout>} />
+        <Route path="/stages/:gradeId" element={<Layout><Courses /></Layout>} />
         
         {/* SEO Search Landing Pages */}
         <Route path="/subject/:subjectId" element={<Layout><Courses /></Layout>} />

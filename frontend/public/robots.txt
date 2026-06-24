@@ -8,6 +8,7 @@ Allow: /courses/*
 Allow: /course/*
 Allow: /subject/*
 Allow: /grade/*
+Allow: /stages/*
 Allow: /chemistry
 Allow: /physics
 Allow: /arabic

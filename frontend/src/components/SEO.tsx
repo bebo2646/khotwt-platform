@@ -8,6 +8,8 @@ interface SEOProps {
   ogType?: string
   canonicalUrl?: string
   schema?: Record<string, any>
+  noindex?: boolean
+  themeColor?: string
 }
 
 export default function SEO({
@@ -18,6 +20,8 @@ export default function SEO({
   ogType = 'website',
   canonicalUrl,
   schema,
+  noindex = false,
+  themeColor = '#6D5DFC',
 }: SEOProps) {
   useEffect(() => {
     // 1. Title
@@ -80,7 +84,18 @@ export default function SEO({
     setMetaTag('og:url', finalUrl, true)
     setCanonicalLink(finalUrl)
 
-    // 8. Schema.org JSON-LD structured data
+    // 8. Robots Indexing Control
+    const robotsValue = noindex ? 'noindex, nofollow' : 'index, follow'
+    setMetaTag('robots', robotsValue)
+
+    // 9. Viewport & Theme Color
+    setMetaTag('viewport', 'width=device-width, initial-scale=1.0, viewport-fit=cover')
+    setMetaTag('theme-color', themeColor)
+
+    // 10. Twitter Card
+    setMetaTag('twitter:card', 'summary_large_image')
+
+    // 11. Schema.org JSON-LD structured data
     let script = document.head.querySelector('script[data-schema="seo"]') as HTMLScriptElement | null
     if (schema) {
       if (!script) {
@@ -103,7 +118,7 @@ export default function SEO({
         existingScript.remove()
       }
     }
-  }, [title, description, keywords, ogImage, ogType, canonicalUrl, schema])
+  }, [title, description, keywords, ogImage, ogType, canonicalUrl, schema, noindex, themeColor])
 
   return null
 }
