@@ -95,6 +95,35 @@ export default function LessonViewer() {
   const [watchedTime, setWatchedTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
 
+  // Stable video embed URL state to prevent iframe reload/remount
+  const [videoEmbedUrl, setVideoEmbedUrl] = React.useState<string>('')
+  const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const getEmbedUrl = (video: VideoItem) => {
+    let url = video.bunny_embed_url || '';
+    const pos = video.progress?.last_position_seconds || 0;
+    
+    if (isYoutubeUrl(url)) {
+      const embedBase = getYoutubeEmbedUrl(url);
+      return `${embedBase}?enablejsapi=1&start=${pos}`;
+    } else if (url.includes('mediadelivery.net') || url.includes('bunny')) {
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
+    } else {
+      if (pos > 0) {
+        const separator = url.includes('?') ? '&' : '?';
+        return `${url}${separator}t=${pos}`;
+      }
+      return url;
+    }
+  };
+
   const handlePurchaseExam = (exam: ExamItem) => {
     useModalStore.getState().showConfirm({
       title: 'شراء امتحان مدفوع',
@@ -145,8 +174,14 @@ export default function LessonViewer() {
           const videoDuration = defaultVideo.duration_seconds || 300
           setDuration(videoDuration)
           setProgressPercentage(videoDuration > 0 ? (pos / videoDuration) * 100 : 0)
+
+          // Set stable video embed URL once initially
+          const initialEmbedUrl = getEmbedUrl(defaultVideo)
+          setVideoEmbedUrl(initialEmbedUrl)
+          console.log('[YouTube Player Debug] fetchLessonData - Set initial embed URL:', initialEmbedUrl)
         } else {
           setActiveVideo(null)
+          setVideoEmbedUrl('')
           setActiveTab('pdfs')
         }
       })
@@ -176,12 +211,6 @@ export default function LessonViewer() {
   React.useEffect(() => { secondsWatchedRef.current = secondsWatched }, [secondsWatched])
   React.useEffect(() => { lastPositionRef.current = lastPosition }, [lastPosition])
   React.useEffect(() => { durationRef.current = duration }, [duration])
-
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current && activeVideo) {
@@ -229,7 +258,6 @@ export default function LessonViewer() {
     }
   }
 
-  // Backward compatible wrapper for other handlers
   const syncProgressToDb = async () => {
     const current = lastPositionRef.current;
     const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
@@ -241,6 +269,23 @@ export default function LessonViewer() {
       progress_percentage: percentage
     });
   }
+
+  const saveLessonProgressRef = React.useRef(saveLessonProgress)
+  React.useEffect(() => { saveLessonProgressRef.current = saveLessonProgress }, [saveLessonProgress])
+
+  const syncProgressToDbRef = React.useRef(syncProgressToDb)
+  React.useEffect(() => { syncProgressToDbRef.current = syncProgressToDb }, [syncProgressToDb])
+
+  // Keep embed URL in sync when video ID changes
+  React.useEffect(() => {
+    if (activeVideo) {
+      const embedUrl = getEmbedUrl(activeVideo);
+      setVideoEmbedUrl(embedUrl);
+      console.log('[YouTube Player Debug] sync effect - videoEmbedUrl set to:', embedUrl, 'for video ID:', activeVideo.id);
+    } else {
+      setVideoEmbedUrl('');
+    }
+  }, [activeVideo?.id]);
 
   // Completion check hook: works for all videos (YouTube, Bunny, MP4)
   React.useEffect(() => {
@@ -300,14 +345,14 @@ export default function LessonViewer() {
           setIsPlaying(true)
         } else if (msg.event === 'pause') {
           setIsPlaying(false)
-          syncProgressToDb()
+          syncProgressToDbRef.current()
         } else if (msg.event === 'timeupdate' && msg.data?.currentTime !== undefined) {
           const time = Math.floor(msg.data.currentTime)
           setLastPosition(time)
         } else if (msg.event === 'seeking' && msg.data?.currentTime !== undefined) {
           const time = Math.floor(msg.data.currentTime)
           setLastPosition(time)
-          syncProgressToDb()
+          syncProgressToDbRef.current()
         }
 
         // YouTube Embed events (when enablejsapi=1 is passed)
@@ -317,10 +362,10 @@ export default function LessonViewer() {
             setIsPlaying(true)
           } else if (state === 2) { // Paused
             setIsPlaying(false)
-            syncProgressToDb()
+            syncProgressToDbRef.current()
           } else if (state === 0) { // Ended
             setIsPlaying(false)
-            syncProgressToDb()
+            syncProgressToDbRef.current()
           }
           if (msg.info.currentTime !== undefined) {
             const time = Math.floor(msg.info.currentTime)
@@ -380,11 +425,11 @@ export default function LessonViewer() {
 
   // Save progress when paused
   React.useEffect(() => {
-    if (!isPlaying && activeVideo) {
+    if (!isPlaying && activeVideoRef.current) {
       const current = lastPositionRef.current;
-      const durVal = durationRef.current || activeVideo.duration_seconds || 300;
+      const durVal = durationRef.current || activeVideoRef.current.duration_seconds || 300;
       const percentage = durVal > 0 ? (current / durVal) * 100 : 0;
-      saveLessonProgress({
+      saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
         watched_seconds: current,
@@ -398,6 +443,7 @@ export default function LessonViewer() {
     let interval: any = null;
 
     if (activeVideo && isPlaying && isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+      console.log('[YouTube Player Debug] Starting YT currentTime query interval');
       interval = setInterval(() => {
         const player = ytPlayerRef.current;
         if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
@@ -415,10 +461,11 @@ export default function LessonViewer() {
 
     return () => {
       if (interval) {
+        console.log('[YouTube Player Debug] Clearing YT currentTime query interval');
         clearInterval(interval);
       }
     };
-  }, [activeVideo, isPlaying]);
+  }, [activeVideo?.id, isPlaying]);
 
   // Synchronize watchedTime, secondsWatched, and progressPercentage reactively when lastPosition or duration changes
   React.useEffect(() => {
@@ -434,12 +481,14 @@ export default function LessonViewer() {
     let interval: any = null;
 
     if (activeVideo && isPlaying) {
+      console.log('[YouTube Player Debug] Starting periodic progress save interval');
       interval = setInterval(() => {
         const current = lastPositionRef.current;
-        const durVal = durationRef.current || activeVideo.duration_seconds || 300;
+        const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
         if (durVal > 0 && current >= 0) {
           const percentage = (current / durVal) * 100;
-          saveLessonProgress({
+          console.log('[YouTube Player Debug] Periodic save: position =', current, 'percentage =', percentage);
+          saveLessonProgressRef.current({
             lessonId: Number(id),
             last_position_seconds: current,
             watched_seconds: current,
@@ -451,10 +500,11 @@ export default function LessonViewer() {
 
     return () => {
       if (interval) {
+        console.log('[YouTube Player Debug] Clearing periodic progress save interval');
         clearInterval(interval);
       }
     };
-  }, [activeVideo, isPlaying, id]);
+  }, [activeVideo?.id, isPlaying, id]);
 
   // Log active video player src
   React.useEffect(() => {
@@ -474,13 +524,19 @@ export default function LessonViewer() {
 
     const initPlayer = () => {
       const element = document.getElementById('youtube-player');
-      if (!element || !window.YT || !window.YT.Player) return;
+      if (!element || !window.YT || !window.YT.Player) {
+        console.log('[YouTube Player Debug] Cannot init player yet. Element found:', !!element, 'window.YT:', !!window.YT);
+        return;
+      }
+
+      console.log('[YouTube Player Debug] Creating window.YT.Player instance for video ID:', activeVideoRef.current?.id);
 
       try {
         ytPlayer = new window.YT.Player('youtube-player', {
           events: {
             onStateChange: (event: any) => {
               const state = event.data;
+              console.log('[YouTube Player Debug] YT Player onStateChange. State:', state);
               if (state === 1) {
                 setIsPlaying(true);
               } else if (state === 2 || state === 0) {
@@ -493,7 +549,8 @@ export default function LessonViewer() {
                   setProgressPercentage(percentage);
                   setWatchedTime(current);
                   setDuration(durVal);
-                  saveLessonProgress({
+                  console.log('[YouTube Player Debug] Saving progress from onStateChange. Position:', current);
+                  saveLessonProgressRef.current({
                     lessonId: Number(id),
                     last_position_seconds: current,
                     watched_seconds: current,
@@ -503,8 +560,10 @@ export default function LessonViewer() {
               }
             },
             onReady: (event: any) => {
+              console.log('[YouTube Player Debug] YT Player onReady triggered');
               const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
               if (pos > 0) {
+                console.log('[YouTube Player Debug] Seeking to position:', pos);
                 event.target.seekTo(pos, true);
               }
               const durVal = Math.floor(event.target.getDuration() || activeVideoRef.current?.duration_seconds || 300);
@@ -517,12 +576,13 @@ export default function LessonViewer() {
         });
         ytPlayerRef.current = ytPlayer;
       } catch (e) {
-        console.error('Failed to initialize YT Player:', e);
+        console.error('[YouTube Player Debug] Failed to initialize YT Player:', e);
       }
     };
 
     const loadYoutubeAPI = () => {
       if (!window.YT) {
+        console.log('[YouTube Player Debug] Injecting YouTube IFrame API script tag');
         const tag = document.createElement('script');
         tag.src = 'https://www.youtube.com/iframe_api';
         const firstScriptTag = document.getElementsByTagName('script')[0];
@@ -531,35 +591,42 @@ export default function LessonViewer() {
         const prevCallback = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
           if (prevCallback) prevCallback();
+          console.log('[YouTube Player Debug] onYouTubeIframeAPIReady callback fired');
           initPlayer();
         };
       } else {
+        console.log('[YouTube Player Debug] YouTube API already script-injected. Initializing player.');
         setTimeout(initPlayer, 300);
       }
     };
 
-    if (activeVideo && isYoutubeUrl(activeVideo.bunny_embed_url)) {
+    if (activeVideo && isYoutubeUrl(activeVideo.bunny_embed_url) && activeTab === 'videos') {
       loadYoutubeAPI();
     }
 
     return () => {
+      console.log('[YouTube Player Debug] YT Player useEffect cleanup. Active video ID:', activeVideoRef.current?.id);
       if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+        console.log('[YouTube Player Debug] Destroying YT Player instance for video ID:', activeVideoRef.current?.id);
         try {
           ytPlayer.destroy();
-        } catch (e) {}
+        } catch (e) {
+          console.error('[YouTube Player Debug] Error destroying player:', e);
+        }
       }
       ytPlayerRef.current = null;
     };
-  }, [activeVideo]);
+  }, [activeVideo?.id, activeTab === 'videos']);
 
   // Handle active video selection switch
   const selectVideo = async (video: VideoItem) => {
     setIsPlaying(false)
-    if (activeVideo) {
+    const prevVideo = activeVideoRef.current
+    if (prevVideo) {
       const current = lastPositionRef.current;
-      const durVal = durationRef.current || activeVideo.duration_seconds || 300;
+      const durVal = durationRef.current || prevVideo.duration_seconds || 300;
       const percentage = durVal > 0 ? (current / durVal) * 100 : 0;
-      await saveLessonProgress({
+      await saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
         watched_seconds: current,
@@ -567,6 +634,12 @@ export default function LessonViewer() {
       });
     }
     setActiveVideo(video)
+    
+    // Set stable video embed URL for the new video
+    const newEmbedUrl = getEmbedUrl(video)
+    setVideoEmbedUrl(newEmbedUrl)
+    console.log('[YouTube Player Debug] selectVideo - Set new embed URL:', newEmbedUrl)
+
     const pos = video.progress?.last_position_seconds || 0
     const watchedSecs = video.progress?.watched_seconds || 0
     setLastPosition(pos)
@@ -582,25 +655,6 @@ export default function LessonViewer() {
       videoRef.current.currentTime = pos
     }
   }
-
-  const getEmbedUrl = (video: VideoItem) => {
-    let url = video.bunny_embed_url || '';
-    const pos = video.progress?.last_position_seconds || 0;
-    
-    if (isYoutubeUrl(url)) {
-      const embedBase = getYoutubeEmbedUrl(url);
-      return `${embedBase}?enablejsapi=1&start=${pos}`;
-    } else if (url.includes('mediadelivery.net') || url.includes('bunny')) {
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
-    } else {
-      if (pos > 0) {
-        const separator = url.includes('?') ? '&' : '?';
-        return `${url}${separator}t=${pos}`;
-      }
-      return url;
-    }
-  };
 
   // Handle page visibility change or unload
   React.useEffect(() => {
@@ -693,17 +747,28 @@ export default function LessonViewer() {
                   }
 
                   if (isYoutubeUrl(url)) {
-                    const embedUrlStr = getEmbedUrl(activeVideo);
-                    
+                    const finalSrc = videoEmbedUrl || getEmbedUrl(activeVideo);
+                    console.log('[YouTube Player Debug] Rendering YouTube iframe. finalSrc:', finalSrc);
                     return (
                       <iframe
                         id="youtube-player"
-                        src={embedUrlStr}
+                        src={finalSrc}
                         className="w-full h-full"
                         style={{ border: 'none' }}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                         referrerPolicy="origin"
+                        ref={(el) => {
+                          if (el) {
+                            if (iframeRef.current !== el) {
+                              console.log('[YouTube Player Debug] YouTube iframe DOM element MOUNTED / CHANGED. src:', el.src);
+                              iframeRef.current = el;
+                            }
+                          } else {
+                            console.log('[YouTube Player Debug] YouTube iframe DOM element UNMOUNTED.');
+                            iframeRef.current = null;
+                          }
+                        }}
                       />
                     );
                   } else if (isDirectVideoUrl(url)) {
@@ -732,21 +797,21 @@ export default function LessonViewer() {
                           setLastPosition(time)
                           setWatchedTime(time)
                           setSecondsWatched(time)
-                          syncProgressToDb()
+                          syncProgressToDbRef.current()
                         }}
                         onEnded={() => {
                           setIsPlaying(false)
-                          syncProgressToDb()
+                          syncProgressToDbRef.current()
                         }}
                         onLoadedMetadata={handleLoadedMetadata}
                       />
                     );
                   } else {
                     // Fallback to normal embed (mediadelivery.net / bunny CDN, etc.)
-                    const embedUrlStr = getEmbedUrl(activeVideo);
+                    const finalSrc = videoEmbedUrl || getEmbedUrl(activeVideo);
                     return (
                       <iframe
-                        src={embedUrlStr}
+                        src={finalSrc}
                         className="w-full h-full"
                         style={{ border: 'none' }}
                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
