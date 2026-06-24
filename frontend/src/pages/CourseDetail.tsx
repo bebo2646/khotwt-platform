@@ -294,22 +294,26 @@ export default function CourseDetail() {
             {(() => {
               const pricing = getCourseDisplayPrice(course)
               return pricing.hasDiscount ? (
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs line-through text-slate-500 font-medium">
+                <div className="flex flex-col gap-1 select-none">
+                  {/* Original Price */}
+                  <span className="text-sm text-slate-500 line-through font-semibold">
                     {pricing.formattedOriginalPrice}
                   </span>
+                  {/* Discount Badge + Final Price */}
                   <div className="flex items-center gap-2">
-                    <span className="text-3xl font-black text-emerald-500">
+                    <span className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] hover:scale-[1.03] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
                       {pricing.formattedFinalPrice}
                     </span>
-                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black px-2 py-0.5 rounded">
+                    <span className="px-2.5 py-1 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/25 text-xs font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] shrink-0">
                       {pricing.discountText}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="text-3xl font-black text-brand-primary">
-                  {pricing.formattedOriginalPrice}
+                <div className="select-none">
+                  <span className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] hover:scale-[1.03] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
+                    {pricing.formattedOriginalPrice}
+                  </span>
                 </div>
               )
             })()}

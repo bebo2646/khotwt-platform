@@ -157,21 +157,31 @@ export default function CourseCard({
         ) : (
           <>
             {pricing.hasDiscount ? (
-              <div className="flex flex-col items-start gap-0.5">
-                <span className="text-[10px] line-through text-text-secondary/70">{pricing.formattedOriginalPrice}</span>
-                <div className="flex items-center gap-1">
-                  <span className="text-sm font-black text-emerald-500">{pricing.formattedFinalPrice}</span>
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[7px] font-black px-1 py-0.5 rounded scale-90">
+              <div className="flex flex-col items-start gap-1 select-none">
+                {/* Original Price */}
+                <span className="text-xs text-slate-500 line-through font-semibold">
+                  {pricing.formattedOriginalPrice}
+                </span>
+                {/* Discount Badge + Final Price */}
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] group-hover:scale-[1.03] group-hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
+                    {pricing.formattedFinalPrice}
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/25 text-[10px] font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] shrink-0">
                     {pricing.discountText}
                   </span>
                 </div>
               </div>
             ) : (
-              <span className="text-base font-black text-brand-primary">{pricing.formattedOriginalPrice}</span>
+              <div className="select-none">
+                <span className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] group-hover:scale-[1.03] group-hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
+                  {pricing.formattedOriginalPrice}
+                </span>
+              </div>
             )}
             <Link 
               to={`/course/${slug || id}`} 
-              className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(22,196,127,0.3)] transition-all duration-200 cursor-pointer"
+              className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-200 cursor-pointer shrink-0"
             >
               اشترك الآن
             </Link>
