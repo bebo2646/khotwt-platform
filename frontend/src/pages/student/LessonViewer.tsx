@@ -4,6 +4,7 @@ import API from '../../services/api'
 import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
+import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl } from '../../utils/video'
 
 interface VideoItem {
   id: number
@@ -327,9 +328,8 @@ export default function LessonViewer() {
     let url = video.bunny_embed_url || '';
     const pos = video.progress?.last_position_seconds || 0;
     
-    if (url.includes('youtube.com') || url.includes('embed/')) {
-      const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}enablejsapi=1${pos > 0 ? `&start=${pos}` : ''}`;
+    if (isYoutubeUrl(url)) {
+      return getYoutubeEmbedUrl(url, pos) || url;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
@@ -421,10 +421,33 @@ export default function LessonViewer() {
                 
                 {(() => {
                   const url = activeVideo.bunny_embed_url || '';
-                  if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('embed/')) {
+                  
+                  if (!url) {
+                    return (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
+                        <Play className="h-12 w-12 text-rose-500 mb-3 animate-pulse" />
+                        <h4 className="text-sm font-bold text-slate-200 mb-1">رابط الفيديو غير متوفر</h4>
+                        <p className="text-xs font-light max-w-xs">يرجى التواصل مع المعلم أو إدارة المنصة لحل هذه المشكلة.</p>
+                      </div>
+                    );
+                  }
+
+                  if (isYoutubeUrl(url)) {
+                    const embedUrlStr = getYoutubeEmbedUrl(url, lastPosition);
+                    
+                    if (!embedUrlStr) {
+                      return (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
+                          <AlertCircle className="h-12 w-12 text-amber-500 mb-3" />
+                          <h4 className="text-sm font-bold text-slate-200 mb-1">رابط YouTube غير صالح</h4>
+                          <p className="text-xs font-light max-w-xs">الرابط الموفر لا يحتوي على معرف فيديو صحيح لـ YouTube.</p>
+                        </div>
+                      );
+                    }
+                    
                     return (
                       <iframe
-                        src={getEmbedUrl(activeVideo)}
+                        src={embedUrlStr}
                         className="w-full h-full"
                         style={{ border: 'none' }}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -432,7 +455,7 @@ export default function LessonViewer() {
                         referrerPolicy="origin"
                       />
                     );
-                  } else if (url.toLowerCase().includes('.mp4') || url.toLowerCase().includes('.m4v') || url.toLowerCase().includes('.mov') || url.toLowerCase().includes('.webm')) {
+                  } else if (isDirectVideoUrl(url)) {
                     return (
                       <video
                         ref={videoRef}
@@ -459,9 +482,11 @@ export default function LessonViewer() {
                       />
                     );
                   } else {
+                    // Fallback to normal embed (mediadelivery.net / bunny CDN, etc.)
+                    const embedUrlStr = getEmbedUrl(activeVideo);
                     return (
                       <iframe
-                        src={getEmbedUrl(activeVideo)}
+                        src={embedUrlStr}
                         className="w-full h-full"
                         style={{ border: 'none' }}
                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
