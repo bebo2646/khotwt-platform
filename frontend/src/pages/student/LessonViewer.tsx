@@ -6,6 +6,13 @@ import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
 import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl } from '../../utils/video'
 
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: (() => void) | undefined;
+  }
+}
+
 interface VideoItem {
   id: number
   title: string
@@ -177,10 +184,21 @@ export default function LessonViewer() {
     if (!video || progressSavingRef.current) return
     progressSavingRef.current = true
     try {
-      await API.post(`/videos/${video.id}/progress`, {
+      const res = await API.post(`/videos/${video.id}/progress`, {
         watched_seconds: secondsWatchedRef.current,
         last_position_seconds: lastPositionRef.current,
       })
+      if (res.data) {
+        setVideos(prev => prev.map(v => {
+          if (v.id === video.id) {
+            return {
+              ...v,
+              progress: res.data
+            };
+          }
+          return v;
+        }));
+      }
     } catch (err) {
       console.error('Failed to sync video progress:', err)
     } finally {
@@ -286,7 +304,7 @@ export default function LessonViewer() {
 
     const saveInterval = setInterval(() => {
       syncProgressToDb()
-    }, 12000)
+    }, 8000)
 
     return () => clearInterval(saveInterval)
   }, [isPlaying, activeVideo])
@@ -308,6 +326,114 @@ export default function LessonViewer() {
       console.log('------------------------------------------------')
     }
   }, [activeVideo])
+
+  const ytPlayerRef = React.useRef<any>(null);
+
+  React.useEffect(() => {
+    let checkInterval: any = null;
+    let ytPlayer: any = null;
+
+    const initPlayer = () => {
+      const element = document.getElementById('youtube-player');
+      if (!element || !window.YT || !window.YT.Player) return;
+
+      try {
+        ytPlayer = new window.YT.Player('youtube-player', {
+          events: {
+            onStateChange: (event: any) => {
+              const state = event.data;
+              if (state === 1) {
+                setIsPlaying(true);
+              } else if (state === 2 || state === 0) {
+                setIsPlaying(false);
+                syncProgressToDb();
+              }
+            },
+            onReady: (event: any) => {
+              const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
+              if (pos > 0) {
+                event.target.seekTo(pos, true);
+              }
+            }
+          }
+        });
+        ytPlayerRef.current = ytPlayer;
+      } catch (e) {
+        console.error('Failed to initialize YT Player:', e);
+      }
+    };
+
+    const loadYoutubeAPI = () => {
+      if (!window.YT) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+        
+        const prevCallback = window.onYouTubeIframeAPIReady;
+        window.onYouTubeIframeAPIReady = () => {
+          if (prevCallback) prevCallback();
+          initPlayer();
+        };
+      } else {
+        setTimeout(initPlayer, 300);
+      }
+    };
+
+    if (activeVideo && isYoutubeUrl(activeVideo.bunny_embed_url)) {
+      loadYoutubeAPI();
+
+      checkInterval = setInterval(() => {
+        const player = ytPlayerRef.current;
+        if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+          try {
+            const currentTime = Math.floor(player.getCurrentTime());
+            const duration = Math.floor(player.getDuration());
+
+            if (duration > 0 && currentTime >= 0) {
+              setLastPosition(currentTime);
+              setSecondsWatched(currentTime);
+
+              if (activeVideoRef.current && activeVideoRef.current.duration_seconds !== duration) {
+                setVideos(prev => prev.map(v => {
+                  if (v.id === activeVideoRef.current!.id) {
+                    return { ...v, duration_seconds: duration };
+                  }
+                  return v;
+                }));
+                setActiveVideo(prev => {
+                  if (prev && prev.id === activeVideoRef.current!.id) {
+                    return { ...prev, duration_seconds: duration };
+                  }
+                  return prev;
+                });
+              }
+
+              const watchedPercentage = (currentTime / duration) * 100;
+              if (watchedPercentage >= 90 && (!activeVideoRef.current?.progress?.completed)) {
+                const targetSeconds = Math.max(secondsWatchedRef.current, Math.floor(duration * 0.9));
+                setSecondsWatched(targetSeconds);
+                secondsWatchedRef.current = targetSeconds;
+                syncProgressToDb();
+              }
+            }
+          } catch (e) {
+            // Player API not ready yet
+          }
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (checkInterval) clearInterval(checkInterval);
+      if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+        try {
+          ytPlayer.destroy();
+        } catch (e) {}
+      }
+      ytPlayerRef.current = null;
+    };
+  }, [activeVideo]);
 
   // Handle active video selection switch
   const selectVideo = async (video: VideoItem) => {
