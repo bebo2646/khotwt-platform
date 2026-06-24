@@ -112,23 +112,9 @@ export default function Login() {
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
           <motion.div
             animate={{
-              x: [0, 40, -30, 0],
-              y: [0, -30, 40, 0],
-              scale: [1, 1.1, 0.9, 1]
-            }}
-            transition={{
-              duration: 22,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="top-[-10%] left-[-10%] w-[300px] h-[300px] rounded-full bg-gradient-to-br from-[#6366F1]/20 to-[#8B5CF6]/10 blur-[80px]"
-          />
-          <motion.div
-            animate={{
-              x: [0, -50, 30, 0],
-              y: [0, 40, -40, 0],
-              scale: [1, 0.9, 1.1, 1]
+              x: [0, 60, -40, 0],
+              y: [0, -50, 60, 0],
+              scale: [1, 1.15, 0.9, 1]
             }}
             transition={{
               duration: 25,
@@ -136,12 +122,13 @@ export default function Login() {
               ease: "easeInOut",
             }}
             style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="bottom-[-10%] right-[-10%] w-[350px] h-[350px] rounded-full bg-gradient-to-tr from-[#8B5CF6]/20 to-[#06B6D4]/10 blur-[90px]"
+            className="top-[-15%] left-[-15%] w-[400px] h-[400px] rounded-full bg-[#7C5CFF]/15 blur-[120px]"
           />
           <motion.div
             animate={{
-              x: [0, 30, -20, 0],
-              y: [0, 20, -30, 0],
+              x: [0, -70, 50, 0],
+              y: [0, 60, -60, 0],
+              scale: [1, 0.85, 1.15, 1]
             }}
             transition={{
               duration: 28,
@@ -149,20 +136,20 @@ export default function Login() {
               ease: "easeInOut",
             }}
             style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="top-[30%] right-[10%] w-[200px] h-[200px] rounded-full bg-gradient-to-l from-[#6366F1]/15 to-transparent blur-[60px]"
+            className="bottom-[-15%] right-[-15%] w-[450px] h-[450px] rounded-full bg-[#8B5CF6]/20 blur-[120px]"
           />
           <motion.div
             animate={{
-              x: [0, -25, 25, 0],
-              y: [0, -35, 20, 0],
+              x: [0, 40, -30, 0],
+              y: [0, 30, -40, 0],
             }}
             transition={{
-              duration: 23,
+              duration: 22,
               repeat: Infinity,
               ease: "easeInOut",
             }}
             style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="bottom-[25%] left-[5%] w-[250px] h-[250px] rounded-full bg-gradient-to-r from-[#8B5CF6]/15 to-[#6366F1]/5 blur-[70px]"
+            className="top-[25%] right-[-10%] w-[350px] h-[350px] rounded-full bg-[#6366F1]/10 blur-[120px]"
           />
         </div>
 

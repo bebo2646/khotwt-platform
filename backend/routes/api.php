@@ -183,6 +183,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
 
             // Admins CRUD (Super Admin restricted inside controller as well)
             Route::middleware('permission:admins.manage')->group(function () {
+                Route::get('/admin/permissions', [AdminController::class, 'listAllPermissions']);
                 Route::get('/admin/manage', [AdminController::class, 'listAdmins']);
                 Route::post('/admin/manage', [AdminController::class, 'createAdmin']);
                 Route::put('/admin/manage/{id}', [AdminController::class, 'updateAdmin']);

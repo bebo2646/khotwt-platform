@@ -77,11 +77,7 @@ class DatabaseSeeder extends Seeder
             'status' => 'active',
             'is_super' => true,
             'is_super_admin' => true,
-            'permissions' => [
-                'users.view', 'users.create', 'users.edit', 'users.delete',
-                'teachers.manage', 'students.manage', 'courses.manage',
-                'coupons.manage', 'reports.view', 'admins.manage'
-            ],
+            'permissions' => array_keys((require base_path('config/permissions.php'))['permissions'] ?? []),
         ]);
 
         // 2. Seed Teachers

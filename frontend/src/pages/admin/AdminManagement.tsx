@@ -15,18 +15,13 @@ interface AdminUser {
   status: 'active' | 'disabled'
 }
 
-const ALL_PERMISSIONS = [
-  { key: 'users.view', label: 'عرض المستخدمين (users.view)' },
-  { key: 'users.create', label: 'إنشاء مستخدمين (users.create)' },
-  { key: 'users.edit', label: 'تعديل مستخدمين (users.edit)' },
-  { key: 'users.delete', label: 'حذف مستخدمين (users.delete)' },
-  { key: 'teachers.manage', label: 'إدارة المعلمين (teachers.manage)' },
-  { key: 'students.manage', label: 'إدارة الطلاب (students.manage)' },
-  { key: 'courses.manage', label: 'إدارة الكورسات والباقات (courses.manage)' },
-  { key: 'coupons.manage', label: 'إدارة أكواد الشحن (coupons.manage)' },
-  { key: 'reports.view', label: 'عرض التقارير والمبيعات (reports.view)' },
-  { key: 'admins.manage', label: 'إدارة المشرفين والصلاحيات (admins.manage)' }
-]
+interface SystemPermission {
+  id: number
+  key: string
+  group_key: string
+  group_label: string
+  label_ar: string
+}
 
 export default function AdminManagement() {
   const { user } = useAuthStore()
@@ -47,8 +42,59 @@ export default function AdminManagement() {
   const [password, setPassword] = React.useState('')
   const [selectedPermissions, setSelectedPermissions] = React.useState<string[]>([])
   
+  const [availablePermissions, setAvailablePermissions] = React.useState<SystemPermission[]>([])
+  const [permissionsLoading, setPermissionsLoading] = React.useState(false)
+  
   const showAlert = useModalStore((state) => state.showAlert)
   const showConfirm = useModalStore((state) => state.showConfirm)
+
+  const fetchAvailablePermissions = () => {
+    setPermissionsLoading(true)
+    API.get('/admin/permissions')
+      .then((res) => {
+        setAvailablePermissions(res.data)
+      })
+      .catch((err) => {
+        console.error('Failed to load permissions list:', err)
+      })
+      .finally(() => setPermissionsLoading(false))
+  }
+
+  // Group available permissions by group_key
+  const groupedPermissions = React.useMemo(() => {
+    const groups: { [key: string]: { label: string; permissions: SystemPermission[] } } = {}
+    availablePermissions.forEach((perm) => {
+      if (!groups[perm.group_key]) {
+        groups[perm.group_key] = {
+          label: perm.group_label,
+          permissions: []
+        }
+      }
+      groups[perm.group_key].permissions.push(perm)
+    })
+    return groups
+  }, [availablePermissions])
+
+  const toggleGroupPermissions = (groupKey: string) => {
+    const groupPerms = groupedPermissions[groupKey]?.permissions.map((p) => p.key) || []
+    const allSelected = groupPerms.every((k) => selectedPermissions.includes(k))
+
+    if (allSelected) {
+      // Deselect all in group
+      setSelectedPermissions((prev) => prev.filter((k) => !groupPerms.includes(k)))
+    } else {
+      // Select all in group
+      setSelectedPermissions((prev) => {
+        const newSelection = [...prev]
+        groupPerms.forEach((k) => {
+          if (!newSelection.includes(k)) {
+            newSelection.push(k)
+          }
+        })
+        return newSelection
+      })
+    }
+  }
 
   const fetchAdmins = () => {
     setLoading(true)
@@ -148,6 +194,7 @@ export default function AdminManagement() {
     fetchAdmins()
     fetchLogs()
     fetchSessions()
+    fetchAvailablePermissions()
   }, [])
 
   const handleOpenCreate = () => {
@@ -175,7 +222,7 @@ export default function AdminManagement() {
   }
 
   const selectAllPermissions = () => {
-    setSelectedPermissions(ALL_PERMISSIONS.map((p) => p.key))
+    setSelectedPermissions(availablePermissions.map((p) => p.key))
   }
 
   const clearAllPermissions = () => {
@@ -736,50 +783,82 @@ export default function AdminManagement() {
 
               {/* Permissions checkboxes grid */}
               {(!editingAdmin || !editingAdmin.is_super_admin) && (
-                <div className="space-y-3 pt-3 border-t border-[var(--border-color)]">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-bold text-slate-300">تعيين الصلاحيات:</h3>
-                    <div className="flex gap-2">
+                <div className="space-y-4 pt-3 border-t border-[var(--border-color)]">
+                  <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-xl border border-[var(--border-color)]">
+                    <h3 className="text-xs font-bold text-slate-200">تعيين الصلاحيات المخصصة:</h3>
+                    <div className="flex gap-3">
                       <button
                         type="button"
                         onClick={selectAllPermissions}
-                        className="text-[10px] text-brand-primary font-bold hover:underline"
+                        className="text-[11px] text-brand-primary font-bold hover:underline cursor-pointer"
                       >
-                        تحديد الكل
+                        تحديد كل الصلاحيات
                       </button>
-                      <span className="text-[10px] text-slate-500">|</span>
+                      <span className="text-[11px] text-slate-500">|</span>
                       <button
                         type="button"
                         onClick={clearAllPermissions}
-                        className="text-[10px] text-slate-400 font-bold hover:underline"
+                        className="text-[11px] text-slate-400 font-bold hover:underline cursor-pointer"
                       >
-                        إلغاء التحديد
+                        إلغاء تحديد الكل
                       </button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-900/50 p-4 border border-[var(--border-color)] rounded-2xl max-h-[220px] overflow-y-auto">
-                    {ALL_PERMISSIONS.map((perm) => {
-                      const isSelected = selectedPermissions.includes(perm.key)
-                      return (
-                        <div
-                          key={perm.key}
-                          onClick={() => togglePermission(perm.key)}
-                          className={`flex items-center gap-2 p-2.5 border rounded-xl cursor-pointer text-xs transition-all duration-200 select-none ${
-                            isSelected
-                              ? 'bg-brand-primary/10 border-brand-primary/30 text-slate-100 font-semibold'
-                              : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
-                          }`}
-                        >
-                          {isSelected ? (
-                            <CheckSquare className="h-4.5 w-4.5 text-brand-primary shrink-0" />
-                          ) : (
-                            <Square className="h-4.5 w-4.5 text-slate-600 shrink-0" />
-                          )}
-                          <span className="truncate">{perm.label}</span>
-                        </div>
-                      )
-                    })}
+                  <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-thin">
+                    {permissionsLoading ? (
+                      <div className="text-center py-4 text-xs text-slate-500">جاري تحميل قائمة الصلاحيات...</div>
+                    ) : Object.keys(groupedPermissions).length === 0 ? (
+                      <div className="text-center py-4 text-xs text-slate-500">لا توجد صلاحيات متاحة حالياً.</div>
+                    ) : (
+                      Object.entries(groupedPermissions).map(([groupKey, group]) => {
+                        const groupPermKeys = group.permissions.map((p) => p.key)
+                        const allGroupSelected = groupPermKeys.every((k) => selectedPermissions.includes(k))
+                        
+                        return (
+                          <div key={groupKey} className="p-4 bg-slate-900/30 border border-slate-800 rounded-2xl space-y-3">
+                            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                              <span className="text-xs font-bold text-slate-350 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-brand-primary"></span>
+                                {group.label}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleGroupPermissions(groupKey)}
+                                className="text-[10px] bg-slate-850 hover:bg-slate-800 border border-slate-750 px-2.5 py-1 rounded-lg text-brand-primary font-semibold transition-all cursor-pointer animate-none"
+                              >
+                                {allGroupSelected ? 'إلغاء تحديد المجموعة' : 'تحديد المجموعة كاملة'}
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {group.permissions.map((perm) => {
+                                const isSelected = selectedPermissions.includes(perm.key)
+                                return (
+                                  <div
+                                    key={perm.key}
+                                    onClick={() => togglePermission(perm.key)}
+                                    className={`flex items-center gap-2.5 p-2.5 border rounded-xl cursor-pointer text-[11px] transition-all duration-200 select-none ${
+                                      isSelected
+                                        ? 'bg-brand-primary/10 border-brand-primary/30 text-slate-100 font-semibold'
+                                        : 'bg-slate-900 border-slate-850 text-slate-400 hover:border-slate-800 hover:text-slate-300'
+                                    }`}
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare className="h-4.5 w-4.5 text-brand-primary shrink-0" />
+                                    ) : (
+                                      <Square className="h-4.5 w-4.5 text-slate-600 shrink-0" />
+                                    )}
+                                    <span className="truncate leading-none">{perm.label_ar}</span>
+                                    <span className="text-[9px] text-slate-500 font-mono shrink-0">({perm.key})</span>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
                   </div>
                 </div>
               )}

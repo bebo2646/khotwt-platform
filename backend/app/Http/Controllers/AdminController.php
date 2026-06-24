@@ -859,6 +859,36 @@ class AdminController extends Controller
     }
 
     /**
+     * Get all available permissions dynamically.
+     */
+    public function listAllPermissions(Request $request)
+    {
+        // Enforce Super Admin check
+        if (!$request->user()->is_super_admin && !$request->user()->hasPermission('admins.manage')) {
+            return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
+        }
+
+        // Self-heal table if empty
+        if (\App\Models\Permission::count() === 0) {
+            $config = require base_path('config/permissions.php');
+            $groups = $config['groups'] ?? [];
+            $permissions = $config['permissions'] ?? [];
+            foreach ($permissions as $key => $details) {
+                $groupKey = $details['group'];
+                \App\Models\Permission::create([
+                    'key' => $key,
+                    'group_key' => $groupKey,
+                    'group_label' => $groups[$groupKey] ?? $groupKey,
+                    'label_ar' => $details['label'],
+                ]);
+            }
+        }
+
+        $permissions = \App\Models\Permission::orderBy('group_key')->get();
+        return response()->json($permissions);
+    }
+
+    /**
      * List all administrator users.
      */
     public function listAdmins(Request $request)
@@ -886,12 +916,18 @@ class AdminController extends Controller
             return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
         }
 
+        $availablePermissionKeys = \App\Models\Permission::pluck('key')->toArray();
+        if (empty($availablePermissionKeys)) {
+            $config = require base_path('config/permissions.php');
+            $availablePermissionKeys = array_keys($config['permissions'] ?? []);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email',
             'password' => 'required|string|min:6',
             'permissions' => 'required|array',
-            'permissions.*' => 'string|in:users.view,users.create,users.edit,users.delete,teachers.manage,students.manage,courses.manage,coupons.manage,reports.view,admins.manage',
+            'permissions.*' => 'string|in:' . implode(',', $availablePermissionKeys),
         ]);
 
         $admin = User::create([
@@ -940,12 +976,18 @@ class AdminController extends Controller
             return response()->json(['message' => 'لا يمكن تعديل صلاحيات المشرف العام الرئيسي.'], 403);
         }
 
+        $availablePermissionKeys = \App\Models\Permission::pluck('key')->toArray();
+        if (empty($availablePermissionKeys)) {
+            $config = require base_path('config/permissions.php');
+            $availablePermissionKeys = array_keys($config['permissions'] ?? []);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'nullable|string|min:6',
             'permissions' => 'required|array',
-            'permissions.*' => 'string|in:users.view,users.create,users.edit,users.delete,teachers.manage,students.manage,courses.manage,coupons.manage,reports.view,admins.manage',
+            'permissions.*' => 'string|in:' . implode(',', $availablePermissionKeys),
         ]);
 
         $admin->name = $request->name;
