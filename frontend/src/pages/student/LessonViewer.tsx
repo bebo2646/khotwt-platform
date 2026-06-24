@@ -393,40 +393,52 @@ export default function LessonViewer() {
     }
   }, [isPlaying]);
 
-  // Periodic progress saving & state updates for ALL videos (running every 5 seconds while playing)
+  // 1-second smooth state updates for YouTube videos
+  React.useEffect(() => {
+    let interval: any = null;
+
+    if (activeVideo && isPlaying && isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+      interval = setInterval(() => {
+        const player = ytPlayerRef.current;
+        if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+          try {
+            const current = Math.floor(player.getCurrentTime());
+            const durVal = Math.floor(player.getDuration());
+            if (durVal > 0 && current >= 0) {
+              setLastPosition(current);
+              setDuration(durVal);
+            }
+          } catch (e) {}
+        }
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [activeVideo, isPlaying]);
+
+  // Synchronize watchedTime, secondsWatched, and progressPercentage reactively when lastPosition or duration changes
+  React.useEffect(() => {
+    if (duration > 0) {
+      setProgressPercentage((lastPosition / duration) * 100);
+    }
+    setWatchedTime(lastPosition);
+    setSecondsWatched(lastPosition);
+  }, [lastPosition, duration]);
+
+  // Periodic progress saving to DB (running every 5 seconds while playing)
   React.useEffect(() => {
     let interval: any = null;
 
     if (activeVideo && isPlaying) {
       interval = setInterval(() => {
-        const url = activeVideo.bunny_embed_url || '';
-        const isYT = isYoutubeUrl(url);
-        
-        let current = lastPositionRef.current;
-        let durVal = durationRef.current || activeVideo.duration_seconds || 300;
-
-        if (isYT) {
-          const player = ytPlayerRef.current;
-          if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
-            try {
-              current = Math.floor(player.getCurrentTime());
-              durVal = Math.floor(player.getDuration());
-            } catch (e) {}
-          }
-        } else if (isDirectVideoUrl(url) && videoRef.current) {
-          current = Math.floor(videoRef.current.currentTime);
-          durVal = Math.floor(videoRef.current.duration || durVal);
-        }
-
+        const current = lastPositionRef.current;
+        const durVal = durationRef.current || activeVideo.duration_seconds || 300;
         if (durVal > 0 && current >= 0) {
           const percentage = (current / durVal) * 100;
-          
-          setLastPosition(current);
-          setProgressPercentage(percentage);
-          setWatchedTime(current);
-          setSecondsWatched(current);
-          setDuration(durVal);
-
           saveLessonProgress({
             lessonId: Number(id),
             last_position_seconds: current,
@@ -685,6 +697,7 @@ export default function LessonViewer() {
                     
                     return (
                       <iframe
+                        id="youtube-player"
                         src={embedUrlStr}
                         className="w-full h-full"
                         style={{ border: 'none' }}
