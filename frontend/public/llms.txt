@@ -1,0 +1,10 @@
+# خطوتك
+
+منصة تعليمية حديثة توفر محاضرات تفاعلية واختبارات ومتابعة مستمرة للطلاب.
+
+## روابط المنصة العامة
+- [الرئيسية](https://elm-platform.com/)
+- [تصفح الكورسات](https://elm-platform.com/courses)
+- [المعلمون](https://elm-platform.com/teachers)
+- [تسجيل الدخول](https://elm-platform.com/login)
+- [إنشاء حساب طالب](https://elm-platform.com/register)

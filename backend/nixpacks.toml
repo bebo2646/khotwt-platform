@@ -1,0 +1,15 @@
+# nixpacks.toml for Khotwt Laravel Backend on Railway
+
+[phases.setup]
+nixPkgs = ['...', 'php83']
+
+[phases.build]
+cmds = [
+    'composer install --no-interaction --optimize-autoloader',
+    'php artisan storage:link --force'
+]
+
+[phases.prestart]
+cmds = [
+    'php artisan migrate --force'
+]

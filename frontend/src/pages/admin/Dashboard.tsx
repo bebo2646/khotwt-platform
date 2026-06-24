@@ -1,0 +1,581 @@
+import React from 'react'
+import API from '../../services/api'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check } from 'lucide-react'
+import { useModalStore } from '../../store/modalStore'
+
+interface MonthlyChartItem {
+  month: string
+  total: string
+}
+
+interface StatsData {
+  total_teachers: number
+  total_students: number
+  total_courses: number
+  total_enrollments: number
+  total_revenue: string
+  monthly_revenue: string
+  gross_revenue?: string | number
+  refunded_revenue?: string | number
+  net_revenue?: string | number
+  gross_monthly_revenue?: string | number
+  refunded_monthly_revenue?: string | number
+  net_monthly_revenue?: string | number
+  recent_transactions: any[]
+  monthly_chart: MonthlyChartItem[]
+}
+
+export default function Dashboard() {
+  const [stats, setStats] = React.useState<StatsData | null>(null)
+  const [packages, setPackages] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(true)
+
+  // Package admin states
+  const [showPackageForm, setShowPackageForm] = React.useState(false)
+  const [editPackageMode, setEditPackageMode] = React.useState<any | null>(null)
+  const [packageTitle, setPackageTitle] = React.useState('')
+  const [packagePrice, setPackagePrice] = React.useState('')
+  const [packageDesc, setPackageDesc] = React.useState('')
+  const [packageCoverImage, setPackageCoverImage] = React.useState('')
+  const [packageThumbnail, setPackageThumbnail] = React.useState('')
+  const [uploadingThumbnail, setUploadingThumbnail] = React.useState(false)
+  const [isDragOver, setIsDragOver] = React.useState(false)
+  const [selectedLessons, setSelectedLessons] = React.useState<number[]>([])
+  const [courseLessons, setCourseLessons] = React.useState<any[]>([])
+  const [actionLoading, setActionLoading] = React.useState(false)
+
+  const fetchPackages = () => {
+    API.get('/admin/packages')
+      .then((res) => {
+        setPackages(res.data)
+      })
+      .catch((err) => console.error(err))
+  }
+
+  React.useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      API.get('/admin/dashboard'),
+      API.get('/admin/packages')
+    ])
+      .then(([statsRes, pkgsRes]) => {
+        setStats(statsRes.data)
+        setPackages(pkgsRes.data)
+      })
+      .catch((err) => console.error(err))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleEditPackageClick = async (pkg: any) => {
+    setEditPackageMode(pkg)
+    setPackageTitle(pkg.title)
+    setPackagePrice(pkg.price)
+    setPackageDesc(pkg.description || '')
+    setPackageCoverImage(pkg.cover_image || '')
+    setPackageThumbnail(pkg.package_thumbnail || '')
+    setSelectedLessons(pkg.lessons ? pkg.lessons.map((l: any) => l.id) : [])
+    
+    try {
+      const res = await API.get(`/courses/${pkg.course_id}`)
+      const lessons = res.data.units.flatMap((u: any) => u.lessons)
+      setCourseLessons(lessons)
+      setShowPackageForm(true)
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('حدث خطأ أثناء تحميل محاضرات الكورس.', 'error')
+    }
+  }
+
+  const handleSavePackage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editPackageMode || !packageTitle.trim() || selectedLessons.length === 0) return
+
+    setActionLoading(true)
+    try {
+      await API.put(`/admin/packages/${editPackageMode.id}`, {
+        title: packageTitle,
+        price: packagePrice || '0.00',
+        description: packageDesc,
+        cover_image: packageCoverImage,
+        package_thumbnail: packageThumbnail,
+        lesson_ids: selectedLessons,
+      })
+      useModalStore.getState().showToast('تم تعديل الباقة بنجاح.', 'success')
+      setShowPackageForm(false)
+      setEditPackageMode(null)
+      setPackageTitle('')
+      setPackagePrice('')
+      setPackageDesc('')
+      setPackageCoverImage('')
+      setPackageThumbnail('')
+      fetchPackages()
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('فشل تعديل الباقة.', 'error')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeletePackage = (packageId: number) => {
+    useModalStore.getState().showConfirm({
+      title: 'حذف الباقة المجمعة (مسؤول المنصة)',
+      description: 'هل أنت متأكد من حذف هذه الباقة كمسؤول للموقع؟ سيتم إلغاء تفعيل الباقة للطلاب الجدد فوراً.',
+      confirmText: 'حذف الباقة نهائياً',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await API.delete(`/admin/packages/${packageId}`)
+          fetchPackages()
+          useModalStore.getState().showToast('تم حذف الباقة بنجاح.', 'success')
+        } catch (err) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل حذف الباقة.', 'error')
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
+  }
+
+  const toggleLessonInPackage = (lessonId: number) => {
+    setSelectedLessons((prev) => {
+      if (prev.includes(lessonId)) {
+        return prev.filter((id) => id !== lessonId)
+      } else {
+        return [...prev, lessonId]
+      }
+    })
+  }
+
+  const chartData = React.useMemo(() => {
+    if (!stats || !stats.monthly_chart || stats.monthly_chart.length === 0) {
+      return [
+        { name: 'لا توجد مبيعات', value: 0 }
+      ]
+    }
+    return stats.monthly_chart.map((item) => {
+      const parts = item.month.split('-')
+      const year = parts[0]
+      const monthNum = parseInt(parts[1], 10)
+      const monthsArabic = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر']
+      const monthName = monthsArabic[monthNum - 1] || item.month
+      return {
+        name: `${monthName} ${year}`,
+        value: parseFloat(item.total)
+      }
+    })
+  }, [stats])
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-32">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+      
+      {/* Title */}
+      <div>
+        <h1 className="text-3xl font-black">التحليلات ومبيعات المنصة</h1>
+        <p className="text-sm text-slate-400 font-light mt-1">عرض أداء المنصة الإجمالي وأرباح المعلمين وحركة شحن الأكواد</p>
+      </div>
+
+      {/* Stats Cards */}
+      {stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          
+          {/* Revenue */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">إحصائيات المبيعات والأرباح</span>
+              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+                <Coins className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="space-y-2 text-right">
+              <div>
+                <span className="text-[10px] text-[var(--text-secondary)] block font-medium">صافي الأرباح (Net)</span>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
+                  {Number(stats.net_revenue ?? stats.total_revenue).toFixed(2)} ج.م
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-color)]">
+                <div>
+                  <span className="text-[9px] text-[var(--text-secondary)] block">الإجمالي (Gross)</span>
+                  <span className="text-xs font-bold text-[var(--text-secondary)]">{Number(stats.gross_revenue ?? stats.total_revenue).toFixed(2)} ج.م</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-[var(--text-secondary)] block">المسترجع (Refund)</span>
+                  <span className="text-xs font-bold text-red-500">{Number(stats.refunded_revenue ?? 0).toFixed(2)} ج.م</span>
+                </div>
+              </div>
+              <div className="text-[9px] text-[var(--text-secondary)] pt-1">
+                صافي الشهر: {Number(stats.net_monthly_revenue ?? stats.monthly_revenue).toFixed(2)} ج.م
+              </div>
+            </div>
+          </div>
+
+          {/* Students */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">الطلاب المسجلون</span>
+              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-black">{stats.total_students}</div>
+              <div className="text-[10px] text-[var(--text-secondary)] font-light">طالب نشط بالمنصة</div>
+            </div>
+          </div>
+
+          {/* Teachers */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">أعضاء هيئة التدريس</span>
+              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+                <GraduationCap className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-black">{stats.total_teachers}</div>
+              <div className="text-[10px] text-[var(--text-secondary)] font-light">معلم معتمد وصاحب كورس</div>
+            </div>
+          </div>
+
+          {/* Enrollments */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">الاشتراكات بالكورسات</span>
+              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+                <BookOpen className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-2xl font-black">{stats.total_enrollments}</div>
+              <div className="text-[10px] text-[var(--text-secondary)] font-light">عملية تفعيل واشتراك كاملة</div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* Charts & Transactions details grids */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        {/* Revenue Area Chart */}
+        <div className="lg:col-span-2 bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl space-y-6 shadow-sm flex flex-col justify-between">
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-base flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-brand-primary" />
+              <span>معدل نمو الإيرادات والمبيعات</span>
+            </h3>
+            <span className="text-xs text-slate-400">آخر 6 أشهر</span>
+          </div>
+
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#16A34A" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#16A34A" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2E333D" vertical={false} />
+                <XAxis dataKey="name" stroke="#64748B" fontSize={11} />
+                <YAxis stroke="#64748B" fontSize={11} />
+                <Tooltip contentStyle={{ backgroundColor: '#1B1E24', borderColor: '#2E333D', direction: 'rtl' }} />
+                <Area type="monotone" dataKey="value" stroke="#16A34A" strokeWidth={2.5} fillOpacity={1} fill="url(#colorValue)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Recent ledger transactions */}
+        <div className="lg:col-span-1 bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl space-y-6 shadow-sm flex flex-col justify-between">
+          <h3 className="font-bold text-base border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-brand-primary" />
+            <span>آخر العمليات النشطة:</span>
+          </h3>
+
+          {stats && stats.recent_transactions.length === 0 ? (
+            <div className="text-center py-20 text-slate-500 font-light text-xs">لا توجد عمليات مسجلة بالمنصة.</div>
+          ) : (
+            <div className="space-y-4 overflow-y-auto max-h-60 pr-1 text-xs">
+              {stats?.recent_transactions.map((tx: any) => (
+                <div key={tx.id} className="flex justify-between items-center p-3.5 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-2xl">
+                  <div className="space-y-0.5">
+                    <div className="font-bold">{tx.description}</div>
+                    <div className="text-[9px] text-slate-500">{tx.wallet.student.name}</div>
+                  </div>
+                  <div className={`font-black ${tx.type === 'purchase' ? 'text-rose-500' : 'text-brand-success'}`}>
+                    {tx.type === 'purchase' ? '-' : '+'}{tx.amount}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Monthly Packages Section (Admin View) */}
+      {packages && (
+        <div className="space-y-6 pt-12 border-t border-[var(--border-color)]">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Package className="h-5 w-5 text-brand-primary" />
+              <span>إجمالي الباقات المجمعة النشطة بالمنصة</span>
+            </h2>
+            <p className="text-xs text-slate-400 font-light mt-1">إشراف كامل على باقات الاشتراكات الشهرية وتعديل أو حذف أي باقة وتتبع أعداد المشتركين</p>
+          </div>
+
+          {packages.length === 0 ? (
+            <div className="bg-brand-card border border-[var(--border-color)] p-12 text-center rounded-3xl text-slate-500 font-light text-sm">
+              لا توجد باقات مجمعة منشأة بالمنصة حالياً.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {packages.map((pkg) => (
+                <div key={pkg.id} className="bg-brand-card border border-border-color rounded-3xl overflow-hidden hover:border-brand-primary/30 hover:shadow-xl transition-all duration-300 group flex flex-col justify-between shadow-md">
+                  {/* Thumbnail area */}
+                  <div className="aspect-video bg-brand-surface relative overflow-hidden">
+                    <img 
+                      src={pkg.package_thumbnail || pkg.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+                      alt={pkg.title} 
+                      className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
+                    />
+                    <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black border border-white/10">
+                      باقة مجمعة
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-4 flex-grow flex flex-col justify-between">
+                    <div className="space-y-2 text-right">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h3 className="font-bold text-base text-foreground group-hover:text-brand-primary transition-colors">{pkg.title}</h3>
+                          <span className="text-[10px] text-text-secondary font-light block mt-0.5">المعلم: {pkg.course?.teacher?.name}</span>
+                          <span className="text-[9px] text-slate-500 font-light block">الكورس: {pkg.course?.title}</span>
+                        </div>
+                        <span className="text-xs font-bold text-brand-success bg-brand-success/10 px-2 py-1 rounded-lg shrink-0">
+                          {pkg.price} ج.م
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[10px] text-text-secondary font-light pt-2 text-right">
+                        <div>عدد الكورسات: 1</div>
+                        <div>عدد المحاضرات: {pkg.lessons?.length || pkg.lessons_count || 0}</div>
+                        <div className="col-span-2">عدد المشتركين: {pkg.enrollments_count || 0} طالباً</div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4 border-t border-border-color">
+                      <button
+                        onClick={() => handleEditPackageClick(pkg)}
+                        className="flex-1 py-2 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Edit3 className="h-4 w-4" /> <span>تعديل</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeletePackage(pkg.id)}
+                        className="flex-1 py-2 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <Trash2 className="h-4 w-4" /> <span>حذف</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Package Edit Form Modal (Admin View) */}
+      {showPackageForm && editPackageMode && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
+            <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3">تعديل الباقة المجمعة (مدير النظام)</h3>
+            
+            <form onSubmit={handleSavePackage} className="space-y-4 text-right">
+              
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">عنوان الباقة</label>
+                <input
+                  type="text"
+                  required
+                  value={packageTitle}
+                  onChange={(e) => setPackageTitle(e.target.value)}
+                  placeholder="مثال: باقة محاضرات شهر أكتوبر كيمياء..."
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">سعر الباقة المجمعة (ج.م)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={packagePrice}
+                  onChange={(e) => setPackagePrice(e.target.value)}
+                  placeholder="مثال: 80.00"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">وصف الباقة المجمعة</label>
+                <textarea
+                  value={packageDesc}
+                  onChange={(e) => setPackageDesc(e.target.value)}
+                  placeholder="مثال: تشمل الباقة جميع محاضرات الباب الأول في الكيمياء العضوية..."
+                  rows={3}
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none resize-none text-right"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold">رابط غلاف الباقة (اختياري)</label>
+                <input
+                  type="text"
+                  value={packageCoverImage}
+                  onChange={(e) => setPackageCoverImage(e.target.value)}
+                  placeholder="رابط الصورة أو اتركها فارغة لاستخدام غلاف الكورس"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold block">صورة الباقة المجمعة (تحميل مباشر)</label>
+                
+                {/* Drag & Drop area */}
+                <div 
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    setIsDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      setUploadingThumbnail(true);
+                      try {
+                        const res = await API.post('/upload', formData, {
+                          headers: { 'Content-Type': 'multipart/form-data' },
+                        });
+                        setPackageThumbnail(res.data.url);
+                        useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
+                      } catch (err) {
+                        useModalStore.getState().showToast('فشل الرفع.', 'error');
+                      } finally {
+                        setUploadingThumbnail(false);
+                      }
+                    }
+                  }}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                    isDragOver ? 'border-brand-primary bg-brand-primary/5' : 'border-border-color bg-brand-surface/10'
+                  }`}
+                >
+                  {packageThumbnail ? (
+                    <div className="space-y-3">
+                      <img src={packageThumbnail} alt="Preview" className="h-28 mx-auto rounded-xl object-cover aspect-video border border-border-color" />
+                      <button 
+                        type="button" 
+                        onClick={() => setPackageThumbnail('')}
+                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black"
+                      >
+                        إزالة الصورة
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <span className="text-[10px] text-text-secondary block font-bold">اسحب صورة الباقة وأفلتها هنا، أو اضغط على الزر أدناه</span>
+                      <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
+                        <span>اختر صورة للباقة</span>
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const formData = new FormData();
+                              formData.append('file', file);
+                              setUploadingThumbnail(true);
+                              try {
+                                const res = await API.post('/upload', formData, {
+                                  headers: { 'Content-Type': 'multipart/form-data' },
+                                });
+                                setPackageThumbnail(res.data.url);
+                                useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
+                              } catch (err) {
+                                useModalStore.getState().showToast('فشل الرفع.', 'error');
+                              } finally {
+                                setUploadingThumbnail(false);
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                      {uploadingThumbnail && (
+                        <div className="text-[10px] text-brand-primary animate-pulse font-bold">جاري رفع الصورة...</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300 block">اختر المحاضرات التابعة للباقة:</label>
+                
+                <div className="space-y-2 border border-[var(--border-color)] p-4 rounded-2xl max-h-40 overflow-y-auto bg-[rgba(0,0,0,0.05)]">
+                  {courseLessons.length === 0 ? (
+                    <div className="text-center py-4 text-[10px] text-slate-500 font-light">لا توجد محاضرات مضافة بالكورس لتضمينها بالباقة بعد.</div>
+                  ) : (
+                    courseLessons.map((lesson) => {
+                      const isChecked = selectedLessons.includes(lesson.id)
+                      return (
+                        <button
+                          type="button"
+                          key={lesson.id}
+                          onClick={() => toggleLessonInPackage(lesson.id)}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-right transition-colors ${
+                            isChecked ? 'border-brand-primary bg-brand-primary/5 text-slate-100 font-bold' : 'border-[var(--border-color)] text-slate-400'
+                          }`}
+                        >
+                          <span className="text-xs">{lesson.title}</span>
+                          {isChecked && <Check className="h-4 w-4 text-brand-primary" />}
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+                <button type="button" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
+                <button type="submit" disabled={actionLoading} className="px-5 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl">
+                  {actionLoading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}

@@ -1,0 +1,29 @@
+User-agent: *
+Allow: /
+Allow: /teachers
+Allow: /teachers/*
+Allow: /teacher/*
+Allow: /courses
+Allow: /courses/*
+Allow: /course/*
+Allow: /subject/*
+Allow: /grade/*
+Allow: /chemistry
+Allow: /physics
+Allow: /arabic
+Allow: /grade-1-secondary
+Allow: /grade-2-secondary
+Allow: /grade-3-secondary
+
+Disallow: /admin/
+Disallow: /admin/*
+Disallow: /teacher/dashboard/
+Disallow: /teacher/dashboard/*
+Disallow: /student/
+Disallow: /student/*
+Disallow: /api/
+Disallow: /api/*
+
+Sitemap: https://elm-platform.com/sitemap.xml
+Sitemap: https://elm-platform.com/sitemap-teachers.xml
+Sitemap: https://elm-platform.com/sitemap-courses.xml
