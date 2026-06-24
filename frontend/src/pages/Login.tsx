@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { motion } from 'framer-motion'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
@@ -106,8 +107,69 @@ export default function Login() {
       />
       
       {/* Left Column: Form Section */}
-      <div className="lg:col-span-5 flex items-center justify-center p-6 sm:p-12 bg-brand-dark-bg transition-colors duration-300">
-        <div className="w-full max-w-md bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-[32px] shadow-2xl space-y-8">
+      <div className="lg:col-span-5 flex items-center justify-center p-6 sm:p-12 bg-brand-dark-bg transition-colors duration-300 relative overflow-hidden">
+        {/* Floating purple gradient circles/blobs */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <motion.div
+            animate={{
+              x: [0, 40, -30, 0],
+              y: [0, -30, 40, 0],
+              scale: [1, 1.1, 0.9, 1]
+            }}
+            transition={{
+              duration: 22,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
+            className="top-[-10%] left-[-10%] w-[300px] h-[300px] rounded-full bg-gradient-to-br from-[#6366F1]/20 to-[#8B5CF6]/10 blur-[80px]"
+          />
+          <motion.div
+            animate={{
+              x: [0, -50, 30, 0],
+              y: [0, 40, -40, 0],
+              scale: [1, 0.9, 1.1, 1]
+            }}
+            transition={{
+              duration: 25,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
+            className="bottom-[-10%] right-[-10%] w-[350px] h-[350px] rounded-full bg-gradient-to-tr from-[#8B5CF6]/20 to-[#06B6D4]/10 blur-[90px]"
+          />
+          <motion.div
+            animate={{
+              x: [0, 30, -20, 0],
+              y: [0, 20, -30, 0],
+            }}
+            transition={{
+              duration: 28,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
+            className="top-[30%] right-[10%] w-[200px] h-[200px] rounded-full bg-gradient-to-l from-[#6366F1]/15 to-transparent blur-[60px]"
+          />
+          <motion.div
+            animate={{
+              x: [0, -25, 25, 0],
+              y: [0, -35, 20, 0],
+            }}
+            transition={{
+              duration: 23,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
+            className="bottom-[25%] left-[5%] w-[250px] h-[250px] rounded-full bg-gradient-to-r from-[#8B5CF6]/15 to-[#6366F1]/5 blur-[70px]"
+          />
+        </div>
+
+        <div 
+          className="w-full max-w-md bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-[32px] shadow-2xl space-y-8 relative z-10"
+          style={{ position: 'relative', zIndex: 10 }}
+        >
           
           {/* Logo & Header */}
           <div className="space-y-3">
