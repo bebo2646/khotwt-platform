@@ -180,11 +180,24 @@ export default function Home() {
         keywords="خطوتك, منصة خطوتك, منصة تعليمية, شرح ثانوية عامة, كورسات كيمياء, كورسات فيزياء, امتحانات اونلاين"
         schema={{
           "@context": "https://schema.org",
-          "@type": "EducationalOrganization",
-          "name": "منصة خطوتك التعليمية",
-          "url": window.location.origin,
-          "logo": `${window.location.origin}/favicon.svg`,
-          "description": "خطوتك هي أول خطوة نحو النجاح، منصة تعليمية حديثة توفر محاضرات تفاعلية واختبارات ومتابعة مستمرة للطلاب في جميع المراحل الثانوية."
+          "@graph": [
+            {
+              "@type": "WebSite",
+              "@id": "https://elm-platform.com/#website",
+              "url": "https://elm-platform.com",
+              "name": "منصة خطوتك التعليمية",
+              "description": "منصة تعليمية حديثة لطلاب المرحلة الثانوية والإعدادية"
+            },
+            {
+              "@type": "Organization",
+              "@id": "https://elm-platform.com/#organization",
+              "name": "منصة خطوتك التعليمية",
+              "url": "https://elm-platform.com",
+              "logo": "https://elm-platform.com/favicon.ico",
+              "image": "https://elm-platform.com/og-image.jpg",
+              "description": "خطوتك هي أول خطوة نحو النجاح، منصة تعليمية حديثة توفر محاضرات تفاعلية واختبارات ومتابعة مستمرة للطلاب في جميع المراحل الثانوية والإعدادية."
+            }
+          ]
         }}
       />
       

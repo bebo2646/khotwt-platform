@@ -10,6 +10,7 @@ import SEO from '../components/SEO'
 interface TeacherItem {
   id: number
   name: string
+  slug?: string
   subject: string
   avatar?: string
   experience: string
@@ -120,14 +121,50 @@ export default function TeacherProfile() {
         ogImage={teacher.avatar}
         schema={{
           "@context": "https://schema.org",
-          "@type": "Person",
-          "name": teacher.name,
-          "jobTitle": `مدرس ${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}`,
-          "image": teacher.avatar ? (teacher.avatar.startsWith('http') ? teacher.avatar : `${window.location.origin}${teacher.avatar}`) : `${window.location.origin}/og-image.jpg`,
-          "url": window.location.href,
-          "description": teacher.bio || `صفحة المدرس الشخصية على منصة خطوتك`
+          "@graph": [
+            {
+              "@type": "Person",
+              "name": teacher.name,
+              "jobTitle": `مدرس ${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}`,
+              "image": teacher.avatar ? (teacher.avatar.startsWith('http') ? teacher.avatar : `https://elm-platform.com${teacher.avatar}`) : `https://elm-platform.com/og-image.jpg`,
+              "url": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/teachers/${teacher.slug || teacher.id}`,
+              "description": teacher.bio || `صفحة المدرس الشخصية على منصة خطوتك`
+            },
+            {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "الرئيسية",
+                  "item": "https://elm-platform.com"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "المعلمون",
+                  "item": "https://elm-platform.com/teachers"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": teacher.name,
+                  "item": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/teachers/${teacher.slug || teacher.id}`
+                }
+              ]
+            }
+          ]
         }}
       />
+      
+      {/* Visual Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-xs text-slate-400 font-medium pb-2 select-none" aria-label="Breadcrumb">
+        <Link to="/" className="hover:text-brand-primary transition-colors">الرئيسية</Link>
+        <span>/</span>
+        <Link to="/teachers" className="hover:text-brand-primary transition-colors">المعلمون</Link>
+        <span>/</span>
+        <span className="text-slate-200 font-bold truncate max-w-[250px]">{teacher.name}</span>
+      </nav>
       
       {/* 1. Header Banner */}
       <div className="relative rounded-3xl overflow-hidden bg-brand-card border border-border-color p-8 sm:p-12 flex flex-col md:flex-row items-center gap-8 shadow-xl">

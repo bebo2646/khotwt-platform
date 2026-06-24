@@ -23,6 +23,8 @@ const CourseDetail = React.lazy(() => import('./pages/CourseDetail'))
 const Teachers = React.lazy(() => import('./pages/Teachers'))
 const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
+const NotFound = React.lazy(() => import('./pages/NotFound'))
+const ServerError = React.lazy(() => import('./pages/ServerError'))
 
 // Student Pages (Lazy Loaded)
 const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'))
@@ -342,8 +344,9 @@ function App() {
           </ProtectedRoute>
         } />
 
-        {/* Fallback Catch-all -> Redirect to Home */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Fallback Catch-all */}
+        <Route path="/500" element={<Layout><ServerError /></Layout>} />
+        <Route path="*" element={<Layout><NotFound /></Layout>} />
 
         </Routes>
       </React.Suspense>

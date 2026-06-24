@@ -216,31 +216,67 @@ export default function CourseDetail() {
         ogImage={course.cover_image}
         schema={{
           "@context": "https://schema.org",
-          "@type": "Course",
-          "name": course.title,
-          "description": course.description,
-          "provider": {
-            "@type": "EducationalOrganization",
-            "name": "خطوتك",
-            "url": window.location.origin
-          },
-          "hasCourseInstance": {
-            "@type": "CourseInstance",
-            "courseMode": "online",
-            "instructor": {
-              "@type": "Person",
-              "name": course.teacher.name,
-              "image": course.teacher.avatar ? (course.teacher.avatar.startsWith('http') ? course.teacher.avatar : `${window.location.origin}${course.teacher.avatar}`) : undefined
+          "@graph": [
+            {
+              "@type": "Course",
+              "name": course.title,
+              "description": course.description,
+              "provider": {
+                "@type": "EducationalOrganization",
+                "name": "خطوتك",
+                "url": "https://elm-platform.com"
+              },
+              "hasCourseInstance": {
+                "@type": "CourseInstance",
+                "courseMode": "online",
+                "instructor": {
+                  "@type": "Person",
+                  "name": course.teacher.name,
+                  "image": course.teacher.avatar ? (course.teacher.avatar.startsWith('http') ? course.teacher.avatar : `https://elm-platform.com${course.teacher.avatar}`) : undefined
+                }
+              },
+              "offers": {
+                "@type": "Offer",
+                "price": getCourseDisplayPrice(course).finalPrice,
+                "priceCurrency": "EGP",
+                "category": "Paid"
+              }
+            },
+            {
+              "@type": "BreadcrumbList",
+              "itemListElement": [
+                {
+                  "@type": "ListItem",
+                  "position": 1,
+                  "name": "الرئيسية",
+                  "item": "https://elm-platform.com"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 2,
+                  "name": "الكورسات",
+                  "item": "https://elm-platform.com/courses"
+                },
+                {
+                  "@type": "ListItem",
+                  "position": 3,
+                  "name": course.title,
+                  "item": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/courses/${course.slug || course.id}`
+                }
+              ]
             }
-          },
-          "offers": {
-            "@type": "Offer",
-            "price": getCourseDisplayPrice(course).finalPrice,
-            "priceCurrency": "EGP",
-            "category": "Paid"
-          }
+          ]
         }}
       />
+      
+      {/* Visual Breadcrumbs */}
+      <nav className="flex items-center gap-2 text-xs text-slate-400 font-medium pb-2 select-none" aria-label="Breadcrumb">
+        <Link to="/" className="hover:text-brand-primary transition-colors">الرئيسية</Link>
+        <span>/</span>
+        <Link to="/courses" className="hover:text-brand-primary transition-colors">الكورسات</Link>
+        <span>/</span>
+        <span className="text-slate-200 font-bold truncate max-w-[250px]">{course.title}</span>
+      </nav>
       
       {/* 1. Header Hero Card */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 bg-brand-card border border-[var(--border-color)] p-8 sm:p-12 rounded-3xl relative overflow-hidden shadow-xl">
