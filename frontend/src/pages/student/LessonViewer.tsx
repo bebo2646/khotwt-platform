@@ -137,9 +137,10 @@ export default function LessonViewer() {
           
           setActiveVideo(defaultVideo)
           const pos = defaultVideo.progress?.last_position_seconds || 0
+          const watchedSecs = defaultVideo.progress?.watched_seconds || 0
           setLastPosition(pos)
-          setWatchedTime(pos)
-          setSecondsWatched(defaultVideo.progress?.watched_seconds || 0)
+          setWatchedTime(watchedSecs)
+          setSecondsWatched(watchedSecs)
           
           const videoDuration = defaultVideo.duration_seconds || 300
           setDuration(videoDuration)
@@ -190,13 +191,13 @@ export default function LessonViewer() {
   }
 
   // Save lesson progress API helper
-  const saveLessonProgress = async (data: { lessonId: number; last_position_seconds: number; progress_percentage: number }) => {
+  const saveLessonProgress = async (data: { lessonId: number; last_position_seconds: number; watched_seconds?: number; progress_percentage: number }) => {
     const video = activeVideoRef.current
     if (!video || progressSavingRef.current) return
     progressSavingRef.current = true
     try {
       const currentPos = Math.floor(data.last_position_seconds);
-      const watched = Math.max(secondsWatchedRef.current, currentPos);
+      const watched = data.watched_seconds !== undefined ? Math.floor(data.watched_seconds) : Math.max(secondsWatchedRef.current, currentPos);
       const res = await API.post(`/videos/${video.id}/progress`, {
         watched_seconds: watched,
         last_position_seconds: currentPos,
@@ -236,6 +237,7 @@ export default function LessonViewer() {
     await saveLessonProgress({
       lessonId: Number(id),
       last_position_seconds: current,
+      watched_seconds: current,
       progress_percentage: percentage
     });
   }
@@ -278,6 +280,7 @@ export default function LessonViewer() {
       saveLessonProgress({
         lessonId: Number(id),
         last_position_seconds: lastPosition,
+        watched_seconds: lastPosition,
         progress_percentage: progressPercentage
       });
     }
@@ -384,6 +387,7 @@ export default function LessonViewer() {
       saveLessonProgress({
         lessonId: Number(id),
         last_position_seconds: current,
+        watched_seconds: current,
         progress_percentage: percentage
       });
     }
@@ -420,11 +424,13 @@ export default function LessonViewer() {
           setLastPosition(current);
           setProgressPercentage(percentage);
           setWatchedTime(current);
+          setSecondsWatched(current);
           setDuration(durVal);
 
           saveLessonProgress({
             lessonId: Number(id),
             last_position_seconds: current,
+            watched_seconds: current,
             progress_percentage: percentage
           });
         }
@@ -478,6 +484,7 @@ export default function LessonViewer() {
                   saveLessonProgress({
                     lessonId: Number(id),
                     last_position_seconds: current,
+                    watched_seconds: current,
                     progress_percentage: percentage
                   });
                 }
@@ -543,14 +550,16 @@ export default function LessonViewer() {
       await saveLessonProgress({
         lessonId: Number(id),
         last_position_seconds: current,
+        watched_seconds: current,
         progress_percentage: percentage
       });
     }
     setActiveVideo(video)
     const pos = video.progress?.last_position_seconds || 0
+    const watchedSecs = video.progress?.watched_seconds || 0
     setLastPosition(pos)
-    setWatchedTime(pos)
-    setSecondsWatched(video.progress?.watched_seconds || 0)
+    setWatchedTime(watchedSecs)
+    setSecondsWatched(watchedSecs)
     
     const videoDuration = video.duration_seconds || 300
     setDuration(videoDuration)
@@ -587,7 +596,7 @@ export default function LessonViewer() {
       const video = activeVideoRef.current
       if (video) {
         API.post(`/videos/${video.id}/progress`, {
-          watched_seconds: secondsWatchedRef.current,
+          watched_seconds: lastPositionRef.current,
           last_position_seconds: lastPositionRef.current,
         }).catch((err) => console.error('Failed to save progress on exit:', err))
       }
@@ -698,6 +707,7 @@ export default function LessonViewer() {
                           const time = Math.floor(e.currentTarget.currentTime)
                           setLastPosition(time)
                           setWatchedTime(time)
+                          setSecondsWatched(time)
                           const durVal = Math.floor(e.currentTarget.duration || duration || activeVideo.duration_seconds)
                           setDuration(durVal)
                           if (durVal > 0) {
@@ -708,6 +718,7 @@ export default function LessonViewer() {
                           const time = Math.floor(e.currentTarget.currentTime)
                           setLastPosition(time)
                           setWatchedTime(time)
+                          setSecondsWatched(time)
                           syncProgressToDb()
                         }}
                         onEnded={() => {
@@ -986,7 +997,7 @@ export default function LessonViewer() {
 
                           {/* Visual progress bar and stats */}
                           {(() => {
-                             const currentWatched = isActive ? watchedTime : (vid.progress ? vid.progress.last_position_seconds : 0);
+                             const currentWatched = isActive ? watchedTime : (vid.progress ? (vid.progress.watched_seconds ?? vid.progress.last_position_seconds ?? 0) : 0);
                              const totalDuration = isActive ? (duration || vid.duration_seconds || 300) : (vid.duration_seconds || 300);
                              const percentage = isActive ? progressPercentage : Math.min(100, (currentWatched / totalDuration) * 100);
 

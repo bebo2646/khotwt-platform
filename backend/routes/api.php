@@ -40,6 +40,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
     // Auth actions that ignore must_change_password restriction (like changing the password or logging out)
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::get('/auth/check-session', [AuthController::class, 'checkSession']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/upload', [UploadController::class, 'upload']);
 

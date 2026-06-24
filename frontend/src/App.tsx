@@ -9,6 +9,7 @@ import { ModalProvider } from './components/ui/ConfirmModal'
 import { useModalStore } from './store/modalStore'
 import WhatsAppButton from './components/WhatsAppButton'
 import PWAManager from './components/PWAManager'
+import API from './services/api'
 
 
 // Public Pages (Lazy Loaded)
@@ -69,6 +70,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 function App() {
   const initTheme = useThemeStore((state) => state.initTheme)
   const navigateRef = React.useRef<any>(null)
+  const isLoggedIn = useAuthStore((state) => state.isLoggedIn)
 
   React.useEffect(() => {
     // Load default theme (Dark)
@@ -104,6 +106,34 @@ function App() {
       window.removeEventListener('elm_session_invalid', handleSessionInvalid)
     }
   }, [initTheme])
+
+  // Poll session state every 10 seconds while logged in
+  React.useEffect(() => {
+    let intervalId: any = null
+
+    if (isLoggedIn) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await API.get('/auth/check-session')
+          if (res.data && res.data.valid === false) {
+            useAuthStore.getState().logout()
+            window.location.href = '/login?session_invalid=true'
+          }
+        } catch (err: any) {
+          if (err.response && err.response.status === 401) {
+            useAuthStore.getState().logout()
+            window.location.href = '/login?session_invalid=true'
+          }
+        }
+      }, 10000)
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [isLoggedIn])
 
   return (
     <Router>

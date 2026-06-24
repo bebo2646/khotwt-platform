@@ -166,4 +166,19 @@ class AuthController extends Controller
             'message' => 'تم تغيير كلمة المرور بنجاح.',
         ]);
     }
+
+    /**
+     * Check session token validity.
+     */
+    public function checkSession(Request $request)
+    {
+        $user = $request->user();
+        $sessionToken = $request->header('X-Session-Token');
+
+        $valid = $user && $user->current_session_token && ($sessionToken === $user->current_session_token);
+
+        return response()->json([
+            'valid' => (bool)$valid
+        ]);
+    }
 }
