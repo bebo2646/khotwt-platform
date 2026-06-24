@@ -26,6 +26,10 @@ interface CourseItem {
   price: string
   grade: string
   subject: string
+  enable_discount?: boolean
+  discount_type?: 'percentage' | 'fixed'
+  discount_value?: string | number
+  final_price?: string | number
 }
 
 interface PackageItem {

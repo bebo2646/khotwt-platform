@@ -115,6 +115,10 @@ interface AvailableCourse {
   price: string
   subject: string
   lessons_count: number
+  enable_discount?: boolean
+  discount_type?: 'percentage' | 'fixed'
+  discount_value?: string | number
+  final_price?: string | number
   teacher: {
     id: number
     name: string
