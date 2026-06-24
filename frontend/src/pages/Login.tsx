@@ -333,10 +333,8 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Bottom copyright footer */}
-        <div className="text-xs text-slate-400 font-semibold relative z-10">
-          حقوق الطبع محفوظة © {new Date().getFullYear()} خطوتك التعليمية. جميع الحقوق محفوظة.
-        </div>
+        {/* Bottom spacer to keep alignment balanced */}
+        <div className="h-4 pointer-events-none"></div>
 
       </div>
 
