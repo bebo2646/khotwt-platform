@@ -2,6 +2,7 @@ import React from 'react'
 import API from '../../services/api'
 import { Film, UploadCloud, Copy, Check, Trash2, RefreshCw, AlertTriangle, HardDrive, Play, ArrowRight, Loader2, Link2 } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import * as tus from 'tus-js-client'
 
 interface VideoItem {
   id: number
@@ -134,51 +135,74 @@ export default function VideosManager() {
     try {
       setUploading(true)
       setUploadProgress(0)
-      setUploadStatusText('جاري تحضير ورفع الملف إلى السيرفر...')
+      setUploadStatusText('جاري إنشاء كائن الفيديو على خوادم Bunny Stream...')
 
-      const formData = new FormData()
-      formData.append('title', title.trim())
-      formData.append('lesson_id', selectedLessonId)
-      formData.append('video', videoFile)
+      // 1. Get signed upload credentials from our server
+      const signedRes = await API.post('/teacher/videos/signed-upload', {
+        title: title.trim(),
+        lesson_id: selectedLessonId,
+      });
 
-      const response = await API.post('/teacher/videos/upload', formData, {
+      const { video_id, library_id, signature, expiration_time } = signedRes.data;
+
+      setUploadStatusText('جاري بدء الرفع المباشر إلى Bunny Stream...')
+
+      // 2. Upload file binary directly to Bunny Stream using TUS
+      const upload = new tus.Upload(videoFile, {
+        endpoint: 'https://video.bunnycdn.com/tusupload',
+        retryDelays: [0, 3000, 5000, 10000, 20000],
         headers: {
-          'Content-Type': 'multipart/form-data'
+          AuthorizationSignature: signature,
+          AuthorizationExpire: String(expiration_time),
+          LibraryId: String(library_id),
+          VideoId: video_id,
         },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setUploadProgress(percentCompleted)
-            if (percentCompleted >= 100) {
-              setUploadStatusText('تم الرفع إلى الخادم. جاري نقل الفيديو إلى Bunny Stream...')
-            } else {
-              setUploadStatusText(`جاري الرفع: ${percentCompleted}%`)
-            }
-          }
+        metadata: {
+          filetype: videoFile.type,
+          title: title.trim(),
+        },
+        onError: (error) => {
+          console.error('TUS upload failed:', error);
+          setUploading(false);
+          setUploadProgress(null);
+          setUploadStatusText('');
+          useModalStore.getState().showToast('فشل رفع الفيديو إلى Bunny Stream.', 'error');
+        },
+        onProgress: (bytesSent, bytesTotal) => {
+          const percentage = Math.round((bytesSent / bytesTotal) * 100);
+          setUploadProgress(percentage);
+          setUploadStatusText(`جاري الرفع المباشر: ${percentage}%`);
+        },
+        onSuccess: () => {
+          useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
+          
+          // Reset form
+          setTitle('')
+          setSelectedCourseId('')
+          setSelectedUnitId('')
+          setSelectedLessonId('')
+          setVideoFile(null)
+          const fileInput = document.getElementById('video-upload-input') as HTMLInputElement
+          if (fileInput) fileInput.value = ''
+
+          setUploading(false);
+          setUploadProgress(null);
+          setUploadStatusText('');
+
+          // Reload list and storage
+          fetchData();
         }
-      })
+      });
 
-      useModalStore.getState().showToast('تم رفع الفيديو بنجاح وبدأت المعالجة على Bunny Stream.', 'success')
-      
-      // Reset form
-      setTitle('')
-      setSelectedCourseId('')
-      setSelectedUnitId('')
-      setSelectedLessonId('')
-      setVideoFile(null)
-      const fileInput = document.getElementById('video-upload-input') as HTMLInputElement
-      if (fileInput) fileInput.value = ''
+      upload.start();
 
-      // Reload
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      const errMsg = err.response?.data?.message || 'حدث خطأ أثناء رفع الفيديو.'
-      useModalStore.getState().showToast(errMsg, 'error')
-    } finally {
       setUploading(false)
       setUploadProgress(null)
       setUploadStatusText('')
+      const errMsg = err.response?.data?.message || err.message || 'حدث خطأ أثناء رفع الفيديو.'
+      useModalStore.getState().showToast(errMsg, 'error')
     }
   }
 
@@ -189,44 +213,66 @@ export default function VideosManager() {
     try {
       setReplacing(true)
       setReplaceProgress(0)
-      setReplaceStatusText('جاري رفع الملف البديل إلى السيرفر...')
+      setReplaceStatusText('جاري التحضير واستدعاء خادم المزامنة...')
 
-      const formData = new FormData()
-      formData.append('video', replaceFile)
+      // 1. Get signed credentials for replacement
+      const signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`);
 
-      await API.post(`/teacher/videos/${replacingVideo.id}/replace`, formData, {
+      const { video_id, library_id, signature, expiration_time } = signedRes.data;
+
+      setReplaceStatusText('جاري بدء الرفع البديل المباشر إلى Bunny Stream...')
+
+      // 2. Upload replacement file directly to Bunny Stream using TUS
+      const upload = new tus.Upload(replaceFile, {
+        endpoint: 'https://video.bunnycdn.com/tusupload',
+        retryDelays: [0, 3000, 5000, 10000, 20000],
         headers: {
-          'Content-Type': 'multipart/form-data'
+          AuthorizationSignature: signature,
+          AuthorizationExpire: String(expiration_time),
+          LibraryId: String(library_id),
+          VideoId: video_id,
         },
-        onUploadProgress: (progressEvent) => {
-          if (progressEvent.total) {
-            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-            setReplaceProgress(percentCompleted)
-            if (percentCompleted >= 100) {
-              setReplaceStatusText('تم الرفع إلى الخادم. جاري المعالجة والاستبدال على Bunny Stream...')
-            } else {
-              setReplaceStatusText(`جاري الرفع: ${percentCompleted}%`)
-            }
-          }
+        metadata: {
+          filetype: replaceFile.type,
+          title: replacingVideo.title,
+        },
+        onError: (error) => {
+          console.error('TUS replace failed:', error);
+          setReplacing(false);
+          setReplaceProgress(null);
+          setReplaceStatusText('');
+          useModalStore.getState().showToast('فشل استبدال الفيديو على Bunny Stream.', 'error');
+        },
+        onProgress: (bytesSent, bytesTotal) => {
+          const percentage = Math.round((bytesSent / bytesTotal) * 100);
+          setReplaceProgress(percentage);
+          setReplaceStatusText(`جاري رفع الفيديو الجديد: ${percentage}%`);
+        },
+        onSuccess: () => {
+          useModalStore.getState().showToast('تم استبدال الفيديو مباشرة على Bunny Stream بنجاح وجاري المعالجة.', 'success');
+          
+          // Reset replace state
+          setReplacingVideo(null)
+          setReplaceFile(null)
+
+          setReplacing(false);
+          setReplaceProgress(null);
+          setReplaceStatusText('');
+
+          // Reload list and storage
+          fetchData();
         }
-      })
+      });
 
-      useModalStore.getState().showToast('تم استبدال ملف الفيديو بنجاح وبدأت المعالجة البديلة.', 'success')
-      
-      // Reset replace state
-      setReplacingVideo(null)
-      setReplaceFile(null)
+      upload.start();
 
-      // Reload
-      fetchData()
     } catch (err: any) {
       console.error(err)
-      const errMsg = err.response?.data?.message || 'حدث خطأ أثناء استبدال الفيديو.'
-      useModalStore.getState().showToast(errMsg, 'error')
-    } finally {
       setReplacing(false)
       setReplaceProgress(null)
       setReplaceStatusText('')
+      const errMsg = err.response?.data?.message || err.message || 'حدث خطأ أثناء استبدال الفيديو.'
+      useModalStore.getState().showToast(errMsg, 'error')
     }
   }
 
