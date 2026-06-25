@@ -17,6 +17,11 @@ class Video extends Model
         'duration_seconds',
         'thumbnail_path',
         'resolution',
+        'bunny_video_id',
+        'bunny_thumbnail_url',
+        'bunny_duration',
+        'bunny_size_bytes',
+        'bunny_status',
     ];
 
     public function lesson()

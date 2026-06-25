@@ -44,6 +44,7 @@ const ExamBuilder = React.lazy(() => import('./pages/teacher/ExamBuilder'))
 const RevenueReport = React.lazy(() => import('./pages/teacher/RevenueReport'))
 const TeacherSubscriptionPage = React.lazy(() => import('./pages/teacher/Subscription'))
 const TeacherPlansPage = React.lazy(() => import('./pages/teacher/Plans'))
+const TeacherVideosManager = React.lazy(() => import('./pages/teacher/VideosManager'))
 
 // Admin Pages (Lazy Loaded)
 const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'))
@@ -58,6 +59,7 @@ const AdminTeacherSubscription = React.lazy(() => import('./pages/admin/TeacherS
 const AdminNotifications = React.lazy(() => import('./pages/admin/Notifications'))
 const AdminSubscriptionRequests = React.lazy(() => import('./pages/admin/SubscriptionRequests'))
 const AdminSubscriptionPlans = React.lazy(() => import('./pages/admin/SubscriptionPlans'))
+const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboard'))
 
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
@@ -280,6 +282,11 @@ function App() {
             <Layout><RevenueReport /></Layout>
           </ProtectedRoute>
         } />
+        <Route path="/teacher/videos" element={
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <Layout><TeacherVideosManager /></Layout>
+          </ProtectedRoute>
+        } />
 
         {/* ==========================================================================
             Admin Protected Scope Routes
@@ -342,6 +349,11 @@ function App() {
         <Route path="/admin/reports" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="reports.view">
             <Layout><ReportsPage /></Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/bunny" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Layout><AdminBunnyDashboard /></Layout>
           </ProtectedRoute>
         } />
         <Route path="/admin/manage" element={

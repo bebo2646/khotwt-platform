@@ -92,6 +92,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Teacher Subscription routes (always accessible)
             Route::get('/teacher/subscription', [SubscriptionController::class, 'getTeacherSubscriptionSelf']);
             Route::post('/teacher/subscription/upgrade-request', [SubscriptionController::class, 'requestUpgradeSelf']);
+            Route::get('/teacher/storage', [TeacherController::class, 'getStorageStats']);
+            Route::get('/teacher/videos', [TeacherController::class, 'listVideos']);
 
             // Content creation / uploads protected by active subscription
             Route::middleware('subscription.active')->group(function () {
@@ -101,6 +103,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/teacher/courses/{course}/units', [TeacherController::class, 'addUnit']);
                 Route::post('/teacher/units/{unit}/lessons', [TeacherController::class, 'addLesson']);
                 Route::post('/teacher/lessons/{lesson}/video', [TeacherController::class, 'addVideo']);
+                Route::post('/teacher/videos/upload', [TeacherController::class, 'uploadVideoDirect']);
+                Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::post('/teacher/videos/signed-upload', [TeacherController::class, 'generateSignedUpload']);
                 Route::post('/teacher/videos/detect-duration', [TeacherController::class, 'detectVideoDurationUrl']);
                 Route::put('/teacher/videos/{video}', [TeacherController::class, 'updateVideo']);
@@ -124,6 +128,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
          */
         Route::middleware('role:admin')->group(function () {
             Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+            Route::get('/admin/bunny/dashboard', [AdminController::class, 'bunnyDashboard']);
             Route::post('/admin/reset-year', [AdminController::class, 'resetYear']);
             Route::post('/admin/bulk/students', [AdminController::class, 'bulkDeleteStudents']);
             Route::post('/admin/bulk/teachers', [AdminController::class, 'bulkDeleteTeachers']);

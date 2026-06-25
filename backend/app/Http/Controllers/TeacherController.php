@@ -886,12 +886,250 @@ class TeacherController extends Controller
         $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
+        $teacherId = $request->user()->id;
         $lessonId = $video->lesson_id;
+
+        // Instantiate BunnyStreamService to delete from Bunny Stream
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $bunnyVideoId = $video->bunny_video_id ?: $video->bunny_stream_id;
+        if (!empty($bunnyVideoId)) {
+            $bunnyService->deleteVideo($bunnyVideoId);
+        }
+
         $video->delete();
 
+        // Recalculate storage and lesson duration
+        $bunnyService->recalculateStorage($teacherId);
         $this->updateLessonDuration($lessonId);
 
-        return response()->json(['message' => 'تم حذف الفيديو بنجاح.']);
+        return response()->json(['message' => 'تم حذف الفيديو بنجاح من المنصة ومن خوادم Bunny Stream وتم تحديث المساحة التخزينية.']);
+    }
+
+    /**
+     * Direct Upload of Video to Bunny Stream.
+     */
+    public function uploadVideoDirect(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'lesson_id' => 'required|exists:lessons,id',
+            'video' => 'required|file|max:512000', // 500 MB max
+        ]);
+
+        $lesson = Lesson::with('unit')->findOrFail($request->lesson_id);
+        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+
+        $teacherId = $request->user()->id;
+        $videoFile = $request->file('video');
+        $fileSize = $videoFile->getSize();
+
+        $bunnyService = new \App\Services\BunnyStreamService();
+
+        // Check storage limit
+        if ($bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
+            return response()->json([
+                'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة أو شراء مساحة إضافية لتتمكن من رفع الفيديو.'
+            ], 403);
+        }
+
+        // Create Bunny Video placeholder
+        $bunnyResult = $bunnyService->createVideo($request->title);
+        if (!$bunnyResult || empty($bunnyResult['guid'])) {
+            return response()->json([
+                'message' => 'فشل إنشاء الفيديو في خوادم Bunny Stream.'
+            ], 500);
+        }
+
+        $bunnyVideoId = $bunnyResult['guid'];
+
+        // Upload file binary to Bunny Stream
+        $uploaded = $bunnyService->uploadVideo($bunnyVideoId, $videoFile->getRealPath());
+        if (!$uploaded) {
+            return response()->json([
+                'message' => 'فشل رفع ملف الفيديو إلى خوادم Bunny Stream.'
+            ], 500);
+        }
+
+        $libraryId = env('BUNNY_LIBRARY_ID') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? '';
+        $pullZone = env('BUNNY_PULL_ZONE') ?? '';
+        $domain = !empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net';
+
+        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$bunnyVideoId}";
+        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$bunnyVideoId}/thumbnail.jpg";
+
+        // Create local video record
+        $video = Video::create([
+            'lesson_id' => $request->lesson_id,
+            'title' => $request->title,
+            'bunny_video_id' => $bunnyVideoId,
+            'bunny_stream_id' => $bunnyVideoId,
+            'bunny_embed_url' => $embedUrl,
+            'bunny_thumbnail_url' => $thumbnailUrl,
+            'bunny_duration' => 0,
+            'bunny_size_bytes' => $fileSize,
+            'bunny_status' => 'uploaded',
+            'duration_seconds' => 0, // Will be updated by polling job
+            'thumbnail_path' => $thumbnailUrl,
+        ]);
+
+        // Recalculate teacher storage immediately
+        $bunnyService->recalculateStorage($teacherId);
+
+        // Update lesson durations
+        $this->updateLessonDuration($request->lesson_id);
+
+        // Dispatch background polling job
+        \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+
+        return response()->json([
+            'message' => 'تم رفع الفيديو بنجاح وجاري المعالجة.',
+            'video' => $video,
+        ], 201);
+    }
+
+    /**
+     * Replace an existing video file on Bunny Stream.
+     */
+    public function replaceVideo(Request $request, $id)
+    {
+        $video = Video::findOrFail($id);
+        $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
+        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+
+        $request->validate([
+            'video' => 'required|file|max:512000', // 500 MB max
+        ]);
+
+        $teacherId = $request->user()->id;
+        $videoFile = $request->file('video');
+        $fileSize = $videoFile->getSize();
+
+        $bunnyService = new \App\Services\BunnyStreamService();
+
+        // Check storage limit with headroom of the old video being replaced
+        $oldSizeBytes = $video->bunny_size_bytes;
+        $sizeDifference = $fileSize - $oldSizeBytes;
+
+        if ($bunnyService->isStorageLimitExceeded($teacherId, $sizeDifference > 0 ? $sizeDifference : 0)) {
+            return response()->json([
+                'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة أو حذف فيديوهات قديمة لتتمكن من استبدال الفيديو.'
+            ], 403);
+        }
+
+        // Delete old video from Bunny Stream
+        $oldBunnyId = $video->bunny_video_id ?: $video->bunny_stream_id;
+        if (!empty($oldBunnyId)) {
+            $bunnyService->deleteVideo($oldBunnyId);
+        }
+
+        // Create new Bunny Video placeholder
+        $bunnyResult = $bunnyService->createVideo($video->title);
+        if (!$bunnyResult || empty($bunnyResult['guid'])) {
+            return response()->json([
+                'message' => 'فشل إنشاء الفيديو البديل في خوادم Bunny Stream.'
+            ], 500);
+        }
+
+        $newBunnyId = $bunnyResult['guid'];
+
+        // Upload new file binary to Bunny Stream
+        $uploaded = $bunnyService->uploadVideo($newBunnyId, $videoFile->getRealPath());
+        if (!$uploaded) {
+            return response()->json([
+                'message' => 'فشل رفع ملف الفيديو البديل إلى خوادم Bunny Stream.'
+            ], 500);
+        }
+
+        $libraryId = env('BUNNY_LIBRARY_ID') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? '';
+        $pullZone = env('BUNNY_PULL_ZONE') ?? '';
+        $domain = !empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net';
+
+        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$newBunnyId}";
+        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$newBunnyId}/thumbnail.jpg";
+
+        // Update local video record
+        $video->update([
+            'bunny_video_id' => $newBunnyId,
+            'bunny_stream_id' => $newBunnyId,
+            'bunny_embed_url' => $embedUrl,
+            'bunny_thumbnail_url' => $thumbnailUrl,
+            'bunny_duration' => 0,
+            'bunny_size_bytes' => $fileSize,
+            'bunny_status' => 'uploaded',
+            'duration_seconds' => 0,
+            'thumbnail_path' => $thumbnailUrl,
+        ]);
+
+        // Recalculate teacher storage immediately
+        $bunnyService->recalculateStorage($teacherId);
+
+        // Update lesson durations
+        $this->updateLessonDuration($video->lesson_id);
+
+        // Dispatch background polling job
+        \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+
+        return response()->json([
+            'message' => 'تم استبدال الفيديو بنجاح وجاري المعالجة.',
+            'video' => $video,
+        ]);
+    }
+
+    /**
+     * Get Teacher Storage usage stats.
+     */
+    public function getStorageStats(Request $request)
+    {
+        $teacher = $request->user();
+
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $bunnyService->recalculateStorage($teacher->id);
+        $teacher->refresh();
+
+        $usedGb = (float)$teacher->bunny_storage_used_gb;
+        $limitGb = (float)$teacher->bunny_storage_limit_gb;
+        $remainingGb = max(0.00, $limitGb - $usedGb);
+        $percentage = $limitGb > 0 ? min(100.00, round(($usedGb / $limitGb) * 100, 2)) : 0.00;
+
+        return response()->json([
+            'bunny_storage_used_gb' => $usedGb,
+            'bunny_storage_limit_gb' => $limitGb,
+            'bunny_storage_remaining_gb' => $remainingGb,
+            'used_percentage' => $percentage,
+        ]);
+    }
+
+    /**
+     * Get list of videos for teacher.
+     */
+    public function listVideos(Request $request)
+    {
+        $teacherId = $request->user()->id;
+
+        $videos = Video::whereHas('lesson.unit.course', function ($q) use ($teacherId) {
+            $q->where('teacher_id', $teacherId);
+        })
+        ->with('lesson.unit.course')
+        ->latest()
+        ->get()
+        ->map(function ($video) {
+            return [
+                'id' => $video->id,
+                'title' => $video->title,
+                'lesson_id' => $video->lesson_id,
+                'bunny_video_id' => $video->bunny_video_id ?: $video->bunny_stream_id,
+                'bunny_embed_url' => $video->bunny_embed_url,
+                'bunny_thumbnail_url' => $video->bunny_thumbnail_url ?: $video->thumbnail_path,
+                'bunny_duration' => $video->bunny_duration ?: $video->duration_seconds,
+                'bunny_size_bytes' => $video->bunny_size_bytes,
+                'bunny_status' => $video->bunny_status ?: 'finished',
+                'lesson_title' => $video->lesson->title ?? 'N/A',
+                'course_title' => $video->lesson->unit->course->title ?? 'N/A',
+                'created_at' => $video->created_at,
+            ];
+        });
+
+        return response()->json($videos);
     }
 
     /**

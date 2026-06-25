@@ -1600,5 +1600,96 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'تم إنهاء جميع الجلسات النشطة بنجاح (باستثنائك).']);
     }
+
+    /**
+     * Get Bunny Stream dashboard stats for administrators.
+     */
+    public function bunnyDashboard(Request $request)
+    {
+        // 1. Fetch total Bunny storage usage (sum of all videos size)
+        $totalBytes = \App\Models\Video::sum('bunny_size_bytes');
+        $totalGb = round($totalBytes / (1024 * 1024 * 1024), 4);
+
+        // 2. Fetch usage per teacher
+        $teachers = User::where('role', 'teacher')
+            ->with(['teacherSubscription.plan'])
+            ->get()
+            ->map(function ($teacher) {
+                // Ensure storage metrics are populated
+                $usedGb = (float) ($teacher->bunny_storage_used_gb ?? 0.00);
+                
+                // Let's retrieve limits from subscription or default
+                $subscription = $teacher->teacherSubscription;
+                $limitGb = 10.00;
+                if ($subscription) {
+                    $planLimit = 10.00;
+                    if ($subscription->plan) {
+                        $planSlug = strtolower($subscription->plan->slug ?? '');
+                        $planLimit = match($planSlug) {
+                            'starter' => 10.00,
+                            'basic' => 25.00,
+                            'pro' => 50.00,
+                            'academy' => 100.00,
+                            default => floatval($subscription->plan->video_storage_gb ?? $subscription->plan->max_storage_gb ?? 10.00)
+                        };
+                    }
+                    $addonStorage = $subscription->addons()->where('type', 'storage')->sum('amount');
+                    $limitGb = $planLimit + $addonStorage;
+                }
+                
+                // Keep DB aligned
+                if ($teacher->bunny_storage_limit_gb != $limitGb) {
+                    $teacher->update(['bunny_storage_limit_gb' => $limitGb]);
+                }
+
+                $planName = $subscription && $subscription->plan ? $subscription->plan->name : 'Starter';
+                
+                $videoCount = \App\Models\Video::whereHas('lesson.unit.course', function ($q) use ($teacher) {
+                    $q->where('teacher_id', $teacher->id);
+                })->count();
+
+                return [
+                    'id' => $teacher->id,
+                    'name' => $teacher->name,
+                    'email' => $teacher->email,
+                    'plan_name' => $planName,
+                    'bunny_storage_used_gb' => $usedGb,
+                    'bunny_storage_limit_gb' => $limitGb,
+                    'used_percentage' => $limitGb > 0 ? min(100, round(($usedGb / $limitGb) * 100, 2)) : 0,
+                    'video_count' => $videoCount,
+                ];
+            });
+
+        // 3. Top storage consumers
+        $topConsumers = $teachers->sortByDesc('bunny_storage_used_gb')->values()->take(5);
+
+        // 4. Largest videos
+        $largestVideos = \App\Models\Video::with(['lesson.unit.course.teacher'])
+            ->orderBy('bunny_size_bytes', 'desc')
+            ->take(10)
+            ->get()
+            ->map(function ($video) {
+                $course = $video->lesson->unit->course ?? null;
+                $teacher = $course->teacher ?? null;
+                return [
+                    'id' => $video->id,
+                    'title' => $video->title,
+                    'bunny_video_id' => $video->bunny_video_id,
+                    'bunny_size_bytes' => $video->bunny_size_bytes,
+                    'bunny_size_gb' => round($video->bunny_size_bytes / (1024 * 1024 * 1024), 4),
+                    'bunny_status' => $video->bunny_status,
+                    'course_title' => $course ? $course->title : 'N/A',
+                    'teacher_name' => $teacher ? $teacher->name : 'N/A',
+                ];
+            });
+
+        return response()->json([
+            'total_storage_bytes' => $totalBytes,
+            'total_storage_gb' => $totalGb,
+            'teachers_usage' => $teachers,
+            'top_consumers' => $topConsumers,
+            'largest_videos' => $largestVideos,
+        ]);
+    }
 }
 

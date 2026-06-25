@@ -169,6 +169,7 @@ export default function Navbar() {
 
           <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">طلبات الاشتراكات</Link>
           <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إدارة الباقات</Link>
+          <Link to="/admin/bunny" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إحصائيات Bunny</Link>
           {hasPerm('admins.manage') && (
             
             <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-sm text-amber-500 transition-colors whitespace-nowrap shrink-0">الصلاحيات</Link>
@@ -186,6 +187,7 @@ export default function Navbar() {
           <Link to="/teacher/students" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
           <Link to="/teacher/revenue" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">تقرير الأرباح</Link>
           <Link to="/teacher/subscription" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">اشتراكي</Link>
+          <Link to="/teacher/videos" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إدارة الفيديوهات</Link>
           <Link to="/change-password" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
         </>
       )

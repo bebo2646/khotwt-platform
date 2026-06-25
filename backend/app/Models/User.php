@@ -30,6 +30,8 @@ use Laravel\Sanctum\HasApiTokens;
     'is_super_admin',
     'permissions',
     'current_session_token',
+    'bunny_storage_used_gb',
+    'bunny_storage_limit_gb',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -86,6 +88,8 @@ class User extends Authenticatable
             'is_super' => 'boolean',
             'is_super_admin' => 'boolean',
             'permissions' => 'array',
+            'bunny_storage_used_gb' => 'float',
+            'bunny_storage_limit_gb' => 'float',
         ];
     }
 
