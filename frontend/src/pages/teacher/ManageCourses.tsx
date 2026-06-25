@@ -1665,52 +1665,60 @@ export default function ManageCourses() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
-                <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
-                  {uploadingVideo ? (
-                    <div className="space-y-2 text-right">
-                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
-                        <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
-                        {uploadProgress !== null && <span>{uploadProgress}%</span>}
-                      </div>
-                      {uploadProgress !== null && (
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+              {isBunnyConfigured ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
+                  <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
+                    {uploadingVideo ? (
+                      <div className="space-y-2 text-right">
+                        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                          <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
+                          {uploadProgress !== null && <span>{uploadProgress}%</span>}
                         </div>
-                      )}
-                    </div>
-                  ) : vidEmbedUrl && videoFileDetails ? (
-                    <div className="space-y-2 text-xs text-right">
-                      <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
-                      <div className="text-[10px] text-slate-400 flex justify-between px-2">
-                        <span>الحجم: {videoFileDetails.size}</span>
-                        <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                        {uploadProgress !== null && (
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                          </div>
+                        )}
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
-                      >
-                        إزالة وتغيير الفيديو
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار (الحد الأقصى 250 ميجابايت)</span>
-                      <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
-                        <span>اختر ملف فيديو</span>
-                        <input 
-                          type="file" 
-                          accept="video/mp4,video/m4v,video/quicktime,video/webm" 
-                          className="hidden" 
-                          onChange={handleVideoUpload}
-                        />
-                      </label>
-                    </div>
-                  )}
+                    ) : vidEmbedUrl && videoFileDetails ? (
+                      <div className="space-y-2 text-xs text-right">
+                        <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
+                        <div className="text-[10px] text-slate-400 flex justify-between px-2">
+                          <span>الحجم: {videoFileDetails.size}</span>
+                          <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
+                        >
+                          إزالة وتغيير الفيديو
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار (الحد الأقصى 250 ميجابايت)</span>
+                        <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
+                          <span>اختر ملف فيديو</span>
+                          <input 
+                            type="file" 
+                            accept="video/mp4,video/m4v,video/quicktime,video/webm" 
+                            className="hidden" 
+                            onChange={handleVideoUpload}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-2xl p-3 text-right">
+                  <div className="text-[11px] font-bold text-amber-500">
+                    تكامل Bunny Stream غير مهيأ حالياً على السيرفر. الرفع المباشر معطل.
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 font-bold">أو أدخل رابط الفيديو يدوياً</label>
@@ -1973,52 +1981,60 @@ export default function ManageCourses() {
             
             <form onSubmit={handleSaveReplaceVideo} className="space-y-4">
               
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
-                <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
-                  {uploadingVideo ? (
-                    <div className="space-y-2 text-right">
-                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
-                        <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
-                        {uploadProgress !== null && <span>{uploadProgress}%</span>}
-                      </div>
-                      {uploadProgress !== null && (
-                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+              {isBunnyConfigured ? (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
+                  <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
+                    {uploadingVideo ? (
+                      <div className="space-y-2 text-right">
+                        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                          <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
+                          {uploadProgress !== null && <span>{uploadProgress}%</span>}
                         </div>
-                      )}
-                    </div>
-                  ) : vidEmbedUrl && videoFileDetails ? (
-                    <div className="space-y-2 text-xs text-right">
-                      <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
-                      <div className="text-[10px] text-slate-400 flex justify-between px-2">
-                        <span>الحجم: {videoFileDetails.size}</span>
-                        <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                        {uploadProgress !== null && (
+                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                          </div>
+                        )}
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
-                      >
-                        إزالة الفيديو
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار</span>
-                      <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all">
-                        <span>اختر ملف فيديو</span>
-                        <input 
-                          type="file" 
-                          accept="video/mp4,video/m4v,video/quicktime,video/webm" 
-                          className="hidden" 
-                          onChange={handleVideoUpload}
-                        />
-                      </label>
-                    </div>
-                  )}
+                    ) : vidEmbedUrl && videoFileDetails ? (
+                      <div className="space-y-2 text-xs text-right">
+                        <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
+                        <div className="text-[10px] text-slate-400 flex justify-between px-2">
+                          <span>الحجم: {videoFileDetails.size}</span>
+                          <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
+                        >
+                          إزالة الفيديو
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار</span>
+                        <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all">
+                          <span>اختر ملف فيديو</span>
+                          <input 
+                            type="file" 
+                            accept="video/mp4,video/m4v,video/quicktime,video/webm" 
+                            className="hidden" 
+                            onChange={handleVideoUpload}
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-2xl p-3 text-right">
+                  <div className="text-[11px] font-bold text-amber-500">
+                    تكامل Bunny Stream غير مهيأ حالياً على السيرفر. الرفع المباشر معطل.
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 font-bold">أو أدخل رابط الفيديو الجديد يدوياً</label>

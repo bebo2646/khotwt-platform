@@ -16,8 +16,8 @@ class BunnySubscriptionService
      */
     public function syncStorageAndCodes($teacherId = null)
     {
-        $libraryId = env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id');
+        $apiKey = config('services.bunny.api_key');
 
         if (empty($libraryId) || empty($apiKey)) {
             Log::warning('Bunny Stream is not configured. Skipping storage synchronization.');

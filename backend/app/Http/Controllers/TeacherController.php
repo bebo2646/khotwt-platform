@@ -154,8 +154,8 @@ class TeacherController extends Controller
      */
     private function fetchBunnyVideoDetails($videoId)
     {
-        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id');
+        $apiKey = config('services.bunny.api_key');
 
         if (empty($libraryId) || empty($apiKey)) {
             return null;
@@ -205,8 +205,8 @@ class TeacherController extends Controller
         $lesson = Lesson::with('unit')->findOrFail($request->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
-        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id');
+        $apiKey = config('services.bunny.api_key');
 
         if (empty($libraryId) || empty($apiKey)) {
             return response()->json([
@@ -747,7 +747,7 @@ class TeacherController extends Controller
             }
         }
 
-        $isBunnyConfigured = !empty(config('services.bunny.library_id')) || !empty(env('BUNNY_STREAM_LIBRARY_ID'));
+        $isBunnyConfigured = !empty(config('services.bunny.library_id'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
@@ -865,7 +865,7 @@ class TeacherController extends Controller
             }
         }
 
-        $isBunnyConfigured = !empty(config('services.bunny.library_id')) || !empty(env('BUNNY_STREAM_LIBRARY_ID'));
+        $isBunnyConfigured = !empty(config('services.bunny.library_id'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
@@ -946,8 +946,8 @@ class TeacherController extends Controller
         $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
-        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id');
+        $apiKey = config('services.bunny.api_key');
 
         if (empty($libraryId) || empty($apiKey)) {
             return response()->json([

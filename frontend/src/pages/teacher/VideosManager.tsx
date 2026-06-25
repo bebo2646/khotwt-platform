@@ -66,6 +66,7 @@ export default function VideosManager() {
 
   // Copy success indicator
   const [copiedId, setCopiedId] = React.useState<number | null>(null)
+  const [isBunnyConfigured, setIsBunnyConfigured] = React.useState(false)
 
   const fetchData = async () => {
     try {
@@ -99,6 +100,11 @@ export default function VideosManager() {
   React.useEffect(() => {
     fetchData()
     fetchCourses()
+    API.get('/config')
+      .then((res) => {
+        setIsBunnyConfigured(res.data.bunny_stream_configured)
+      })
+      .catch((err) => console.error(err))
   }, [])
 
   // When course selection changes, load units & lessons
@@ -484,14 +490,18 @@ export default function VideosManager() {
                 id="video-upload-input"
                 accept="video/*"
                 onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-                disabled={uploading}
-                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-2 text-xs text-slate-300 file:bg-slate-800 file:border-none file:text-slate-300 file:px-3 file:py-1 file:rounded-lg file:ml-4 file:hover:bg-slate-700 file:cursor-pointer"
+                disabled={uploading || !isBunnyConfigured}
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-2 text-xs text-slate-300 file:bg-slate-800 file:border-none file:text-slate-300 file:px-3 file:py-1 file:rounded-lg file:ml-4 file:hover:bg-slate-700 file:cursor-pointer disabled:opacity-50"
               />
             </div>
 
             {/* Upload Button & Status */}
             <div className="pt-2">
-              {uploading ? (
+              {!isBunnyConfigured ? (
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3 text-right">
+                  <span className="text-[11px] font-bold text-amber-500">تكامل Bunny Stream غير مهيأ حالياً على السيرفر. الرفع المباشر معطل.</span>
+                </div>
+              ) : uploading ? (
                 <div className="space-y-2 bg-slate-900/60 border border-slate-800 p-4 rounded-2xl">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-2">
@@ -690,12 +700,28 @@ export default function VideosManager() {
                   type="file"
                   accept="video/*"
                   onChange={(e) => setReplaceFile(e.target.files?.[0] || null)}
-                  disabled={replacing}
-                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-2 text-xs text-slate-300 file:bg-slate-800 file:border-none file:text-slate-300 file:px-3 file:py-1 file:rounded-lg file:ml-4"
+                  disabled={replacing || !isBunnyConfigured}
+                  className="w-full bg-slate-900 border border-slate-700/60 rounded-xl px-4 py-2 text-xs text-slate-300 file:bg-slate-800 file:border-none file:text-slate-300 file:px-3 file:py-1 file:rounded-lg file:ml-4 disabled:opacity-50"
                 />
               </div>
 
-              {replacing ? (
+              {!isBunnyConfigured ? (
+                <div className="space-y-3">
+                  <div className="border border-amber-500/20 bg-amber-500/5 rounded-xl p-3 text-right">
+                    <span className="text-[11px] font-bold text-amber-500">تكامل Bunny Stream غير مهيأ حالياً على السيرفر.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReplacingVideo(null)
+                      setReplaceFile(null)
+                    }}
+                    className="w-full py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-semibold transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              ) : replacing ? (
                 <div className="space-y-2 bg-slate-900/60 border border-slate-800 p-4 rounded-2xl">
                   <div className="flex items-center justify-between text-xs text-slate-400">
                     <span className="flex items-center gap-2">

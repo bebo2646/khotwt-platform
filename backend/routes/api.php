@@ -25,6 +25,18 @@ Route::get('/packages', [PublicController::class, 'packages']);
 Route::get('/filter/subjects', [PublicController::class, 'filterSubjects']);
 Route::get('/filter/teachers', [PublicController::class, 'filterTeachers']);
 Route::get('/config', [PublicController::class, 'config']);
+Route::get('/debug/bunny-config', function () {
+    $libraryId = config('services.bunny.library_id');
+    $apiKey = config('services.bunny.api_key');
+    $cdnHost = config('services.bunny.cdn_hostname');
+
+    return response()->json([
+        'configured' => !empty($libraryId) && !empty($apiKey),
+        'library_id_exists' => !empty($libraryId),
+        'api_key_exists' => !empty($apiKey),
+        'cdn_hostname_exists' => !empty($cdnHost),
+    ]);
+});
 
 // Authentication
 Route::post('/register', [AuthController::class, 'register']);

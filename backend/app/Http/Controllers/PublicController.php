@@ -371,7 +371,7 @@ class PublicController extends Controller
     {
         return response()->json([
             'development_mode' => filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN),
-            'bunny_stream_configured' => !empty(env('BUNNY_STREAM_LIBRARY_ID')),
+            'bunny_stream_configured' => !empty(config('services.bunny.library_id')),
         ]);
     }
 }
