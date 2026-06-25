@@ -168,6 +168,7 @@ export default function Navbar() {
           <Link to="/admin/notifications" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إرسال الإشعارات</Link>
 
           <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">طلبات الاشتراكات</Link>
+          <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إدارة الباقات</Link>
           {hasPerm('admins.manage') && (
             
             <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-sm text-amber-500 transition-colors whitespace-nowrap shrink-0">الصلاحيات</Link>

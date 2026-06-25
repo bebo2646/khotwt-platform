@@ -199,9 +199,18 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);
             Route::get('/admin/subscriptions/requests', [SubscriptionController::class, 'getSubscriptionRequests']);
             Route::post('/admin/subscriptions/requests/{id}/action', [SubscriptionController::class, 'handleSubscriptionRequest']);
-            Route::put('/admin/subscription-plans/{id}', [SubscriptionController::class, 'updatePlan']);
-            Route::post('/admin/subscription-settings', [SubscriptionController::class, 'updateSettings']);
+            
+            // Subscription Plans management CRUD
             Route::get('/admin/subscription-plans', [SubscriptionController::class, 'listPlansAdmin']);
+            Route::post('/admin/subscription-plans', [SubscriptionController::class, 'createPlan']);
+            Route::put('/admin/subscription-plans/{id}', [SubscriptionController::class, 'updatePlan']);
+            Route::delete('/admin/subscription-plans/{id}', [SubscriptionController::class, 'deletePlan']);
+            Route::post('/admin/subscription-plans/{id}/toggle', [SubscriptionController::class, 'togglePlanStatus']);
+            Route::post('/admin/subscription-plans/reorder', [SubscriptionController::class, 'reorderPlans']);
+            Route::get('/admin/subscription-plans/{id}/price-history', [SubscriptionController::class, 'getPriceHistory']);
+            Route::get('/admin/subscription-plans/{id}/audit-logs', [SubscriptionController::class, 'getAuditLogs']);
+            
+            Route::post('/admin/subscription-settings', [SubscriptionController::class, 'updateSettings']);
 
             // Admin Notifications Management
             Route::post('/admin/notifications', [SubscriptionController::class, 'sendNotification']);

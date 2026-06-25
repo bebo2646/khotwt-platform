@@ -79,6 +79,10 @@ return [
             'group' => 'subscription_management',
             'label' => 'إدارة اشتراكات المعلمين والخطط',
         ],
+        'subscription_plans.edit' => [
+            'group' => 'subscription_management',
+            'label' => 'تعديل وإنشاء خطط الاشتراك',
+        ],
         // Promo Codes
         'coupons.manage' => [
             'group' => 'promo_codes',

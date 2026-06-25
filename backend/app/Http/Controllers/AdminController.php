@@ -868,21 +868,25 @@ class AdminController extends Controller
             return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
         }
 
-        // Self-heal table if empty
-        if (\App\Models\Permission::count() === 0) {
-            $config = require base_path('config/permissions.php');
-            $groups = $config['groups'] ?? [];
-            $permissions = $config['permissions'] ?? [];
-            foreach ($permissions as $key => $details) {
-                $groupKey = $details['group'];
-                \App\Models\Permission::create([
-                    'key' => $key,
+        // Sync permissions from config
+        $config = require base_path('config/permissions.php');
+        $groups = $config['groups'] ?? [];
+        $permissionsConfig = $config['permissions'] ?? [];
+        
+        foreach ($permissionsConfig as $key => $details) {
+            $groupKey = $details['group'];
+            \App\Models\Permission::updateOrCreate(
+                ['key' => $key],
+                [
                     'group_key' => $groupKey,
                     'group_label' => $groups[$groupKey] ?? $groupKey,
                     'label_ar' => $details['label'],
-                ]);
-            }
+                ]
+            );
         }
+        
+        // Clean up legacy permissions not in config
+        \App\Models\Permission::whereNotIn('key', array_keys($permissionsConfig))->delete();
 
         $permissions = \App\Models\Permission::orderBy('group_key')->get();
         return response()->json($permissions);

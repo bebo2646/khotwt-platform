@@ -160,7 +160,7 @@ class SubscriptionController extends Controller
             ],
             'addons' => $subscription->addons()->orderBy('created_at', 'desc')->get(),
             'payments' => $subscription->payments()->orderBy('created_at', 'desc')->get(),
-            'plans' => SubscriptionPlan::all(),
+            'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
         ]);
     }
@@ -759,7 +759,7 @@ class SubscriptionController extends Controller
                 'students_count' => $studentsCount,
             ],
             'addons' => $subscription->addons()->orderBy('created_at', 'desc')->get(),
-            'plans' => SubscriptionPlan::all(),
+            'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
         ]);
@@ -951,27 +951,260 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * Create a subscription plan (Admin).
+     */
+    public function createPlan(Request $request)
+    {
+        if (!$request->user()->is_super_admin && !$request->user()->is_super && !$request->user()->hasPermission('subscription_plans.edit')) {
+            return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:subscription_plans,slug',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'currency' => 'nullable|string|max:10',
+            'duration_in_days' => 'required|integer|min:1',
+            'max_courses' => 'nullable|integer|min:0',
+            'max_storage_gb' => 'required|integer|min:0',
+            'included_codes' => 'required|integer|min:0',
+            'featured' => 'required|boolean',
+            'active' => 'required|boolean',
+            'sort_order' => 'required|integer',
+            'badge_text' => 'nullable|string|max:255',
+            'color_theme' => 'nullable|string|max:255',
+        ]);
+
+        $data = $request->all();
+        if (empty($data['slug'])) {
+            $data['slug'] = \Illuminate\Support\Str::slug($data['name']);
+        }
+        if (empty($data['currency'])) {
+            $data['currency'] = 'EGP';
+        }
+
+        // Keep legacy fields populated just in case of raw queries
+        $data['price_egp'] = $data['price'];
+        $data['video_storage_gb'] = $data['max_storage_gb'];
+        $data['student_codes'] = $data['included_codes'];
+        $data['duration_days'] = $data['duration_in_days'];
+        $data['is_popular'] = $data['featured'];
+        $data['is_trial'] = ($data['slug'] === 'starter' || $data['slug'] === 'free' || $data['price'] == 0);
+
+        $plan = SubscriptionPlan::create($data);
+
+        // Audit Log
+        $this->logPlanAudit($plan->id, $request->user()->id, 'create', null, $plan->toArray());
+
+        return response()->json([
+            'message' => 'تم إنشاء خطة الاشتراك بنجاح',
+            'plan' => $plan
+        ]);
+    }
+
+    /**
      * Update a subscription plan (Admin).
      */
     public function updatePlan(Request $request, $id)
     {
+        if (!$request->user()->is_super_admin && !$request->user()->is_super && !$request->user()->hasPermission('subscription_plans.edit')) {
+            return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
-            'video_storage_gb' => 'required|integer|min:0',
-            'student_codes' => 'required|integer|min:0',
-            'price_egp' => 'required|numeric|min:0',
-            'duration_days' => 'required|integer|min:1',
-            'is_trial' => 'required|boolean',
-            'is_popular' => 'required|boolean',
+            'slug' => 'nullable|string|max:255|unique:subscription_plans,slug,' . $id,
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'currency' => 'nullable|string|max:10',
+            'duration_in_days' => 'required|integer|min:1',
+            'max_courses' => 'nullable|integer|min:0',
+            'max_storage_gb' => 'required|integer|min:0',
+            'included_codes' => 'required|integer|min:0',
+            'featured' => 'required|boolean',
+            'active' => 'required|boolean',
+            'sort_order' => 'required|integer',
+            'badge_text' => 'nullable|string|max:255',
+            'color_theme' => 'nullable|string|max:255',
         ]);
 
         $plan = SubscriptionPlan::findOrFail($id);
-        $plan->update($request->all());
+        $oldValues = $plan->toArray();
+
+        $data = $request->all();
+        if (empty($data['slug'])) {
+            $data['slug'] = \Illuminate\Support\Str::slug($data['name']);
+        }
+
+        // Keep legacy fields populated just in case of raw queries
+        $data['price_egp'] = $data['price'];
+        $data['video_storage_gb'] = $data['max_storage_gb'];
+        $data['student_codes'] = $data['included_codes'];
+        $data['duration_days'] = $data['duration_in_days'];
+        $data['is_popular'] = $data['featured'];
+        $data['is_trial'] = ($data['slug'] === 'starter' || $data['slug'] === 'free' || $data['price'] == 0);
+
+        // Price History Check
+        if ((float)$plan->price !== (float)$data['price']) {
+            \App\Models\SubscriptionPlanPriceHistory::create([
+                'plan_id' => $plan->id,
+                'old_price' => $plan->price,
+                'new_price' => $data['price'],
+                'changed_by' => $request->user()->id,
+            ]);
+        }
+
+        $plan->update($data);
+        $newValues = $plan->toArray();
+
+        // Audit Log
+        $this->logPlanAudit($plan->id, $request->user()->id, 'update', $oldValues, $newValues);
 
         return response()->json([
             'message' => 'تم تحديث خطة الاشتراك بنجاح',
             'plan' => $plan
         ]);
+    }
+
+    /**
+     * Toggle active/inactive status of a plan.
+     */
+    public function togglePlanStatus(Request $request, $id)
+    {
+        if (!$request->user()->is_super_admin && !$request->user()->is_super && !$request->user()->hasPermission('subscription_plans.edit')) {
+            return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
+        }
+
+        $plan = SubscriptionPlan::findOrFail($id);
+        $oldValues = $plan->toArray();
+
+        $plan->active = !$plan->active;
+        $plan->save();
+
+        $newValues = $plan->toArray();
+        $this->logPlanAudit($plan->id, $request->user()->id, 'toggle_active', $oldValues, $newValues);
+
+        return response()->json([
+            'message' => $plan->active ? 'تم تفعيل خطة الاشتراك بنجاح' : 'تم إلغاء تفعيل خطة الاشتراك بنجاح',
+            'plan' => $plan
+        ]);
+    }
+
+    /**
+     * Delete a subscription plan.
+     */
+    public function deletePlan(Request $request, $id)
+    {
+        if (!$request->user()->is_super_admin && !$request->user()->is_super && !$request->user()->hasPermission('subscription_plans.edit')) {
+            return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
+        }
+
+        $plan = SubscriptionPlan::findOrFail($id);
+
+        // Check if there are active subscriptions using this plan
+        $activeSubsCount = TeacherSubscription::where('plan_id', $id)
+            ->whereIn('status', ['Active', 'Expiring Soon'])
+            ->count();
+
+        if ($activeSubsCount > 0) {
+            return response()->json([
+                'message' => 'لا يمكن حذف هذه الخطة لأن هناك معلمين مشتركين فيها حالياً بنشاط. يرجى إلغاء تفعيلها بدلاً من ذلك.'
+            ], 400);
+        }
+
+        $oldValues = $plan->toArray();
+        $plan->delete();
+
+        $this->logPlanAudit($id, $request->user()->id, 'delete', $oldValues, null);
+
+        return response()->json([
+            'message' => 'تم حذف خطة الاشتراك بنجاح'
+        ]);
+    }
+
+    /**
+     * Reorder plans.
+     */
+    public function reorderPlans(Request $request)
+    {
+        if (!$request->user()->is_super_admin && !$request->user()->is_super && !$request->user()->hasPermission('subscription_plans.edit')) {
+            return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
+        }
+
+        $request->validate([
+            'orders' => 'required|array',
+            'orders.*' => 'required|exists:subscription_plans,id',
+        ]);
+
+        $orders = $request->orders;
+        $oldValues = SubscriptionPlan::orderBy('sort_order', 'asc')->pluck('sort_order', 'id')->toArray();
+
+        foreach ($orders as $index => $id) {
+            SubscriptionPlan::where('id', $id)->update(['sort_order' => $index]);
+        }
+
+        $newValues = SubscriptionPlan::orderBy('sort_order', 'asc')->pluck('sort_order', 'id')->toArray();
+        
+        // Log audit
+        $this->logPlanAudit($orders[0] ?? 1, $request->user()->id, 'reorder', $oldValues, $newValues);
+
+        return response()->json([
+            'message' => 'تم إعادة ترتيب خطط الاشتراك بنجاح',
+            'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get()
+        ]);
+    }
+
+    /**
+     * Get price history of a plan.
+     */
+    public function getPriceHistory(Request $request, $id)
+    {
+        $plan = SubscriptionPlan::findOrFail($id);
+        $history = \App\Models\SubscriptionPlanPriceHistory::where('plan_id', $id)
+            ->with('admin:id,name,email')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'plan' => $plan,
+            'history' => $history
+        ]);
+    }
+
+    /**
+     * Get audit logs of a plan.
+     */
+    public function getAuditLogs(Request $request, $id)
+    {
+        $plan = SubscriptionPlan::findOrFail($id);
+        $logs = \App\Models\SubscriptionPlanAuditLog::where('plan_id', $id)
+            ->with('user:id,name,email,role')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'plan' => $plan,
+            'logs' => $logs
+        ]);
+    }
+
+    /**
+     * Helper to write audit logs.
+     */
+    private function logPlanAudit($planId, $userId, $action, $oldValues = null, $newValues = null)
+    {
+        try {
+            \App\Models\SubscriptionPlanAuditLog::create([
+                'plan_id' => $planId,
+                'user_id' => $userId,
+                'action' => $action,
+                'old_values' => $oldValues,
+                'new_values' => $newValues,
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to write plan audit log: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -1095,7 +1328,7 @@ class SubscriptionController extends Controller
     public function listPlansAdmin(Request $request)
     {
         return response()->json([
-            'plans' => SubscriptionPlan::all(),
+            'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings()
         ]);
     }
