@@ -369,9 +369,14 @@ class PublicController extends Controller
      */
     public function config()
     {
+        $libraryId = config('services.bunny.library_id');
+        $apiKey = config('services.bunny.api_key');
+        $isConfigured = !empty($libraryId) && !empty($apiKey);
+
         return response()->json([
             'development_mode' => filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN),
-            'bunny_stream_configured' => !empty(config('services.bunny.library_id')),
+            'bunny_stream_configured' => $isConfigured,
+            'bunny_enabled' => $isConfigured,
         ]);
     }
 }
