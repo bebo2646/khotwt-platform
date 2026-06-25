@@ -43,6 +43,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
     Route::get('/auth/check-session', [AuthController::class, 'checkSession']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/upload', [UploadController::class, 'upload']);
+    Route::get('/subscription-plans', [SubscriptionController::class, 'listPlansPublic']);
 
     // Routes that enforce must_change_password check
     Route::middleware('must_change_password')->group(function () {

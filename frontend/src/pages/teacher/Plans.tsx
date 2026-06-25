@@ -14,6 +14,7 @@ interface Plan {
   duration_days: number
   is_trial: boolean
   is_popular: boolean
+  active?: boolean
 }
 
 interface Subscription {
@@ -70,6 +71,18 @@ export default function Plans() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Invalidate stale cache and auto-refetch if inactive plan is found
+  useEffect(() => {
+    if (plans.length > 0) {
+      const hasInactive = plans.some(p => p.active === false || (p.active as any) === 0 || (p as any).active === '0');
+      if (hasInactive) {
+        console.warn("Inactive plan detected in cache. Invalidating and auto-refetching...");
+        setPlans(prev => prev.filter(p => p.active !== false && (p.active as any) !== 0 && (p as any).active !== '0'));
+        loadData();
+      }
+    }
+  }, [plans]);
 
   const handleRequestUpgrade = async (planId: number) => {
     try {
@@ -177,7 +190,7 @@ export default function Plans() {
 
       {/* Pricing Cards Grid (Excluded Free Trial for clean 4-column layout) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch">
-        {plans.filter(p => !p.is_trial).map(p => {
+        {plans.filter(p => p.active && !p.is_trial).map(p => {
           const isCurrent = subscription?.plan?.id === p.id
           const calculated = calculatePrice(p)
           

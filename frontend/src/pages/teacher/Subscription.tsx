@@ -15,6 +15,7 @@ interface Plan {
   price_egp: number
   is_popular?: boolean
   is_trial?: boolean
+  active?: boolean
 }
 
 interface Subscription {
@@ -95,6 +96,18 @@ export default function Subscription() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Invalidate stale cache and auto-refetch if inactive plan is found
+  useEffect(() => {
+    if (plans.length > 0) {
+      const hasInactive = plans.some(p => p.active === false || (p.active as any) === 0 || (p as any).active === '0');
+      if (hasInactive) {
+        console.warn("Inactive plan detected in cache. Invalidating and auto-refetching...");
+        setPlans(prev => prev.filter(p => p.active !== false && (p.active as any) !== 0 && (p as any).active !== '0'));
+        loadData();
+      }
+    }
+  }, [plans]);
 
   const triggerSync = async () => {
     try {
@@ -426,7 +439,7 @@ export default function Subscription() {
                     onChange={(e) => setReqPlanId(e.target.value)}
                     className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500"
                   >
-                    {plans.filter(p => p.id !== subscription.plan?.id && !p.is_trial).map(p => (
+                    {plans.filter(p => p.active && p.id !== subscription.plan?.id && !p.is_trial).map(p => (
                       <option key={p.id} value={p.id}>{p.name} ({p.price_egp} ج.م شهرياً / {p.student_codes} طالب / {p.video_storage_gb}GB)</option>
                     ))}
                   </select>
@@ -518,7 +531,7 @@ export default function Subscription() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.filter(p => !p.is_trial).map(p => {
+          {plans.filter(p => p.active && !p.is_trial).map(p => {
             const isCurrent = subscription.plan?.id === p.id
             return (
               <div 

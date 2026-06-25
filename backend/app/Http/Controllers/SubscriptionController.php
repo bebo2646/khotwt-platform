@@ -449,6 +449,12 @@ class SubscriptionController extends Controller
         if ($request->status === 'Approved') {
             if ($subRequest->type === 'plan_upgrade') {
                 $plan = SubscriptionPlan::findOrFail($subRequest->requested_plan_id);
+                
+                // Protection: Deactivated plans cannot be purchased/approved
+                if (!$plan->active) {
+                    return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير مفعلة حالياً ولا يمكن تفعيلها للترقية.'], 400);
+                }
+                
                 $period = $subRequest->billing_cycle;
                 if ($period === 'monthly' && $subRequest->billing_period && $subRequest->billing_period !== 'monthly') {
                     $period = $subRequest->billing_period;
@@ -759,7 +765,7 @@ class SubscriptionController extends Controller
                 'students_count' => $studentsCount,
             ],
             'addons' => $subscription->addons()->orderBy('created_at', 'desc')->get(),
-            'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
+            'plans' => SubscriptionPlan::where('active', true)->orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
         ]);
@@ -811,6 +817,12 @@ class SubscriptionController extends Controller
 
         if ($request->type === 'plan_upgrade') {
             $plan = SubscriptionPlan::findOrFail($request->requested_plan_id);
+            
+            // Protection: Deactivated plans cannot be requested/purchased
+            if (!$plan->active) {
+                return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير مفعلة حالياً ولا يمكن الترقية إليها.'], 400);
+            }
+            
             $details = $this->getSubscriptionPriceDetails($plan, $billingCycle);
             $discountPercentage = $details['discount_percentage'];
             $discountAmount = $details['discount_amount'];
@@ -1323,12 +1335,25 @@ class SubscriptionController extends Controller
     }
 
     /**
-     * List all subscription plans and settings.
+     * List all subscription plans and settings (Admin).
      */
     public function listPlansAdmin(Request $request)
     {
         return response()->json([
             'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
+            'settings' => $this->getSettings()
+        ]);
+    }
+
+    /**
+     * List all active subscription plans (Public/Teachers).
+     */
+    public function listPlansPublic(Request $request)
+    {
+        return response()->json([
+            'plans' => SubscriptionPlan::where('active', true)
+                ->orderBy('sort_order', 'asc')
+                ->get(),
             'settings' => $this->getSettings()
         ]);
     }

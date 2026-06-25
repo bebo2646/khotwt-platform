@@ -410,14 +410,18 @@ export default function SubscriptionPlans() {
                 }`}
               >
                 {/* Active Indicator / Badge */}
-                <div className="absolute top-4 left-4 flex gap-2">
-                  {!plan.active && (
-                    <span className="text-[10px] font-black bg-rose-600 text-white px-2.5 py-0.5 rounded-full shadow-sm">
-                      غير نشطة
+                <div className="absolute top-4 left-4 flex gap-1.5 flex-row-reverse">
+                  {plan.active ? (
+                    <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full shadow-sm">
+                      مرئية للمعلمين
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-450 px-2.5 py-0.5 rounded-full shadow-sm">
+                      غير نشطة / مخفية
                     </span>
                   )}
                   {plan.badge_text && (
-                    <span className={`text-[10px] font-black text-white px-2.5 py-0.5 rounded-full shadow-sm ${theme.btn}`}>
+                    <span className={`text-[9px] font-black text-white px-2.5 py-0.5 rounded-full shadow-sm ${theme.btn}`}>
                       {plan.badge_text}
                     </span>
                   )}
