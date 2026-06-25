@@ -154,8 +154,8 @@ class TeacherController extends Controller
      */
     private function fetchBunnyVideoDetails($videoId)
     {
-        $libraryId = env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID');
+        $apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY');
 
         if (empty($libraryId) || empty($apiKey)) {
             return null;
@@ -203,8 +203,8 @@ class TeacherController extends Controller
             'title' => 'required|string|max:255',
         ]);
 
-        $libraryId = env('BUNNY_STREAM_LIBRARY_ID');
-        $apiKey = env('BUNNY_STREAM_API_KEY');
+        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID');
+        $apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY');
 
         if (empty($libraryId) || empty($apiKey)) {
             return response()->json([
@@ -721,7 +721,7 @@ class TeacherController extends Controller
             }
         }
 
-        $isBunnyConfigured = !empty(env('BUNNY_STREAM_LIBRARY_ID'));
+        $isBunnyConfigured = !empty(config('services.bunny.library_id')) || !empty(env('BUNNY_STREAM_LIBRARY_ID'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
@@ -839,7 +839,7 @@ class TeacherController extends Controller
             }
         }
 
-        $isBunnyConfigured = !empty(env('BUNNY_STREAM_LIBRARY_ID'));
+        $isBunnyConfigured = !empty(config('services.bunny.library_id')) || !empty(env('BUNNY_STREAM_LIBRARY_ID'));
         $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
 
         $rules = [
@@ -942,6 +942,14 @@ class TeacherController extends Controller
 
         $bunnyVideoId = $bunnyResult['guid'];
 
+        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? env('BUNNY_LIBRARY_ID') ?? '';
+        $cdnHost = config('services.bunny.cdn_hostname');
+        $pullZone = config('services.bunny.pull_zone');
+        $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
+
+        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$bunnyVideoId}";
+        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$bunnyVideoId}/thumbnail.jpg";
+
         // Upload file binary to Bunny Stream
         $uploaded = $bunnyService->uploadVideo($bunnyVideoId, $videoFile->getRealPath());
         if (!$uploaded) {
@@ -949,13 +957,6 @@ class TeacherController extends Controller
                 'message' => 'فشل رفع ملف الفيديو إلى خوادم Bunny Stream.'
             ], 500);
         }
-
-        $libraryId = env('BUNNY_LIBRARY_ID') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? '';
-        $pullZone = env('BUNNY_PULL_ZONE') ?? '';
-        $domain = !empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net';
-
-        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$bunnyVideoId}";
-        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$bunnyVideoId}/thumbnail.jpg";
 
         // Create local video record
         $video = Video::create([
@@ -1032,6 +1033,14 @@ class TeacherController extends Controller
 
         $newBunnyId = $bunnyResult['guid'];
 
+        $libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? env('BUNNY_LIBRARY_ID') ?? '';
+        $cdnHost = config('services.bunny.cdn_hostname');
+        $pullZone = config('services.bunny.pull_zone');
+        $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
+
+        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$newBunnyId}";
+        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$newBunnyId}/thumbnail.jpg";
+
         // Upload new file binary to Bunny Stream
         $uploaded = $bunnyService->uploadVideo($newBunnyId, $videoFile->getRealPath());
         if (!$uploaded) {
@@ -1039,13 +1048,6 @@ class TeacherController extends Controller
                 'message' => 'فشل رفع ملف الفيديو البديل إلى خوادم Bunny Stream.'
             ], 500);
         }
-
-        $libraryId = env('BUNNY_LIBRARY_ID') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? '';
-        $pullZone = env('BUNNY_PULL_ZONE') ?? '';
-        $domain = !empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net';
-
-        $embedUrl = "https://{$domain}/embed/{$libraryId}/{$newBunnyId}";
-        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$newBunnyId}/thumbnail.jpg";
 
         // Update local video record
         $video->update([

@@ -17,10 +17,12 @@ class BunnyStreamService
 
     public function __construct()
     {
-        // Prioritize requested environment variables, fall back to existing project configuration
-        $this->libraryId = env('BUNNY_LIBRARY_ID') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? '';
-        $this->apiKey = env('BUNNY_API_KEY') ?? env('BUNNY_STREAM_API_KEY') ?? '';
-        $this->pullZone = env('BUNNY_PULL_ZONE') ?? '';
+        // Prioritize configuration, fallback to environment variables
+        $this->libraryId = config('services.bunny.library_id') ?? env('BUNNY_STREAM_LIBRARY_ID') ?? env('BUNNY_LIBRARY_ID') ?? '';
+        $this->apiKey = config('services.bunny.api_key') ?? env('BUNNY_STREAM_API_KEY') ?? env('BUNNY_API_KEY') ?? '';
+        
+        $pull = config('services.bunny.pull_zone') ?: config('services.bunny.cdn_hostname');
+        $this->pullZone = $pull ?: (env('BUNNY_PULL_ZONE') ?: '');
     }
 
     /**

@@ -30,6 +30,9 @@ Route::get('/config', [PublicController::class, 'config']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
+// Bunny Webhook
+Route::post('/bunny/webhook', [\App\Http\Controllers\BunnyWebhookController::class, 'handle']);
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes
