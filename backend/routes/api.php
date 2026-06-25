@@ -106,7 +106,6 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/teacher/courses/{course}/units', [TeacherController::class, 'addUnit']);
                 Route::post('/teacher/units/{unit}/lessons', [TeacherController::class, 'addLesson']);
                 Route::post('/teacher/lessons/{lesson}/video', [TeacherController::class, 'addVideo']);
-                Route::post('/teacher/videos/upload', [TeacherController::class, 'uploadVideoDirect']);
                 Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::post('/teacher/videos/signed-upload', [TeacherController::class, 'generateSignedUpload']);
                 Route::post('/teacher/videos/detect-duration', [TeacherController::class, 'detectVideoDurationUrl']);

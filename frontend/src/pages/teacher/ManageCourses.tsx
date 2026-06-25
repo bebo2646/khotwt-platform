@@ -116,6 +116,7 @@ export default function ManageCourses() {
   const [vidThumbnail, setVidThumbnail] = React.useState('')
   const [uploadingThumbnailForVideo, setUploadingThumbnailForVideo] = React.useState(false)
   const [uploadingVideo, setUploadingVideo] = React.useState(false)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [videoFileDetails, setVideoFileDetails] = React.useState<{ name: string; size: string; status: string } | null>(null)
   const [isDevMode, setIsDevMode] = React.useState(false)
   const [isBunnyConfigured, setIsBunnyConfigured] = React.useState(false)
@@ -491,6 +492,7 @@ export default function ManageCourses() {
     }
 
     setUploadingVideo(true);
+    setUploadProgress(0);
     setVideoFileDetails({
       name: file.name,
       size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
@@ -504,10 +506,19 @@ export default function ManageCourses() {
     });
 
     try {
-      // 1. Request signed upload credentials from our server
-      const signedRes = await API.post('/teacher/videos/signed-upload', {
-        title: file.name.replace(/\.[^/.]+$/, ''), // strip extension
-      });
+      // 1. Request signed upload credentials or replace credentials from our server
+      let signedRes;
+      if (replacingVideo) {
+        signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`, {
+          file_size: file.size,
+        });
+      } else {
+        signedRes = await API.post('/teacher/videos/signed-upload', {
+          title: file.name.replace(/\.[^/.]+$/, ''), // strip extension
+          lesson_id: showVideoForm || editingVideo?.lesson_id,
+          file_size: file.size,
+        });
+      }
 
       const { video_id, library_id, signature, expiration_time, embed_url } = signedRes.data;
 
@@ -529,11 +540,12 @@ export default function ManageCourses() {
         },
         metadata: {
           filetype: file.type,
-          title: file.name,
+          title: replacingVideo ? replacingVideo.title : file.name,
         },
         onError: (error) => {
           console.error('TUS upload failed:', error);
           setUploadingVideo(false);
+          setUploadProgress(null);
           setVideoFileDetails({
             name: file.name,
             size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
@@ -542,7 +554,8 @@ export default function ManageCourses() {
           useModalStore.getState().showToast('فشل رفع الفيديو إلى Bunny Stream.', 'error');
         },
         onProgress: (bytesSent, bytesTotal) => {
-          const percentage = ((bytesSent / bytesTotal) * 100).toFixed(1);
+          const percentage = Math.round((bytesSent / bytesTotal) * 100);
+          setUploadProgress(percentage);
           setVideoFileDetails({
             name: file.name,
             size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
@@ -564,6 +577,7 @@ export default function ManageCourses() {
             status: 'تم الرفع بنجاح! سيتم معالجة الفيديو تلقائياً.'
           });
           setUploadingVideo(false);
+          setUploadProgress(null);
           useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح.', 'success');
         }
       });
@@ -573,6 +587,7 @@ export default function ManageCourses() {
     } catch (err: any) {
       console.error(err);
       setUploadingVideo(false);
+      setUploadProgress(null);
       setVideoFileDetails(null);
       const errMsg = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع.';
       useModalStore.getState().showToast(`فشل إعداد الرفع: ${errMsg}`, 'error');
@@ -1158,7 +1173,20 @@ export default function ManageCourses() {
                                                         {video.bunny_embed_url?.includes('youtube.com') || video.bunny_embed_url?.includes('youtu.be') ? (
                                                           <span className="px-1 bg-red-500/10 text-red-500 rounded text-[8px] font-bold">YouTube</span>
                                                         ) : video.bunny_embed_url?.includes('mediadelivery.net') || video.bunny_embed_url?.includes('bunny') ? (
-                                                          <span className="px-1 bg-purple-500/10 text-purple-500 rounded text-[8px] font-bold">Bunny Stream</span>
+                                                          <span className="flex items-center gap-1">
+                                                            <span className="px-1 bg-purple-500/10 text-purple-500 rounded text-[8px] font-bold">Bunny Stream</span>
+                                                            {video.bunny_status === 'finished' ? (
+                                                              <span className="px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[8px] font-bold">Ready</span>
+                                                            ) : video.bunny_status === 'processing' ? (
+                                                              <span className="px-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded text-[8px] font-bold">Processing on Bunny</span>
+                                                            ) : video.bunny_status === 'failed' ? (
+                                                              <span className="px-1 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[8px] font-bold">Failed</span>
+                                                            ) : video.bunny_status === 'uploaded' ? (
+                                                              <span className="px-1 bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded text-[8px] font-bold">Uploaded</span>
+                                                            ) : (
+                                                              <span className="px-1 bg-slate-500/10 text-slate-400 border border-slate-500/20 rounded text-[8px] font-bold">Queued</span>
+                                                            )}
+                                                          </span>
                                                         ) : (
                                                           <span className="px-1 bg-blue-500/10 text-blue-500 rounded text-[8px] font-bold">مباشر (MP4)</span>
                                                         )}
@@ -1638,9 +1666,21 @@ export default function ManageCourses() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">رفع فيديو مباشرة من جهازك (استخراج تلقائي للمدة)</label>
+                <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
                 <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
-                  {vidEmbedUrl && videoFileDetails ? (
+                  {uploadingVideo ? (
+                    <div className="space-y-2 text-right">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                        <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
+                        {uploadProgress !== null && <span>{uploadProgress}%</span>}
+                      </div>
+                      {uploadProgress !== null && (
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                        </div>
+                      )}
+                    </div>
+                  ) : vidEmbedUrl && videoFileDetails ? (
                     <div className="space-y-2 text-xs text-right">
                       <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
                       <div className="text-[10px] text-slate-400 flex justify-between px-2">
@@ -1667,9 +1707,6 @@ export default function ManageCourses() {
                           onChange={handleVideoUpload}
                         />
                       </label>
-                      {uploadingVideo && (
-                        <div className="text-[10px] text-brand-primary animate-pulse font-bold mt-1">جاري معالجة ورفع الفيديو...</div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -1937,9 +1974,21 @@ export default function ManageCourses() {
             <form onSubmit={handleSaveReplaceVideo} className="space-y-4">
               
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">رفع ملف فيديو جديد</label>
+                <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
                 <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
-                  {vidEmbedUrl && videoFileDetails ? (
+                  {uploadingVideo ? (
+                    <div className="space-y-2 text-right">
+                      <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                        <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
+                        {uploadProgress !== null && <span>{uploadProgress}%</span>}
+                      </div>
+                      {uploadProgress !== null && (
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                        </div>
+                      )}
+                    </div>
+                  ) : vidEmbedUrl && videoFileDetails ? (
                     <div className="space-y-2 text-xs text-right">
                       <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
                       <div className="text-[10px] text-slate-400 flex justify-between px-2">
@@ -1966,9 +2015,6 @@ export default function ManageCourses() {
                           onChange={handleVideoUpload}
                         />
                       </label>
-                      {uploadingVideo && (
-                        <div className="text-[10px] text-brand-primary animate-pulse font-bold mt-1">جاري الرفع والمعالجة...</div>
-                      )}
                     </div>
                   )}
                 </div>
