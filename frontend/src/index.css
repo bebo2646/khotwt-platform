@@ -220,22 +220,41 @@ label {
 
 html, body {
   min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100vh;
+  min-height: calc(var(--vh, 1vh) * 100);
   display: flex;
   flex-direction: column;
   flex: 1;
+  max-width: 100%;
 }
 
 body {
+  overflow-x: hidden;
   direction: rtl;
   text-align: right;
   background-color: var(--bg-color);
   color: var(--text-color);
   margin: 0;
   transition: background-color 0.3s ease, color 0.3s ease;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+*, ::before, ::after {
+  box-sizing: border-box;
 }
 
 /* Typography styles */
@@ -493,6 +512,87 @@ html, body {
 .scrollbar-none {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* Dynamic mobile viewport overrides using --vh variables */
+@media (max-width: 1024px) {
+  .max-h-\[90vh\] {
+    max-height: calc(var(--vh, 1vh) * 90) !important;
+  }
+  .max-h-\[70vh\] {
+    max-height: calc(var(--vh, 1vh) * 70) !important;
+  }
+  .min-h-\[60vh\] {
+    min-height: calc(var(--vh, 1vh) * 60) !important;
+  }
+  .min-h-\[70vh\] {
+    min-height: calc(var(--vh, 1vh) * 70) !important;
+  }
+  .min-h-\[80vh\] {
+    min-height: calc(var(--vh, 1vh) * 80) !important;
+  }
+  .h-\[calc\(100vh-80px\)\] {
+    height: calc((var(--vh, 1vh) * 100) - 80px) !important;
+  }
+  .h-\[90vh\] {
+    height: calc(var(--vh, 1vh) * 90) !important;
+  }
+}
+
+/* General responsive layouts */
+html, body, #root, main, section, .container {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+img, iframe, video, table, select, input, textarea {
+  max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+  /* Prevent horizontal overflow on tables */
+  .overflow-x-auto, table {
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Fix container padding */
+  .container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    max-width: 100% !important;
+  }
+
+  /* Fix grid template columns on small screens */
+  .grid-cols-2, .grid-cols-3, .grid-cols-4, .grid-cols-5, .grid-cols-6 {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)) !important;
+  }
+
+  /* Fix modal dialog spacing on mobile devices */
+  .max-w-xl, .max-w-2xl, .max-w-3xl, .max-w-4xl, .max-w-5xl, .max-w-lg {
+    max-width: 95vw !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Override padding on main page wraps for small mobile screens */
+  .p-8, .p-12, .p-16 {
+    padding: 1rem !important;
+  }
+  .p-6 {
+    padding: 0.75rem !important;
+  }
+  .gap-6, .gap-8 {
+    gap: 1rem !important;
+  }
+}
+
+/* PWA touch actions and scrolling optimization */
+html, body {
+  overscroll-behavior-y: contain; /* Prevents pull-to-refresh default browser animations in PWA standalone mode */
+  touch-action: manipulation;      /* Disables double-tap to zoom to speed up clicks on buttons/links */
 }
 
 

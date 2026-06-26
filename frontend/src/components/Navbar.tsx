@@ -247,7 +247,17 @@ export default function Navbar() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div className="absolute left-0 mt-3 w-88 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300">
+                  <div 
+                    className="absolute mt-3 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300"
+                    style={{
+                      width: 'min(90vw, 380px)',
+                      right: 0,
+                      left: 'auto',
+                      maxHeight: '70vh',
+                      overflowY: 'auto',
+                      wordBreak: 'break-word'
+                    }}
+                  >
                     <div className="flex justify-between items-center pb-2.5 border-b border-[var(--border-color)] mb-3">
                       <span className="text-xs font-black text-[var(--text-color)]">آخر التنبيهات والرسائل</span>
                       {unreadCount > 0 && (
@@ -329,12 +339,12 @@ export default function Navbar() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex justify-between items-start gap-2 mb-0.5">
-                                  <span className="text-[11px] font-black truncate">{n.title}</span>
+                                  <span className="text-[11px] font-black whitespace-normal break-words">{n.title}</span>
                                   {!n.is_read && (
                                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1" />
                                   )}
                                 </div>
-                                <p className="text-[10px] text-[var(--text-secondary)] font-normal leading-relaxed line-clamp-2">{n.message}</p>
+                                <p className="text-[10px] text-[var(--text-secondary)] font-normal leading-relaxed whitespace-normal break-words">{n.message}</p>
                                 <span className="text-[8px] text-[var(--text-secondary)] font-light mt-1 block">
                                   {new Date(n.created_at).toLocaleDateString('ar-EG', {
                                     month: 'short',

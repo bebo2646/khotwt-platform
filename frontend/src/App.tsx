@@ -114,6 +114,30 @@ function App() {
     }
   }, [initTheme])
 
+  // Handle orientation change and resize events to prevent height/layout bugs (e.g. vh bugs on iOS)
+  React.useEffect(() => {
+    const handleViewportChange = () => {
+      // 1. Recalculate 1vh height helper to bypass iOS Safari vh address bar bug
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+
+      // 2. Set custom attribute to let CSS know current orientation if needed
+      const isLandscape = window.innerWidth > window.innerHeight;
+      document.documentElement.setAttribute('data-orientation', isLandscape ? 'landscape' : 'portrait');
+    };
+
+    window.addEventListener('resize', handleViewportChange);
+    window.addEventListener('orientationchange', handleViewportChange);
+    
+    // Initial call
+    handleViewportChange();
+
+    return () => {
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+    };
+  }, []);
+
   // Poll session state every 10 seconds while logged in
   React.useEffect(() => {
     let intervalId: any = null
