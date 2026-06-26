@@ -26,13 +26,37 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
   const isAdmin = isLoggedIn && user && (user.role === 'admin');
-  const linksCollapseClass = isAdmin ? 'hidden 2xl:flex' : 'hidden lg:flex';
-  const mobileToggleCollapseClass = isAdmin ? 'flex 2xl:hidden' : 'flex lg:hidden';
-  const authCollapseClass = isAdmin ? 'hidden 2xl:flex' : 'hidden lg:flex';
-  const mobileMenuCollapseClass = isAdmin ? '2xl:hidden' : 'lg:hidden';
+  const isTeacher = isLoggedIn && user && (user.role === 'teacher');
+
+  const linksCollapseClass = isAdmin 
+    ? 'hidden 2xl:flex' 
+    : isTeacher 
+      ? 'hidden xl:flex' 
+      : 'hidden lg:flex';
+
+  const mobileToggleCollapseClass = isAdmin 
+    ? 'flex 2xl:hidden' 
+    : isTeacher 
+      ? 'flex xl:hidden' 
+      : 'flex lg:hidden';
+
+  const authCollapseClass = isAdmin 
+    ? 'hidden 2xl:flex' 
+    : isTeacher 
+      ? 'hidden xl:flex' 
+      : 'hidden lg:flex';
+
+  const mobileMenuCollapseClass = isAdmin 
+    ? '2xl:hidden' 
+    : isTeacher 
+      ? 'xl:hidden' 
+      : 'lg:hidden';
+
   const notifDropdownClass = isAdmin
     ? 'fixed 2xl:absolute top-16 2xl:top-auto left-4 right-4 2xl:left-auto 2xl:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 2xl:w-[380px]'
-    : 'fixed lg:absolute top-16 lg:top-auto left-4 right-4 lg:left-auto lg:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 lg:w-[380px]';
+    : isTeacher
+      ? 'fixed xl:absolute top-16 xl:top-auto left-4 right-4 xl:left-auto xl:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 xl:w-[380px]'
+      : 'fixed lg:absolute top-16 lg:top-auto left-4 right-4 lg:left-auto lg:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 lg:w-[380px]';
 
   // Notifications States & Logic
   const [unreadCount, setUnreadCount] = React.useState(0)
@@ -242,7 +266,7 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className={`${linksCollapseClass} flex-row flex-nowrap items-center justify-center gap-4 xl:gap-6 2xl:gap-8 py-1 mx-6 flex-1 min-w-0`}>
+          <div className={`${linksCollapseClass} flex-row flex-nowrap items-center justify-center gap-4 xl:gap-6 2xl:gap-8 py-1 mx-6 flex-1 min-w-0 overflow-hidden`}>
             {renderNavLinks()}
           </div>
 
