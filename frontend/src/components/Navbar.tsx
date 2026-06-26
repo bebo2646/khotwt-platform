@@ -216,9 +216,9 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 glass border-b border-[var(--border-color)] transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-8 sm:px-10 lg:px-12">
-        <div className="flex items-center justify-between h-16">
+    <nav className="sticky top-0 z-50 glass border-b border-[var(--border-color)] transition-colors duration-300 w-full max-w-full overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="flex items-center justify-between h-16 w-full min-w-0">
           
           {/* Logo Section */}
           <div className="flex items-center shrink-0">
@@ -233,7 +233,7 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className="hidden md:flex flex-row flex-nowrap items-center justify-start 2xl:justify-center gap-6 2xl:gap-8 overflow-x-auto 2xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1 min-w-0">
+          <div className="hidden lg:flex flex-row flex-nowrap items-center justify-start 2xl:justify-center gap-6 2xl:gap-8 overflow-x-auto 2xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1 min-w-0">
             {renderNavLinks()}
           </div>
 
@@ -259,7 +259,7 @@ export default function Navbar() {
 
                 {showNotifDropdown && (
                   <div 
-                    className="fixed md:absolute top-16 md:top-auto left-4 right-4 md:left-auto md:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 md:w-[380px]"
+                    className="fixed lg:absolute top-16 lg:top-auto left-4 right-4 lg:left-auto lg:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 lg:w-[380px]"
                     style={{
                       maxHeight: '70vh',
                       overflowY: 'auto',
@@ -383,7 +383,7 @@ export default function Navbar() {
             </button>
 
             {/* Auth Buttons */}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden lg:flex items-center gap-3">
               {isLoggedIn && user ? (
                 <div className="flex items-center gap-4">
                   {user.role === 'student' && user.wallet && (
@@ -415,7 +415,7 @@ export default function Navbar() {
             </div>
 
             {/* Mobile menu button */}
-            <div className="flex md:hidden">
+            <div className="flex lg:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-md hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-current"
@@ -431,7 +431,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
+        <div className="lg:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
           <div className="flex flex-col gap-3">
             {renderNavLinks()}
           </div>

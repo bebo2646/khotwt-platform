@@ -138,6 +138,10 @@ function App() {
     };
   }, []);
 
+  // Temporary Overflow Debugger
+  React.useEffect(() => {
+    document.body.style.outline = '3px solid red';
+  }, []);
 
   // Poll session state every 10 seconds while logged in
   React.useEffect(() => {

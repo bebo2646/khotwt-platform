@@ -603,6 +603,11 @@ html, body {
   touch-action: manipulation;      /* Disables double-tap to zoom to speed up clicks on buttons/links */
 }
 
+/* Temporary universal outline for debugging */
+* {
+  outline: 1px solid rgba(255, 0, 0, 0.2) !important;
+}
+
 
 
 
