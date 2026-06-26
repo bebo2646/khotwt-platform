@@ -56,10 +56,21 @@ export default function Navbar() {
 
       // Check for first unseen important notification to display as popup
       const importantUnseen = notifRes.data.find(
-        (n: any) => n.important && !n.is_seen && !dismissedNotifsRef.current.includes(n.id)
+        (n: any) => n.important && n.is_seen != true && !dismissedNotifsRef.current.includes(n.id)
       )
       if (importantUnseen) {
         setActiveImportant(importantUnseen)
+        
+        // Mark as seen immediately in DB so it never pops up again
+        API.post(`/notifications/${importantUnseen.id}/seen`).catch(err => 
+          console.error('Failed to auto-seen notification:', err)
+        )
+        
+        // Also add to local session dismissed ref to prevent duplicate triggers before polling/state updates complete
+        dismissedNotifsRef.current.push(importantUnseen.id)
+        
+        // Update local state list immediately so the UI reflects the seen status
+        setNotifications(prev => prev.map(item => item.id === importantUnseen.id ? { ...item, is_seen: true } : item))
       }
     } catch (err) {
       console.error('Failed to fetch notifications', err)
