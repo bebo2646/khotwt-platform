@@ -246,7 +246,7 @@ class TeacherController extends Controller
                 $pullZone = config('services.bunny.pull_zone');
                 $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
 
-                $embedUrl = "https://{$domain}/embed/{$libraryId}/{$videoId}";
+                $embedUrl = "https://iframe.mediadelivery.net/embed/{$libraryId}/{$videoId}";
                 $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$videoId}/thumbnail.jpg";
 
                 // 3. Create local video record in database immediately

@@ -19,11 +19,13 @@ class VideoProgress extends Model
         'completed',
         'last_position_seconds',
         'views_count',
+        'watched_segments',
     ];
 
     protected $casts = [
         'watched_percentage' => 'decimal:2',
         'completed' => 'boolean',
+        'watched_segments' => 'array',
     ];
 
     public function student()

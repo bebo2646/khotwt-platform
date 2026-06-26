@@ -62,7 +62,7 @@ class NotificationService
                       $sub->where('recipient_type', 'specific_teacher')
                           ->where('recipient_id', $user->id);
                   });
-            } elseif ($user->isAdmin()) {
+            } elseif ($user->isAdmin() || $user->is_super_admin || $user->is_super) {
                 // Admins see all notifications
                 $q->orWhere('recipient_type', 'teachers')
                   ->orWhere('recipient_type', 'students')
@@ -114,7 +114,7 @@ class NotificationService
                       $sub->where('recipient_type', 'specific_teacher')
                           ->where('recipient_id', $user->id);
                   });
-            } elseif ($user->isAdmin()) {
+            } elseif ($user->isAdmin() || $user->is_super_admin || $user->is_super) {
                 $q->orWhere('recipient_type', 'admin')
                   ->orWhere('recipient_type', 'teachers')
                   ->orWhere('recipient_type', 'students');

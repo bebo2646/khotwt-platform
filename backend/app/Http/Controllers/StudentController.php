@@ -891,6 +891,7 @@ class StudentController extends Controller
                     'watched_percentage' => $progress->watched_percentage,
                     'completed' => $progress->completed,
                     'last_position_seconds' => $progress->last_position_seconds,
+                    'watched_segments' => $progress->watched_segments ?: [],
                 ] : null,
             ];
         });
@@ -939,9 +940,12 @@ class StudentController extends Controller
      */
     public function updateVideoProgress(Request $request, $videoId)
     {
+        \Log::info('Updating progress', $request->all());
+
         $request->validate([
             'watched_seconds' => 'required|integer|min:0',
             'last_position_seconds' => 'required|integer|min:0',
+            'watched_segments' => 'nullable|array',
         ]);
 
         $user = $request->user();
@@ -951,14 +955,24 @@ class StudentController extends Controller
         $duration = $video->duration_seconds ?: 300;
         
         $lastPosition = $request->last_position_seconds;
-        $watchedSeconds = max($request->watched_seconds, $lastPosition);
         
-        // Calculate percentage using the formula: (currentPositionSeconds / durationSeconds) * 100
-        $percentage = min(100.00, round(($lastPosition / $duration) * 100, 2));
-
+        // Find existing progress record
         $progress = VideoProgress::where('student_id', $user->id)
             ->where('video_id', $videoId)
             ->first();
+
+        // Process segments
+        $incomingSegments = $request->input('watched_segments', []);
+        $mergedSegments = $this->mergeTimeSegments($incomingSegments);
+        
+        // Calculate watched seconds as sum of unique watched segments
+        $watchedDuration = $this->calculateWatchedDuration($mergedSegments);
+        
+        // Fallback to request's watched_seconds if no segments are provided
+        $finalWatchedSeconds = count($mergedSegments) > 0 ? (int)round($watchedDuration) : $request->watched_seconds;
+        
+        // Calculate percentage: (finalWatchedSeconds / duration) * 100
+        $percentage = min(100.00, round(($finalWatchedSeconds / $duration) * 100, 2));
 
         $viewsCount = $progress ? $progress->views_count : 1;
         if ($progress) {
@@ -968,6 +982,7 @@ class StudentController extends Controller
             }
         }
 
+        // Completion must happen only when progress >= 90 based on unique watched segments
         $completed = ($percentage >= 90.0);
 
         $progress = VideoProgress::updateOrCreate(
@@ -976,15 +991,67 @@ class StudentController extends Controller
                 'video_id' => $videoId,
             ],
             [
-                'watched_seconds' => max($watchedSeconds, $progress ? $progress->watched_seconds : 0),
+                'watched_seconds' => max($finalWatchedSeconds, $progress ? $progress->watched_seconds : 0),
                 'watched_percentage' => max($percentage, $progress ? $progress->watched_percentage : 0.00),
-                'completed' => $completed,
+                'completed' => $completed || ($progress && $progress->completed),
                 'last_position_seconds' => $lastPosition,
                 'views_count' => $viewsCount,
+                'watched_segments' => $mergedSegments,
             ]
         );
 
         return response()->json($progress);
+    }
+
+    /**
+     * Merge overlapping time segments.
+     */
+    private function mergeTimeSegments(array $segments): array
+    {
+        if (empty($segments)) {
+            return [];
+        }
+
+        // Sort segments by start time
+        usort($segments, function ($a, $b) {
+            $aStart = isset($a['start']) ? floatval($a['start']) : (isset($a[0]) ? floatval($a[0]) : 0.0);
+            $bStart = isset($b['start']) ? floatval($b['start']) : (isset($b[0]) ? floatval($b[0]) : 0.0);
+            return $aStart <=> $bStart;
+        });
+
+        $merged = [];
+        $first = $segments[0];
+        $lastStart = isset($first['start']) ? floatval($first['start']) : (isset($first[0]) ? floatval($first[0]) : 0.0);
+        $lastEnd = isset($first['end']) ? floatval($first['end']) : (isset($first[1]) ? floatval($first[1]) : 0.0);
+
+        $merged[] = ['start' => $lastStart, 'end' => $lastEnd];
+
+        for ($i = 1; $i < count($segments); $i++) {
+            $current = $segments[$i];
+            $currentStart = isset($current['start']) ? floatval($current['start']) : (isset($current[0]) ? floatval($current[0]) : 0.0);
+            $currentEnd = isset($current['end']) ? floatval($current['end']) : (isset($current[1]) ? floatval($current[1]) : 0.0);
+
+            $lastIndex = count($merged) - 1;
+            if ($currentStart <= $merged[$lastIndex]['end']) {
+                $merged[$lastIndex]['end'] = max($merged[$lastIndex]['end'], $currentEnd);
+            } else {
+                $merged[] = ['start' => $currentStart, 'end' => $currentEnd];
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Calculate sum of unique watched durations.
+     */
+    private function calculateWatchedDuration(array $mergedSegments): float
+    {
+        $duration = 0.0;
+        foreach ($mergedSegments as $segment) {
+            $duration += max(0.0, floatval($segment['end']) - floatval($segment['start']));
+        }
+        return $duration;
     }
 
     /**
@@ -1277,7 +1344,11 @@ class StudentController extends Controller
                     ->where('completed', true)
                     ->count();
 
-                $progress = round(($completedVideos / $totalVideos) * 100);
+                $sumPercentage = VideoProgress::where('student_id', $user->id)
+                    ->whereIn('video_id', $videoIds)
+                    ->sum('watched_percentage');
+
+                $progress = min(100, round($sumPercentage / $totalVideos));
                 
                 // Get actual durations and watched seconds
                 foreach ($course->units as $unit) {
@@ -1320,7 +1391,22 @@ class StudentController extends Controller
         // Overall progress percentage
         $overallProgress = 0;
         if ($totalVideosCount > 0) {
-            $overallProgress = round(($completedVideosCount / $totalVideosCount) * 100);
+            $allVideoIds = [];
+            foreach ($enrollments as $enrollment) {
+                $course = $enrollment->course;
+                if (!$course) continue;
+                foreach ($course->units as $unit) {
+                    foreach ($unit->lessons as $lesson) {
+                        foreach ($lesson->videos as $video) {
+                            $allVideoIds[] = $video->id;
+                        }
+                    }
+                }
+            }
+            $totalSumPercentage = VideoProgress::where('student_id', $user->id)
+                ->whereIn('video_id', $allVideoIds)
+                ->sum('watched_percentage');
+            $overallProgress = min(100, round($totalSumPercentage / max(1, count($allVideoIds))));
         } elseif (count($enrollments) > 0) {
             $overallProgress = 100;
         }
@@ -1494,7 +1580,11 @@ class StudentController extends Controller
                     ->where('completed', true)
                     ->count();
 
-                $progress = round(($completedVideos / $totalVideos) * 100);
+                $sumPercentage = VideoProgress::where('student_id', $user->id)
+                    ->whereIn('video_id', $videoIds)
+                    ->sum('watched_percentage');
+
+                $progress = min(100, round($sumPercentage / $totalVideos));
             } else {
                 $progress = 100;
             }

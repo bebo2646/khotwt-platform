@@ -26,6 +26,7 @@ interface VideoItem {
     watched_percentage: string
     completed: boolean
     last_position_seconds: number
+    watched_segments?: Array<{ start: number; end: number }>
   } | null
 }
 
@@ -95,10 +96,19 @@ export default function LessonViewer() {
   const [progressPercentage, setProgressPercentage] = React.useState(0)
   const [watchedTime, setWatchedTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
+  const [watchedSegments, setWatchedSegments] = React.useState<Array<{ start: number; end: number }>>([])
 
   // Stable video embed URL state to prevent iframe reload/remount
   const [videoEmbedUrl, setVideoEmbedUrl] = React.useState<string>('')
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
+
+  // Refs for tracking segments without stale closure issues
+  const watchedSegmentsRef = React.useRef<Array<{ start: number; end: number }>>([])
+  const currentSegmentRef = React.useRef<{ start: number; end: number } | null>(null)
+
+  React.useEffect(() => {
+    watchedSegmentsRef.current = watchedSegments
+  }, [watchedSegments])
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -112,7 +122,7 @@ export default function LessonViewer() {
     
     // Auto-regeneration fallback if URL is empty or misconfigured
     if ((!url || !url.includes('691418') || (video.bunny_stream_id && !url.includes(video.bunny_stream_id))) && video.bunny_stream_id) {
-      url = `https://vz-2c679b85-0fa.b-cdn.net/embed/691418/${video.bunny_stream_id}`;
+      url = `https://iframe.mediadelivery.net/embed/691418/${video.bunny_stream_id}`;
     }
 
     if (isYoutubeUrl(url)) {
@@ -120,7 +130,7 @@ export default function LessonViewer() {
       return `${embedBase}?enablejsapi=1&start=${pos}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
+      return `${url}${separator}autoplay=false&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
     } else {
       if (pos > 0) {
         const separator = url.includes('?') ? '&' : '?';
@@ -173,13 +183,16 @@ export default function LessonViewer() {
           setActiveVideo(defaultVideo)
           const pos = defaultVideo.progress?.last_position_seconds || 0
           const watchedSecs = defaultVideo.progress?.watched_seconds || 0
+          const segments = defaultVideo.progress?.watched_segments || []
           setLastPosition(pos)
           setWatchedTime(watchedSecs)
           setSecondsWatched(watchedSecs)
+          setWatchedSegments(segments)
+          currentSegmentRef.current = null
           
           const videoDuration = defaultVideo.duration_seconds || 300
           setDuration(videoDuration)
-          setProgressPercentage(videoDuration > 0 ? (pos / videoDuration) * 100 : 0)
+          setProgressPercentage(videoDuration > 0 ? (watchedSecs / videoDuration) * 100 : 0)
 
           // Set stable video embed URL once initially
           const initialEmbedUrl = getEmbedUrl(defaultVideo)
@@ -225,18 +238,56 @@ export default function LessonViewer() {
     }
   }
 
+  // Merge active segment helper
+  const pushAndMergeCurrentSegment = () => {
+    if (currentSegmentRef.current) {
+      const active = currentSegmentRef.current;
+      if (active.end - active.start > 0) {
+        setWatchedSegments(prev => {
+          const next = mergeSegments([...prev, active]);
+          return next;
+        });
+      }
+    }
+  };
+
+  const getMergedSegmentsIncludingActive = (segmentsList: Array<{ start: number; end: number }>, active: { start: number; end: number } | null) => {
+    if (!active || active.end <= active.start) {
+      return mergeSegments(segmentsList);
+    }
+    return mergeSegments([...segmentsList, active]);
+  };
+
+  const getWatchedSeconds = (segmentsList: Array<{ start: number; end: number }>, active: { start: number; end: number } | null) => {
+    const merged = getMergedSegmentsIncludingActive(segmentsList, active);
+    return merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+  };
+
   // Save lesson progress API helper
-  const saveLessonProgress = async (data: { lessonId: number; last_position_seconds: number; watched_seconds?: number; progress_percentage: number }) => {
+  const saveLessonProgress = async (data: { 
+    lessonId: number; 
+    last_position_seconds: number; 
+    watched_seconds?: number; 
+    progress_percentage: number;
+    watched_segments?: Array<{ start: number; end: number }>;
+  }) => {
     const video = activeVideoRef.current
     if (!video || progressSavingRef.current) return
     progressSavingRef.current = true
     try {
       const currentPos = Math.floor(data.last_position_seconds);
       const watched = data.watched_seconds !== undefined ? Math.floor(data.watched_seconds) : Math.max(secondsWatchedRef.current, currentPos);
-      const res = await API.post(`/videos/${video.id}/progress`, {
+      const segments = data.watched_segments || watchedSegmentsRef.current;
+
+      const payload = {
         watched_seconds: watched,
         last_position_seconds: currentPos,
-      })
+        watched_segments: segments,
+      };
+
+      console.log('Saving progress', payload);
+
+      const res = await API.post(`/videos/${video.id}/progress`, payload)
       if (res.data) {
         setVideos(prev => prev.map(v => {
           if (v.id === video.id) {
@@ -267,12 +318,20 @@ export default function LessonViewer() {
   const syncProgressToDb = async () => {
     const current = lastPositionRef.current;
     const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
-    const percentage = durVal > 0 ? (current / durVal) * 100 : 0;
+    
+    // Commit active segment
+    pushAndMergeCurrentSegment();
+    
+    const merged = mergeSegments(watchedSegmentsRef.current);
+    const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+    const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+    
     await saveLessonProgress({
       lessonId: Number(id),
       last_position_seconds: current,
-      watched_seconds: current,
-      progress_percentage: percentage
+      watched_seconds: totalSecs,
+      progress_percentage: percentage,
+      watched_segments: merged
     });
   }
 
@@ -293,11 +352,11 @@ export default function LessonViewer() {
     }
   }, [activeVideo?.id]);
 
-  // Completion check hook: works for all videos (YouTube, Bunny, MP4)
+  // Completion check hook: completion must happen only when progress >= 90 based on unique watched segments
   React.useEffect(() => {
     if (!activeVideo || duration <= 0) return;
     if (progressPercentage >= 90 && !activeVideo.progress?.completed && !progressSavingRef.current) {
-      // Temporarily mark completed locally so we don't trigger sync repeatedly
+      // Temporarily mark completed locally
       setVideos(prev => prev.map(v => {
         if (v.id === activeVideo.id) {
           return {
@@ -328,16 +387,21 @@ export default function LessonViewer() {
         }
         return prev;
       });
+      
+      const current = lastPositionRef.current;
+      const merged = mergeSegments(watchedSegmentsRef.current);
+      const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      
       saveLessonProgress({
         lessonId: Number(id),
-        last_position_seconds: lastPosition,
-        watched_seconds: lastPosition,
-        progress_percentage: progressPercentage
+        last_position_seconds: current,
+        watched_seconds: totalSecs,
+        progress_percentage: progressPercentage,
+        watched_segments: merged
       });
     }
   }, [progressPercentage, activeVideo]);
 
-  // Message listener for YouTube and Bunny Stream players
   React.useEffect(() => {
     const handlePlayerMessage = (e: MessageEvent) => {
       try {
@@ -346,23 +410,62 @@ export default function LessonViewer() {
           msg = JSON.parse(msg)
         }
 
-        // Bunny Stream events
-        if (msg.event === 'play') {
-          setIsPlaying(true)
-        } else if (msg.event === 'pause') {
-          setIsPlaying(false)
-          syncProgressToDbRef.current()
-        } else if (msg.event === 'timeupdate' && msg.data?.currentTime !== undefined) {
-          const time = Math.floor(msg.data.currentTime)
-          setLastPosition(time)
-        } else if (msg.event === 'seeking' && msg.data?.currentTime !== undefined) {
-          const time = Math.floor(msg.data.currentTime)
-          setLastPosition(time)
-          syncProgressToDbRef.current()
+        if (msg && typeof msg === 'object') {
+          // Temporary logging of incoming player messages
+          console.log('[Player Message Debug] Received message:', msg);
+
+          // Bunny Stream events (PlayerJS specification)
+          if (msg.event === 'play') {
+            setIsPlaying(true)
+          } else if (msg.event === 'pause') {
+            setIsPlaying(false)
+            syncProgressToDbRef.current()
+          } else if (msg.event === 'ended') {
+            setIsPlaying(false)
+            syncProgressToDbRef.current()
+          } else if (msg.event === 'timeupdate') {
+            let time: number | undefined = undefined;
+            let dur: number | undefined = undefined;
+
+            if (msg.value?.seconds !== undefined) {
+              time = Math.floor(msg.value.seconds);
+            } else if (typeof msg.value === 'number') {
+              time = Math.floor(msg.value);
+            } else if (msg.data?.currentTime !== undefined) {
+              time = Math.floor(msg.data.currentTime);
+            }
+
+            if (msg.value?.duration !== undefined) {
+              dur = Math.floor(msg.value.duration);
+            } else if (msg.data?.duration !== undefined) {
+              dur = Math.floor(msg.data.duration);
+            }
+
+            if (time !== undefined) {
+              setLastPosition(time);
+            }
+            if (dur !== undefined && dur > 0) {
+              setDuration(dur);
+            }
+          } else if (msg.event === 'seeking') {
+            let time: number | undefined = undefined;
+            if (msg.value?.seconds !== undefined) {
+              time = Math.floor(msg.value.seconds);
+            } else if (typeof msg.value === 'number') {
+              time = Math.floor(msg.value);
+            } else if (msg.data?.currentTime !== undefined) {
+              time = Math.floor(msg.data.currentTime);
+            }
+
+            if (time !== undefined) {
+              setLastPosition(time);
+              syncProgressToDbRef.current();
+            }
+          }
         }
 
         // YouTube Embed events (when enablejsapi=1 is passed)
-        if (msg.event === 'infoDelivery' && msg.info) {
+        if (msg && msg.event === 'infoDelivery' && msg.info) {
           const state = msg.info.playerState
           if (state === 1) { // Playing
             setIsPlaying(true)
@@ -387,59 +490,111 @@ export default function LessonViewer() {
     return () => window.removeEventListener('message', handlePlayerMessage)
   }, [])
 
-  // Actual watched time tracking (continuously update while playing and tab visible)
+  // Initialize and reset segments when active video changes
   React.useEffect(() => {
-    let intervalId: any = null;
-
-    const startTimer = () => {
-      if (intervalId) return;
-      intervalId = setInterval(() => {
-        if (document.visibilityState === 'visible' && isPlaying) {
-          setSecondsWatched(prev => prev + 1);
-        }
-      }, 1000);
-    };
-
-    const stopTimer = () => {
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+    if (activeVideo) {
+      const segments = activeVideo.progress?.watched_segments || [];
+      const merged = mergeSegments(segments);
+      const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      const durVal = duration || activeVideo.duration_seconds || 300;
+      
+      setWatchedSegments(segments);
+      setWatchedTime(totalSecs);
+      setSecondsWatched(totalSecs);
+      if (durVal > 0) {
+        setProgressPercentage(Math.min(100, (totalSecs / durVal) * 100));
       }
-    };
+      currentSegmentRef.current = null;
+    }
+  }, [activeVideo?.id]);
 
-    if (isPlaying && document.visibilityState === 'visible') {
-      startTimer();
-    } else {
-      stopTimer();
+  // Unified reactive tracking effect
+  React.useEffect(() => {
+    if (!activeVideo || !isPlaying) return;
+    
+    // Ignore hidden tab
+    if (document.visibilityState === 'hidden') {
+      if (currentSegmentRef.current) {
+        pushAndMergeCurrentSegment();
+        currentSegmentRef.current = null;
+      }
+      return;
     }
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isPlaying) {
-        startTimer();
+    // Detect playback rate to pause progress on fast speeds (> 2.0x)
+    let playbackRate = 1.0;
+    if (isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+      playbackRate = ytPlayerRef.current?.getPlaybackRate() || 1.0;
+    } else if (videoRef.current) {
+      playbackRate = videoRef.current.playbackRate || 1.0;
+    }
+
+    if (playbackRate > 2.0) {
+      if (currentSegmentRef.current) {
+        pushAndMergeCurrentSegment();
+        currentSegmentRef.current = null;
+      }
+      return;
+    }
+
+    const t = lastPosition;
+    const active = currentSegmentRef.current;
+    if (!active) {
+      currentSegmentRef.current = { start: t, end: t };
+    } else {
+      const elapsed = t - active.end;
+      if (elapsed >= 0 && elapsed <= 2.5) {
+        // Continuous playing forward
+        active.end = t;
       } else {
-        stopTimer();
+        // Seeking/jumping/reversing
+        pushAndMergeCurrentSegment();
+        currentSegmentRef.current = { start: t, end: t };
+      }
+    }
+
+    // Update real-time progress for display
+    const totalSecs = getWatchedSeconds(watchedSegmentsRef.current, currentSegmentRef.current);
+    const durVal = duration || activeVideo.duration_seconds || 300;
+    setWatchedTime(totalSecs);
+    setSecondsWatched(totalSecs);
+    if (durVal > 0) {
+      setProgressPercentage(Math.min(100, (totalSecs / durVal) * 100));
+    }
+  }, [lastPosition, isPlaying, activeVideo?.id]);
+
+  // Handle document visibility change to stop/pause active segments
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        pushAndMergeCurrentSegment();
+        currentSegmentRef.current = null;
       }
     };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
     return () => {
-      stopTimer();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isPlaying]);
+  }, []);
 
   // Save progress when paused
   React.useEffect(() => {
     if (!isPlaying && activeVideoRef.current) {
+      pushAndMergeCurrentSegment();
+      currentSegmentRef.current = null;
+      
       const current = lastPositionRef.current;
       const durVal = durationRef.current || activeVideoRef.current.duration_seconds || 300;
-      const percentage = durVal > 0 ? (current / durVal) * 100 : 0;
+      const merged = mergeSegments(watchedSegmentsRef.current);
+      const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+      
       saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
-        watched_seconds: current,
-        progress_percentage: percentage
+        watched_seconds: totalSecs,
+        progress_percentage: percentage,
+        watched_segments: merged
       });
     }
   }, [isPlaying]);
@@ -473,32 +628,27 @@ export default function LessonViewer() {
     };
   }, [activeVideo?.id, isPlaying]);
 
-  // Synchronize watchedTime, secondsWatched, and progressPercentage reactively when lastPosition or duration changes
-  React.useEffect(() => {
-    if (duration > 0) {
-      setProgressPercentage((lastPosition / duration) * 100);
-    }
-    setWatchedTime(lastPosition);
-    setSecondsWatched(lastPosition);
-  }, [lastPosition, duration]);
-
   // Periodic progress saving to DB (running every 5 seconds while playing)
   React.useEffect(() => {
     let interval: any = null;
 
     if (activeVideo && isPlaying) {
-      console.log('[YouTube Player Debug] Starting periodic progress save interval');
+      console.log('[Video Progress] Starting periodic progress save interval');
       interval = setInterval(() => {
         const current = lastPositionRef.current;
         const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
         if (durVal > 0 && current >= 0) {
-          const percentage = (current / durVal) * 100;
-          console.log('[YouTube Player Debug] Periodic save: position =', current, 'percentage =', percentage);
+          const active = currentSegmentRef.current;
+          const merged = getMergedSegmentsIncludingActive(watchedSegmentsRef.current, active);
+          const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+          const percentage = (totalSecs / durVal) * 100;
+          
           saveLessonProgressRef.current({
             lessonId: Number(id),
             last_position_seconds: current,
-            watched_seconds: current,
-            progress_percentage: percentage
+            watched_seconds: totalSecs,
+            progress_percentage: percentage,
+            watched_segments: merged
           });
         }
       }, 5000);
@@ -506,7 +656,7 @@ export default function LessonViewer() {
 
     return () => {
       if (interval) {
-        console.log('[YouTube Player Debug] Clearing periodic progress save interval');
+        console.log('[Video Progress] Clearing periodic progress save interval');
         clearInterval(interval);
       }
     };
@@ -629,14 +779,18 @@ export default function LessonViewer() {
     setIsPlaying(false)
     const prevVideo = activeVideoRef.current
     if (prevVideo) {
+      pushAndMergeCurrentSegment();
       const current = lastPositionRef.current;
       const durVal = durationRef.current || prevVideo.duration_seconds || 300;
-      const percentage = durVal > 0 ? (current / durVal) * 100 : 0;
+      const merged = mergeSegments(watchedSegmentsRef.current);
+      const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
       await saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
-        watched_seconds: current,
-        progress_percentage: percentage
+        watched_seconds: totalSecs,
+        progress_percentage: percentage,
+        watched_segments: merged
       });
     }
     setActiveVideo(video)
@@ -648,13 +802,16 @@ export default function LessonViewer() {
 
     const pos = video.progress?.last_position_seconds || 0
     const watchedSecs = video.progress?.watched_seconds || 0
+    const segments = video.progress?.watched_segments || []
     setLastPosition(pos)
     setWatchedTime(watchedSecs)
     setSecondsWatched(watchedSecs)
+    setWatchedSegments(segments)
+    currentSegmentRef.current = null
     
     const videoDuration = video.duration_seconds || 300
     setDuration(videoDuration)
-    setProgressPercentage(videoDuration > 0 ? (pos / videoDuration) * 100 : 0)
+    setProgressPercentage(videoDuration > 0 ? (watchedSecs / videoDuration) * 100 : 0)
     
     // Seek native video element if it's rendered
     if (videoRef.current) {
@@ -667,10 +824,28 @@ export default function LessonViewer() {
     const handleVisibilityOrUnload = () => {
       const video = activeVideoRef.current
       if (video) {
-        API.post(`/videos/${video.id}/progress`, {
-          watched_seconds: lastPositionRef.current,
-          last_position_seconds: lastPositionRef.current,
-        }).catch((err) => console.error('Failed to save progress on exit:', err))
+        // Commit active segment
+        if (currentSegmentRef.current) {
+          const active = currentSegmentRef.current;
+          if (active.end - active.start > 0) {
+            watchedSegmentsRef.current = mergeSegments([...watchedSegmentsRef.current, active]);
+          }
+          currentSegmentRef.current = null;
+        }
+        
+        const current = lastPositionRef.current;
+        const merged = mergeSegments(watchedSegmentsRef.current);
+        const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+        
+        const payload = {
+          watched_seconds: totalSecs,
+          last_position_seconds: current,
+          watched_segments: merged,
+        };
+        
+        console.log('Saving progress', payload);
+
+        API.post(`/videos/${video.id}/progress`, payload).catch((err) => console.error('Failed to save progress on exit:', err))
       }
     }
 
@@ -744,7 +919,7 @@ export default function LessonViewer() {
                   
                   // Auto-regeneration fallback if URL is empty or misconfigured
                   if ((!url || !url.includes('691418') || (activeVideo.bunny_stream_id && !url.includes(activeVideo.bunny_stream_id))) && activeVideo.bunny_stream_id) {
-                    url = `https://vz-2c679b85-0fa.b-cdn.net/embed/691418/${activeVideo.bunny_stream_id}`;
+                    url = `https://iframe.mediadelivery.net/embed/691418/${activeVideo.bunny_stream_id}`;
                   }
 
                   if (!url) {
@@ -812,19 +987,12 @@ export default function LessonViewer() {
                         onTimeUpdate={(e) => {
                           const time = Math.floor(e.currentTarget.currentTime)
                           setLastPosition(time)
-                          setWatchedTime(time)
-                          setSecondsWatched(time)
                           const durVal = Math.floor(e.currentTarget.duration || duration || activeVideo.duration_seconds)
                           setDuration(durVal)
-                          if (durVal > 0) {
-                            setProgressPercentage((time / durVal) * 100)
-                          }
                         }}
                         onSeeking={(e) => {
                           const time = Math.floor(e.currentTarget.currentTime)
                           setLastPosition(time)
-                          setWatchedTime(time)
-                          setSecondsWatched(time)
                           syncProgressToDbRef.current()
                         }}
                         onEnded={() => {
@@ -1190,3 +1358,20 @@ export default function LessonViewer() {
     </div>
   )
 }
+
+// Helper functions for watched segments tracking
+const mergeSegments = (segments: Array<{ start: number; end: number }>) => {
+  if (segments.length === 0) return [];
+  const sorted = [...segments].sort((a, b) => a.start - b.start);
+  const merged: Array<{ start: number; end: number }> = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    const current = sorted[i];
+    const last = merged[merged.length - 1];
+    if (current.start <= last.end) {
+      last.end = Math.max(last.end, current.end);
+    } else {
+      merged.push(current);
+    }
+  }
+  return merged;
+};
