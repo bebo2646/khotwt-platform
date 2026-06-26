@@ -233,7 +233,7 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className="hidden md:flex flex-row flex-nowrap items-center justify-start xl:justify-center gap-6 xl:gap-8 overflow-x-auto xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1 min-w-0">
+          <div className="hidden md:flex flex-row flex-nowrap items-center justify-start 2xl:justify-center gap-6 2xl:gap-8 overflow-x-auto 2xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1 min-w-0">
             {renderNavLinks()}
           </div>
 
