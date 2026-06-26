@@ -2,7 +2,7 @@ import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
-import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
+import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle, ChevronDown } from 'lucide-react'
 import API from '../services/api'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
@@ -24,6 +24,8 @@ export default function Navbar() {
   const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const [adminDropdownOpen, setAdminDropdownOpen] = React.useState(false)
+  const adminDropdownRef = React.useRef<HTMLDivElement>(null)
 
 
   // Notifications States & Logic
@@ -38,6 +40,9 @@ export default function Navbar() {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifDropdown(false)
+      }
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(event.target as Node)) {
+        setAdminDropdownOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -144,13 +149,13 @@ export default function Navbar() {
   }
 
   // Define navigation links based on user role
-  const renderNavLinks = () => {
+  const renderNavLinks = (isMobile = false) => {
     if (!isLoggedIn || !user) {
       return (
         <>
-          <Link to="/" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
-          <Link to="/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الكورسات</Link>
-          <Link to="/teachers" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المعلمون</Link>
+          <Link to="/" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
+          <Link to="/courses" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الكورسات</Link>
+          <Link to="/teachers" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المعلمون</Link>
         </>
       )
     }
@@ -159,34 +164,114 @@ export default function Navbar() {
       const isSuper = !!user.is_super_admin || !!user.is_super;
       const hasPerm = (perm: string) => isSuper || (!!user.permissions && user.permissions.includes(perm));
 
+      if (isMobile) {
+        return (
+          <>
+            <Link to="/admin/dashboard" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
+            {hasPerm('teachers.manage') && (
+              <Link to="/admin/teachers" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المعلمون</Link>
+            )}
+            {hasPerm('students.manage') && (
+              <Link to="/admin/students" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الطلبة</Link>
+            )}
+            {hasPerm('courses.manage') && (
+              <Link to="/admin/courses" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الكورسات</Link>
+            )}
+            {hasPerm('reports.view') && (
+              <Link to="/admin/reports" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">التقارير</Link>
+            )}
+            <hr className="border-[var(--border-color)] my-1" />
+            <div className="text-[10px] text-slate-400 font-bold px-2 py-1">الإدارة</div>
+            {hasPerm('coupons.manage') && (
+              <Link to="/admin/codes" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">أكواد الشحن</Link>
+            )}
+            <Link to="/admin/notifications" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">إرسال الإشعارات</Link>
+            <Link to="/admin/subscriptions/requests" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">طلبات الاشتراكات</Link>
+            <Link to="/admin/subscription-plans" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">إدارة الباقات</Link>
+            <Link to="/admin/bunny" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">إحصائيات Bunny</Link>
+            {hasPerm('admins.manage') && (
+              <Link to="/admin/manage" onClick={() => setMobileMenuOpen(false)} className="hover:text-brand-primary font-bold text-xs 2xl:text-sm text-amber-500 transition-colors px-4 py-2 whitespace-nowrap flex-shrink-0">الصلاحيات</Link>
+            )}
+          </>
+        )
+      }
+
       return (
         <>
           <Link to="/admin/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
-          {hasPerm('teachers.manage') && (
-            <Link to="/admin/teachers" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المعلمون</Link>
-          )}
-          {hasPerm('students.manage') && (
-            <Link to="/admin/students" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الطلاب</Link>
-          )}
           {hasPerm('courses.manage') && (
             <Link to="/admin/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الكورسات</Link>
           )}
-          {hasPerm('coupons.manage') && (
-            <Link to="/admin/codes" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">أكواد الشحن</Link>
+          {hasPerm('students.manage') && (
+            <Link to="/admin/students" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الطلبة</Link>
+          )}
+          {hasPerm('teachers.manage') && (
+            <Link to="/admin/teachers" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المعلمون</Link>
           )}
           {hasPerm('reports.view') && (
             <Link to="/admin/reports" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">التقارير</Link>
           )}
-          <Link to="/admin/notifications" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">إرسال الإشعارات</Link>
 
-          <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">طلبات الاشتراكات</Link>
-          <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">إدارة الباقات</Link>
-          <Link to="/admin/bunny" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">إحصائيات Bunny</Link>
-          {hasPerm('admins.manage') && (
-            
-            <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-xs 2xl:text-sm text-amber-500 transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الصلاحيات</Link>
-
-          )}
+          {/* Management Dropdown */}
+          <div className="relative" ref={adminDropdownRef}>
+            <button
+              onClick={() => setAdminDropdownOpen(!adminDropdownOpen)}
+              className="flex items-center gap-1 hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0 cursor-pointer"
+            >
+              <span>الإدارة</span>
+              <ChevronDown className="w-4 h-4 transition-transform duration-200" style={{ transform: adminDropdownOpen ? 'rotate(180deg)' : 'none' }} />
+            </button>
+            {adminDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-52 rounded-2xl bg-[var(--card-bg)] border border-[var(--border-color)] p-2 shadow-xl z-50 text-right backdrop-blur-lg flex flex-col gap-1">
+                {hasPerm('coupons.manage') && (
+                  <Link 
+                    to="/admin/codes" 
+                    onClick={() => setAdminDropdownOpen(false)}
+                    className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                  >
+                    أكواد الشحن
+                  </Link>
+                )}
+                <Link 
+                  to="/admin/notifications" 
+                  onClick={() => setAdminDropdownOpen(false)}
+                  className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                >
+                  إرسال الإشعارات
+                </Link>
+                <Link 
+                  to="/admin/subscriptions/requests" 
+                  onClick={() => setAdminDropdownOpen(false)}
+                  className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                >
+                  طلبات الاشتراكات
+                </Link>
+                <Link 
+                  to="/admin/subscription-plans" 
+                  onClick={() => setAdminDropdownOpen(false)}
+                  className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                >
+                  إدارة الباقات
+                </Link>
+                <Link 
+                  to="/admin/bunny" 
+                  onClick={() => setAdminDropdownOpen(false)}
+                  className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                >
+                  إحصائيات Bunny
+                </Link>
+                {hasPerm('admins.manage') && (
+                  <Link 
+                    to="/admin/manage" 
+                    onClick={() => setAdminDropdownOpen(false)}
+                    className="hover:text-brand-primary font-bold text-xs 2xl:text-sm text-amber-500 transition-colors px-3 py-2 rounded-xl hover:bg-[rgba(255,255,255,0.05)] whitespace-nowrap flex-shrink-0 block"
+                  >
+                    الصلاحيات
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         </>
       )
     }
@@ -194,13 +279,13 @@ export default function Navbar() {
     if (user.role === 'teacher') {
       return (
         <>
-          <Link to="/teacher/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
-          <Link to="/teacher/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">كورساتي</Link>
-          <Link to="/teacher/students" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الطلاب</Link>
-          <Link to="/teacher/revenue" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">تقرير الأرباح</Link>
-          <Link to="/teacher/subscription" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">اشتراكي</Link>
-          <Link to="/teacher/videos" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">إدارة الفيديوهات</Link>
-          <Link to="/change-password" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الملف الشخصي</Link>
+          <Link to="/teacher/dashboard" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
+          <Link to="/teacher/courses" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">كورساتي</Link>
+          <Link to="/teacher/students" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الطلاب</Link>
+          <Link to="/teacher/revenue" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">تقرير الأرباح</Link>
+          <Link to="/teacher/subscription" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">اشتراكي</Link>
+          <Link to="/teacher/videos" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">إدارة الفيديوهات</Link>
+          <Link to="/change-password" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الملف الشخصي</Link>
         </>
       )
     }
@@ -208,10 +293,10 @@ export default function Navbar() {
     // Default Student role
     return (
       <>
-        <Link to="/student/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
-        <Link to="/student/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">كورساتي</Link>
-        <Link to="/student/wallet" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المحفظة</Link>
-        <Link to="/student/profile" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الملف الشخصي</Link>
+        <Link to="/student/dashboard" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الرئيسية</Link>
+        <Link to="/student/courses" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">كورساتي</Link>
+        <Link to="/student/wallet" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">المحفظة</Link>
+        <Link to="/student/profile" onClick={() => isMobile && setMobileMenuOpen(false)} className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors px-2 py-2 whitespace-nowrap flex-shrink-0">الملف الشخصي</Link>
       </>
     )
   }
@@ -434,7 +519,7 @@ export default function Navbar() {
       {mobileMenuOpen && (
         <div className="xl:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
           <div className="flex flex-col gap-3">
-            {renderNavLinks()}
+            {renderNavLinks(true)}
           </div>
           <hr className="border-[var(--border-color)]" />
           <div className="flex flex-col gap-3">
