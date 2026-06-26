@@ -44,7 +44,7 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $this->apiKey,
                 'Content-Type' => 'application/json',
                 'accept' => 'application/json',
@@ -86,7 +86,7 @@ class BunnyStreamService
                 return false;
             }
 
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $this->apiKey,
             ])->withBody($fileStream, 'video/mp4')
               ->put("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
@@ -115,7 +115,7 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $this->apiKey,
                 'accept' => 'application/json',
             ])->get("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
@@ -141,7 +141,7 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $this->apiKey,
                 'accept' => 'application/json',
             ])->delete("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
