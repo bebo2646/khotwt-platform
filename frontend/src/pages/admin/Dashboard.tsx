@@ -280,7 +280,7 @@ export default function Dashboard() {
             <span className="text-xs text-slate-400">آخر 6 أشهر</span>
           </div>
 
-          <div className="h-64 w-full">
+          <div className="h-64 w-full overflow-x-auto max-w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                 <defs>

@@ -428,7 +428,7 @@ export default function Home() {
                 <span>المحاضرات والمراجعات المتاحة:</span>
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 {filterResults.map((course) => (
                   <CourseCard
                     key={course.id}
@@ -475,7 +475,7 @@ export default function Home() {
         {featuredCourses.length === 0 ? (
           <EmptyState type="courses" title="لا توجد كورسات معروضة" description="لم يتم نشر أي كورسات في المنصة حتى الآن." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {featuredCourses.map((course) => (
               <CourseCard
                 key={course.id}
@@ -508,7 +508,7 @@ export default function Home() {
         {popularTeachers.length === 0 ? (
           <EmptyState type="teachers" title="لا يوجد معلمون مسجلون" description="يرجى مراجعة لوحة تحكم الأدمن لإضافة معلمين جدد للمنصة." />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {popularTeachers.map((teacher) => (
               <TeacherCard
                 key={teacher.id}

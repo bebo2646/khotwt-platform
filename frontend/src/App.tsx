@@ -64,9 +64,9 @@ const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboar
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen w-full overflow-x-hidden">
       <Navbar />
-      <main className="flex-grow">
+      <main className="flex-grow w-full overflow-x-hidden">
         {children}
       </main>
       <Footer />
@@ -137,6 +137,7 @@ function App() {
       window.removeEventListener('orientationchange', handleViewportChange);
     };
   }, []);
+
 
   // Poll session state every 10 seconds while logged in
   React.useEffect(() => {

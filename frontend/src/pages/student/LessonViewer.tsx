@@ -1196,10 +1196,10 @@ export default function LessonViewer() {
         <div className="space-y-6">
           
           {/* Quick tab switchers */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-4 rounded-3xl grid grid-cols-3 gap-2">
+          <div className="bg-brand-card border border-[var(--border-color)] p-2 sm:p-4 rounded-3xl grid grid-cols-3 gap-1.5 sm:gap-2">
             <button
               onClick={() => setActiveTab('videos')}
-              className={`py-3 text-center text-xs font-bold rounded-2xl cursor-pointer ${
+              className={`py-2.5 sm:py-3 text-center text-[10px] xs:text-xs font-bold rounded-2xl cursor-pointer ${
                 activeTab === 'videos' ? 'bg-brand-primary text-white' : 'hover:bg-[rgba(255,255,255,0.02)] text-slate-400'
               }`}
             >
@@ -1207,7 +1207,7 @@ export default function LessonViewer() {
             </button>
             <button
               onClick={() => setActiveTab('pdfs')}
-              className={`py-3 text-center text-xs font-bold rounded-2xl cursor-pointer ${
+              className={`py-2.5 sm:py-3 text-center text-[10px] xs:text-xs font-bold rounded-2xl cursor-pointer ${
                 activeTab === 'pdfs' ? 'bg-brand-primary text-white' : 'hover:bg-[rgba(255,255,255,0.02)] text-slate-400'
               }`}
             >
@@ -1215,7 +1215,7 @@ export default function LessonViewer() {
             </button>
             <button
               onClick={() => setActiveTab('exams')}
-              className={`py-3 text-center text-xs font-bold rounded-2xl cursor-pointer ${
+              className={`py-2.5 sm:py-3 text-center text-[10px] xs:text-xs font-bold rounded-2xl cursor-pointer ${
                 activeTab === 'exams' ? 'bg-brand-primary text-white' : 'hover:bg-[rgba(255,255,255,0.02)] text-slate-400'
               }`}
             >

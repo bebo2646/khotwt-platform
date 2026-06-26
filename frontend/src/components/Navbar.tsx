@@ -233,7 +233,7 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className="hidden md:flex flex-row flex-nowrap items-center justify-center gap-6 xl:gap-8 overflow-x-auto xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1">
+          <div className="hidden md:flex flex-row flex-nowrap items-center justify-start xl:justify-center gap-6 xl:gap-8 overflow-x-auto xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1 min-w-0">
             {renderNavLinks()}
           </div>
 
@@ -259,11 +259,8 @@ export default function Navbar() {
 
                 {showNotifDropdown && (
                   <div 
-                    className="absolute mt-3 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300"
+                    className="fixed md:absolute top-16 md:top-auto left-4 right-4 md:left-auto md:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 md:w-[380px]"
                     style={{
-                      width: 'min(90vw, 380px)',
-                      right: 0,
-                      left: 'auto',
                       maxHeight: '70vh',
                       overflowY: 'auto',
                       wordBreak: 'break-word'
@@ -434,7 +431,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3">
+        <div className="md:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
           <div className="flex flex-col gap-3">
             {renderNavLinks()}
           </div>

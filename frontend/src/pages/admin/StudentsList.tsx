@@ -507,7 +507,7 @@ export default function StudentsList() {
                   {studentAnalytics.exam_attempts.length === 0 ? (
                     <div className="text-center py-6 border border-slate-800 rounded-xl text-xs text-slate-400 font-light">لا توجد محاولات حل امتحانات مسجلة.</div>
                   ) : (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
                       <table className="w-full text-right border-collapse text-[11px]">
                         <thead>
                           <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold">
@@ -619,7 +619,7 @@ export default function StudentsList() {
                   ) : enrollments.length === 0 ? (
                     <div className="text-center py-6 border border-slate-800 rounded-xl text-xs text-slate-400 font-light">لا توجد اشتراكات نشطة مسجلة للطالب.</div>
                   ) : (
-                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-x-auto max-h-48 overflow-y-auto">
                       <table className="w-full text-right border-collapse text-[11px]">
                         <thead>
                           <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 font-bold">

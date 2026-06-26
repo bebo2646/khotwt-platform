@@ -285,7 +285,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
           {courses.length > 0 && (
             <div className="space-y-6">
               <h2 className="text-xl font-black border-r-4 border-brand-primary pr-3 text-foreground">كورسات منفصلة</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 {courses.map((course) => (
                   <CourseCard
                     key={course.id}
@@ -310,7 +310,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
           {packages.length > 0 && (
             <div className="space-y-6 pt-8 border-t border-border-color">
               <h2 className="text-xl font-black border-r-4 border-amber-500 pr-3 text-foreground">باقات مجمعة</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
                 {packages.map((pkg) => (
                   <PackageCard
                     key={pkg.id}
