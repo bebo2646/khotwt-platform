@@ -25,38 +25,6 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
-  const isAdmin = isLoggedIn && user && (user.role === 'admin');
-  const isTeacher = isLoggedIn && user && (user.role === 'teacher');
-
-  const linksCollapseClass = isAdmin 
-    ? 'hidden 2xl:flex' 
-    : isTeacher 
-      ? 'hidden xl:flex' 
-      : 'hidden lg:flex';
-
-  const mobileToggleCollapseClass = isAdmin 
-    ? 'flex 2xl:hidden' 
-    : isTeacher 
-      ? 'flex xl:hidden' 
-      : 'flex lg:hidden';
-
-  const authCollapseClass = isAdmin 
-    ? 'hidden 2xl:flex' 
-    : isTeacher 
-      ? 'hidden xl:flex' 
-      : 'hidden lg:flex';
-
-  const mobileMenuCollapseClass = isAdmin 
-    ? '2xl:hidden' 
-    : isTeacher 
-      ? 'xl:hidden' 
-      : 'lg:hidden';
-
-  const notifDropdownClass = isAdmin
-    ? 'fixed 2xl:absolute top-16 2xl:top-auto left-4 right-4 2xl:left-auto 2xl:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 2xl:w-[380px]'
-    : isTeacher
-      ? 'fixed xl:absolute top-16 xl:top-auto left-4 right-4 xl:left-auto xl:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 xl:w-[380px]'
-      : 'fixed lg:absolute top-16 lg:top-auto left-4 right-4 lg:left-auto lg:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 lg:w-[380px]';
 
   // Notifications States & Logic
   const [unreadCount, setUnreadCount] = React.useState(0)
@@ -180,9 +148,9 @@ export default function Navbar() {
     if (!isLoggedIn || !user) {
       return (
         <>
-          <Link to="/" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-          <Link to="/courses" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
-          <Link to="/teachers" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
+          <Link to="/" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
+          <Link to="/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
+          <Link to="/teachers" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
         </>
       )
     }
@@ -193,30 +161,30 @@ export default function Navbar() {
 
       return (
         <>
-          <Link to="/admin/dashboard" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
+          <Link to="/admin/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
           {hasPerm('teachers.manage') && (
-            <Link to="/admin/teachers" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
+            <Link to="/admin/teachers" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
           )}
           {hasPerm('students.manage') && (
-            <Link to="/admin/students" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
+            <Link to="/admin/students" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
           )}
           {hasPerm('courses.manage') && (
-            <Link to="/admin/courses" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
+            <Link to="/admin/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
           )}
           {hasPerm('coupons.manage') && (
-            <Link to="/admin/codes" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">أكواد الشحن</Link>
+            <Link to="/admin/codes" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">أكواد الشحن</Link>
           )}
           {hasPerm('reports.view') && (
-            <Link to="/admin/reports" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">التقارير</Link>
+            <Link to="/admin/reports" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">التقارير</Link>
           )}
-          <Link to="/admin/notifications" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">إرسال الإشعارات</Link>
+          <Link to="/admin/notifications" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">إرسال الإشعارات</Link>
 
-          <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">طلبات الاشتراكات</Link>
-          <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">إدارة الباقات</Link>
-          <Link to="/admin/bunny" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">إحصائيات Bunny</Link>
+          <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">طلبات الاشتراكات</Link>
+          <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">إدارة الباقات</Link>
+          <Link to="/admin/bunny" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">إحصائيات Bunny</Link>
           {hasPerm('admins.manage') && (
             
-            <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-xs xl:text-sm text-amber-500 transition-colors whitespace-nowrap shrink-0">الصلاحيات</Link>
+            <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-xs 2xl:text-sm text-amber-500 transition-colors whitespace-nowrap shrink-0">الصلاحيات</Link>
 
           )}
         </>
@@ -226,13 +194,13 @@ export default function Navbar() {
     if (user.role === 'teacher') {
       return (
         <>
-          <Link to="/teacher/dashboard" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-          <Link to="/teacher/courses" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
-          <Link to="/teacher/students" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
-          <Link to="/teacher/revenue" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">تقرير الأرباح</Link>
-          <Link to="/teacher/subscription" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">اشتراكي</Link>
-          <Link to="/teacher/videos" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">إدارة الفيديوهات</Link>
-          <Link to="/change-password" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
+          <Link to="/teacher/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
+          <Link to="/teacher/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
+          <Link to="/teacher/students" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
+          <Link to="/teacher/revenue" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">تقرير الأرباح</Link>
+          <Link to="/teacher/subscription" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">اشتراكي</Link>
+          <Link to="/teacher/videos" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">إدارة الفيديوهات</Link>
+          <Link to="/change-password" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
         </>
       )
     }
@@ -240,10 +208,10 @@ export default function Navbar() {
     // Default Student role
     return (
       <>
-        <Link to="/student/dashboard" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-        <Link to="/student/courses" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
-        <Link to="/student/wallet" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">المحفظة</Link>
-        <Link to="/student/profile" className="hover:text-brand-primary font-semibold text-xs xl:text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
+        <Link to="/student/dashboard" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
+        <Link to="/student/courses" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
+        <Link to="/student/wallet" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">المحفظة</Link>
+        <Link to="/student/profile" className="hover:text-brand-primary font-semibold text-xs 2xl:text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
       </>
     )
   }
@@ -266,7 +234,7 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className={`${linksCollapseClass} flex-row flex-nowrap items-center justify-center gap-4 xl:gap-6 2xl:gap-8 py-1 mx-6 flex-1 min-w-0 overflow-hidden`}>
+          <div className="hidden xl:flex flex-row flex-nowrap items-center justify-center gap-3 2xl:gap-6 py-1 mx-6 flex-1 min-w-0">
             {renderNavLinks()}
           </div>
 
@@ -292,7 +260,7 @@ export default function Navbar() {
 
                 {showNotifDropdown && (
                   <div 
-                    className={notifDropdownClass}
+                    className="fixed xl:absolute top-16 xl:top-auto left-4 right-4 xl:left-auto xl:right-0 mt-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300 xl:w-[380px]"
                     style={{
                       maxHeight: '70vh',
                       overflowY: 'auto',
@@ -416,7 +384,7 @@ export default function Navbar() {
             </button>
 
             {/* Auth Buttons */}
-            <div className={`${authCollapseClass} items-center gap-3`}>
+            <div className="hidden xl:flex items-center gap-3">
               {isLoggedIn && user ? (
                 <div className="flex items-center gap-4">
                   {user.role === 'student' && user.wallet && (
@@ -448,7 +416,7 @@ export default function Navbar() {
             </div>
 
             {/* Mobile menu button */}
-            <div className={`${mobileToggleCollapseClass}`}>
+            <div className="flex xl:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-md hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-current"
@@ -464,7 +432,7 @@ export default function Navbar() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className={`${mobileMenuCollapseClass} glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto`}>
+        <div className="xl:hidden glass border-b border-[var(--border-color)] px-4 pt-2 pb-4 space-y-3 max-h-[calc(100vh-4.5rem)] overflow-y-auto">
           <div className="flex flex-col gap-3">
             {renderNavLinks()}
           </div>
