@@ -240,11 +240,15 @@ class BunnyStreamService
         return match ($status) {
             0 => 'queued',
             1 => 'processing',
-            2 => 'finished',
-            3 => 'failed', // ResolutionFailed
-            4 => 'failed', // Failed
-            5 => 'uploaded', // PresignedUploadStarted/Uploaded
+            2 => 'processing', // Encoding/transcoding
+            3 => 'finished',   // Transcoding finished
+            4 => 'finished',   // Playable
+            5 => 'failed',
+            6 => 'queued',
+            7 => 'uploaded',
+            8 => 'failed',
             default => 'processing'
         };
     }
 }
+

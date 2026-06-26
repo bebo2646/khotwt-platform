@@ -258,7 +258,7 @@ class TeacherController extends Controller
                     'bunny_embed_url' => $embedUrl,
                     'bunny_thumbnail_url' => $thumbnailUrl,
                     'bunny_duration' => 0,
-                    'bunny_size_bytes' => 0,
+                    'bunny_size_bytes' => $fileSize,
                     'bunny_status' => 'queued',
                     'duration_seconds' => 0,
                     'thumbnail_path' => $thumbnailUrl,
@@ -297,6 +297,21 @@ class TeacherController extends Controller
     public function dashboard(Request $request)
     {
         $teacher = $request->user();
+
+        // Recalculate storage fallback if cached value is incorrect
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $totalBytes = Video::whereHas('lesson.unit.course', function ($q) use ($teacher) {
+            $q->where('teacher_id', $teacher->id);
+        })->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(bunny_size_bytes, storage_size, 0)'));
+        
+        $calculatedGb = round($totalBytes / (1024 * 1024 * 1024), 4);
+        $cachedGb = (float)$teacher->bunny_storage_used_gb;
+        
+        if (abs($calculatedGb - $cachedGb) > 0.0001) {
+            $bunnyService->recalculateStorage($teacher->id);
+            $teacher->refresh();
+        }
+
         $courseIds = Course::where('teacher_id', $teacher->id)->pluck('id');
 
         $coursesCount = $courseIds->count();
@@ -774,11 +789,13 @@ class TeacherController extends Controller
         $video = Video::create([
             'lesson_id' => $lessonId,
             'title' => $request->title,
+            'bunny_video_id' => $request->bunny_stream_id,
             'bunny_stream_id' => $request->bunny_stream_id,
             'bunny_embed_url' => $request->bunny_embed_url,
             'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
+            'bunny_status' => $request->bunny_stream_id ? 'finished' : null,
         ]);
 
         $this->updateLessonDuration($lessonId);
@@ -891,11 +908,13 @@ class TeacherController extends Controller
 
         $video->update([
             'title' => $request->title,
+            'bunny_video_id' => $request->bunny_stream_id,
             'bunny_stream_id' => $request->bunny_stream_id,
             'bunny_embed_url' => $request->bunny_embed_url,
             'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
+            'bunny_status' => $request->bunny_stream_id ? ($video->bunny_status ?: 'finished') : null,
         ]);
 
         $this->updateLessonDuration($video->lesson_id);
@@ -1007,7 +1026,7 @@ class TeacherController extends Controller
                     'bunny_embed_url' => $embedUrl,
                     'bunny_thumbnail_url' => $thumbnailUrl,
                     'bunny_duration' => 0,
-                    'bunny_size_bytes' => 0,
+                    'bunny_size_bytes' => $fileSize,
                     'bunny_status' => 'queued',
                     'duration_seconds' => 0,
                     'thumbnail_path' => $thumbnailUrl,

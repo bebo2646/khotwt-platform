@@ -883,6 +883,7 @@ class StudentController extends Controller
                 'title' => $video->title,
                 'bunny_stream_id' => $video->bunny_stream_id,
                 'bunny_embed_url' => $video->bunny_embed_url,
+                'bunny_status' => $video->bunny_status,
                 'duration_seconds' => $video->duration_seconds,
                 'thumbnail_path' => $video->thumbnail_path,
                 'progress' => $progress ? [

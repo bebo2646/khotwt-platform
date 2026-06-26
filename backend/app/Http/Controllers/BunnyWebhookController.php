@@ -19,8 +19,8 @@ class BunnyWebhookController extends Controller
 
         // Verify the webhook signature if configured
         if (!empty($secret)) {
-            $receivedSignature = $request->header('x-bunny-signature') ?? '';
-            $computedSignature = hash_hmac('sha1', $payload, $secret);
+            $receivedSignature = strtolower($request->header('x-bunny-signature') ?? '');
+            $computedSignature = strtolower(hash_hmac('sha1', $payload, $secret));
 
             if (!hash_equals($computedSignature, $receivedSignature)) {
                 Log::warning('Bunny Stream Webhook: Signature verification failed.', [

@@ -20,6 +20,7 @@ interface VideoItem {
   bunny_embed_url: string
   duration_seconds: number
   thumbnail_path?: string | null
+  bunny_status?: string | null
   progress?: {
     watched_seconds: number
     watched_percentage: string
@@ -109,10 +110,15 @@ export default function LessonViewer() {
     let url = video.bunny_embed_url || '';
     const pos = video.progress?.last_position_seconds || 0;
     
+    // Auto-regeneration fallback if URL is empty or misconfigured
+    if ((!url || !url.includes('691418') || (video.bunny_stream_id && !url.includes(video.bunny_stream_id))) && video.bunny_stream_id) {
+      url = `https://vz-2c679b85-0fa.b-cdn.net/embed/691418/${video.bunny_stream_id}`;
+    }
+
     if (isYoutubeUrl(url)) {
       const embedBase = getYoutubeEmbedUrl(url);
       return `${embedBase}?enablejsapi=1&start=${pos}`;
-    } else if (url.includes('mediadelivery.net') || url.includes('bunny')) {
+    } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false${pos > 0 ? `&t=${pos}` : ''}`;
     } else {
@@ -734,8 +740,13 @@ export default function LessonViewer() {
               <div className="aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative">
                 
                 {(() => {
-                  const url = activeVideo.bunny_embed_url || '';
+                  let url = activeVideo.bunny_embed_url || '';
                   
+                  // Auto-regeneration fallback if URL is empty or misconfigured
+                  if ((!url || !url.includes('691418') || (activeVideo.bunny_stream_id && !url.includes(activeVideo.bunny_stream_id))) && activeVideo.bunny_stream_id) {
+                    url = `https://vz-2c679b85-0fa.b-cdn.net/embed/691418/${activeVideo.bunny_stream_id}`;
+                  }
+
                   if (!url) {
                     return (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
@@ -744,6 +755,23 @@ export default function LessonViewer() {
                         <p className="text-xs font-light max-w-xs">يرجى التواصل مع المعلم أو إدارة المنصة لحل هذه المشكلة.</p>
                       </div>
                     );
+                  }
+
+                  // If Bunny Stream video is still processing, show processing warning
+                  if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
+                    const status = activeVideo.bunny_status;
+                    if (status && status !== 'finished' && status !== 'ready') {
+                      return (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
+                          <div className="relative flex items-center justify-center mb-3">
+                            <span className="animate-ping absolute inline-flex h-8 w-8 rounded-full bg-brand-primary opacity-25"></span>
+                            <Play className="h-10 w-10 text-brand-primary animate-pulse relative" />
+                          </div>
+                          <h4 className="text-sm font-bold text-slate-200 mb-1 font-bold">الفيديو قيد المعالجة حالياً (Transcoding on Bunny)</h4>
+                          <p className="text-[10px] text-slate-400 font-light max-w-xs">يرجى الانتظار بضع دقائق حتى ينتهي السيرفر من معالجة وترميز جودات الفيديو.</p>
+                        </div>
+                      );
+                    }
                   }
 
                   if (isYoutubeUrl(url)) {
