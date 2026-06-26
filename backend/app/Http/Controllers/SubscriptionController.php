@@ -848,7 +848,7 @@ class SubscriptionController extends Controller
         $this->notificationService->sendNotification(
             'طلب ترقية اشتراك جديد',
             "المعلم {$teacher->name} أرسل طلب ترقية من نوع ({$request->type}) وبانتظار المراجعة.",
-            'all' // Delivers to admin notification views
+            'admin' // Delivers to admin notification views
         );
 
         return response()->json([
