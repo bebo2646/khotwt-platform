@@ -682,6 +682,7 @@ export default function SubscriptionPlans() {
                   <input
                     type="number"
                     required
+                    step="0.01"
                     min="0"
                     value={maxStorageGb}
                     onChange={(e) => setMaxStorageGb(Number(e.target.value))}

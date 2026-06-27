@@ -33,7 +33,7 @@ class SubscriptionPlan extends Model
         'price' => 'decimal:2',
         'duration_in_days' => 'integer',
         'max_courses' => 'integer',
-        'max_storage_gb' => 'integer',
+        'max_storage_gb' => 'float',
         'included_codes' => 'integer',
         'featured' => 'boolean',
         'active' => 'boolean',
