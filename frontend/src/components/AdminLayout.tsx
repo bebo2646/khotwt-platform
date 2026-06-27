@@ -431,7 +431,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             {/* Profile Dropdown wrapper */}
             <div className="relative" ref={profileRef}>
               <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setShowProfileMenu(!showProfileMenu);
+                }}
+                onClick={(e) => e.preventDefault()}
                 className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[var(--surface-bg)] border border-transparent hover:border-[var(--border-color)] transition cursor-pointer"
               >
                 {user?.avatar ? (
