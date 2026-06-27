@@ -82,9 +82,9 @@
   scroll-behavior: smooth;
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
-  --bg-color: #020617;
-  --surface-bg: #0F172A;
-  --card-bg: #0F172A;
+  --bg-color: #0B1120;
+  --surface-bg: #111827;
+  --card-bg: #111827;
   --primary-color: #6366F1;
   --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
@@ -94,28 +94,28 @@
   --success-color: #10B981;
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
-  --text-color: #F8FAFC;
+  --text-color: #E5E7EB;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --border-color: #1E293B;
-  --input-bg: rgba(15, 23, 42, 0.45);
+  --border-color: #1F2937;
+  --input-bg: rgba(17, 24, 39, 0.45);
   --input-border: rgba(99, 102, 241, 0.18);
-  --input-text: #F8FAFC;
+  --input-text: #E5E7EB;
   --placeholder-color: #64748B;
   --glow-color: rgba(99, 102, 241, 0.35);
   
   /* Slate dynamic values (Dark Mode) */
-  --slate-50: #F8FAFC;
-  --slate-100: #F1F5F9;
-  --slate-200: #E2E8F0;
-  --slate-300: #CBD5E1;
-  --slate-400: #94A3B8;
-  --slate-500: #64748B;
-  --slate-600: #475569;
-  --slate-700: #334155;
-  --slate-800: #1E293B;
-  --slate-900: #0F172A;
-  --slate-950: #020617;
+  --slate-50: #E5E7EB;
+  --slate-100: #CBD5E1;
+  --slate-200: #94A3B8;
+  --slate-300: #64748B;
+  --slate-400: #475569;
+  --slate-500: #334155;
+  --slate-600: #1E293B;
+  --slate-700: #1F2937;
+  --slate-800: #1F2937;
+  --slate-900: #111827;
+  --slate-950: #0B1120;
 }
 
 :root.light-theme {
@@ -322,25 +322,27 @@ button, a, input, select, textarea {
 /* Premium Card & Grid styling */
 .bg-brand-card {
   background-color: var(--card-bg) !important;
-  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid var(--border-color) !important;
   border-radius: 20px !important;
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .bg-brand-card:hover {
-  border-color: rgba(99, 102, 241, 0.25) !important;
-  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.55), 0 0 2px 1px rgba(99, 102, 241, 0.1) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.45) !important;
+  transform: translateY(-3px) !important;
 }
 
 .light-theme .bg-brand-card {
-  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
-  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 8px 20px -6px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 .light-theme .bg-brand-card:hover {
   border-color: rgba(99, 102, 241, 0.25) !important;
-  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 2px 1px rgba(99, 102, 241, 0.05) !important;
+  box-shadow: 0 18px 30px -10px rgba(15, 23, 42, 0.08) !important;
+  transform: translateY(-3px) !important;
 }
 
 .hover\:-translate-y-1:hover {
@@ -382,35 +384,43 @@ a.bg-brand-primary,
 .btn-primary {
   background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%) !important;
   color: #FFFFFF !important;
-  box-shadow: 0 10px 30px rgba(99, 102, 241, 0.35) !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.25) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
   border: none !important;
+  border-radius: 14px !important;
 }
 
 button.bg-brand-primary:hover, 
 a.bg-brand-primary:hover, 
 .btn-primary:hover {
   background: linear-gradient(135deg, #5458EE 0%, #4338CA 100%) !important;
-  box-shadow: 0 15px 35px rgba(99, 102, 241, 0.5) !important;
-  transform: translateY(-1px);
+  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.4) !important;
+  transform: translateY(-2px) !important;
 }
 
 button.bg-brand-primary:active, 
 a.bg-brand-primary:active, 
 .btn-primary:active {
-  transform: translateY(1px);
+  transform: scale(0.97) translateY(0) !important;
 }
 
 .btn-secondary {
   background-color: var(--surface-bg) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-secondary) !important;
+  border-radius: 14px !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .btn-secondary:hover {
   background-color: var(--bg-color) !important;
-  border-color: var(--text-secondary) !important;
+  border-color: var(--text-color) !important;
   color: var(--text-color) !important;
+  transform: translateY(-2px) !important;
+}
+
+.btn-secondary:active {
+  transform: scale(0.97) translateY(0) !important;
 }
 
 /* Global Table Overhaul */

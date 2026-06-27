@@ -64,14 +64,34 @@ export default function Navbar() {
     return '/'
   }
 
+  const isLinkActive = (path: string) => {
+    return window.location.pathname === path
+  }
+
+  const navLink = (to: string, label: string) => {
+    const active = isLinkActive(to)
+    return (
+      <Link 
+        to={to} 
+        className={`font-black text-xs transition-all duration-300 relative py-1.5 px-3 rounded-lg whitespace-nowrap shrink-0 ${
+          active 
+            ? 'text-brand-primary bg-brand-primary/5 border border-brand-primary/10' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent'
+        }`}
+      >
+        {label}
+      </Link>
+    )
+  }
+
   // Define navigation links based on user role
   const renderNavLinks = () => {
     if (!isLoggedIn || !user) {
       return (
         <>
-          <Link to="/" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-          <Link to="/courses" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
-          <Link to="/teachers" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
+          {navLink("/", "الرئيسية")}
+          {navLink("/courses", "الكورسات")}
+          {navLink("/teachers", "المعلمون")}
         </>
       )
     }
@@ -82,32 +102,17 @@ export default function Navbar() {
 
       return (
         <>
-          <Link to="/admin/dashboard" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-          {hasPerm('teachers.manage') && (
-            <Link to="/admin/teachers" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">المعلمون</Link>
-          )}
-          {hasPerm('students.manage') && (
-            <Link to="/admin/students" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
-          )}
-          {hasPerm('courses.manage') && (
-            <Link to="/admin/courses" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الكورسات</Link>
-          )}
-          {hasPerm('coupons.manage') && (
-            <Link to="/admin/codes" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">أكواد الشحن</Link>
-          )}
-          {hasPerm('reports.view') && (
-            <Link to="/admin/reports" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">التقارير</Link>
-          )}
-          <Link to="/admin/notifications" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إرسال الإشعارات</Link>
-
-          <Link to="/admin/subscriptions/requests" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">طلبات الاشتراكات</Link>
-          <Link to="/admin/subscription-plans" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إدارة الباقات</Link>
-          <Link to="/admin/bunny" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إحصائيات Bunny</Link>
-          {hasPerm('admins.manage') && (
-            
-            <Link to="/admin/manage" className="hover:text-brand-primary font-bold text-sm text-amber-500 transition-colors whitespace-nowrap shrink-0">الصلاحيات</Link>
-
-          )}
+          {navLink("/admin/dashboard", "الرئيسية")}
+          {hasPerm('teachers.manage') && navLink("/admin/teachers", "المعلمون")}
+          {hasPerm('students.manage') && navLink("/admin/students", "الطلاب")}
+          {hasPerm('courses.manage') && navLink("/admin/courses", "الكورسات")}
+          {hasPerm('coupons.manage') && navLink("/admin/codes", "أكواد الشحن")}
+          {hasPerm('reports.view') && navLink("/admin/reports", "التقارير")}
+          {navLink("/admin/notifications", "إرسال الإشعارات")}
+          {navLink("/admin/subscriptions/requests", "طلبات الاشتراكات")}
+          {navLink("/admin/subscription-plans", "إدارة الباقات")}
+          {navLink("/admin/bunny", "إحصائيات Bunny")}
+          {hasPerm('admins.manage') && navLink("/admin/manage", "الصلاحيات")}
         </>
       )
     }
@@ -115,13 +120,13 @@ export default function Navbar() {
     if (user.role === 'teacher') {
       return (
         <>
-          <Link to="/teacher/dashboard" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-          <Link to="/teacher/courses" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
-          <Link to="/teacher/students" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الطلاب</Link>
-          <Link to="/teacher/revenue" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">تقرير الأرباح</Link>
-          <Link to="/teacher/subscription" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">اشتراكي</Link>
-          <Link to="/teacher/videos" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">إدارة الفيديوهات</Link>
-          <Link to="/change-password" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
+          {navLink("/teacher/dashboard", "الرئيسية")}
+          {navLink("/teacher/courses", "كورساتي")}
+          {navLink("/teacher/students", "الطلاب")}
+          {navLink("/teacher/revenue", "تقرير الأرباح")}
+          {navLink("/teacher/subscription", "اشتراكي")}
+          {navLink("/teacher/videos", "إدارة الفيديوهات")}
+          {navLink("/change-password", "تغيير المرور")}
         </>
       )
     }
@@ -129,10 +134,10 @@ export default function Navbar() {
     // Default Student role
     return (
       <>
-        <Link to="/student/dashboard" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الرئيسية</Link>
-        <Link to="/student/courses" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">كورساتي</Link>
-        <Link to="/student/wallet" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">المحفظة</Link>
-        <Link to="/student/profile" className="hover:text-brand-primary font-medium text-sm transition-colors whitespace-nowrap shrink-0">الملف الشخصي</Link>
+        {navLink("/student/dashboard", "الرئيسية")}
+        {navLink("/student/courses", "كورساتي")}
+        {navLink("/student/wallet", "المحفظة")}
+        {navLink("/student/profile", "الملف الشخصي")}
       </>
     )
   }
@@ -140,7 +145,7 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-50 glass border-b border-[var(--border-color)] transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-8 sm:px-10 lg:px-12">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-[72px]">
           
           {/* Logo Section */}
           <div className="flex items-center shrink-0">
