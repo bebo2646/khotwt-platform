@@ -2,10 +2,11 @@ import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
-import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
+import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle, ChevronDown } from 'lucide-react'
 import API from '../services/api'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
+import { UserProfileDropdown } from './UserProfileDropdown'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
   const text = (title + ' ' + message).toLowerCase()
@@ -30,12 +31,17 @@ export default function Navbar() {
   // Notifications States & Logic (consumed from global context)
   const { unreadCount } = useNotifications()
   const [showNotifDropdown, setShowNotifDropdown] = React.useState(false)
+  const [showProfileDropdown, setShowProfileDropdown] = React.useState(false)
   const notifRef = React.useRef<HTMLDivElement>(null)
+  const profileDropdownRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifDropdown(false)
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -200,18 +206,26 @@ export default function Navbar() {
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2 px-3 py-1 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-lg text-sm">
-                    <UserIcon className="h-4 w-4 text-brand-primary" />
-                    <span className="font-semibold text-xs">{user.name}</span>
+                  <div className="relative" ref={profileDropdownRef}>
+                    <button
+                      onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer"
+                    >
+                      {user.avatar ? (
+                        <img src={user.avatar} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-6.5 h-6.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-[10px] uppercase">
+                          {user.name.slice(0, 2)}
+                        </div>
+                      )}
+                      <span className="font-semibold text-xs text-[var(--text-secondary)]">{user.name}</span>
+                      <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                    </button>
+                    
+                    {showProfileDropdown && (
+                      <UserProfileDropdown onClose={() => setShowProfileDropdown(false)} />
+                    )}
                   </div>
-
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 rounded-lg text-xs font-medium cursor-pointer"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    <span>خروج</span>
-                  </button>
                 </div>
               ) : (
                 <>
@@ -245,25 +259,55 @@ export default function Navbar() {
           <hr className="border-[var(--border-color)]" />
           <div className="flex flex-col gap-3">
             {isLoggedIn && user ? (
-              <>
-                <div className="flex items-center justify-between py-1">
-                  <span className="text-xs text-slate-400">المستخدم:</span>
-                  <span className="text-sm font-bold">{user.name}</span>
+              <div className="space-y-3 py-1 text-right w-full">
+                {/* User info row */}
+                <div className="flex items-center gap-3 pb-2 border-b border-[var(--border-color)]">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="Avatar" className="w-9 h-9 rounded-xl object-cover" />
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-xs uppercase border border-indigo-500/20">
+                      {user.name.slice(0, 2)}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black truncate">{user.name}</div>
+                    <span className="text-[10px] text-indigo-400 font-bold">{user.role === 'teacher' ? 'معلم معتمد' : 'طالب'}</span>
+                  </div>
                 </div>
+                
                 {user.role === 'student' && user.wallet && (
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-xs text-slate-400">رصيد المحفظة:</span>
-                    <span className="text-sm font-bold text-brand-primary">{user.wallet.balance} ج.م</span>
+                  <div className="flex justify-between items-center px-3 py-1.5 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
+                    <span className="text-[10px] text-[var(--text-secondary)]">رصيد المحفظة</span>
+                    <span className="text-xs font-black text-brand-primary">{user.wallet.balance} ج.م</span>
                   </div>
                 )}
+
+                {/* Navigation links */}
+                <div className="flex flex-col gap-1">
+                  <Link
+                    to={user.role === 'student' ? '/student/profile' : '/teacher/dashboard'}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/60 rounded-xl transition"
+                  >
+                    <span>الملف الشخصي</span>
+                  </Link>
+                  <Link
+                    to={user.role === 'student' ? '/student/dashboard' : '/teacher/subscription'}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/60 rounded-xl transition"
+                  >
+                    <span>لوحة التحكم الخاصة بي</span>
+                  </Link>
+                </div>
+
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium"
+                  className="w-full flex items-center justify-center gap-2 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl text-xs font-black transition-all cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
-                  <span>تسجيل خروج</span>
+                  <span>تسجيل الخروج</span>
                 </button>
-              </>
+              </div>
             ) : (
               <>
                 <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full py-2 text-center text-sm font-medium border border-[var(--border-color)] rounded-lg">تسجيل دخول</Link>
