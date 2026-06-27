@@ -32,7 +32,12 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement
+      if (
+        menuRef.current && 
+        !menuRef.current.contains(target) &&
+        !target.closest('[data-profile-toggle="true"]')
+      ) {
         onClose()
       }
     }
@@ -89,15 +94,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
         >
           <User className="w-4 h-4 text-indigo-400" />
           <span>الملف الشخصي</span>
-        </Link>
-
-        <Link
-          to={user.role === 'student' ? '/student/dashboard' : user.role === 'teacher' ? '/teacher/subscription' : '/admin/dashboard'}
-          role="menuitem"
-          className="flex items-center gap-3 px-3 h-11 text-xs font-bold rounded-[12px] text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/50 transition-colors cursor-pointer"
-        >
-          <Settings className="w-4 h-4 text-indigo-400" />
-          <span>لوحة التحكم الخاصة بي</span>
         </Link>
       </div>
 

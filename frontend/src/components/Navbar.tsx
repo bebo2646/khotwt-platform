@@ -137,7 +137,6 @@ export default function Navbar() {
         {navLink("/student/dashboard", "الرئيسية")}
         {navLink("/student/courses", "كورساتي")}
         {navLink("/student/wallet", "المحفظة")}
-        {navLink("/student/profile", "الملف الشخصي")}
       </>
     )
   }
@@ -213,7 +212,11 @@ export default function Navbar() {
                   
                   <div className="relative" ref={profileDropdownRef}>
                     <button
-                      onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                      data-profile-toggle="true"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowProfileDropdown(!showProfileDropdown);
+                      }}
                       className="flex items-center gap-2 px-3.5 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer"
                     >
                       {user.avatar ? (
