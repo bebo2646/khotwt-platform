@@ -13,11 +13,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
   const navigate = useNavigate()
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Close on route change
-  useEffect(() => {
-    onClose()
-  }, [location.pathname, onClose])
-
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -27,22 +22,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
-
-  // Close on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (
-        menuRef.current && 
-        !menuRef.current.contains(target) &&
-        !target.closest('[data-profile-toggle="true"]')
-      ) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [onClose])
 
   if (!user) return null

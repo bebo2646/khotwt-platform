@@ -23,6 +23,7 @@ const getNotificationType = (title: string, message: string): 'success' | 'warni
 }
 
 export default function Navbar() {
+  console.log('Navbar render');
   const { isLoggedIn, user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
@@ -33,11 +34,17 @@ export default function Navbar() {
   const [showNotifDropdown, setShowNotifDropdown] = React.useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = React.useState(false)
   const notifRef = React.useRef<HTMLDivElement>(null)
+  const profileDropdownRef = React.useRef<HTMLDivElement>(null)
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
+      console.log('DOCUMENT CLICK', event.target);
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifDropdown(false)
+      }
+      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+        console.log('CLOSE');
+        setShowProfileDropdown(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -206,14 +213,15 @@ export default function Navbar() {
                     </div>
                   )}
                   
-                  <div className="relative">
+                  <div className="relative" ref={profileDropdownRef}>
                     <button
                       data-profile-toggle="true"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setShowProfileDropdown(!showProfileDropdown);
+                      onClick={(e) => {
+                        e.preventDefault();
+                        const nextState = !showProfileDropdown;
+                        console.log(nextState ? 'OPEN' : 'CLOSE');
+                        setShowProfileDropdown(nextState);
                       }}
-                      onClick={(e) => e.preventDefault()}
                       className="flex items-center gap-2 px-3.5 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer"
                     >
                       {user.avatar ? (
