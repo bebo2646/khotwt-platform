@@ -45,26 +45,57 @@ export default function Dashboard() {
   const [courseLessons, setCourseLessons] = React.useState<any[]>([])
   const [actionLoading, setActionLoading] = React.useState(false)
 
-  const fetchPackages = () => {
-    API.get('/admin/packages')
-      .then((res) => {
-        setPackages(res.data)
-      })
-      .catch((err) => console.error(err))
+  const fetchPackages = async () => {
+    try {
+      const res = await API.get('/admin/packages')
+      setPackages(res.data)
+    } catch (err) {
+      console.error('[Dashboard Packages Fetch Error]:', err)
+      useModalStore.getState().showToast('حدث خطأ أثناء تحميل الباقات.', 'error')
+    }
   }
 
   React.useEffect(() => {
-    setLoading(true)
-    Promise.all([
-      API.get('/admin/dashboard'),
-      API.get('/admin/packages')
-    ])
-      .then(([statsRes, pkgsRes]) => {
-        setStats(statsRes.data)
-        setPackages(pkgsRes.data)
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false))
+    const loadDashboardData = async () => {
+      setLoading(true)
+      try {
+        // Load stats
+        try {
+          const statsRes = await API.get('/admin/dashboard')
+          console.log('[Dashboard Response]:', statsRes.data)
+          setStats(statsRes.data)
+        } catch (statsErr) {
+          console.error('[Dashboard Response Error]:', statsErr)
+          useModalStore.getState().showToast('فشل تحميل إحصائيات لوحة التحكم.', 'error')
+          // Fallback stats to allow rendering
+          setStats({
+            total_teachers: 0,
+            total_students: 0,
+            total_courses: 0,
+            total_enrollments: 0,
+            total_revenue: '0.00',
+            monthly_revenue: '0.00',
+            recent_transactions: [],
+            monthly_chart: []
+          })
+        }
+
+        // Load packages
+        try {
+          const pkgsRes = await API.get('/admin/packages')
+          console.log('[Packages Response]:', pkgsRes.data)
+          setPackages(pkgsRes.data)
+        } catch (pkgsErr) {
+          console.error('[Packages Response Error]:', pkgsErr)
+          useModalStore.getState().showToast('فشل تحميل الباقات المجمعة.', 'error')
+        }
+      } catch (err) {
+        console.error('[Dashboard Loader Error]:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadDashboardData()
   }, [])
 
   const handleEditPackageClick = async (pkg: any) => {
@@ -189,10 +220,10 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           
           {/* Revenue */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">إحصائيات المبيعات والأرباح</span>
               <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
@@ -223,7 +254,7 @@ export default function Dashboard() {
           </div>
 
           {/* Students */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">الطلاب المسجلون</span>
               <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
@@ -237,7 +268,7 @@ export default function Dashboard() {
           </div>
 
           {/* Teachers */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">أعضاء هيئة التدريس</span>
               <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
@@ -251,7 +282,7 @@ export default function Dashboard() {
           </div>
 
           {/* Enrollments */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">الاشتراكات بالكورسات</span>
               <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">

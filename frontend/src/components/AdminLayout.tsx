@@ -194,29 +194,29 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const renderSidebarContent = () => (
-    <div className="flex flex-col h-full bg-[#0b0f19] border-l border-white/5 select-none transition-all duration-300">
+    <div className="flex flex-col h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] select-none transition-all duration-300">
       {/* Sidebar Header Logo */}
-      <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-6 h-20 border-b border-white/5`}>
+      <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-6 h-16 border-b border-[var(--border-color)]`}>
         {!sidebarCollapsed ? (
           <Link to="/admin/dashboard" className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" />
-            <span className="text-xl font-black text-indigo-400">خطوتك</span>
+            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+            <span className="text-lg font-black text-indigo-400">خطوتك</span>
           </Link>
         ) : (
-          <img src="/logo.png" alt="Logo" className="w-9 h-9 object-contain" />
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
         )}
         
         {/* Collapse Button for desktop */}
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white cursor-pointer"
+          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
         >
-          <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+          <ChevronLeft className={`w-3.5 h-3.5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
       {/* Navigation Group Items */}
-      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-7 scrollbar-none">
+      <div className="flex-1 overflow-y-auto py-5 px-4 space-y-6 scrollbar-none">
         {navGroups.map((group, gIdx) => {
           const visibleItems = group.items.filter(i => i.visible)
           if (visibleItems.length === 0) return null
@@ -224,7 +224,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           return (
             <div key={gIdx} className="space-y-2">
               {!sidebarCollapsed && (
-                <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+                <span className="px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block">
                   {group.label}
                 </span>
               )}
@@ -235,10 +235,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                     <Link
                       key={iIdx}
                       to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
                         active 
-                          ? 'bg-indigo-600/90 text-white shadow-md shadow-indigo-600/20' 
-                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent hover:border-[var(--border-color)]'
                       } ${sidebarCollapsed ? 'justify-center' : ''}`}
                       title={sidebarCollapsed ? item.label : undefined}
                     >
@@ -255,7 +255,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         {/* Settings Group */}
         <div className="space-y-2">
           {!sidebarCollapsed && (
-            <span className="px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest block">
+            <span className="px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block">
               النظام والإعدادات
             </span>
           )}
@@ -264,7 +264,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
               <>
                 <button
                   onClick={() => setSettingsOpen(!settingsOpen)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-slate-400 hover:text-white hover:bg-white/5 cursor-pointer`}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent hover:border-[var(--border-color)] cursor-pointer`}
                 >
                   <div className="flex items-center gap-3">
                     <Settings className="w-5 h-5 shrink-0" />
@@ -273,7 +273,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   {settingsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {settingsOpen && (
-                  <div className="mr-4 pr-3 border-r border-white/5 mt-1 space-y-1 animate-slide-down">
+                  <div className="mr-4 pr-3 border-r border-[var(--border-color)] mt-1 space-y-1 animate-slide-down">
                     {settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
                       const active = isRouteActive(subItem.path)
                       return (
@@ -283,7 +283,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                           className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
                             active 
                               ? 'text-indigo-400 bg-indigo-500/5' 
-                              : 'text-slate-400 hover:text-white'
+                              : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
                           }`}
                         >
                           {subItem.icon}
@@ -303,8 +303,8 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                     to={subItem.path}
                     className={`flex items-center justify-center p-2.5 rounded-xl transition-all duration-200 ${
                       active 
-                        ? 'bg-indigo-600/90 text-white shadow-md' 
-                        : 'text-slate-400 hover:text-white hover:bg-white/5'
+                        ? 'bg-indigo-600 text-white shadow-md' 
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60'
                     }`}
                     title={subItem.label}
                   >
@@ -318,10 +318,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       </div>
 
       {/* Logout Footer Button */}
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-[var(--border-color)]">
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-rose-500 hover:text-white hover:bg-rose-600/10 cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-500 hover:text-white hover:bg-rose-600/10 cursor-pointer ${
             sidebarCollapsed ? 'justify-center' : ''
           }`}
           title={sidebarCollapsed ? 'تسجيل الخروج' : undefined}
@@ -334,11 +334,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   )
 
   return (
-    <div className="flex min-h-screen w-full bg-[#050816] text-slate-100 overflow-x-hidden" dir="rtl">
+    <div className="flex min-h-screen w-full bg-[var(--bg-color)] text-[var(--text-color)] overflow-x-hidden" dir="rtl">
       
       {/* 1. Desktop Sidebar */}
       <aside 
-        className={`hidden lg:block fixed right-0 top-0 bottom-0 z-40 transition-all duration-300 ${
+        className={`hidden lg:block fixed right-0 top-0 bottom-0 z-45 transition-all duration-300 ${
           sidebarCollapsed ? 'w-20' : 'w-[280px]'
         }`}
       >
@@ -351,15 +351,15 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           {/* Backdrop */}
           <div 
             onClick={() => setMobileSidebarOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
           />
           {/* Drawer Body */}
-          <aside className="relative flex flex-col w-[280px] max-w-xs h-full bg-[#0b0f19] animate-slide-in-right z-10">
+          <aside className="relative flex flex-col w-[280px] max-w-xs h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] animate-slide-in-right z-10">
             <button 
               onClick={() => setMobileSidebarOpen(false)}
-              className="absolute left-4 top-5 p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 cursor-pointer"
+              className="absolute left-4 top-4 p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
             <div className="h-full pt-4">
               {renderSidebarContent()}
@@ -375,35 +375,35 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         }`}
       >
         
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-20 px-6 sm:px-8 border-b border-white/5 bg-[#050816]/80 backdrop-blur-md">
-          {/* Left Side: Mobile Menu Button & Page Title */}
+        {/* Top Header: Height 64px (h-16) */}
+        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 border-b border-[var(--border-color)] bg-[var(--bg-color)]/85 backdrop-blur-md">
+          {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden flex items-center justify-center p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white cursor-pointer"
+              className="lg:hidden flex items-center justify-center p-2 rounded-xl bg-[var(--surface-bg)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
             >
-              <Menu className="w-6 h-6" />
+              <Menu className="w-5 h-5" />
             </button>
-            <h1 className="text-lg sm:text-xl font-black text-slate-100">{getPageTitle()}</h1>
+            <h1 className="text-base sm:text-lg font-black text-[var(--text-color)]">{getPageTitle()}</h1>
           </div>
 
-          {/* Right Side: Header Controls */}
+          {/* Left Side: Header Controls */}
           <div className="flex items-center gap-3">
             {/* Search Input (Desktop) */}
-            <div className="hidden md:flex items-center gap-2 px-3.5 py-2 bg-white/5 rounded-xl border border-white/5 text-slate-400 focus-within:border-indigo-500/50 transition">
+            <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 bg-[var(--surface-bg)] rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] focus-within:border-indigo-500/50 transition">
               <Search className="w-4 h-4" />
               <input 
                 type="text" 
                 placeholder="بحث..." 
-                className="bg-transparent border-none text-xs text-white placeholder-slate-500 outline-none w-48 font-semibold"
+                className="bg-transparent border-none text-xs text-[var(--text-color)] placeholder-[var(--text-muted)] outline-none w-48 font-semibold"
               />
             </div>
 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 hover:text-white transition cursor-pointer"
+              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition cursor-pointer"
               title={theme === 'dark' ? 'الوضع المضيء' : 'الوضع المظلم'}
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -413,7 +413,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setShowNotifDropdown(!showNotifDropdown)}
-                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 hover:text-white transition relative cursor-pointer"
+                className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition relative cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -432,7 +432,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             <div className="relative" ref={profileRef}>
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 transition cursor-pointer"
+                className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[var(--surface-bg)] border border-transparent hover:border-[var(--border-color)] transition cursor-pointer"
               >
                 {user?.avatar ? (
                   <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-lg object-cover" />
@@ -441,21 +441,21 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                     {user?.name?.slice(0, 2)}
                   </div>
                 )}
-                <span className="hidden sm:inline text-xs font-semibold text-slate-200">{user?.name}</span>
+                <span className="hidden sm:inline text-xs font-semibold text-[var(--text-secondary)]">{user?.name}</span>
               </button>
 
               {showProfileMenu && (
-                <div className="absolute left-0 mt-3 w-48 bg-[#0b0f19] border border-white/5 rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] z-50 py-1.5 animate-slide-down">
-                  <div className="px-4 py-2 border-b border-white/5">
-                    <span className="block text-xs font-bold text-white truncate">{user?.name}</span>
+                <div className="absolute left-0 mt-3 w-48 bg-[var(--surface-bg)] border border-[var(--border-color)] rounded-2xl shadow-[0_15px_40px_rgba(0,0,0,0.5)] z-50 py-1.5 animate-slide-down">
+                  <div className="px-4 py-2 border-b border-[var(--border-color)]">
+                    <span className="block text-xs font-bold text-[var(--text-color)] truncate">{user?.name}</span>
                     <span className="block text-[10px] text-indigo-400 mt-0.5 capitalize">مدير النظام</span>
                   </div>
                   <Link 
                     to="/change-password" 
                     onClick={() => setShowProfileMenu(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-slate-300 hover:text-white hover:bg-white/5"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60"
                   >
-                    <UserCheck className="w-4 h-4 text-slate-400" />
+                    <UserCheck className="w-4 h-4 text-[var(--text-secondary)]" />
                     <span>تغيير كلمة المرور</span>
                   </Link>
                   <button 

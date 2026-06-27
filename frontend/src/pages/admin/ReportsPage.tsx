@@ -2,6 +2,7 @@ import React from 'react'
 import API from '../../services/api'
 import { FileDown, RefreshCw, BarChart2, DollarSign, BookOpen, AlertCircle, KeyRound } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
+import { useModalStore } from '../../store/modalStore'
 
 interface SalesLog {
   id: number
@@ -63,19 +64,23 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = React.useState<'sales' | 'refunds' | 'adjustments' | 'codes'>('sales')
   const [loading, setLoading] = React.useState(true)
 
-  const fetchReports = () => {
+  const fetchReports = async () => {
     setLoading(true)
-    API.get('/admin/reports')
-      .then((res) => {
-        setSales(res.data.sales || [])
-        setMonthlySales(res.data.monthly_sales || [])
-        setTeacherRevenue(res.data.teacher_revenue || [])
-        setRefundLogs(res.data.refund_logs || [])
-        setWalletAdjustments(res.data.wallet_adjustments || [])
-        setCodeUsages(res.data.code_usages || [])
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false))
+    try {
+      const res = await API.get('/admin/reports')
+      console.log('[Reports Response]:', res.data)
+      setSales(res.data.sales || [])
+      setMonthlySales(res.data.monthly_sales || [])
+      setTeacherRevenue(res.data.teacher_revenue || [])
+      setRefundLogs(res.data.refund_logs || [])
+      setWalletAdjustments(res.data.wallet_adjustments || [])
+      setCodeUsages(res.data.code_usages || [])
+    } catch (err) {
+      console.error('[Reports Response Error]:', err)
+      useModalStore.getState().showToast('فشل تحميل التقارير المالية والتحليلات.', 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   React.useEffect(() => {

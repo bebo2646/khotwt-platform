@@ -82,9 +82,9 @@
   scroll-behavior: smooth;
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
-  --bg-color: #0B1120;
-  --surface-bg: #111827;
-  --card-bg: #111827;
+  --bg-color: #020617;
+  --surface-bg: #0F172A;
+  --card-bg: #0F172A;
   --primary-color: #6366F1;
   --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
@@ -97,8 +97,8 @@
   --text-color: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(17, 24, 39, 0.45);
+  --border-color: #1E293B;
+  --input-bg: rgba(15, 23, 42, 0.45);
   --input-border: rgba(99, 102, 241, 0.18);
   --input-text: #F8FAFC;
   --placeholder-color: #64748B;
@@ -114,8 +114,8 @@
   --slate-600: #475569;
   --slate-700: #334155;
   --slate-800: #1E293B;
-  --slate-900: #111827;
-  --slate-950: #0B1120;
+  --slate-900: #0F172A;
+  --slate-950: #020617;
 }
 
 :root.light-theme {

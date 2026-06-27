@@ -36,6 +36,7 @@ export default function Login() {
     setSubmitting(true)
     try {
       const res = await API.post('/login', data)
+      console.log('[Login Response]:', res.data)
       const { user, token, session_token } = res.data
       
       loginUser(user, token, session_token)

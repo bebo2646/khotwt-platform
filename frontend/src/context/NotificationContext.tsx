@@ -50,6 +50,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // 2. Get recent notifications
       const notifRes = await API.get('/notifications')
       const fetchedNotifs = notifRes.data || []
+      console.log('[Notifications Response]:', fetchedNotifs)
       setNotifications(fetchedNotifs.slice(0, 8))
 
       // 3. Find any unseen important notification that has not been shown/dismissed yet
