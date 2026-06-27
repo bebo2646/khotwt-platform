@@ -39,11 +39,16 @@ API.interceptors.response.use(
       
       if (status === 401) {
         // Clear auth on unauthenticated
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('elm_token')
-        localStorage.removeItem('session_token')
-        localStorage.removeItem('elm_session_token')
-        localStorage.removeItem('elm_user')
+        const savedTheme = localStorage.getItem('theme')
+        const rememberedEmail = localStorage.getItem('elm_remembered_email')
+        localStorage.clear()
+        sessionStorage.clear()
+        if (savedTheme) {
+          localStorage.setItem('theme', savedTheme)
+        }
+        if (rememberedEmail) {
+          localStorage.setItem('elm_remembered_email', rememberedEmail)
+        }
         
         if (data && (data.code === 'SESSION_EXPIRED' || status === 401)) {
           useModalStore.getState().showToast('تم تسجيل الدخول من جهاز آخر.', 'error')
@@ -53,11 +58,16 @@ API.interceptors.response.use(
 
       if (status === 409 && data.session_invalid) {
         // Clear auth on session invalid (logged in from another device)
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('elm_token')
-        localStorage.removeItem('session_token')
-        localStorage.removeItem('elm_session_token')
-        localStorage.removeItem('elm_user')
+        const savedTheme = localStorage.getItem('theme')
+        const rememberedEmail = localStorage.getItem('elm_remembered_email')
+        localStorage.clear()
+        sessionStorage.clear()
+        if (savedTheme) {
+          localStorage.setItem('theme', savedTheme)
+        }
+        if (rememberedEmail) {
+          localStorage.setItem('elm_remembered_email', rememberedEmail)
+        }
         window.dispatchEvent(new CustomEvent('elm_session_invalid'))
       }
 

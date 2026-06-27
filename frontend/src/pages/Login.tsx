@@ -37,9 +37,22 @@ export default function Login() {
     try {
       const res = await API.post('/login', data)
       console.log('[Login Response]:', res.data)
-      const { user, token, session_token } = res.data
+      const { token, session_token } = res.data
       
-      loginUser(user, token, session_token)
+      // Store token immediately so Axios interceptor uses it for the next call
+      localStorage.setItem('auth_token', token)
+      localStorage.setItem('elm_token', token)
+      if (session_token) {
+        localStorage.setItem('session_token', session_token)
+        localStorage.setItem('elm_session_token', session_token)
+      }
+
+      // Verify/refetch fresh user profile from GET /api/me
+      const profileRes = await API.get('/me')
+      console.log('[Me Response on Login]:', profileRes.data)
+      const freshUser = profileRes.data.user || profileRes.data.data || profileRes.data
+
+      loginUser(freshUser, token, session_token)
       
       if (rememberMe) {
         localStorage.setItem('elm_remembered_email', data.email)
@@ -48,14 +61,12 @@ export default function Login() {
       }
 
       // If user must change password, redirect to change password
-      if (user.must_change_password) {
+      if (freshUser.must_change_password) {
         navigate('/change-password', { replace: true })
       } else {
-        if (from !== '/') {
-          navigate(from, { replace: true })
-        } else if (user.role === 'admin') {
-          const hasPerm = (perm: string) => user.permissions && user.permissions.includes(perm);
-          const target = user.is_super_admin || user.is_super
+        if (freshUser.role === 'admin') {
+          const hasPerm = (perm: string) => freshUser.permissions && freshUser.permissions.includes(perm);
+          const target = freshUser.is_super_admin || freshUser.is_super
             ? '/admin/dashboard'
             : (hasPerm('teachers.manage') ? '/admin/teachers'
             : hasPerm('students.manage') ? '/admin/students'
@@ -65,7 +76,7 @@ export default function Login() {
             : hasPerm('admins.manage') ? '/admin/manage'
             : '/admin/dashboard');
           navigate(target, { replace: true })
-        } else if (user.role === 'teacher') {
+        } else if (freshUser.role === 'teacher') {
           navigate('/teacher/dashboard', { replace: true })
         } else {
           navigate('/student/dashboard', { replace: true })

@@ -64,11 +64,16 @@ export const useAuthStore = create<AuthState>((set) => {
       set({ user, token, isLoggedIn: true })
     },
     logout: () => {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('elm_token')
-      localStorage.removeItem('elm_user')
-      localStorage.removeItem('session_token')
-      localStorage.removeItem('elm_session_token')
+      const savedTheme = localStorage.getItem('theme')
+      const rememberedEmail = localStorage.getItem('elm_remembered_email')
+      localStorage.clear()
+      sessionStorage.clear()
+      if (savedTheme) {
+        localStorage.setItem('theme', savedTheme)
+      }
+      if (rememberedEmail) {
+        localStorage.setItem('elm_remembered_email', rememberedEmail)
+      }
       set({ user: null, token: null, isLoggedIn: false })
     },
     updateUser: (updatedFields) => {

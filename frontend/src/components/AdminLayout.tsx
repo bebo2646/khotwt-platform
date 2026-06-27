@@ -68,7 +68,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const handleLogout = () => {
     logout()
-    navigate('/')
+    navigate('/login', { replace: true })
   }
 
   // Determine Current Page Title dynamically

@@ -50,7 +50,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
   const handleLogoutClick = () => {
     logout()
     onClose()
-    navigate('/')
+    navigate('/login', { replace: true })
   }
 
   // Role translations
