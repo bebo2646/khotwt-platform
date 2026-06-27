@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
@@ -32,6 +32,16 @@ export default function Navbar() {
   const [activeImportant, setActiveImportant] = React.useState<any>(null)
   const notifRef = React.useRef<HTMLDivElement>(null)
   const dismissedNotifsRef = React.useRef<number[]>([])
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -259,15 +269,29 @@ export default function Navbar() {
 
                 {showNotifDropdown && (
                   <div 
-                    className="absolute mt-3 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300"
-                    style={{
-                      width: 'min(90vw, 380px)',
-                      right: 0,
-                      left: 'auto',
-                      maxHeight: '70vh',
-                      overflowY: 'auto',
-                      wordBreak: 'break-word'
-                    }}
+                    className={`${
+                      isMobile 
+                        ? 'fixed top-16 left-4 right-4 max-w-[calc(100vw-2rem)] mt-0' 
+                        : 'absolute mt-3'
+                    } bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300`}
+                    style={
+                      isMobile
+                        ? {
+                            maxHeight: 'calc(100vh - 5rem)',
+                            overflowY: 'auto',
+                            overflowX: 'hidden',
+                            wordBreak: 'break-word',
+                          }
+                        : {
+                            width: 'min(90vw, 380px)',
+                            right: 0,
+                            left: 'auto',
+                            maxHeight: '70vh',
+                            overflowY: 'auto',
+                            overflowX: 'hidden',
+                            wordBreak: 'break-word',
+                          }
+                    }
                   >
                     <div className="flex justify-between items-center pb-2.5 border-b border-[var(--border-color)] mb-3">
                       <span className="text-xs font-black text-[var(--text-color)]">آخر التنبيهات والرسائل</span>
@@ -286,7 +310,7 @@ export default function Navbar() {
                     {notifications.length === 0 ? (
                       <div className="py-10 text-center text-xs text-[var(--text-secondary)]">لا توجد إشعارات جديدة حالياً.</div>
                     ) : (
-                      <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      <div className="space-y-2.5 max-h-80 overflow-y-auto overflow-x-hidden pr-1">
                         {notifications.map(n => {
                           const nType = getNotificationType(n.title, n.message);
                           
