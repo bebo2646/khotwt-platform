@@ -15,6 +15,7 @@ import RobotsTracker from './components/RobotsTracker'
 import { NotificationProvider } from './context/NotificationContext'
 import { AdminLayout } from './components/AdminLayout'
 import { NotificationToast } from './components/NotificationToast'
+import { ThemeProvider } from './context/ThemeContext'
 
 
 // Public Pages (Lazy Loaded)
@@ -173,10 +174,11 @@ function App() {
 
   return (
     <Router>
-      <NotificationProvider>
-        <AnalyticsTracker />
-        <RobotsTracker />
-        <ModalProvider />
+      <ThemeProvider>
+        <NotificationProvider>
+          <AnalyticsTracker />
+          <RobotsTracker />
+          <ModalProvider />
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -401,6 +403,7 @@ function App() {
       <WhatsAppButton />
       <PWAManager />
       </NotificationProvider>
+      </ThemeProvider>
     </Router>
   )
 }

@@ -82,9 +82,9 @@
   scroll-behavior: smooth;
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
-  --bg-color: #050816;
-  --surface-bg: #0F172A;
-  --card-bg: #0F172A;
+  --bg-color: #0B1120;
+  --surface-bg: #111827;
+  --card-bg: #111827;
   --primary-color: #6366F1;
   --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
@@ -94,28 +94,28 @@
   --success-color: #10B981;
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
-  --text-color: #FFFFFF;
-  --text-secondary: #CBD5E1;
-  --text-muted: #94A3B8;
+  --text-color: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
   --border-color: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(15, 23, 42, 0.45);
+  --input-bg: rgba(17, 24, 39, 0.45);
   --input-border: rgba(99, 102, 241, 0.18);
-  --input-text: #FFFFFF;
+  --input-text: #F8FAFC;
   --placeholder-color: #64748B;
   --glow-color: rgba(99, 102, 241, 0.35);
   
   /* Slate dynamic values (Dark Mode) */
-  --slate-50: #FFFFFF;
-  --slate-100: #F8FAFC;
+  --slate-50: #F8FAFC;
+  --slate-100: #F1F5F9;
   --slate-200: #E2E8F0;
   --slate-300: #CBD5E1;
   --slate-400: #94A3B8;
   --slate-500: #64748B;
-  --slate-600: #334155;
-  --slate-700: #0F172A;
-  --slate-800: #111827;
-  --slate-900: #0F172A;
-  --slate-950: #020617;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1E293B;
+  --slate-900: #111827;
+  --slate-950: #0B1120;
 }
 
 :root.light-theme {
@@ -124,11 +124,11 @@
   --surface-bg: #FFFFFF;
   --card-bg: #FFFFFF;
   --primary-color: #6366F1;
-  --primary-hover: #5458EE;
+  --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
   --secondary-hover: #7C3AED;
-  --accent-color: #06B6D4;
-  --accent-hover: #0891B2;
+  --accent-color: #8B5CF6;
+  --accent-hover: #7C3AED;
   --success-color: #10B981;
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
@@ -136,24 +136,24 @@
   --text-secondary: #475569;
   --text-muted: #94A3B8;
   --border-color: #E2E8F0;
-  --input-bg: #F8FAFC;
+  --input-bg: #FFFFFF;
   --input-border: #CBD5E1;
   --input-text: #0F172A;
   --placeholder-color: #94A3B8;
-  --glow-color: rgba(99, 102, 241, 0.35);
+  --glow-color: rgba(99, 102, 241, 0.25);
   
   /* Slate dynamic values (Light Mode) */
-  --slate-50: #020617;
-  --slate-100: #0F172A;
-  --slate-200: #1E293B;
-  --slate-300: #334155;
-  --slate-400: #475569;
-  --slate-500: #64748B;
+  --slate-50: #0F172A;
+  --slate-100: #1E293B;
+  --slate-200: #334155;
+  --slate-300: #475569;
+  --slate-400: #64748B;
+  --slate-500: #94A3B8;
   --slate-600: #CBD5E1;
   --slate-700: #E2E8F0;
-  --slate-800: #FFFFFF;
+  --slate-800: #F1F5F9;
   --slate-900: #F8FAFC;
-  --slate-950: #F8FAFC;
+  --slate-950: #FFFFFF;
 }
 
 /* Global Form controls styling for absolute contrast assurance */
@@ -306,35 +306,41 @@ button, a, input, select, textarea {
 
 /* Utilities */
 .glass {
-  background: rgba(2, 6, 23, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(11, 17, 32, 0.75) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .light-theme .glass {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
 }
 
-/* SaaS Card & Grid visual hierarchy rules */
+/* Premium Card & Grid styling */
 .bg-brand-card {
   background-color: var(--card-bg) !important;
-  border: 1px solid var(--border-color) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .bg-brand-card:hover {
-  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.45) !important;
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.55), 0 0 2px 1px rgba(99, 102, 241, 0.1) !important;
 }
 
 .light-theme .bg-brand-card {
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.04) !important;
-  border-color: #E2E8F0 !important;
+  box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02) !important;
+  border: 1px solid rgba(15, 23, 42, 0.06) !important;
+}
+
+.light-theme .bg-brand-card:hover {
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.08), 0 0 2px 1px rgba(99, 102, 241, 0.05) !important;
 }
 
 .hover\:-translate-y-1:hover {
