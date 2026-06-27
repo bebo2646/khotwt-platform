@@ -4,6 +4,8 @@ import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
 import API from '../services/api'
+import { useNotifications } from '../context/NotificationContext'
+import { NotificationDropdown } from './NotificationDropdown'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
   const text = (title + ' ' + message).toLowerCase()
@@ -25,23 +27,10 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
 
-  // Notifications States & Logic
-  const [unreadCount, setUnreadCount] = React.useState(0)
-  const [notifications, setNotifications] = React.useState<any[]>([])
+  // Notifications States & Logic (consumed from global context)
+  const { unreadCount } = useNotifications()
   const [showNotifDropdown, setShowNotifDropdown] = React.useState(false)
-  const [activeImportant, setActiveImportant] = React.useState<any>(null)
   const notifRef = React.useRef<HTMLDivElement>(null)
-  const dismissedNotifsRef = React.useRef<number[]>([])
-  const [isMobile, setIsMobile] = React.useState(false)
-
-  React.useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
-  }, [])
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -54,89 +43,6 @@ export default function Navbar() {
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
-
-  const fetchNotifications = async () => {
-    if (!isLoggedIn || user?.must_change_password) return
-    try {
-      const countRes = await API.get('/notifications/unread-count')
-      setUnreadCount(countRes.data.unread_count)
-
-      const notifRes = await API.get('/notifications')
-      setNotifications(notifRes.data.slice(0, 5))
-
-      // Check for first unseen important notification to display as popup
-      const importantUnseen = notifRes.data.find(
-        (n: any) => n.important && n.is_seen != true && !dismissedNotifsRef.current.includes(n.id)
-      )
-      if (importantUnseen) {
-        setActiveImportant(importantUnseen)
-        
-        // Mark as seen immediately in DB so it never pops up again
-        API.post(`/notifications/${importantUnseen.id}/seen`).catch(err => 
-          console.error('Failed to auto-seen notification:', err)
-        )
-        
-        // Also add to local session dismissed ref to prevent duplicate triggers before polling/state updates complete
-        dismissedNotifsRef.current.push(importantUnseen.id)
-        
-        // Update local state list immediately so the UI reflects the seen status
-        setNotifications(prev => prev.map(item => item.id === importantUnseen.id ? { ...item, is_seen: true } : item))
-      }
-    } catch (err) {
-      console.error('Failed to fetch notifications', err)
-    }
-  }
-
-  const handleDismissImportant = async (markRead: boolean) => {
-    if (!activeImportant) return
-    const notifId = activeImportant.id
-    
-    // Add to session dismissed list immediately
-    dismissedNotifsRef.current.push(notifId)
-    setActiveImportant(null)
-    
-    try {
-      // Always mark as seen in the database so it never shows again
-      await API.post(`/notifications/${notifId}/seen`)
-      
-      // Update local notifications list
-      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_seen: true } : n))
-
-      if (markRead) {
-        await API.post(`/notifications/${notifId}/read`)
-        setUnreadCount(prev => Math.max(0, prev - 1))
-        setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, is_read: true } : n))
-      }
-    } catch (err) {
-      console.error('Failed to dismiss important notification', err)
-    }
-  }
-
-  React.useEffect(() => {
-    fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
-  }, [isLoggedIn])
-
-  const handleMarkAsRead = async (id: number) => {
-    try {
-      await API.post(`/notifications/${id}/read`)
-      setUnreadCount(prev => Math.max(0, prev - 1))
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n))
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  const handleMarkAllAsRead = async () => {
-    try {
-      await API.post('/notifications/read-all')
-      setUnreadCount(0)
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-    } catch (err) {
-      console.error(err)
-    }
-  }
 
   const handleLogout = () => {
     logout()
@@ -268,133 +174,7 @@ export default function Navbar() {
                 </button>
 
                 {showNotifDropdown && (
-                  <div 
-                    className={`${
-                      isMobile 
-                        ? 'fixed top-16 left-4 right-4 max-w-[calc(100vw-2rem)] mt-0' 
-                        : 'absolute mt-3'
-                    } bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-4 shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[99] text-right backdrop-blur-lg transition-all duration-300`}
-                    style={
-                      isMobile
-                        ? {
-                            maxHeight: 'calc(100vh - 5rem)',
-                            overflowY: 'auto',
-                            overflowX: 'hidden',
-                            wordBreak: 'break-word',
-                          }
-                        : {
-                            width: 'min(90vw, 380px)',
-                            right: 0,
-                            left: 'auto',
-                            maxHeight: '70vh',
-                            overflowY: 'auto',
-                            overflowX: 'hidden',
-                            wordBreak: 'break-word',
-                          }
-                    }
-                  >
-                    <div className="flex justify-between items-center pb-2.5 border-b border-[var(--border-color)] mb-3">
-                      <span className="text-xs font-black text-[var(--text-color)]">آخر التنبيهات والرسائل</span>
-                      {unreadCount > 0 && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMarkAllAsRead();
-                          }}
-                          className="text-[10px] text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer font-bold"
-                        >
-                          تحديد الكل كمقروء
-                        </button>
-                      )}
-                    </div>
-                    {notifications.length === 0 ? (
-                      <div className="py-10 text-center text-xs text-[var(--text-secondary)]">لا توجد إشعارات جديدة حالياً.</div>
-                    ) : (
-                      <div className="space-y-2.5 max-h-80 overflow-y-auto overflow-x-hidden pr-1">
-                        {notifications.map(n => {
-                          const nType = getNotificationType(n.title, n.message);
-                          
-                          // Style based on notification type
-                          const typeStyles = {
-                            success: {
-                              bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-                              icon: <CheckCircle className="w-4 h-4 shrink-0 text-emerald-500" />
-                            },
-                            warning: {
-                              bg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-                              icon: <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
-                            },
-                            error: {
-                              bg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-                              icon: <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                            },
-                            info: {
-                              bg: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
-                              icon: <Bell className="w-4 h-4 shrink-0 text-indigo-500" />
-                            }
-                          }[nType];
-
-                          return (
-                            <div 
-                              key={n.id} 
-                              onClick={() => {
-                                handleMarkAsRead(n.id);
-                                setShowNotifDropdown(false);
-                                
-                                // Dynamic navigation based on content keywords
-                                const text = (n.title + ' ' + n.message).toLowerCase();
-                                if (user?.role === 'teacher') {
-                                  if (text.includes('اشتراك') || text.includes('باقة') || text.includes('ترقية') || text.includes('شحن') || text.includes('مساحة')) {
-                                    navigate('/teacher/subscription');
-                                  } else {
-                                    navigate('/teacher/dashboard');
-                                  }
-                                } else if (user?.role === 'student') {
-                                  if (text.includes('محفظة') || text.includes('شحن') || text.includes('رصيد')) {
-                                    navigate('/student/wallet');
-                                  } else {
-                                    navigate('/student/courses');
-                                  }
-                                } else if (user?.role === 'admin') {
-                                  if (text.includes('معلم') || text.includes('اشتراك')) {
-                                    navigate('/admin/teachers');
-                                  } else {
-                                    navigate('/admin/dashboard');
-                                  }
-                                }
-                              }}
-                              className={`p-3 rounded-2xl border text-right cursor-pointer transition-all duration-200 flex gap-3 items-start relative group hover:scale-[1.01] ${
-                                n.is_read 
-                                  ? 'bg-[var(--bg-color)]/20 border-[var(--border-color)] text-[var(--text-secondary)]' 
-                                  : 'bg-indigo-500/5 border-indigo-500/15 text-[var(--text-color)] font-bold shadow-sm shadow-indigo-500/5'
-                              }`}
-                            >
-                              <div className={`p-2 rounded-xl border shrink-0 ${typeStyles.bg}`}>
-                                {typeStyles.icon}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex justify-between items-start gap-2 mb-0.5">
-                                  <span className="text-[11px] font-black whitespace-normal break-words">{n.title}</span>
-                                  {!n.is_read && (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-1" />
-                                  )}
-                                </div>
-                                <p className="text-[10px] text-[var(--text-secondary)] font-normal leading-relaxed whitespace-normal break-words">{n.message}</p>
-                                <span className="text-[8px] text-[var(--text-secondary)] font-light mt-1 block">
-                                  {new Date(n.created_at).toLocaleDateString('ar-EG', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
                 )}
               </div>
             )}
@@ -494,54 +274,6 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* Important Notification Modal Popup */}
-      {activeImportant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 text-right" dir="rtl">
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-lg w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
-            {/* Modal Icon and Header */}
-            <div className="flex items-start gap-4 mb-4">
-              <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20 animate-pulse">
-                <Bell className="w-6 h-6 text-indigo-400" />
-              </div>
-              <div className="flex-1">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-[10px] bg-indigo-500 text-white font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                    إعلان هام منصة خطواتك
-                  </span>
-                  <span className="text-[10px] text-[var(--text-secondary)]">
-                    {new Date(activeImportant.created_at).toLocaleString('ar-EG')}
-                  </span>
-                </div>
-                <h3 className="text-sm font-black text-[var(--text-color)] mt-2">{activeImportant.title}</h3>
-              </div>
-            </div>
-
-            {/* Modal Message */}
-            <div className="bg-[var(--bg-color)]/40 border border-[var(--border-color)] p-4 rounded-2xl mb-6 max-h-[200px] overflow-y-auto">
-              <p className="text-xs font-semibold text-[var(--text-color)]/90 leading-relaxed whitespace-pre-wrap">
-                {activeImportant.message}
-              </p>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => handleDismissImportant(false)}
-                className="px-4 py-2 border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] text-xs font-bold rounded-xl active:scale-95 transition cursor-pointer"
-              >
-                إغلاق
-              </button>
-              <button
-                onClick={() => handleDismissImportant(true)}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl active:scale-95 transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-600/15"
-              >
-                <CheckCircle className="w-4 h-4" />
-                تحديد كمقروء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   )
 }

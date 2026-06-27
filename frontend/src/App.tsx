@@ -12,6 +12,9 @@ import PWAManager from './components/PWAManager'
 import API from './services/api'
 import AnalyticsTracker from './components/AnalyticsTracker'
 import RobotsTracker from './components/RobotsTracker'
+import { NotificationProvider } from './context/NotificationContext'
+import { AdminLayout } from './components/AdminLayout'
+import { NotificationToast } from './components/NotificationToast'
 
 
 // Public Pages (Lazy Loaded)
@@ -70,6 +73,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <Footer />
+      <NotificationToast />
     </div>
   )
 }
@@ -169,9 +173,10 @@ function App() {
 
   return (
     <Router>
-      <AnalyticsTracker />
-      <RobotsTracker />
-      <ModalProvider />
+      <NotificationProvider>
+        <AnalyticsTracker />
+        <RobotsTracker />
+        <ModalProvider />
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -318,72 +323,72 @@ function App() {
             ========================================================================== */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminDashboard /></Layout>
+            <AdminLayout><AdminDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/dashboard" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminDashboard /></Layout>
+            <AdminLayout><AdminDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/teachers" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
-            <Layout><AdminTeachersList /></Layout>
+            <AdminLayout><AdminTeachersList /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/teachers/create" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
-            <Layout><AdminCreateTeacher /></Layout>
+            <AdminLayout><AdminCreateTeacher /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/teachers/:id/subscription" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
-            <Layout><AdminTeacherSubscription /></Layout>
+            <AdminLayout><AdminTeacherSubscription /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/notifications" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminNotifications /></Layout>
+            <AdminLayout><AdminNotifications /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/subscriptions/requests" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminSubscriptionRequests /></Layout>
+            <AdminLayout><AdminSubscriptionRequests /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/subscription-plans" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminSubscriptionPlans /></Layout>
+            <AdminLayout><AdminSubscriptionPlans /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/students" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
-            <Layout><AdminStudentsList /></Layout>
+            <AdminLayout><AdminStudentsList /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/courses" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="courses.manage">
-            <Layout><AdminCoursesList /></Layout>
+            <AdminLayout><AdminCoursesList /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/codes" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="coupons.manage">
-            <Layout><PurchaseCodes /></Layout>
+            <AdminLayout><PurchaseCodes /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/reports" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="reports.view">
-            <Layout><ReportsPage /></Layout>
+            <AdminLayout><ReportsPage /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/bunny" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Layout><AdminBunnyDashboard /></Layout>
+            <AdminLayout><AdminBunnyDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/manage" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="admins.manage">
-            <Layout><AdminManagement /></Layout>
+            <AdminLayout><AdminManagement /></AdminLayout>
           </ProtectedRoute>
         } />
 
@@ -395,6 +400,7 @@ function App() {
       </React.Suspense>
       <WhatsAppButton />
       <PWAManager />
+      </NotificationProvider>
     </Router>
   )
 }

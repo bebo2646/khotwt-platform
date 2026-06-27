@@ -82,15 +82,15 @@
   scroll-behavior: smooth;
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
-  --bg-color: #020617;
+  --bg-color: #050816;
   --surface-bg: #0F172A;
-  --card-bg: #111827;
+  --card-bg: #0F172A;
   --primary-color: #6366F1;
-  --primary-hover: #5458EE;
+  --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
   --secondary-hover: #7C3AED;
-  --accent-color: #06B6D4;
-  --accent-hover: #0891B2;
+  --accent-color: #8B5CF6;
+  --accent-hover: #7C3AED;
   --success-color: #10B981;
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
@@ -98,7 +98,7 @@
   --text-secondary: #CBD5E1;
   --text-muted: #94A3B8;
   --border-color: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(2, 6, 23, 0.45);
+  --input-bg: rgba(15, 23, 42, 0.45);
   --input-border: rgba(99, 102, 241, 0.18);
   --input-text: #FFFFFF;
   --placeholder-color: #64748B;
