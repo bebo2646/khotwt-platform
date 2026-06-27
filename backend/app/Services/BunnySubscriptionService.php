@@ -32,7 +32,7 @@ class BunnySubscriptionService
             $hasMore = true;
 
             while ($hasMore) {
-                $response = Http::withHeaders([
+                $response = Http::withoutVerifying()->withHeaders([
                     'AccessKey' => $apiKey,
                     'accept' => 'application/json',
                 ])->get("https://video.bunnycdn.com/library/{$libraryId}/videos", [

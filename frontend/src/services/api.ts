@@ -26,7 +26,13 @@ API.interceptors.request.use((config) => {
 
 // Global response interceptor for handling 401 (unauthorized), 409 (session invalid) and force-password flags
 API.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const resData = response.data
+    if (resData && typeof resData === 'object' && 'success' in resData && 'data' in resData) {
+      response.data = resData.data
+    }
+    return response
+  },
   (error) => {
     if (error.response) {
       const { status, data } = error.response

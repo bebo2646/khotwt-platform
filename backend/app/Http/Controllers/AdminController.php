@@ -12,6 +12,8 @@ use App\Models\AdminActivityLog;
 use App\Models\Package;
 use App\Models\Unit;
 use App\Models\Lesson;
+use App\Services\ReportService;
+use App\Services\CourseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -20,6 +22,15 @@ use Carbon\Carbon;
 
 class AdminController extends Controller
 {
+    protected $reportService;
+    protected $courseService;
+
+    public function __construct(ReportService $reportService, CourseService $courseService)
+    {
+        $this->reportService = $reportService;
+        $this->courseService = $courseService;
+    }
+
     /**
      * Get admin analytics dashboard.
      */
@@ -482,111 +493,21 @@ class AdminController extends Controller
      */
     public function reports()
     {
-        $transactions = WalletTransaction::whereIn('type', ['purchase', 'refund'])
-            ->with('wallet.student')
-            ->latest()
-            ->get();
-
-        // Map refunds for fast checks in PHP
-        $refundedKeys = [];
-        foreach ($transactions as $tx) {
-            if ($tx->type === 'refund') {
-                $refId = $tx->reference_id;
-                $itemType = 'course';
-                if (str_contains($tx->description, 'باقة')) {
-                    $itemType = 'bundle';
-                } elseif (str_contains($tx->description, 'محاضرة') || str_contains($tx->description, 'درس')) {
-                    $itemType = 'lesson';
-                }
-                $refundedKeys[$tx->wallet_id][$refId][$itemType] = true;
-            }
-        }
-
-        // Keep non-refunded purchases
-        $sales = $transactions->filter(function($tx) use ($refundedKeys) {
-            if ($tx->type !== 'purchase') return false;
-            $refId = $tx->reference_id;
-            $itemType = 'course';
-            if (str_contains($tx->description, 'باقة')) {
-                $itemType = 'bundle';
-            } elseif (str_contains($tx->description, 'محاضرة') || str_contains($tx->description, 'درس')) {
-                $itemType = 'lesson';
-            }
-            return !isset($refundedKeys[$tx->wallet_id][$refId][$itemType]);
-        })->values();
-
-        // Group by month (Net Sales)
-        $monthlySales = WalletTransaction::whereIn('type', ['purchase', 'refund'])
-            ->select(
-                DB::raw("COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE -amount END), 0) as total"),
-                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month")
-            )
-            ->groupBy('month')
-            ->orderBy('month', 'desc')
-            ->get();
-
-        // Teacher shares (Net Revenue including courses, packages, and lessons)
+        $reportData = $this->reportService->getAdminSalesReport();
+        
+        // Compute teacher revenue dynamically using ReportService
         $teachers = User::where('role', 'teacher')->get();
         $teacherRevenue = [];
-
         foreach ($teachers as $t) {
-            $tCourseIds = Course::where('teacher_id', $t->id)->pluck('id');
-            $tCourseIdsStr = $tCourseIds->map(fn($id) => (string)$id)->toArray();
-
-            $tPackageIds = Package::whereIn('course_id', $tCourseIds)->pluck('id')->toArray();
-            $tPackageIdsStr = array_map('strval', $tPackageIds);
-
-            $tUnitIds = Unit::whereIn('course_id', $tCourseIds)->pluck('id');
-            $tLessonIds = Lesson::whereIn('unit_id', $tUnitIds)->pluck('id')->toArray();
-            $tLessonIdsStr = array_map('strval', $tLessonIds);
-
-            // Sum purchases
-            $purchases = WalletTransaction::where('type', 'purchase')
-                ->where(function($q) use ($tCourseIdsStr, $tPackageIdsStr, $tLessonIdsStr) {
-                    $q->where(function($sq) use ($tCourseIdsStr) {
-                        $sq->where('description', 'like', '%شراء كورس%')
-                           ->whereIn('reference_id', $tCourseIdsStr);
-                    })->orWhere(function($sq) use ($tPackageIdsStr) {
-                        $sq->where('description', 'like', '%شراء باقة%')
-                           ->whereIn('reference_id', $tPackageIdsStr);
-                    })->orWhere(function($sq) use ($tLessonIdsStr) {
-                        $sq->where(function($lq) {
-                            $lq->where('description', 'like', '%شراء محاضرة%')
-                               ->orWhere('description', 'like', '%شراء درس%');
-                        })->whereIn('reference_id', $tLessonIdsStr);
-                    });
-                })
-                ->sum('amount') ?? 0.00;
-
-            // Sum refunds
-            $refunds = WalletTransaction::where('type', 'refund')
-                ->where(function($q) use ($tCourseIdsStr, $tPackageIdsStr, $tLessonIdsStr) {
-                    $q->where(function($sq) use ($tCourseIdsStr) {
-                        $sq->where('description', 'like', '%إرجاع قيمة كورس%')
-                           ->whereIn('reference_id', $tCourseIdsStr);
-                    })->orWhere(function($sq) use ($tPackageIdsStr) {
-                        $sq->where('description', 'like', '%إرجاع قيمة باقة%')
-                           ->whereIn('reference_id', $tPackageIdsStr);
-                    })->orWhere(function($sq) use ($tLessonIdsStr) {
-                        $sq->where(function($lq) {
-                            $lq->where('description', 'like', '%إرجاع قيمة محاضرة%')
-                               ->orWhere('description', 'like', '%إرجاع قيمة درس%');
-                        })->whereIn('reference_id', $tLessonIdsStr);
-                    });
-                })
-                ->sum('amount') ?? 0.00;
-
-            $totalNet = $purchases - $refunds;
-
-            if ($totalNet != 0) {
+            $tReport = $this->reportService->getTeacherRevenueReport($t->id);
+            if ($tReport['net_revenue'] != 0) {
                 $teacherRevenue[] = [
                     'teacher_name' => $t->name,
-                    'total_revenue' => $totalNet
+                    'total_revenue' => $tReport['net_revenue']
                 ];
             }
         }
 
-        // Additional logs for Audit Trail
         $refundLogs = \App\Models\RefundLog::with(['student', 'course', 'package', 'lesson', 'admin'])
             ->latest()
             ->get();
@@ -600,13 +521,19 @@ class AdminController extends Controller
             ->latest()
             ->get();
 
-        return response()->json([
-            'sales' => $sales,
-            'monthly_sales' => $monthlySales,
+        $data = [
+            'sales' => $reportData['sales'],
+            'monthly_sales' => $reportData['monthlySales'],
             'teacher_revenue' => $teacherRevenue,
             'refund_logs' => $refundLogs,
             'wallet_adjustments' => $walletAdjustments,
             'code_usages' => $codeUsages,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تحميل التقارير بنجاح',
+            'data' => $data
         ]);
     }
 
