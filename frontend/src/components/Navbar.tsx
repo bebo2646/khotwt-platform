@@ -272,54 +272,14 @@ export default function Navbar() {
           <hr className="border-[var(--border-color)]" />
           <div className="flex flex-col gap-3">
             {isLoggedIn && user ? (
-              <div className="space-y-3 py-1 text-right w-full">
-                {/* User info row */}
-                <div className="flex items-center gap-3 pb-2 border-b border-[var(--border-color)]">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt="Avatar" className="w-9 h-9 rounded-xl object-cover" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-xs uppercase border border-indigo-500/20">
-                      {user.name.slice(0, 2)}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-black truncate">{user.name}</div>
-                    <span className="text-[10px] text-indigo-400 font-bold">{user.role === 'teacher' ? 'معلم معتمد' : 'طالب'}</span>
-                  </div>
-                </div>
-                
+              <div className="w-full">
                 {user.role === 'student' && user.wallet && (
-                  <div className="flex justify-between items-center px-3 py-1.5 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
+                  <div className="flex justify-between items-center px-3 py-2.5 bg-brand-primary/5 rounded-xl border border-brand-primary/10 mb-3 text-right">
                     <span className="text-[10px] text-[var(--text-secondary)]">رصيد المحفظة</span>
                     <span className="text-xs font-black text-brand-primary">{user.wallet.balance} ج.م</span>
                   </div>
                 )}
-
-                {/* Navigation links */}
-                <div className="flex flex-col gap-1">
-                  <Link
-                    to={user.role === 'student' ? '/student/profile' : '/teacher/dashboard'}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/60 rounded-xl transition"
-                  >
-                    <span>الملف الشخصي</span>
-                  </Link>
-                  <Link
-                    to={user.role === 'student' ? '/student/dashboard' : '/teacher/subscription'}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/60 rounded-xl transition"
-                  >
-                    <span>لوحة التحكم الخاصة بي</span>
-                  </Link>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  className="w-full flex items-center justify-center gap-2 py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-xl text-xs font-black transition-all cursor-pointer"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>تسجيل الخروج</span>
-                </button>
+                <UserProfileDropdown mobile={true} onClose={() => setMobileMenuOpen(false)} />
               </div>
             ) : (
               <>

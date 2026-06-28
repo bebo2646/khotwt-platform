@@ -5,9 +5,10 @@ import { User, Settings, LogOut, ChevronDown } from 'lucide-react'
 
 interface UserProfileDropdownProps {
   onClose: () => void
+  mobile?: boolean
 }
 
-export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClose }) => {
+export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClose, mobile = false }) => {
   const { user, logout } = useAuthStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -43,10 +44,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
       ref={menuRef}
       role="menu"
       aria-label="قائمة الملف الشخصي"
-      className="absolute left-0 lg:left-auto lg:right-0 mt-3.5 w-[260px] bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[18px] shadow-[0_10px_35px_rgba(0,0,0,0.15)] z-[9999] py-2.5 animate-scale-up text-right transition-all duration-200"
+      className={
+        mobile 
+          ? "relative w-full py-2.5 text-right transition-all duration-200"
+          : "absolute left-0 lg:left-auto lg:right-0 mt-3.5 w-[260px] bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[18px] shadow-[0_10px_35px_rgba(0,0,0,0.15)] z-[9999] py-2.5 animate-scale-up text-right transition-all duration-200"
+      }
     >
       {/* User Info Header Section */}
-      <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center gap-3">
+      <div className={`px-4 py-3 border-b border-[var(--border-color)] flex items-center gap-3 ${mobile ? 'bg-[var(--surface-bg)] rounded-[18px] border border-[var(--border-color)]' : ''}`}>
         {user.avatar ? (
           <img 
             src={user.avatar} 
