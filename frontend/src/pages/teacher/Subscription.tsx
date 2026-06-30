@@ -436,12 +436,26 @@ export default function Subscription() {
                   <label className="text-xs text-[var(--text-secondary)] block mb-1.5 font-bold">اختر الباقة المطلوبة</label>
                   <select
                     value={reqPlanId}
-                    onChange={(e) => setReqPlanId(e.target.value)}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setReqPlanId(id)
+                      const selectedPlan = plans.find(plan => plan.id.toString() === id)
+                      if (selectedPlan && (selectedPlan as any).durationType) {
+                        const pDuration = (selectedPlan as any).durationType
+                        setBillingPeriod(pDuration === 'yearly' ? 'annual' : pDuration as any)
+                      }
+                    }}
                     className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500"
                   >
-                    {plans.filter(p => p.active && p.id !== subscription.plan?.id && !p.is_trial).map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.price_egp} ج.م شهرياً / {p.student_codes} طالب / {p.video_storage_gb}GB)</option>
-                    ))}
+                    {plans.filter(p => p.active && p.id !== subscription.plan?.id && !p.is_trial).map(p => {
+                      const finalPrice = (p as any).finalPrice !== undefined ? (p as any).finalPrice : p.price_egp
+                      const durationLabel = (p as any).durationType === 'quarterly' ? '3 أشهر' : (p as any).durationType === 'semi_annual' ? '6 أشهر' : (p as any).durationType === 'yearly' || (p as any).durationType === 'annual' ? 'سنة' : 'شهر'
+                      return (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({finalPrice} ج.م / {durationLabel} / {p.student_codes} طالب / {p.video_storage_gb}GB)
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
               </div>
@@ -558,7 +572,30 @@ export default function Subscription() {
                 <div>
                   <h3 className="text-base font-black text-[var(--text-color)] mb-2">{p.name}</h3>
                   <div className="text-xl font-black text-[var(--text-color)] mb-4">
-                    {p.price_egp === 0 ? 'مجاناً' : `${p.price_egp} ج.م / شهر`}
+                    {(p as any).finalPrice !== undefined && (p as any).finalPrice !== null ? (
+                      Number((p as any).discountPercentage) > 0 ? (
+                        <div className="flex flex-col items-center">
+                          <span className="text-[10px] text-slate-400 line-through mb-0.5">
+                            {Number((p as any).price).toFixed(2)} ج.م
+                          </span>
+                          <span className="text-emerald-500 font-extrabold text-sm">
+                            {Number((p as any).finalPrice).toFixed(2)} ج.م
+                            <span className="text-[10px] text-slate-400 font-medium mr-1">
+                              / {(p as any).durationType === 'quarterly' ? '3 أشهر' : (p as any).durationType === 'semi_annual' ? '6 أشهر' : (p as any).durationType === 'yearly' || (p as any).durationType === 'annual' ? 'سنة' : 'شهر'}
+                            </span>
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm">
+                          {Number((p as any).finalPrice).toFixed(2)} ج.م
+                          <span className="text-[10px] text-slate-400 font-medium mr-1">
+                            / {(p as any).durationType === 'quarterly' ? '3 أشهر' : (p as any).durationType === 'semi_annual' ? '6 أشهر' : (p as any).durationType === 'yearly' || (p as any).durationType === 'annual' ? 'سنة' : 'شهر'}
+                          </span>
+                        </span>
+                      )
+                    ) : (
+                      p.price_egp === 0 ? 'مجاناً' : `${p.price_egp} ج.م / شهر`
+                    )}
                   </div>
                   <hr className="border-[var(--border-color)] mb-4" />
                   <ul className="space-y-3.5 text-xs text-[var(--text-secondary)] text-right pr-2 mb-6">
@@ -582,6 +619,10 @@ export default function Subscription() {
                     onClick={() => {
                       setRequestType('plan_upgrade')
                       setReqPlanId(p.id.toString())
+                      if ((p as any).durationType) {
+                        const pDuration = (p as any).durationType
+                        setBillingPeriod(pDuration === 'yearly' ? 'annual' : pDuration as any)
+                      }
                       setShowRequestSection(true)
                       window.scrollTo({ top: 300, behavior: 'smooth' })
                     }}

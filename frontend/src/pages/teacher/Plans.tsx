@@ -87,10 +87,13 @@ export default function Plans() {
   const handleRequestUpgrade = async (planId: number) => {
     try {
       setSubmittingId(planId)
+      const selectedPlan = plans.find(p => p.id === planId)
+      const pDuration = selectedPlan && (selectedPlan as any).durationType ? (selectedPlan as any).durationType : billingPeriod
+      
       await API.post('/teacher/subscription/upgrade-request', {
         type: 'plan_upgrade',
         requested_plan_id: planId,
-        billing_period: billingPeriod
+        billing_period: pDuration === 'yearly' ? 'annual' : pDuration
       })
       showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
       // Refresh to get any updated request status
@@ -105,6 +108,25 @@ export default function Plans() {
 
   // Calculate pricing based on period and discounts
   const calculatePrice = (plan: Plan) => {
+    if ((plan as any).durationType) {
+      const price = Number((plan as any).price) || Number(plan.price_egp) || 0
+      const discount = Number((plan as any).discountPercentage) || 0
+      const finalPrice = Number((plan as any).finalPrice) || price
+      
+      let label = 'EGP / شهرياً'
+      if ((plan as any).durationType === 'quarterly') label = 'EGP / 3 أشهر'
+      else if ((plan as any).durationType === 'semi_annual') label = 'EGP / 6 أشهر'
+      else if ((plan as any).durationType === 'yearly' || (plan as any).durationType === 'annual') label = 'EGP / سنوي'
+      
+      return {
+        price: finalPrice,
+        text: label,
+        originalPrice: discount > 0 ? price : null,
+        discountPercent: discount > 0 ? discount : null,
+        discountAmount: discount > 0 ? (price - finalPrice) : null
+      }
+    }
+
     if (plan.price_egp === 0) return { price: 0, text: 'مجاناً' }
     
     let months = 1

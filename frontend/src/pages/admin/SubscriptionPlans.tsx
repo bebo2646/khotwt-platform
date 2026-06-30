@@ -525,6 +525,15 @@ export default function SubscriptionPlans() {
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                        حالة الباقة:
+                      </span>
+                      <span className={`font-black ${isPlanActive ? 'text-emerald-500' : 'text-slate-500'}`}>
+                        {isPlanActive ? 'نشط' : 'غير نشط'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
                         <Database className="w-3.5 h-3.5 text-indigo-500" />
                         مساحة التخزين:
                       </span>
@@ -884,7 +893,7 @@ export default function SubscriptionPlans() {
                   className={`w-20 h-8 rounded-full p-1 transition-colors duration-200 focus:outline-none cursor-pointer flex items-center justify-between relative ${isActive ? 'bg-indigo-600' : 'bg-slate-700'}`}
                 >
                   <span className="text-[9px] font-black text-white px-2.5 select-none">{isActive ? 'نشط' : 'غير نشط'}</span>
-                  <div className="w-6 h-6 rounded-full bg-white shadow-md transform transition-transform" />
+                  <div className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ${isActive ? '-translate-x-12' : 'translate-x-0'}`} />
                 </button>
               </div>
 

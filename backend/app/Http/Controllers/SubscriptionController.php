@@ -173,7 +173,7 @@ class SubscriptionController extends Controller
         $request->validate([
             'plan_id' => 'required|exists:subscription_plans,id',
             'duration_months' => 'nullable|integer|min:1',
-            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual',
+            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
         ]);
 
         $teacher = User::where('role', 'teacher')->findOrFail($id);
@@ -181,6 +181,9 @@ class SubscriptionController extends Controller
         $plan = SubscriptionPlan::findOrFail($request->plan_id);
 
         $billingPeriod = $request->billing_period;
+        if ($billingPeriod === 'yearly') {
+            $billingPeriod = 'annual';
+        }
         $months = $request->duration_months;
 
         if ($billingPeriod) {
@@ -526,7 +529,7 @@ class SubscriptionController extends Controller
                         $months = 3;
                     } elseif ($period === 'semi_annual') {
                         $months = 6;
-                    } elseif ($period === 'annual') {
+                    } elseif ($period === 'annual' || $period === 'yearly') {
                         $months = 12;
                     }
                 }
@@ -548,7 +551,7 @@ class SubscriptionController extends Controller
                     'teacher_subscription_id' => $subscription->id,
                     'amount' => $price,
                     'payment_status' => 'Pending',
-                    'notes' => "قيمة تجديد وترقية الباقة إلى ({$plan->name}) - فترة: " . ($period === 'annual' ? 'سنوي' : ($period === 'semi_annual' ? 'نصف سنوي' : ($period === 'quarterly' ? '3 أشهر' : 'شهري'))),
+                    'notes' => "قيمة تجديد وترقية الباقة إلى ({$plan->name}) - فترة: " . ($period === 'annual' || $period === 'yearly' ? 'سنوي' : ($period === 'semi_annual' ? 'نصف سنوي' : ($period === 'quarterly' ? '3 أشهر' : 'شهري'))),
                 ]);
 
                 $this->notificationService->sendNotification(
@@ -827,7 +830,7 @@ class SubscriptionController extends Controller
             'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
             'requested_plan_id' => 'required_if:type,plan_upgrade|exists:subscription_plans,id',
             'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
-            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual',
+            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
         ]);
 
         $teacher = $request->user();
@@ -858,6 +861,9 @@ class SubscriptionController extends Controller
         }
 
         $billingCycle = $request->type === 'plan_upgrade' ? ($request->billing_period ?: 'monthly') : 'monthly';
+        if ($billingCycle === 'yearly') {
+            $billingCycle = 'annual';
+        }
         $discountPercentage = 0;
         $discountAmount = 0;
         $finalPrice = 0;
@@ -1332,6 +1338,31 @@ class SubscriptionController extends Controller
 
     public function getSubscriptionPriceDetails($plan, $billingCycle)
     {
+        if (!empty($plan->durationType)) {
+            $months = 1;
+            if ($plan->durationType === 'quarterly') {
+                $months = 3;
+            } elseif ($plan->durationType === 'semi_annual') {
+                $months = 6;
+            } elseif ($plan->durationType === 'yearly' || $plan->durationType === 'annual') {
+                $months = 12;
+            }
+            
+            $price = (float)$plan->price;
+            $discountPercentage = (float)$plan->discountPercentage;
+            $finalPrice = (float)$plan->finalPrice;
+            $discountAmount = $price * ($discountPercentage / 100);
+            
+            return [
+                'months' => $months,
+                'billing_cycle' => $plan->durationType === 'yearly' ? 'annual' : $plan->durationType,
+                'discount_percentage' => $discountPercentage,
+                'discount_amount' => round($discountAmount, 2),
+                'final_price' => round($finalPrice, 2),
+                'base_price' => round($price, 2)
+            ];
+        }
+
         $monthlyPrice = (float)$plan->price_egp;
         $months = 1;
         $discountPercentage = 0.00;
@@ -1346,7 +1377,7 @@ class SubscriptionController extends Controller
         } elseif ($billingCycle === 'semi_annual') {
             $months = 6;
             $discountPercentage = $semiDiscount;
-        } elseif ($billingCycle === 'annual') {
+        } elseif ($billingCycle === 'annual' || $billingCycle === 'yearly') {
             $months = 12;
             $discountPercentage = $annualDiscount;
         } else {
@@ -1361,7 +1392,7 @@ class SubscriptionController extends Controller
 
         return [
             'months' => $months,
-            'billing_cycle' => $billingCycle,
+            'billing_cycle' => $billingCycle === 'yearly' ? 'annual' : $billingCycle,
             'discount_percentage' => $discountPercentage,
             'discount_amount' => round($discountAmount, 2),
             'final_price' => round($finalPrice, 2),
