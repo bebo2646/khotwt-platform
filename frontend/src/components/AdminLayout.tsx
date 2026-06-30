@@ -21,7 +21,6 @@ import {
   ChevronUp,
   Menu,
   X,
-  Search,
   Sun,
   Moon,
   LogOut,
@@ -398,16 +397,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           </div>
 
           {/* Left Side: Header Controls */}
-          <div className="flex items-center gap-3">
-            {/* Search Input (Desktop) */}
-            <div className="hidden md:flex items-center gap-2 px-3.5 py-1.5 bg-[var(--surface-bg)] rounded-xl border border-[var(--border-color)] text-[var(--text-secondary)] focus-within:border-indigo-500/50 transition">
-              <Search className="w-4 h-4" />
-              <input 
-                type="text" 
-                placeholder="بحث..." 
-                className="bg-transparent border-none text-xs text-[var(--text-color)] placeholder-[var(--text-muted)] outline-none w-48 font-semibold"
-              />
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3">
 
             {/* Theme Toggle */}
             <button
