@@ -124,6 +124,7 @@ interface AvailableCourse {
     name: string
     avatar?: string
   }
+  grade?: string
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -158,6 +159,12 @@ export default function StudentDashboard() {
   const [dbData, setDbData] = React.useState<DashboardData | null>(null)
   const [teachers, setTeachers] = React.useState<Teacher[]>([])
   const [availableCourses, setAvailableCourses] = React.useState<AvailableCourse[]>([])
+  const [recommendedData, setRecommendedData] = React.useState<{
+    recommended: AvailableCourse[]
+    latest: AvailableCourse[]
+    allCourses: AvailableCourse[]
+  }>({ recommended: [], latest: [], allCourses: [] })
+  
   const [activeTab, setActiveTab] = React.useState<'courses' | 'recent_watched' | 'upcoming_exams' | 'exam_history' | 'homework_history'>('courses')
   
   const [loading, setLoading] = React.useState(true)
@@ -166,18 +173,31 @@ export default function StudentDashboard() {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [selectedSubject, setSelectedSubject] = React.useState('all')
 
+  const GRADES = [
+    { key: 'first_preparatory', val: 'الصف الأول الإعدادي' },
+    { key: 'second_preparatory', val: 'الصف الثاني الإعدادي' },
+    { key: 'third_preparatory', val: 'الصف الثالث الإعدادي' },
+    { key: 'first_secondary', val: 'الصف الأول الثانوي' },
+    { key: 'second_secondary', val: 'الصف الثاني الثانوي' },
+    { key: 'third_secondary', val: 'الصف الثالث الثانوي' },
+  ]
+  const studentGradeKey = user?.grades?.[0] || ''
+  const studentGradeVal = GRADES.find(g => g.key === studentGradeKey)?.val || ''
+  const hasGrade = !!studentGradeKey
+
   React.useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const [dbRes, teachersRes, coursesRes] = await Promise.all([
+        const [dbRes, teachersRes, recRes] = await Promise.all([
           API.get('/student/dashboard'),
           API.get('/teachers'),
-          API.get('/courses')
+          API.get('/student/recommended-courses')
         ])
         setDbData(dbRes.data)
         setTeachers(teachersRes.data)
-        setAvailableCourses(coursesRes.data)
+        setRecommendedData(recRes.data)
+        setAvailableCourses(recRes.data.allCourses || [])
       } catch (err) {
         console.error('Error loading student home page:', err)
       } finally {
@@ -543,66 +563,55 @@ export default function StudentDashboard() {
         </div>
 
         {/* ====================================
-            6. RECOMMENDED COURSES
+            6. STUDENT COURSE RECOMMENDATIONS
             ==================================== */}
-        {recommendedCourses.length > 0 && (
+        {!hasGrade ? (
+          <div className="bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl text-center space-y-4 shadow-md flex flex-col items-center justify-center">
+            <GraduationCap className="h-12 w-12 text-indigo-400 animate-bounce" />
+            <h3 className="text-lg font-bold text-slate-200">أكمل ملفك الشخصي لاختيار الكورسات المناسبة لك</h3>
+            <p className="text-xs text-slate-400 font-light max-w-sm">
+              قم باختيار مرحلتك الدراسية لنتمكن من تقديم توصيات مخصصة لك ووضع خطط تناسبك.
+            </p>
+            <Link 
+              to="/student/profile" 
+              className="inline-flex items-center justify-center px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all shadow-lg hover:shadow-brand-primary/20 cursor-pointer"
+            >
+              إكمال الملف الشخصي
+            </Link>
+          </div>
+        ) : (
           <div className="space-y-6">
-            <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-              <span>كورسات ننصحك بها</span>
-              <span className="text-[10px] text-slate-400 font-light mt-1">اخترنا لك أهم المراجعات والشروحات الجديدة</span>
-            </h2>
-
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            {/* Banner Section */}
+            <div className="p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden"
+              style={{
+                background: 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+              }}
             >
-              {recommendedCourses.map((course) => (
-                <motion.div variants={cardItemVariants} key={course.id}>
-                  <CourseCard
-                    id={course.id}
-                    title={course.title}
-                    coverImage={course.cover_image}
-                    price={course.price}
-                    subject={course.subject}
-                    teacherName={course.teacher.name}
-                    teacherAvatar={course.teacher.avatar}
-                    isSubscribed={false}
-                    lessonsCount={course.lessons_count}
-                    enableDiscount={course.enable_discount === true}
-                    discountType={course.discount_type ?? undefined}
-                    discountValue={course.discount_value ?? undefined}
-                    finalPrice={course.final_price ?? undefined}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        )}
+              {/* Background accent */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.15),transparent_45%)] pointer-events-none"></div>
+              <div className="relative z-10 space-y-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase">
+                  ⭐ مخصص لمرحلتك الدراسية
+                </span>
+                <h2 className="text-2xl font-black">
+                  ✨ كورسات مقترحة لطلاب {studentGradeVal}
+                </h2>
+                <p className="text-xs text-indigo-100 font-light">
+                  تم اختيار هذه الكورسات بعناية لتناسب صفك الدراسي وتساعدك على التفوق.
+                </p>
+              </div>
+            </div>
 
-        {/* ====================================
-            7. LATEST COURSES (Available Courses catalog)
-            ==================================== */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-              <span>أحدث الكورسات والدروس المتاحة</span>
-            </h2>
-          </div>
-
-          {filteredCourses.length === 0 ? (
-            <div className="bg-brand-card border border-border-color rounded-3xl p-12 text-center text-slate-500 font-light text-xs">لا يوجد كورسات أو باقات متاحة تطابق خيارات التصفية أو البحث.</div>
-          ) : (
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-            >
-              {filteredCourses.slice(0, 6).map((course) => (
-                <motion.div variants={cardItemVariants} key={course.id}>
+            {/* Recommended grid */}
+            {recommendedData.recommended.length === 0 ? (
+              <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
+                لا توجد كورسات مقترحة متوفرة حالياً لهذه المرحلة الدراسية.
+              </div>
+            ) : (
+              <div className="bastahalak-grid">
+                {recommendedData.recommended.map((course) => (
                   <CourseCard
+                    key={course.id}
                     id={course.id}
                     title={course.title}
                     coverImage={course.cover_image}
@@ -616,10 +625,85 @@ export default function StudentDashboard() {
                     discountType={course.discount_type ?? undefined}
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
+                    grade={course.grade}
                   />
-                </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ====================================
+            7. LATEST COURSES
+            ==================================== */}
+        <div className="space-y-6">
+          <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
+            <span>🔥 أحدث الكورسات</span>
+          </h2>
+          
+          {recommendedData.latest.length === 0 ? (
+            <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
+              لا توجد كورسات مضافة حديثاً.
+            </div>
+          ) : (
+            <div className="bastahalak-grid">
+              {recommendedData.latest.map((course) => (
+                <CourseCard
+                  key={course.id}
+                  id={course.id}
+                  title={course.title}
+                  coverImage={course.cover_image}
+                  price={course.price}
+                  subject={course.subject}
+                  teacherName={course.teacher.name}
+                  teacherAvatar={course.teacher.avatar}
+                  isSubscribed={enrolledCourseIds.has(course.id)}
+                  lessonsCount={course.lessons_count}
+                  enableDiscount={course.enable_discount === true}
+                  discountType={course.discount_type ?? undefined}
+                  discountValue={course.discount_value ?? undefined}
+                  finalPrice={course.final_price ?? undefined}
+                  grade={course.grade}
+                />
               ))}
-            </motion.div>
+            </div>
+          )}
+        </div>
+
+        {/* ====================================
+            8. ALL COURSES (Filtered/Searched catalog)
+            ==================================== */}
+        <div className="space-y-6">
+          <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
+            <span>📚 جميع الكورسات</span>
+          </h2>
+
+          {filteredCourses.length === 0 ? (
+            <div className="bg-brand-card border border-border-color rounded-3xl p-12 text-center text-slate-500 font-light text-xs">
+              لا يوجد كورسات مطابقة لخيارات التصفية أو البحث.
+            </div>
+          ) : (
+            <div className="bastahalak-grid">
+              {filteredCourses.map((course) => (
+                <CourseCard
+                  key={course.id}
+                  id={course.id}
+                  title={course.title}
+                  coverImage={course.cover_image}
+                  price={course.price}
+                  subject={course.subject}
+                  teacherName={course.teacher.name}
+                  teacherAvatar={course.teacher.avatar}
+                  isSubscribed={enrolledCourseIds.has(course.id)}
+                  lessonsCount={course.lessons_count}
+                  enableDiscount={course.enable_discount === true}
+                  discountType={course.discount_type ?? undefined}
+                  discountValue={course.discount_value ?? undefined}
+                  finalPrice={course.final_price ?? undefined}
+                  grade={course.grade}
+                />
+              ))}
+            </div>
           )}
         </div>
 

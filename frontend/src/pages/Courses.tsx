@@ -1,11 +1,12 @@
 import React from 'react'
-import { useSearchParams, useParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useParams, useNavigate, Link } from 'react-router-dom'
 import API from '../services/api'
-import { Search, ChevronDown } from 'lucide-react'
+import { Search, ChevronDown, GraduationCap } from 'lucide-react'
 import EmptyState from '../components/EmptyState'
 import CourseCard from '../components/ui/CourseCard'
 import PackageCard from '../components/ui/PackageCard'
 import SEO from '../components/SEO'
+import { useAuthStore } from '../store/authStore'
 
 interface CourseItem {
   id: number
@@ -79,14 +80,20 @@ interface CoursesProps {
 }
 
 export default function Courses({ subjectDefault, gradeDefault }: CoursesProps = {}) {
+  const { user } = useAuthStore()
   const { subjectId, gradeId } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   
   const [courses, setCourses] = React.useState<CourseItem[]>([])
   const [packages, setPackages] = React.useState<any[]>([])
+  const [recommendedCourses, setRecommendedCourses] = React.useState<CourseItem[]>([])
   const [loading, setLoading] = React.useState(true)
   
+  const studentGradeKey = user?.grades?.[0] || ''
+  const studentGradeVal = GRADES.find(g => g.key === studentGradeKey)?.val || ''
+  const hasGrade = !!studentGradeKey
+
   // Map and translate route param or prop defaults
   const resolvedGrade = React.useMemo(() => {
     const raw = gradeId || gradeDefault || searchParams.get('grade') || ''
@@ -105,17 +112,27 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
   React.useEffect(() => {
     setLoading(true)
     const params = `grade=${resolvedGrade}&subject=${resolvedSubject}&search=${searchQuery}`
-    Promise.all([
+    
+    const fetchPromises: Promise<any>[] = [
       API.get(`/courses?${params}`),
       API.get(`/packages?${params}`)
-    ])
-      .then(([coursesRes, packagesRes]) => {
+    ]
+    
+    if (user && user.role === 'student') {
+      fetchPromises.push(API.get('/student/recommended-courses'))
+    }
+    
+    Promise.all(fetchPromises)
+      .then(([coursesRes, packagesRes, recRes]) => {
         setCourses(coursesRes.data)
         setPackages(packagesRes.data)
+        if (recRes) {
+          setRecommendedCourses(recRes.data.recommended || [])
+        }
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [resolvedGrade, resolvedSubject, searchQuery])
+  }, [resolvedGrade, resolvedSubject, searchQuery, user])
 
   // Dynamic SEO Tag Info
   const seoInfo = React.useMemo(() => {
@@ -267,6 +284,66 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
 
       </div>
 
+      {/* Student Recommendation Section */}
+      {user && user.role === 'student' && (
+        <div className="space-y-6 pt-4">
+          {!hasGrade ? (
+            <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl text-center space-y-3 shadow-md flex flex-col items-center justify-center">
+              <GraduationCap className="h-10 w-10 text-indigo-400 animate-bounce" />
+              <h3 className="text-base font-bold text-slate-200">أكمل ملفك الشخصي لاختيار الكورسات المناسبة لك</h3>
+              <Link 
+                to="/student/profile" 
+                className="px-5 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                إكمال الملف الشخصي
+              </Link>
+            </div>
+          ) : (
+            recommendedCourses.length > 0 && (
+              <div className="space-y-6">
+                {/* Banner Section */}
+                <div className="p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden"
+                  style={{
+                    background: 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+                  }}
+                >
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.15),transparent_45%)] pointer-events-none"></div>
+                  <div className="relative z-10 space-y-2 text-right w-full" dir="rtl">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase">
+                      ⭐ الكورسات المقترحة لك
+                    </span>
+                    <h2 className="text-2xl font-black">
+                      ✨ كورسات مقترحة لطلاب {studentGradeVal}
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Grid */}
+                <div className="bastahalak-grid">
+                  {recommendedCourses.map((course) => (
+                    <CourseCard
+                      key={course.id}
+                      id={course.id}
+                      title={course.title}
+                      coverImage={course.cover_image}
+                      price={course.price}
+                      subject={course.subject}
+                      teacherName={course.teacher.name}
+                      teacherAvatar={course.teacher.avatar}
+                      enableDiscount={course.enable_discount === true}
+                      discountType={course.discount_type ?? undefined}
+                      discountValue={course.discount_value ?? undefined}
+                      finalPrice={course.final_price ?? undefined}
+                      grade={course.grade}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+
       {/* Loading state */}
       {loading ? (
         <div className="flex justify-center py-20">
@@ -284,8 +361,8 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
           {/* Courses Section */}
           {courses.length > 0 && (
             <div className="space-y-6">
-              <h2 className="text-xl font-black border-r-4 border-brand-primary pr-3 text-foreground">كورسات منفصلة</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              <h2 className="text-xl font-black border-r-4 border-brand-primary pr-3 text-foreground">جميع الكورسات</h2>
+              <div className="bastahalak-grid">
                 {courses.map((course) => (
                   <CourseCard
                     key={course.id}
@@ -300,6 +377,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     discountType={course.discount_type ?? undefined}
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
+                    grade={course.grade}
                   />
                 ))}
               </div>
@@ -310,7 +388,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
           {packages.length > 0 && (
             <div className="space-y-6 pt-8 border-t border-border-color">
               <h2 className="text-xl font-black border-r-4 border-amber-500 pr-3 text-foreground">باقات مجمعة</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              <div className="bastahalak-grid">
                 {packages.map((pkg) => (
                   <PackageCard
                     key={pkg.id}

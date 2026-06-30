@@ -74,6 +74,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
          */
         Route::middleware('role:student')->group(function () {
             Route::get('/student/dashboard', [StudentController::class, 'dashboard']);
+            Route::get('/student/recommended-courses', [StudentController::class, 'recommendedCourses']);
             Route::get('/student/profile-stats', [StudentController::class, 'profileStats']);
             Route::get('/student/courses', [StudentController::class, 'enrolledCourses']);
             Route::get('/student/wallet', [StudentController::class, 'wallet']);

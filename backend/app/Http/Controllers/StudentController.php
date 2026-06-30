@@ -1809,4 +1809,44 @@ class StudentController extends Controller
 
         return true;
     }
+
+    /**
+     * Get recommended courses for student based on educational stage.
+     */
+    public function recommendedCourses(Request $request)
+    {
+        $user = $request->user();
+        $studentGrades = $user->grades ?? [];
+        if (!is_array($studentGrades)) {
+            $studentGrades = [$studentGrades];
+        }
+        
+        $studentGrade = !empty($studentGrades) ? $studentGrades[0] : null;
+
+        $recommended = [];
+        if ($studentGrade) {
+            $recommended = \App\Models\Course::with('teacher')
+                ->where('is_published', true)
+                ->where('grade', $studentGrade)
+                ->latest()
+                ->get();
+        }
+
+        $latest = \App\Models\Course::with('teacher')
+            ->where('is_published', true)
+            ->latest()
+            ->take(6)
+            ->get();
+
+        $allCourses = \App\Models\Course::with('teacher')
+            ->where('is_published', true)
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'recommended' => $recommended,
+            'latest' => $latest,
+            'allCourses' => $allCourses,
+        ]);
+    }
 }

@@ -21,6 +21,7 @@ interface CourseCardProps {
   discountType?: 'percentage' | 'fixed'
   discountValue?: string | number
   finalPrice?: string | number
+  grade?: string
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -31,6 +32,15 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   science: 'العلوم',
   arabic: 'اللغة العربية',
   english: 'اللغة الإنجليزية',
+}
+
+const GRADES_MAP: Record<string, string> = {
+  first_preparatory: 'الصف الأول الإعدادي',
+  second_preparatory: 'الصف الثاني الإعدادي',
+  third_preparatory: 'الصف الثالث الإعدادي',
+  first_secondary: 'الصف الأول الثانوي',
+  second_secondary: 'الصف الثاني الثانوي',
+  third_secondary: 'الصف الثالث الثانوي',
 }
 
 export default function CourseCard({
@@ -50,6 +60,7 @@ export default function CourseCard({
   discountType = 'percentage',
   discountValue = 0,
   finalPrice = 0,
+  grade,
 }: CourseCardProps) {
   const pricing = getCourseDisplayPrice({
     price,
@@ -73,14 +84,21 @@ export default function CourseCard({
           className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
         />
         
-        {/* Subject Overlay Badge */}
-        <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
-          {SUBJECTS_TRANSLATION[subject] || subject}
+        {/* Subject & Grade Overlay Badges */}
+        <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end z-10">
+          <div className="px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
+            {SUBJECTS_TRANSLATION[subject] || subject}
+          </div>
+          {grade && (
+            <div className="px-3 py-1 bg-indigo-600/85 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-500/25 shadow-md">
+              {GRADES_MAP[grade] || grade}
+            </div>
+          )}
         </div>
 
         {/* Subscription Status Overlay */}
         {isSubscribed && (
-          <div className="absolute top-3 left-3 px-3 py-1 bg-brand-primary text-white rounded-full text-[10px] font-black shadow-md flex items-center gap-1">
+          <div className="absolute top-3 left-3 px-3 py-1 bg-brand-primary text-white rounded-full text-[10px] font-black shadow-md flex items-center gap-1 z-10">
             <CheckCircle className="h-3 w-3" />
             <span>مشترك</span>
           </div>

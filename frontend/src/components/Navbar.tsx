@@ -283,16 +283,16 @@ export default function Navbar() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setMobileMenuOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1999] md:hidden"
+            className="fixed inset-0 bg-black/50 backdrop-blur-[5px] z-[1999] md:hidden"
           />
           
           {/* Drawer */}
           <motion.div 
-            initial={{ x: '100%' }}
+            initial={{ x: '-100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-screen w-[320px] max-w-[85vw] bg-[var(--card-bg)] border-l border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[2000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right"
+            className="fixed top-0 left-0 h-screen w-[min(340px,85vw)] bg-[var(--card-bg)] border-r border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[2000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right"
             dir="rtl"
           >
             {/* Top part: Header + Navigation */}

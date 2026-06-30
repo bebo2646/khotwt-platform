@@ -811,6 +811,19 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   background: rgba(156, 163, 175, 0.45);
 }
 
+/* Bastahalak style Course Grid */
+.bastahalak-grid {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 24px !important;
+}
+
+@media (min-width: 768px) {
+  .bastahalak-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important;
+  }
+}
+
 
 
 
