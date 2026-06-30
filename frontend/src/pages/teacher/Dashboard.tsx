@@ -1,8 +1,70 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import API from '../../services/api'
-import { BookOpen, Users, Wallet, TrendingUp, Award, ClipboardList, Package, Edit3, Trash2, Check } from 'lucide-react'
+import { BookOpen, Users, Wallet, TrendingUp, Award, ClipboardList, Package, Edit3, Trash2, Check, AlertCircle } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import { 
+  BarChart, 
+  Bar, 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  ResponsiveContainer, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  Legend, 
+  XAxis, 
+  YAxis 
+} from 'recharts'
+
+const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6']
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    return (
+      <div className="bg-[#111827] border border-[#1F2937] p-4 rounded-2xl shadow-xl text-right text-xs space-y-1.5" dir="rtl">
+        <p className="font-black text-slate-200">الشهر: {label}</p>
+        <p className="font-bold text-brand-success">الإيراد: {data.revenue.toFixed(2)} ج.م</p>
+        <p className="font-bold text-indigo-400">الاشتراكات: {data.subscriptions} طالب</p>
+      </div>
+    )
+  }
+  return null
+}
+
+const GrowthTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    return (
+      <div className="bg-[#111827] border border-[#1F2937] p-4 rounded-2xl shadow-xl text-right text-xs space-y-1.5" dir="rtl">
+        <p className="font-black text-slate-200">الشهر: {label}</p>
+        <p className="font-bold text-indigo-400">الاشتراكات الجديدة: {data.subscriptions} طالب</p>
+        <p className={`font-bold ${data.growth >= 0 ? 'text-brand-success' : 'text-rose-500'}`}>
+          معدل النمو: {data.growth >= 0 ? '+' : ''}{data.growth}%
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
+const PieTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload
+    return (
+      <div className="bg-[#111827] border border-[#1F2937] p-4 rounded-2xl shadow-xl text-right text-xs" dir="rtl">
+        <p className="font-black text-slate-200">{data.name}</p>
+        <p className="font-bold text-indigo-400 mt-1">الطلاب المشتركون: {data.value} طالب</p>
+      </div>
+    )
+  }
+  return null
+}
 
 interface PackageItem {
   id: number
@@ -63,6 +125,75 @@ export default function Dashboard() {
       })
       .catch((err) => console.error(err))
   }
+
+  const getGrowthRate = () => {
+    if (!stats || !stats.enrollments_chart || stats.enrollments_chart.length < 2) return '0%'
+    const len = stats.enrollments_chart.length
+    const current = stats.enrollments_chart[len - 1].count
+    const previous = stats.enrollments_chart[len - 2].count
+    if (previous === 0) return current > 0 ? '+100%' : '0%'
+    const pct = ((current - previous) / previous) * 100
+    return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
+  }
+
+  const mergedChartData = React.useMemo(() => {
+    if (!stats) return []
+    const revs = stats.revenue_chart || []
+    const enrolls = stats.enrollments_chart || []
+    
+    const dataMap = new Map<string, { month: string, revenue: number, subscriptions: number, growth: number }>()
+    
+    revs.forEach(r => {
+      dataMap.set(r.month, {
+        month: r.month,
+        revenue: parseFloat(r.total) || 0,
+        subscriptions: 0,
+        growth: 0
+      })
+    })
+    
+    enrolls.forEach(e => {
+      const existing = dataMap.get(e.month)
+      if (existing) {
+        existing.subscriptions = e.count
+      } else {
+        dataMap.set(e.month, {
+          month: e.month,
+          revenue: 0,
+          subscriptions: e.count,
+          growth: 0
+        })
+      }
+    })
+    
+    const arr = Array.from(dataMap.values())
+    
+    for (let i = 0; i < arr.length; i++) {
+      if (i === 0) {
+        arr[i].growth = 0
+      } else {
+        const prev = arr[i - 1].subscriptions
+        const curr = arr[i].subscriptions
+        if (prev === 0) {
+          arr[i].growth = curr > 0 ? 100 : 0
+        } else {
+          arr[i].growth = parseFloat((((curr - prev) / prev) * 100).toFixed(1))
+        }
+      }
+    }
+    
+    return arr
+  }, [stats])
+
+  const pieData = React.useMemo(() => {
+    if (!stats || !stats.course_performance) return []
+    return stats.course_performance.map(c => ({
+      name: c.title,
+      value: c.students_count
+    }))
+  }, [stats])
+
+  const hasEnoughData = mergedChartData.length > 1
 
   React.useEffect(() => {
     setLoading(true)
@@ -306,94 +437,175 @@ export default function Dashboard() {
 
       </div>
 
-      {/* Charts and Analytics Section */}
+      {/* Statistics Above Charts */}
       {stats && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-12 border-t border-[var(--border-color)] text-right" dir="rtl">
-          
-          {/* Enrollments growth chart */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
-            <h3 className="font-bold text-base text-slate-200">النمو والاشتراكات الشهرية للطلاب</h3>
-            <div className="h-64 flex items-end justify-between gap-4 pt-6 pb-2 px-4 bg-slate-950/40 rounded-2xl border border-slate-900">
-              {stats.enrollments_chart && stats.enrollments_chart.length > 0 ? (
-                stats.enrollments_chart.map((item, idx) => {
-                  const maxVal = Math.max(...stats.enrollments_chart!.map(i => i.count), 5)
-                  const heightPercent = (item.count / maxVal) * 100
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative h-full justify-end">
-                      <span className="absolute -top-10 scale-0 group-hover:scale-100 bg-brand-primary text-slate-950 text-[10px] font-black px-2 py-1 rounded shadow-md transition-all duration-200 z-10">
-                        {item.count} طالب
-                      </span>
-                      <div 
-                        className="w-full bg-gradient-to-t from-brand-primary to-brand-secondary rounded-t-lg transition-all duration-500 group-hover:opacity-90 shadow-[0_0_15px_rgba(99,102,241,0.1)]"
-                        style={{ height: `${Math.max(5, heightPercent)}%` }}
-                      />
-                      <span className="text-[10px] text-slate-400 font-light truncate max-w-full">{item.month}</span>
-                    </div>
-                  )
-                })
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">لا توجد بيانات اشتراكات مسجلة بعد.</div>
-              )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-6 border-t border-[var(--border-color)]">
+          {/* Card: Total Revenue */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 hover:border-brand-primary/20 transition-all shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-bold">💰 إجمالي الأرباح</span>
+              <div className="p-2.5 bg-emerald-500/10 text-brand-success rounded-2xl">
+                <Wallet className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-brand-success">
+              {parseFloat(stats.total_revenue).toFixed(2)} ج.م
             </div>
           </div>
 
-          {/* Revenue split chart */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
-            <h3 className="font-bold text-base text-slate-200">المبيعات والأرباح الشهرية (ج.م)</h3>
-            <div className="h-64 flex items-end justify-between gap-4 pt-6 pb-2 px-4 bg-slate-950/40 rounded-2xl border border-slate-900">
-              {stats.revenue_chart && stats.revenue_chart.length > 0 ? (
-                stats.revenue_chart.map((item, idx) => {
-                  const maxVal = Math.max(...stats.revenue_chart!.map(i => parseFloat(i.total)), 100)
-                  const heightPercent = (parseFloat(item.total) / maxVal) * 100
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-2 group relative h-full justify-end">
-                      <span className="absolute -top-10 scale-0 group-hover:scale-100 bg-brand-secondary text-slate-950 text-[10px] font-black px-2 py-1 rounded shadow-md transition-all duration-200 z-10">
-                        {parseFloat(item.total).toFixed(0)} ج.م
-                      </span>
-                      <div 
-                        className="w-full bg-gradient-to-t from-brand-secondary to-brand-accent rounded-t-lg transition-all duration-500 group-hover:opacity-90 shadow-[0_0_15px_rgba(139,92,246,0.1)]"
-                        style={{ height: `${Math.max(5, heightPercent)}%` }}
-                      />
-                      <span className="text-[10px] text-slate-400 font-light truncate max-w-full">{item.month}</span>
-                    </div>
-                  )
-                })
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-500 text-xs">لا توجد أرباح مسجلة بعد.</div>
-              )}
+          {/* Card: Total Students */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 hover:border-brand-primary/20 transition-all shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-bold">👨‍🎓 إجمالي الطلاب</span>
+              <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-2xl">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-indigo-400">
+              {stats.students_count} طالب
             </div>
           </div>
 
-          {/* Course Performance chart and list */}
-          <div className="lg:col-span-2 bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
-            <h3 className="font-bold text-base text-slate-200">أداء الكورسات ونسبة إنجاز مشاهدات الطلاب</h3>
-            <div className="divide-y divide-[var(--border-color)]">
-              {stats.course_performance && stats.course_performance.length > 0 ? (
-                stats.course_performance.map((c) => (
-                  <div key={c.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1 sm:max-w-xs w-full text-right">
-                      <h4 className="font-bold text-sm text-slate-200">{c.title}</h4>
-                      <p className="text-[10px] text-slate-500 font-light">الطلاب المشتركين: {c.students_count} طالب</p>
-                    </div>
+          {/* Card: Growth Rate */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 hover:border-brand-primary/20 transition-all shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-bold">📈 معدل النمو</span>
+              <div className="p-2.5 bg-amber-500/10 text-amber-500 rounded-2xl">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-amber-500">
+              {getGrowthRate()}
+            </div>
+          </div>
 
-                    <div className="flex-grow max-w-md w-full flex items-center gap-3">
-                      <span className="text-[10px] text-slate-400 font-medium shrink-0">متوسط إنجاز الشرح بالفيديو:</span>
-                      <div className="flex-grow h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800 relative">
-                        <div 
-                          className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all duration-500" 
-                          style={{ width: `${c.avg_progress}%` }}
-                        />
+          {/* Card: Total Courses */}
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 hover:border-brand-primary/20 transition-all shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-bold">📚 إجمالي الكورسات</span>
+              <div className="p-2.5 bg-rose-500/10 text-rose-400 rounded-2xl">
+                <BookOpen className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="text-2xl font-black text-rose-400">
+              {stats.courses_count} كورس
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suggested Layout for Charts */}
+      {stats && (
+        <div className="space-y-8 pt-8">
+          {!hasEnoughData ? (
+            /* 3. Empty State */
+            <div className="bg-brand-card border border-[var(--border-color)] p-12 text-center rounded-3xl flex flex-col items-center justify-center space-y-4 shadow-sm">
+              <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">
+                <AlertCircle className="h-10 w-10 animate-pulse" />
+              </div>
+              <h3 className="text-base font-bold text-slate-200">لا توجد بيانات كافية لعرض التحليلات بعد.</h3>
+              <p className="text-xs text-slate-400 font-light max-w-sm leading-relaxed">
+                يتطلب إظهار الرسوم البيانية وجود عمليات اشتراك ومبيعات مسجلة تغطي شهرين على الأقل.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Revenue Bar Chart */}
+              <div className="bg-brand-card border border-[var(--border-color)] p-6 sm:p-8 rounded-3xl space-y-6 shadow-sm">
+                <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
+                  <h3 className="font-bold text-base text-slate-200">📊 المبيعات والأرباح الشهرية</h3>
+                  <span className="text-xs text-slate-400">الإيراد بالجنيه المصري (EGP)</span>
+                </div>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mergedChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2E333D" vertical={false} />
+                      <XAxis dataKey="month" stroke="#94A3B8" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} />
+                      <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                      <Legend verticalAlign="top" height={36} align="right" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                      <Bar name="صافي الإيراد (ج.م)" dataKey="revenue" fill="#10B981" radius={[8, 8, 0, 0]} maxBarSize={60} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Student Growth Line Chart */}
+              <div className="bg-brand-card border border-[var(--border-color)] p-6 sm:p-8 rounded-3xl space-y-6 shadow-sm">
+                <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
+                  <h3 className="font-bold text-base text-slate-200">📈 نمو الاشتراكات الطلابية الجديدة</h3>
+                  <span className="text-xs text-slate-400">معدل الانضمام الشهري</span>
+                </div>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={mergedChartData} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2E333D" vertical={false} />
+                      <XAxis dataKey="month" stroke="#94A3B8" fontSize={12} tickLine={false} />
+                      <YAxis stroke="#94A3B8" fontSize={12} tickLine={false} />
+                      <RechartsTooltip content={<GrowthTooltip />} />
+                      <Legend verticalAlign="top" height={36} align="right" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                      <Area name="الاشتراكات الجديدة" type="monotone" dataKey="subscriptions" stroke="#6366F1" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, fill: '#1E293B' }} activeDot={{ r: 7 }} fillOpacity={1} fill="url(#colorGrowth)" animationDuration={1200} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Revenue by Course Pie Chart */}
+              {pieData.length > 0 && (
+                <div className="bg-brand-card border border-[var(--border-color)] p-6 sm:p-8 rounded-3xl space-y-6 shadow-sm">
+                  <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
+                    <h3 className="font-bold text-base text-slate-200">🍰 توزيع الأرباح حسب الكورس</h3>
+                    <span className="text-xs text-slate-400">نسبة المشتركين بالمواد</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="h-72 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={90}
+                            paddingAngle={5}
+                            dataKey="value"
+                            animationDuration={1500}
+                          >
+                            {pieData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip content={<PieTooltip />} />
+                          <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    {/* Course list summary table inside Pie section */}
+                    <div className="space-y-3">
+                      <h4 className="font-bold text-xs text-slate-400 border-b border-[var(--border-color)] pb-2">جدول التوزيع التفصيلي للكورسات</h4>
+                      <div className="divide-y divide-[var(--border-color)] max-h-56 overflow-y-auto pr-1">
+                        {stats.course_performance?.map((c, index) => (
+                          <div key={c.id} className="py-2.5 flex justify-between items-center text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                              <span className="font-semibold text-slate-350">{c.title}</span>
+                            </div>
+                            <span className="font-bold text-slate-200">{c.students_count} مشترك</span>
+                          </div>
+                        ))}
                       </div>
-                      <span className="text-xs font-bold text-brand-primary shrink-0">{c.avg_progress}%</span>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="py-8 text-center text-slate-500 text-xs font-light">لا توجد مواد مسجلة لعرض بيانات أدائها حالياً.</div>
+                </div>
               )}
-            </div>
-          </div>
-
+            </>
+          )}
         </div>
       )}
 
