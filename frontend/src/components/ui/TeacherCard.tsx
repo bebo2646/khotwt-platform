@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { ensureHttps } from '../../utils/urls'
 
 interface TeacherCardProps {
   id: number
@@ -49,7 +50,7 @@ export default function TeacherCard({
         {/* Avatar */}
         <div className="h-24 w-24 rounded-full border-2 border-[var(--border-color)] group-hover:border-brand-primary transition-all duration-300 overflow-hidden bg-brand-surface shadow-md relative shrink-0">
           <img 
-            src={avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${name}`} 
+            src={ensureHttps(avatar) || `https://api.dicebear.com/7.x/initials/svg?seed=${name}`} 
             alt={name} 
             className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {

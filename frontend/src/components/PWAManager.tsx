@@ -228,12 +228,12 @@ export default function PWAManager() {
       <AnimatePresence>
         {showInstallBanner && !showSplash && !isOffline && (
           <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95, pointerEvents: 'none' }}
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50, pointerEvents: 'none' }}
             style={{ pointerEvents: showInstallBanner ? 'auto' : 'none' }}
             transition={{ type: 'spring', damping: 20 }}
-            className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 md:max-w-md z-[9999] bg-[var(--card-bg)] border border-[var(--border-color)] p-5 rounded-3xl shadow-2xl flex flex-col gap-4 text-[var(--text-color)]"
+            className="fixed bottom-[90px] left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:max-w-md z-[999] md:z-[9999] bg-[var(--card-bg)] border border-[var(--border-color)] p-5 rounded-3xl shadow-2xl flex flex-col gap-4 text-[var(--text-color)]"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex gap-3 items-center">

@@ -378,8 +378,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         
         {/* Top Header: Fixed height 72px */}
         <header 
-          className={`fixed top-0 left-0 z-[1000] flex items-center justify-between h-[72px] px-6 border-b border-[var(--border-color)] bg-[var(--card-bg)]/85 dark:bg-[#080c18]/85 backdrop-blur-[20px] transition-all duration-300 ${
-            sidebarCollapsed ? 'right-0 lg:right-20' : 'right-0 lg:right-[280px]'
+          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
+            theme === 'light'
+              ? 'bg-white border-b-[#e5e7eb] text-[#0f172a] shadow-[0_4px_20px_rgba(0,0,0,0.04)]'
+              : 'bg-[var(--card-bg)]/85 border-b-[var(--border-color)] text-[var(--text-color)] backdrop-blur-[20px] dark:bg-[#080c18]/85'
           }`}
         >
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
@@ -487,7 +489,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         </header>
 
         {/* 4. Page Content area */}
-        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 pt-[96px] sm:pt-[104px] md:pt-[112px] max-w-[1600px] mx-auto overflow-y-auto">
+        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-[1600px] mx-auto overflow-y-auto">
           {children}
         </main>
       </div>

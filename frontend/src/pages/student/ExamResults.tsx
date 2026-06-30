@@ -284,7 +284,15 @@ export default function ExamResults() {
                         const diffSecs = Math.max(0, Math.floor((end - start) / 1000))
                         const mins = Math.floor(diffSecs / 60)
                         const secs = diffSecs % 60
-                        return mins > 0 ? `${mins} د و ${secs} ث` : `${secs} ثانية`
+                        
+                        return (
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-black shadow-sm justify-center">
+                            <span>⏱️</span>
+                            <span>
+                              {mins > 0 ? `${mins} دقيقة ${secs} ثانية` : `${secs} ثانية`}
+                            </span>
+                          </div>
+                        )
                       })()}
                     </div>
                   </div>

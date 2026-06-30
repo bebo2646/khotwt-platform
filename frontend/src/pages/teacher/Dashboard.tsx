@@ -13,13 +13,13 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  ResponsiveContainer, 
   CartesianGrid, 
   Tooltip as RechartsTooltip, 
   Legend, 
   XAxis, 
   YAxis 
 } from 'recharts'
+import { SafeResponsiveContainer } from '../../components/ui/SafeResponsiveContainer'
 
 const COLORS = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#8B5CF6']
 
@@ -638,8 +638,8 @@ export default function Dashboard() {
                   <h3 className="font-bold text-base text-slate-200">📊 المبيعات والأرباح الشهرية</h3>
                   <span className="text-xs text-slate-400">الإيراد بالجنيه المصري (EGP)</span>
                 </div>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="w-full">
+                  <SafeResponsiveContainer height={320}>
                     <BarChart data={mergedChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#2E333D" vertical={false} />
                       <XAxis dataKey="month" stroke="#94A3B8" fontSize={12} tickLine={false} />
@@ -648,7 +648,7 @@ export default function Dashboard() {
                       <Legend verticalAlign="top" height={36} align="right" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                       <Bar name="صافي الإيراد (ج.م)" dataKey="revenue" fill="#10B981" radius={[8, 8, 0, 0]} maxBarSize={60} animationDuration={1000} />
                     </BarChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </div>
               </div>
 
@@ -658,8 +658,8 @@ export default function Dashboard() {
                   <h3 className="font-bold text-base text-slate-200">📈 نمو الاشتراكات الطلابية الجديدة</h3>
                   <span className="text-xs text-slate-400">معدل الانضمام الشهري</span>
                 </div>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
+                <div className="w-full">
+                  <SafeResponsiveContainer height={320}>
                     <AreaChart data={mergedChartData} margin={{ top: 15, right: 10, left: -10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorGrowth" x1="0" y1="0" x2="0" y2="1">
@@ -674,7 +674,7 @@ export default function Dashboard() {
                       <Legend verticalAlign="top" height={36} align="right" wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                       <Area name="الاشتراكات الجديدة" type="monotone" dataKey="subscriptions" stroke="#6366F1" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, fill: '#1E293B' }} activeDot={{ r: 7 }} fillOpacity={1} fill="url(#colorGrowth)" animationDuration={1200} />
                     </AreaChart>
-                  </ResponsiveContainer>
+                  </SafeResponsiveContainer>
                 </div>
               </div>
 
@@ -686,8 +686,8 @@ export default function Dashboard() {
                     <span className="text-xs text-slate-400">نسبة المشتركين بالمواد</span>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                    <div className="h-72 w-full">
-                      <ResponsiveContainer width="100%" height="100%">
+                    <div className="w-full">
+                      <SafeResponsiveContainer height={288}>
                         <PieChart>
                           <Pie
                             data={pieData}
@@ -706,7 +706,7 @@ export default function Dashboard() {
                           <RechartsTooltip content={<PieTooltip />} />
                           <Legend verticalAlign="bottom" height={36} wrapperStyle={{ fontSize: '11px', fontWeight: 'bold' }} />
                         </PieChart>
-                      </ResponsiveContainer>
+                      </SafeResponsiveContainer>
                     </div>
                     {/* Course list summary table inside Pie section */}
                     <div className="space-y-3">

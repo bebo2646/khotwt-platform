@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { BookOpen, CheckCircle, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { getCourseDisplayPrice } from '../../utils/pricing'
+import { ensureHttps } from '../../utils/urls'
 
 interface CourseCardProps {
   id: number
@@ -79,7 +80,7 @@ export default function CourseCard({
       {/* Thumbnail area */}
       <div className="aspect-video w-full bg-brand-surface relative overflow-hidden">
         <img 
-          src={coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+          src={ensureHttps(coverImage) || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
           alt={title} 
           className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
         />
@@ -112,7 +113,7 @@ export default function CourseCard({
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0">
               {teacherAvatar ? (
-                <img src={teacherAvatar} alt={teacherName} className="object-cover w-full h-full" />
+                <img src={ensureHttps(teacherAvatar)} alt={teacherName} className="object-cover w-full h-full" />
               ) : (
                 teacherName.charAt(0)
               )}

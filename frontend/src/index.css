@@ -824,6 +824,21 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   }
 }
 
+/* Modal and Overlay layering to always appear above sticky headers */
+.fixed.inset-0.bg-black\/50,
+.fixed.inset-0.bg-black\/60,
+.fixed.inset-0.bg-black\/40,
+[class*="fixed inset-0"][class*="bg-black/"],
+.modal-overlay {
+  z-index: 2999 !important;
+}
+
+.fixed.inset-0.flex.items-center.justify-center,
+[class*="fixed inset-0"][class*="z-50"],
+.modal-content {
+  z-index: 3000 !important;
+}
+
 
 
 
