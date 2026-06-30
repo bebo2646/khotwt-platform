@@ -4,6 +4,7 @@ import { WifiOff, Download, RefreshCw, X, Bell } from 'lucide-react'
 
 export default function PWAManager() {
   const [showSplash, setShowSplash] = useState(true)
+  const [renderSplash, setRenderSplash] = useState(true)
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [showInstallBanner, setShowInstallBanner] = useState(
     window.location.search.includes('simulate-install=true')
@@ -18,13 +19,20 @@ export default function PWAManager() {
 
   // 1. Splash Screen Timer (1.5 seconds)
   useEffect(() => {
+    let unmountTimer: any = null
     const timer = setTimeout(() => {
       // Keep splash active if simulating splash
       if (!window.location.search.includes('simulate-splash=true')) {
         setShowSplash(false)
+        unmountTimer = setTimeout(() => {
+          setRenderSplash(false)
+        }, 550)
       }
     }, 1500)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (unmountTimer) clearTimeout(unmountTimer)
+    }
   }, [])
 
   // 2. Offline Status Listener
@@ -179,45 +187,38 @@ export default function PWAManager() {
   return (
     <>
       {/* Splash Screen */}
-      <AnimatePresence>
-        {showSplash && (
-          <motion.div
-            key="splash-screen"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0, pointerEvents: 'none' }}
-            transition={{ duration: 0.5, ease: 'easeInOut' }}
-            style={{ pointerEvents: showSplash ? 'auto' : 'none' }}
-            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--bg-color)] text-[var(--text-color)] select-none"
-          >
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.5, ease: 'easeOut' }}
-              className="flex flex-col items-center text-center space-y-5 px-4"
-            >
-              {/* Premium Glow Logo Circle */}
-              <div className="relative flex items-center justify-center w-28 h-28 rounded-[2rem] bg-gradient-to-tr from-[var(--primary-color)] to-[var(--secondary-color)] shadow-[0_0_50px_rgba(99,102,241,0.4)] mb-2 overflow-hidden border border-[var(--border-color)]">
-                <div className="absolute inset-0.5 rounded-[1.9rem] bg-[var(--bg-color)] flex items-center justify-center">
-                  <img 
-                    src="/logo.png" 
-                    alt="خطوتك" 
-                    className="w-16 h-16 object-contain"
-                  />
-                </div>
+      {renderSplash && (
+        <div
+          style={{
+            pointerEvents: showSplash ? 'auto' : 'none',
+            opacity: showSplash ? 1 : 0,
+            transition: 'opacity 0.5s ease-in-out',
+          }}
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-[var(--bg-color)] text-[var(--text-color)] select-none"
+        >
+          <div className="flex flex-col items-center text-center space-y-5 px-4">
+            {/* Premium Glow Logo Circle */}
+            <div className="relative flex items-center justify-center w-28 h-28 rounded-[2rem] bg-gradient-to-tr from-[var(--primary-color)] to-[var(--secondary-color)] shadow-[0_0_50px_rgba(99,102,241,0.4)] mb-2 overflow-hidden border border-[var(--border-color)]">
+              <div className="absolute inset-0.5 rounded-[1.9rem] bg-[var(--bg-color)] flex items-center justify-center">
+                <img 
+                  src="/logo.png" 
+                  alt="خطوتك" 
+                  className="w-16 h-16 object-contain"
+                />
               </div>
-              
-              <div className="space-y-1">
-                <h1 className="text-4xl font-black tracking-wider text-[var(--text-color)]">
-                  خطوتك
-                </h1>
-                <p className="text-[var(--text-secondary)] text-base font-medium tracking-wide">
-                  أول خطوة نحو النجاح
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </div>
+            
+            <div className="space-y-1">
+              <h1 className="text-4xl font-black tracking-wider text-[var(--text-color)]">
+                خطوتك
+              </h1>
+              <p className="text-[var(--text-secondary)] text-base font-medium tracking-wide">
+                أول خطوة نحو النجاح
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Offline Overlay */}
       <AnimatePresence>
