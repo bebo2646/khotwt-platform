@@ -224,21 +224,21 @@ html {
   min-height: 100%;
   min-height: calc(var(--vh, 1vh) * 100);
   -webkit-overflow-scrolling: touch;
-  overflow-x: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: auto;
 }
 
 body,
 #root {
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
   min-height: 100%;
   min-height: calc(var(--vh, 1vh) * 100);
-  -webkit-overflow-scrolling: touch;
-}
-
-html {
-  overflow-y: auto;
+  overflow-x: visible;
+  overflow-y: visible;
+  overflow: visible;
+  touch-action: auto;
 }
 
 #root {
@@ -249,7 +249,7 @@ html {
 
 
 body {
-  touch-action: pan-y;
+  touch-action: auto;
   direction: rtl;
   text-align: right;
   background-color: var(--bg-color);
@@ -494,7 +494,6 @@ td {
 
 /* Prevent accidental horizontal scrolling and enable smooth inertial scrolling */
 body {
-  overflow-x: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }

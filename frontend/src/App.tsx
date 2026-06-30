@@ -68,9 +68,9 @@ const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboar
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen w-full overflow-x-hidden pt-[72px]">
+    <div className="flex flex-col min-h-screen w-full pt-[72px]">
       <Navbar />
-      <main className="flex-grow w-full overflow-x-hidden">
+      <main className="flex-grow w-full">
         {children}
       </main>
       <Footer />
@@ -143,8 +143,18 @@ function App() {
     };
   }, []);
 
-  // Debug scroll lock issues: log every 2 seconds
+  // Debug scroll lock issues: log every 2 seconds & debug wheel/touch event targets
   React.useEffect(() => {
+    const logWheel = (e: WheelEvent) => {
+      console.log('wheel', e.target);
+    };
+    const logTouch = (e: TouchEvent) => {
+      console.log('touchmove', e.target);
+    };
+
+    window.addEventListener('wheel', logWheel, { passive: true });
+    window.addEventListener('touchmove', logTouch, { passive: true });
+
     const interval = setInterval(() => {
       console.log({
         bodyOverflow: document.body.style.overflow,
@@ -153,7 +163,12 @@ function App() {
         htmlClasses: document.documentElement.className,
       });
     }, 2000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('wheel', logWheel);
+      window.removeEventListener('touchmove', logTouch);
+    };
   }, []);
 
 

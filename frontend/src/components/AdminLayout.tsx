@@ -350,7 +350,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   )
 
   return (
-    <div className="flex min-h-screen w-full bg-[var(--bg-color)] text-[var(--text-color)] overflow-x-hidden" dir="rtl">
+    <div className="flex min-h-screen w-full bg-[var(--bg-color)] text-[var(--text-color)]" dir="rtl">
       
       {/* 1. Desktop Sidebar */}
       <aside 
