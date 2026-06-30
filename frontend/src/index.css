@@ -846,6 +846,104 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   z-index: 3000 !important;
 }
 
+/* ==========================================
+   Course Card Layout & Pricing Fixes
+   ========================================== */
+
+.course-card {
+  transition: all 0.3s ease !important;
+}
+
+.course-card:hover {
+  transform: translateY(-4px) !important;
+}
+
+.course-card-footer {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+  min-height: 90px !important;
+  padding: 16px 24px !important;
+  border-top: 1px solid var(--border-color) !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+}
+
+.price-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  text-align: right !important;
+  min-height: 58px !important; /* Ensures stable height for alignment */
+}
+
+.discount-badge {
+  padding: 2px 8px !important;
+  border-radius: 9999px !important;
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34D399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15) !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.old-price {
+  font-size: 10px !important;
+  color: #64748B !important;
+  text-decoration: line-through !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  margin-top: 4px !important;
+}
+
+.new-price {
+  font-size: 1.25rem !important; /* text-xl */
+  font-weight: 900 !important;
+  background: linear-gradient(to right, #10B981, #34D399) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  filter: drop-shadow(0 2px 8px rgba(16,185,129,0.15)) !important;
+  line-height: 1 !important;
+  margin-top: 6px !important;
+  font-family: var(--font-sans), sans-serif !important;
+}
+
+/* Responsive layout for course card footer */
+@media (max-width: 380px) {
+  .course-card-footer {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 130px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding-bottom: 20px !important;
+  }
+  
+  .price-box {
+    align-items: center !important;
+    text-align: center !important;
+  }
+}
+
+/* Prevent text overflow for course titles */
+.line-clamp-2 {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+
+
 
 
 

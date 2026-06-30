@@ -72,10 +72,8 @@ export default function CourseCard({
   })
   
   return (
-    <motion.div 
-      whileHover={{ y: -6, scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:border-brand-primary/30 transition-all duration-300 flex flex-col justify-between h-full hover:shadow-[0_0_30px_var(--glow-color)]"
+    <div 
+      className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:border-brand-primary/30 transition-all duration-300 ease-in-out flex flex-col justify-between h-full hover:shadow-[0_0_30px_var(--glow-color)] course-card"
     >
       {/* Thumbnail area */}
       <div className="aspect-video w-full bg-brand-surface relative overflow-hidden">
@@ -123,7 +121,7 @@ export default function CourseCard({
 
           {/* Title and description */}
           <div className="space-y-1">
-            <h3 className="font-black text-base text-foreground group-hover:text-brand-primary transition-colors duration-200 line-clamp-1 leading-normal">
+            <h3 className="font-black text-base text-foreground group-hover:text-brand-primary transition-colors duration-200 line-clamp-2 min-h-[48px] leading-snug">
               {title}
             </h3>
             {description && (
@@ -161,52 +159,57 @@ export default function CourseCard({
       </div>
 
       {/* Pricing and Action Footer */}
-      <div className="p-6 pt-0 border-t border-[var(--border-color)] bg-brand-surface/20 flex items-center justify-between gap-4">
+      <div className="course-card-footer bg-brand-surface/20">
         {isSubscribed ? (
           <>
-            <span className="text-xs text-text-secondary font-bold">تم الشراء</span>
+            <div className="price-box">
+              <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+              <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+              <span className="new-price text-xs font-bold" style={{ background: 'none', color: 'var(--text-secondary)', WebkitTextFillColor: 'initial', WebkitBackgroundClip: 'unset', backgroundClip: 'unset' }}>
+                تم الشراء
+              </span>
+            </div>
             <Link 
               to={`/course/${slug || id}`} 
-              className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all duration-200 flex items-center gap-1 cursor-pointer"
+              className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all duration-200 cursor-pointer shrink-0"
             >
               <span>متابعة التعليم</span>
-              <ArrowLeft className="h-3.5 w-3.5 shrink-0" />
+              <ArrowLeft className="h-3.5 w-3.5 shrink-0 mr-1" />
             </Link>
           </>
         ) : (
           <>
-            {pricing.hasDiscount ? (
-              <div className="flex flex-col items-start gap-1 select-none">
-                {/* Original Price */}
-                <span className="text-xs text-slate-500 line-through font-semibold">
+            <div className="price-box">
+              {pricing.hasDiscount ? (
+                <span className="discount-badge">
+                  {discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`}
+                </span>
+              ) : (
+                <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+              )}
+              
+              {pricing.hasDiscount ? (
+                <span className="old-price">
                   {pricing.formattedOriginalPrice}
                 </span>
-                {/* Discount Badge + Final Price */}
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] group-hover:scale-[1.03] group-hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
-                    {pricing.formattedFinalPrice}
-                  </span>
-                  <span className="px-2 py-1 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/25 text-[10px] font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] shrink-0">
-                    {pricing.discountText}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="select-none">
-                <span className="text-2xl md:text-3xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] group-hover:scale-[1.03] group-hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
-                  {pricing.formattedOriginalPrice}
-                </span>
-              </div>
-            )}
+              ) : (
+                <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+              )}
+              
+              <span className="new-price">
+                {pricing.hasDiscount ? pricing.formattedFinalPrice : pricing.formattedOriginalPrice}
+              </span>
+            </div>
+            
             <Link 
               to={`/course/${slug || id}`} 
-              className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-200 cursor-pointer shrink-0"
+              className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-200 cursor-pointer shrink-0"
             >
               اشترك الآن
             </Link>
           </>
         )}
       </div>
-    </motion.div>
+    </div>
   )
 }
