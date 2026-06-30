@@ -614,6 +614,41 @@ html, body {
   touch-action: manipulation;      /* Disables double-tap to zoom to speed up clicks on buttons/links */
 }
 
+/* Layout polish and UX refinement */
+.max-w-7xl {
+  max-width: 1600px !important;
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+@media (min-width: 1024px) {
+  .max-w-7xl {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+}
+
+/* Card Padding, radius & shadows */
+.bg-brand-card, [class*="bg-brand-card"], .bg-\[var\(--card-bg\)\], .bg-card-bg {
+  padding: 24px !important;
+  border-radius: 20px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Spacing and gap consistency */
+.gap-6, .gap-8, .gap-x-6, .gap-y-6, .gap-x-8, .gap-y-8 {
+  gap: 24px !important;
+}
+
+/* Button border radius consistency */
+button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
+  border-radius: 12px !important;
+}
+
+
 
 
 

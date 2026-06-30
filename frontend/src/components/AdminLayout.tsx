@@ -376,8 +376,8 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         }`}
       >
         
-        {/* Top Header: Height 64px (h-16) */}
-        <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 border-b border-[var(--border-color)] bg-[var(--bg-color)]/85 backdrop-blur-md">
+        {/* Top Header: Height 72px */}
+        <header className="sticky top-0 z-[1000] flex items-center justify-between h-[72px] px-6 border-b border-[var(--border-color)] bg-[var(--card-bg)]/80 backdrop-blur-[20px]">
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
           <div className="flex items-center gap-4">
             <button
@@ -483,7 +483,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         </header>
 
         {/* 4. Page Content area */}
-        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-7xl mx-auto overflow-y-auto">
+        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-[1600px] mx-auto overflow-y-auto">
           {children}
         </main>
       </div>
