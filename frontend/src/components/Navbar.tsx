@@ -146,7 +146,8 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-[1000] backdrop-blur-[20px] bg-[var(--card-bg)]/80 border-b border-[var(--border-color)] transition-colors duration-300">
+    <>
+      <nav className="fixed top-0 left-0 right-0 z-[1000] backdrop-blur-[20px] bg-[var(--card-bg)]/80 border-b border-[var(--border-color)] transition-colors duration-300">
       <div className="max-w-[1600px] w-full mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-[72px]">
           
@@ -270,29 +271,33 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Menu Drawer */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <>
-            {/* Backdrop Overlay */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileMenuOpen(false)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9998] md:hidden"
-            />
-            
-            {/* Drawer */}
-            <motion.div 
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 h-full w-[300px] bg-[var(--card-bg)] border-l border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[9999] md:hidden flex flex-col p-6 overflow-y-auto text-right"
-              dir="rtl"
-            >
-              {/* Header with logo & close button */}
+    </nav>
+
+    {/* Mobile Menu Drawer */}
+    <AnimatePresence>
+      {mobileMenuOpen && (
+        <>
+          {/* Backdrop Overlay */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1999] md:hidden"
+          />
+          
+          {/* Drawer */}
+          <motion.div 
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 h-screen w-[320px] max-w-[85vw] bg-[var(--card-bg)] border-l border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[2000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right"
+            dir="rtl"
+          >
+            {/* Top part: Header + Navigation */}
+            <div className="flex flex-col flex-1">
+              {/* Header */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-[var(--border-color)]">
                 <div className="flex items-center gap-2.5">
                   <img src="/logo.png" alt="شعار خطوتك" className="h-8 w-8 object-contain" />
@@ -307,36 +312,67 @@ export default function Navbar() {
               </div>
               
               {/* Navigation Links */}
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3">
                 {renderNavLinks()}
               </div>
-              
-              <hr className="border-[var(--border-color)] my-6" />
-              
-              {/* User Wallet & Actions */}
-              <div className="flex flex-col gap-4">
-                {isLoggedIn && user ? (
-                  <div className="w-full space-y-4">
-                    {user.role === 'student' && user.wallet && (
-                      <div className="flex justify-between items-center px-4 py-3 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
-                        <span className="text-xs text-[var(--text-secondary)]">رصيد المحفظة</span>
-                        <span className="text-sm font-black text-brand-primary">{user.wallet.balance} ج.م</span>
+            </div>
+            
+            {/* Bottom part: User Card / Login Actions */}
+            <div className="mt-8 pt-4 border-t border-[var(--border-color)]">
+              {isLoggedIn && user ? (
+                <div className="w-full space-y-4">
+                  {/* User Card */}
+                  <div className="px-4 py-3 bg-[var(--surface-bg)] rounded-[18px] border border-[var(--border-color)] flex items-center gap-3">
+                    {user.avatar ? (
+                      <img 
+                        src={user.avatar} 
+                        alt="Avatar" 
+                        className="w-10 h-10 rounded-xl object-cover border border-[var(--border-color)]" 
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 font-black flex items-center justify-center text-sm border border-indigo-500/20 uppercase shrink-0">
+                        {user.name.slice(0, 2)}
                       </div>
                     )}
-                    <UserProfileDropdown mobile={true} onClose={() => setMobileMenuOpen(false)} />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-xs font-black text-[var(--text-color)] truncate">{user.name}</h4>
+                      <span className="text-[10px] text-indigo-400 font-bold mt-0.5 block">
+                        {user.role === 'teacher' ? 'معلم معتمد' : user.role === 'admin' ? 'مدير النظام' : 'طالب'}
+                      </span>
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex flex-col gap-3">
-                    <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full py-2.5 text-center text-xs font-bold border border-[var(--border-color)] rounded-xl hover:bg-[var(--bg-color)]/30">تسجيل دخول</Link>
-                    <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="w-full py-2.5 text-center text-xs font-bold bg-brand-primary text-white rounded-xl shadow-md">إنشاء حساب</Link>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
 
-    </nav>
-  )
+                  {user.role === 'student' && user.wallet && (
+                    <div className="flex justify-between items-center px-4 py-3 bg-brand-primary/5 rounded-xl border border-brand-primary/10">
+                      <span className="text-xs text-[var(--text-secondary)]">رصيد المحفظة</span>
+                      <span className="text-sm font-black text-brand-primary">{user.wallet.balance} ج.م</span>
+                    </div>
+                  )}
+                  
+                  {/* Logout Button */}
+                  <button
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                      navigate('/login', { replace: true });
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-3 h-11 text-xs font-black rounded-[12px] text-rose-500 hover:text-white hover:bg-rose-500/10 transition-all cursor-pointer border-none bg-transparent"
+                  >
+                    <LogOut className="w-4 h-4 text-rose-500" />
+                    <span>تسجيل الخروج</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)} className="w-full py-2.5 text-center text-xs font-bold border border-[var(--border-color)] rounded-xl hover:bg-[var(--bg-color)]/30">تسجيل دخول</Link>
+                  <Link to="/register" onClick={() => setMobileMenuOpen(false)} className="w-full py-2.5 text-center text-xs font-bold bg-brand-primary text-white rounded-xl shadow-md">إنشاء حساب</Link>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  </>
+)
 }
