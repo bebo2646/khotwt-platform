@@ -349,14 +349,15 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
       {/* 2. Mobile Drawer Sidebar */}
       {mobileSidebarOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <>
           {/* Backdrop */}
           <div 
             onClick={() => setMobileSidebarOpen(false)}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 z-[999] transition-opacity duration-300"
+            style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
           />
           {/* Drawer Body */}
-          <aside className="relative flex flex-col w-[280px] max-w-xs h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] animate-slide-in-right z-10">
+          <aside className="fixed top-0 right-0 w-[280px] max-w-xs h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] animate-slide-in-right z-[1000] flex flex-col">
             <button 
               onClick={() => setMobileSidebarOpen(false)}
               className="absolute left-4 top-4 p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
@@ -367,7 +368,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
               {renderSidebarContent()}
             </div>
           </aside>
-        </div>
+        </>
       )}
 
       {/* 3. Main Content Wrapper */}
