@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../context/NotificationContext'
 import { useAuthStore } from '../store/authStore'
@@ -14,6 +14,8 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [styleOverride, setStyleOverride] = useState<React.CSSProperties>({})
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -22,6 +24,27 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
       }
     }
     window.addEventListener('keydown', handleKeyDown)
+
+    // Viewport Protection Bounds Check
+    if (dropdownRef.current) {
+      const dropdown = dropdownRef.current
+      const rect = dropdown.getBoundingClientRect()
+      const override: React.CSSProperties = {}
+
+      if (rect.left < 16) {
+        override.left = '16px'
+        override.right = 'auto'
+      }
+      if (rect.right > window.innerWidth - 16) {
+        override.right = '16px'
+        override.left = 'auto'
+      }
+      
+      if (Object.keys(override).length > 0) {
+        setStyleOverride(override)
+      }
+    }
+
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
@@ -69,13 +92,15 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
       />
 
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        ref={dropdownRef}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
-        className="fixed left-4 right-4 top-[80px] w-auto max-h-[70vh] rounded-[20px] z-[9999] overflow-y-auto bg-[var(--card-bg)] border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right backdrop-blur-lg transition-all duration-300 overflow-x-hidden md:absolute md:top-full md:right-0 md:left-auto md:w-96 md:max-h-[500px] md:rounded-3xl md:z-[99] md:mt-2 md:overflow-y-auto"
+        className="fixed top-[70px] right-4 left-4 w-auto max-h-[70vh] rounded-[20px] z-[2000] overflow-y-auto bg-[var(--card-bg)] border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right backdrop-blur-lg transition-all duration-200 overflow-x-hidden md:absolute md:top-[calc(100%+12px)] md:left-0 md:right-auto md:w-[360px] md:max-w-[calc(100vw-32px)] md:max-h-[70vh] notification-list-scroll"
         style={{
           wordBreak: 'break-word',
+          ...styleOverride
         }}
       >
         <div className="flex justify-between items-center pb-2.5 border-b border-[var(--border-color)] mb-3">
