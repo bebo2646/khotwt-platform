@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import React, { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useNotifications } from '../context/NotificationContext'
 import { useAuthStore } from '../store/authStore'
 import { CheckCircle, AlertTriangle, AlertCircle, Bell, Mail } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 interface NotificationDropdownProps {
   onClose: () => void
@@ -11,23 +12,8 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onClose, alignRight = true }) => {
   const navigate = useNavigate()
-  const location = useLocation()
   const { user } = useAuthStore()
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
-
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    onClose()
-  }, [location.pathname, onClose])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -77,32 +63,20 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
   return (
     <>
       {/* Backdrop for mobile screen overlay */}
-      {isMobile && (
-        <div 
-          className="fixed inset-0 bg-black/35 backdrop-blur-sm z-[9998] transition-opacity duration-300"
-          onClick={onClose}
-        />
-      )}
-
       <div 
-        className={`bg-[var(--card-bg)] border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right backdrop-blur-lg transition-all duration-300 overflow-x-hidden ${
-          isMobile 
-            ? 'fixed left-3 right-3 top-[70px] max-h-[60vh] rounded-[20px] z-[9999] overflow-y-auto'
-            : 'absolute mt-3 rounded-3xl z-[99] overflow-y-auto'
-        }`}
-        style={
-          isMobile
-            ? {
-                width: 'calc(100vw - 24px)',
-              }
-            : {
-                width: 'min(420px, calc(100vw - 2rem))',
-                right: alignRight ? 0 : 'auto',
-                left: alignRight ? 'auto' : 0,
-                maxHeight: '400px',
-                wordBreak: 'break-word',
-              }
-        }
+        className="block md:hidden fixed inset-0 bg-black/35 backdrop-blur-sm z-[9998] transition-opacity duration-300"
+        onClick={onClose}
+      />
+
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        transition={{ duration: 0.2 }}
+        className="fixed left-4 right-4 top-[80px] w-auto max-h-[70vh] rounded-[20px] z-[9999] overflow-y-auto bg-[var(--card-bg)] border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right backdrop-blur-lg transition-all duration-300 overflow-x-hidden md:absolute md:top-full md:right-0 md:left-auto md:w-96 md:max-h-[500px] md:rounded-3xl md:z-[99] md:mt-2 md:overflow-y-auto"
+        style={{
+          wordBreak: 'break-word',
+        }}
       >
         <div className="flex justify-between items-center pb-2.5 border-b border-[var(--border-color)] mb-3">
           <span className="text-xs font-black text-[var(--text-color)]">آخر التنبيهات والرسائل</span>
@@ -183,7 +157,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
             })}
           </div>
         )}
-      </div>
+      </motion.div>
     </>
   )
 }

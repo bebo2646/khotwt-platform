@@ -5,6 +5,7 @@ import { useThemeStore } from '../store/themeStore'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { NotificationToast } from './NotificationToast'
+import { AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard,
   Users,
@@ -412,7 +413,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             {/* Notification Bell Dropdown wrapper */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  setShowNotifDropdown(!showNotifDropdown);
+                }}
+                onClick={(e) => e.preventDefault()}
                 className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition relative cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
@@ -423,9 +428,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                 )}
               </button>
 
-              {showNotifDropdown && (
-                <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
-              )}
+              <AnimatePresence>
+                {showNotifDropdown && (
+                  <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Profile Dropdown wrapper */}

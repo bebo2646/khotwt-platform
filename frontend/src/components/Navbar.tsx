@@ -7,6 +7,7 @@ import API from '../services/api'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { UserProfileDropdown } from './UserProfileDropdown'
+import { AnimatePresence } from 'framer-motion'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
   const text = (title + ' ' + message).toLowerCase()
@@ -173,7 +174,11 @@ export default function Navbar() {
             {isLoggedIn && (
               <div className="relative" ref={notifRef}>
                 <button
-                  onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setShowNotifDropdown(!showNotifDropdown);
+                  }}
+                  onClick={(e) => e.preventDefault()}
                   className="p-2 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[var(--border-color)] cursor-pointer text-current relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
@@ -186,9 +191,11 @@ export default function Navbar() {
                   )}
                 </button>
 
-                {showNotifDropdown && (
-                  <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
-                )}
+                <AnimatePresence>
+                  {showNotifDropdown && (
+                    <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
+                  )}
+                </AnimatePresence>
               </div>
             )}
 
