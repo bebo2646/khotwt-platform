@@ -136,11 +136,87 @@ export default function Dashboard() {
     return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
   }
 
+  const getCurrentMonthArabic = () => {
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ]
+    return months[new Date().getMonth()]
+  }
+
+  const getPreviousMonthArabic = () => {
+    const months = [
+      'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+      'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+    ]
+    const d = new Date()
+    d.setMonth(d.getMonth() - 1)
+    return months[d.getMonth()]
+  }
+
   const mergedChartData = React.useMemo(() => {
     if (!stats) return []
-    const revs = stats.revenue_chart || []
-    const enrolls = stats.enrollments_chart || []
     
+    let revs = stats.revenue_chart || []
+    let enrolls = stats.enrollments_chart || []
+    
+    // Support the { labels: [], datasets: [] } API format
+    const apiRaw: any = stats
+    if (apiRaw.labels && Array.isArray(apiRaw.labels) && apiRaw.datasets && Array.isArray(apiRaw.datasets)) {
+      const result = apiRaw.labels.map((label: string, idx: number) => {
+        const revenue = apiRaw.datasets[0]?.data?.[idx] ?? 0
+        const subscriptions = apiRaw.datasets[1]?.data?.[idx] ?? 0
+        return {
+          month: label,
+          revenue: parseFloat(revenue) || 0,
+          subscriptions: parseInt(subscriptions) || 0,
+          growth: 0
+        }
+      })
+      
+      for (let i = 0; i < result.length; i++) {
+        if (i === 0) {
+          result[i].growth = 0
+        } else {
+          const prev = result[i - 1].subscriptions
+          const curr = result[i].subscriptions
+          if (prev === 0) {
+            result[i].growth = curr > 0 ? 100 : 0
+          } else {
+            result[i].growth = parseFloat((((curr - prev) / prev) * 100).toFixed(1))
+          }
+        }
+      }
+      
+      if (result.length > 0) {
+        return result
+      }
+    }
+
+    const totalRevVal = parseFloat(stats.total_revenue) || 0
+    const totalStudentsVal = stats.students_count || 0
+    const hasDataPoints = revs.length > 0 || enrolls.length > 0
+
+    // Fallback: If no data points exist, but totals exist, generate fallback
+    if (!hasDataPoints && (totalRevVal > 0 || totalStudentsVal > 0)) {
+      const prevMonth = getPreviousMonthArabic()
+      const currMonth = getCurrentMonthArabic()
+      return [
+        {
+          month: prevMonth,
+          revenue: 0,
+          subscriptions: 0,
+          growth: 0
+        },
+        {
+          month: currMonth,
+          revenue: totalRevVal,
+          subscriptions: totalStudentsVal,
+          growth: totalStudentsVal > 0 ? 100 : 0
+        }
+      ]
+    }
+
     const dataMap = new Map<string, { month: string, revenue: number, subscriptions: number, growth: number }>()
     
     revs.forEach(r => {
@@ -180,6 +256,20 @@ export default function Dashboard() {
           arr[i].growth = parseFloat((((curr - prev) / prev) * 100).toFixed(1))
         }
       }
+    }
+    
+    // Prepend previous month if only 1 data point exists to ensure nice chart rendering
+    if (arr.length === 1 && (totalRevVal > 0 || totalStudentsVal > 0)) {
+      const prevMonth = getPreviousMonthArabic()
+      return [
+        {
+          month: prevMonth,
+          revenue: 0,
+          subscriptions: 0,
+          growth: 0
+        },
+        arr[0]
+      ]
     }
     
     return arr
@@ -291,8 +381,40 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-32">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
+      <div className="max-w-7xl mx-auto px-4 py-12 space-y-12 animate-pulse text-right" dir="rtl">
+        {/* Header Skeleton */}
+        <div className="space-y-2">
+          <div className="h-8 bg-slate-800 rounded-lg w-48"></div>
+          <div className="h-4 bg-slate-800 rounded-lg w-80"></div>
+        </div>
+
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl h-28 flex flex-col justify-between">
+              <div className="flex justify-between items-center">
+                <div className="h-3 bg-slate-800 rounded w-16"></div>
+                <div className="w-8 h-8 bg-slate-800 rounded-xl"></div>
+              </div>
+              <div className="h-6 bg-slate-800 rounded w-24"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Spacing */}
+        <div className="h-px bg-slate-800 my-8"></div>
+
+        {/* Charts Grid Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl h-80 flex flex-col justify-between">
+            <div className="h-5 bg-slate-800 rounded w-48 mb-6"></div>
+            <div className="flex-1 bg-slate-850 rounded-2xl"></div>
+          </div>
+          <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl h-80 flex flex-col justify-between">
+            <div className="h-5 bg-slate-800 rounded w-48 mb-6"></div>
+            <div className="flex-1 bg-slate-850 rounded-2xl"></div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -499,13 +621,13 @@ export default function Dashboard() {
         <div className="space-y-8 pt-8">
           {!hasEnoughData ? (
             /* 3. Empty State */
-            <div className="bg-brand-card border border-[var(--border-color)] p-12 text-center rounded-3xl flex flex-col items-center justify-center space-y-4 shadow-sm">
-              <div className="p-4 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">
-                <AlertCircle className="h-10 w-10 animate-pulse" />
+            <div className="bg-brand-card border border-[var(--border-color)] h-[320px] text-center rounded-3xl flex flex-col items-center justify-center space-y-4 shadow-sm">
+              <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">
+                <AlertCircle className="h-8 w-8 animate-pulse" />
               </div>
-              <h3 className="text-base font-bold text-slate-200">لا توجد بيانات كافية لعرض التحليلات بعد.</h3>
-              <p className="text-xs text-slate-400 font-light max-w-sm leading-relaxed">
-                يتطلب إظهار الرسوم البيانية وجود عمليات اشتراك ومبيعات مسجلة تغطي شهرين على الأقل.
+              <h3 className="text-base font-bold text-slate-200">لا توجد بيانات كافية لعرض التحليلات حتى الآن</h3>
+              <p className="text-xs text-slate-400 font-light max-w-xs leading-relaxed">
+                ستظهر الإحصائيات تلقائياً بعد وجود اشتراكات وعمليات أكثر.
               </p>
             </div>
           ) : (
