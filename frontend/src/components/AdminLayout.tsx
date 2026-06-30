@@ -67,6 +67,21 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [mobileSidebarOpen]);
+
   const handleLogout = () => {
     logout()
     navigate('/login', { replace: true })

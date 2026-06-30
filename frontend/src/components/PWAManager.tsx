@@ -45,6 +45,22 @@ export default function PWAManager() {
     }
   }, [])
 
+  // Scroll Lock & Cleanup Logic for Splash Screen and Offline mode
+  useEffect(() => {
+    if (showSplash || isOffline) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, [showSplash, isOffline]);
+
   // 3. Service Worker Registration & Update Detection
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -166,6 +182,7 @@ export default function PWAManager() {
       <AnimatePresence>
         {showSplash && (
           <motion.div
+            key="splash-screen"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' }}
             transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -206,6 +223,7 @@ export default function PWAManager() {
       <AnimatePresence>
         {isOffline && (
           <motion.div
+            key="offline-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' }}
@@ -245,6 +263,7 @@ export default function PWAManager() {
       <AnimatePresence>
         {showInstallBanner && !showSplash && !isOffline && (deferredPrompt || window.location.search.includes('simulate-install=true')) && (
           <motion.div
+            key="pwa-install-banner"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50, pointerEvents: 'none' }}
@@ -295,6 +314,7 @@ export default function PWAManager() {
       <AnimatePresence>
         {updateAvailable && !showSplash && !isOffline && (
           <motion.div
+            key="sw-update-banner"
             initial={{ opacity: 0, y: -40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20, pointerEvents: 'none' }}

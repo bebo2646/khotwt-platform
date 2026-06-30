@@ -143,6 +143,32 @@ function App() {
     };
   }, []);
 
+  // Debug scroll lock issues when scrolling stops or is blocked
+  React.useEffect(() => {
+    const checkScrollLock = () => {
+      const isBodyLocked = document.body.style.overflow === 'hidden' || document.body.style.position === 'fixed';
+      const isHtmlLocked = document.documentElement.style.overflow === 'hidden';
+      if (isBodyLocked || isHtmlLocked) {
+        console.log(
+          'body overflow:',
+          document.body.style.overflow
+        );
+        console.log(
+          'html overflow:',
+          document.documentElement.style.overflow
+        );
+      }
+    };
+
+    window.addEventListener('wheel', checkScrollLock, { passive: true });
+    window.addEventListener('touchmove', checkScrollLock, { passive: true });
+
+    return () => {
+      window.removeEventListener('wheel', checkScrollLock);
+      window.removeEventListener('touchmove', checkScrollLock);
+    };
+  }, []);
+
 
   // Poll session state every 10 seconds while logged in
   React.useEffect(() => {

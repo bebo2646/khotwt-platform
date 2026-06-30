@@ -23,7 +23,21 @@ export function ConfirmModal() {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+
+    if (confirmOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
   }, [confirmOpen, closeConfirm, confirmOptions])
 
   if (!confirmOpen || !confirmOptions) return null
@@ -144,7 +158,21 @@ export function AlertModal() {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+
+    if (alertOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
   }, [alertOpen, closeAlert, alertOptions])
 
   if (!alertOpen || !alertOptions) return null
@@ -279,6 +307,14 @@ export function ToastContainer() {
 
 // 4. ModalProvider combines everything
 export function ModalProvider() {
+  React.useEffect(() => {
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    };
+  }, []);
+
   return (
     <>
       <ConfirmModal />

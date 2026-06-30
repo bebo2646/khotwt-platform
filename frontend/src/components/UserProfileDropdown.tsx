@@ -22,7 +22,12 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({ onClos
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
   }, [onClose])
 
   if (!user) return null

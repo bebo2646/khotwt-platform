@@ -45,7 +45,12 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
       }
     }
 
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.documentElement.style.overflow = '';
+    }
   }, [onClose])
 
   const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
