@@ -100,10 +100,10 @@ export default function Subscription() {
   // Invalidate stale cache and auto-refetch if inactive plan is found
   useEffect(() => {
     if (plans.length > 0) {
-      const hasInactive = plans.some(p => p.active === false || (p.active as any) === 0 || (p as any).active === '0');
+      const hasInactive = plans.some(p => p.active === false || (p.active as any) === 0 || (p as any).active === '0' || (p as any).isActive === false || ((p as any).isActive as any) === 0 || ((p as any).isActive as any) === '0');
       if (hasInactive) {
         console.warn("Inactive plan detected in cache. Invalidating and auto-refetching...");
-        setPlans(prev => prev.filter(p => p.active !== false && (p.active as any) !== 0 && (p as any).active !== '0'));
+        setPlans(prev => prev.filter(p => p.active !== false && (p.active as any) !== 0 && (p as any).active !== '0' && (p as any).isActive !== false && ((p as any).isActive as any) !== 0 && ((p as any).isActive as any) !== '0'));
         loadData();
       }
     }

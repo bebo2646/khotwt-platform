@@ -21,6 +21,10 @@ class SubscriptionPlan extends Model
         'sort_order',
         'badge_text',
         'color_theme',
+        'durationType',
+        'discountPercentage',
+        'finalPrice',
+        'isActive',
         // Legacy fields for backward compatibility
         'video_storage_gb',
         'student_codes',
@@ -38,6 +42,10 @@ class SubscriptionPlan extends Model
         'featured' => 'boolean',
         'active' => 'boolean',
         'sort_order' => 'integer',
+        'durationType' => 'string',
+        'discountPercentage' => 'decimal:2',
+        'finalPrice' => 'decimal:2',
+        'isActive' => 'boolean',
     ];
 
     public function subscriptions()

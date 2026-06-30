@@ -812,7 +812,7 @@ class SubscriptionController extends Controller
                 'students_count' => $studentsCount,
             ],
             'addons' => $subscription->addons()->orderBy('created_at', 'desc')->get(),
-            'plans' => SubscriptionPlan::where('active', true)->orderBy('sort_order', 'asc')->get(),
+            'plans' => SubscriptionPlan::where('isActive', true)->orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
         ]);
@@ -866,8 +866,8 @@ class SubscriptionController extends Controller
             $plan = SubscriptionPlan::findOrFail($request->requested_plan_id);
             
             // Protection: Deactivated plans cannot be requested/purchased
-            if (!$plan->active) {
-                return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير مفعلة حالياً ولا يمكن الترقية إليها.'], 400);
+            if (!$plan->isActive) {
+                return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير متاحة حالياً ولا يمكن الترقية إليها.'], 400);
             }
             
             $details = $this->getSubscriptionPriceDetails($plan, $billingCycle);
@@ -1033,6 +1033,10 @@ class SubscriptionController extends Controller
             'sort_order' => 'required|integer',
             'badge_text' => 'nullable|string|max:255',
             'color_theme' => 'nullable|string|max:255',
+            'durationType' => 'required|string|in:monthly,quarterly,semi_annual,yearly',
+            'discountPercentage' => 'required|numeric|between:0,100',
+            'finalPrice' => 'required|numeric|min:0',
+            'isActive' => 'required|boolean',
         ]);
 
         $data = $request->all();
@@ -1043,13 +1047,20 @@ class SubscriptionController extends Controller
             $data['currency'] = 'EGP';
         }
 
+        // Auto-calculate finalPrice
+        $data['finalPrice'] = $data['price'] - ($data['price'] * ($data['discountPercentage'] / 100));
+        if ($data['finalPrice'] < 0) {
+            $data['finalPrice'] = 0;
+        }
+
         // Keep legacy fields populated just in case of raw queries
-        $data['price_egp'] = $data['price'];
+        $data['price_egp'] = $data['finalPrice'];
         $data['video_storage_gb'] = $data['max_storage_gb'];
         $data['student_codes'] = $data['included_codes'];
         $data['duration_days'] = $data['duration_in_days'];
         $data['is_popular'] = $data['featured'];
         $data['is_trial'] = ($data['slug'] === 'starter' || $data['slug'] === 'free' || $data['price'] == 0);
+        $data['active'] = $data['isActive'];
 
         $plan = SubscriptionPlan::create($data);
 
@@ -1086,6 +1097,10 @@ class SubscriptionController extends Controller
             'sort_order' => 'required|integer',
             'badge_text' => 'nullable|string|max:255',
             'color_theme' => 'nullable|string|max:255',
+            'durationType' => 'required|string|in:monthly,quarterly,semi_annual,yearly',
+            'discountPercentage' => 'required|numeric|between:0,100',
+            'finalPrice' => 'required|numeric|min:0',
+            'isActive' => 'required|boolean',
         ]);
 
         $plan = SubscriptionPlan::findOrFail($id);
@@ -1096,13 +1111,20 @@ class SubscriptionController extends Controller
             $data['slug'] = \Illuminate\Support\Str::slug($data['name']);
         }
 
+        // Auto-calculate finalPrice
+        $data['finalPrice'] = $data['price'] - ($data['price'] * ($data['discountPercentage'] / 100));
+        if ($data['finalPrice'] < 0) {
+            $data['finalPrice'] = 0;
+        }
+
         // Keep legacy fields populated just in case of raw queries
-        $data['price_egp'] = $data['price'];
+        $data['price_egp'] = $data['finalPrice'];
         $data['video_storage_gb'] = $data['max_storage_gb'];
         $data['student_codes'] = $data['included_codes'];
         $data['duration_days'] = $data['duration_in_days'];
         $data['is_popular'] = $data['featured'];
         $data['is_trial'] = ($data['slug'] === 'starter' || $data['slug'] === 'free' || $data['price'] == 0);
+        $data['active'] = $data['isActive'];
 
         // Price History Check
         if ((float)$plan->price !== (float)$data['price']) {
@@ -1139,13 +1161,14 @@ class SubscriptionController extends Controller
         $oldValues = $plan->toArray();
 
         $plan->active = !$plan->active;
+        $plan->isActive = !$plan->isActive;
         $plan->save();
 
         $newValues = $plan->toArray();
         $this->logPlanAudit($plan->id, $request->user()->id, 'toggle_active', $oldValues, $newValues);
 
         return response()->json([
-            'message' => $plan->active ? 'تم تفعيل خطة الاشتراك بنجاح' : 'تم إلغاء تفعيل خطة الاشتراك بنجاح',
+            'message' => $plan->isActive ? 'تم تفعيل خطة الاشتراك بنجاح' : 'تم إلغاء تفعيل خطة الاشتراك بنجاح',
             'plan' => $plan
         ]);
     }
@@ -1398,7 +1421,7 @@ class SubscriptionController extends Controller
     public function listPlansPublic(Request $request)
     {
         return response()->json([
-            'plans' => SubscriptionPlan::where('active', true)
+            'plans' => SubscriptionPlan::where('isActive', true)
                 ->orderBy('sort_order', 'asc')
                 ->get(),
             'settings' => $this->getSettings()

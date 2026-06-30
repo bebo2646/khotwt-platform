@@ -3,7 +3,7 @@ import API from '../../services/api'
 import { 
   Plus, Edit2, Trash2, ArrowUp, ArrowDown, History, 
   FileText, Check, X, Shield, Info, DollarSign, 
-  Layers, Database, Code, Calendar, AlertTriangle, AlertCircle
+  Layers, Database, Code, Calendar, AlertTriangle, AlertCircle, Percent
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
@@ -23,6 +23,10 @@ interface Plan {
   sort_order: number
   badge_text: string | null
   color_theme: string | null
+  durationType?: string
+  discountPercentage?: number | string
+  finalPrice?: number | string
+  isActive?: boolean
   created_at?: string
   updated_at?: string
 }
@@ -86,6 +90,18 @@ export default function SubscriptionPlans() {
   const [badgeText, setBadgeText] = useState('')
   const [colorTheme, setColorTheme] = useState('indigo')
 
+  // New Subscription Durations and Package fields
+  const [durationType, setDurationType] = useState('monthly')
+  const [discountPercentage, setDiscountPercentage] = useState<number>(0)
+  const [finalPrice, setFinalPrice] = useState<number>(0)
+  const [isActive, setIsActive] = useState(true)
+
+  // Auto-calculate final price
+  useEffect(() => {
+    const calculated = price - (price * discountPercentage / 100)
+    setFinalPrice(calculated < 0 ? 0 : calculated)
+  }, [price, discountPercentage])
+
   // Price Confirmation Modal State
   const [priceConfirmOpen, setPriceConfirmOpen] = useState(false)
   const [pendingSubmitData, setPendingSubmitData] = useState<any>(null)
@@ -135,10 +151,14 @@ export default function SubscriptionPlans() {
       setMaxStorageGb(editingPlan.max_storage_gb || 0)
       setIncludedCodes(editingPlan.included_codes || 0)
       setFeatured(editingPlan.featured || false)
-      setActive(editingPlan.active || false)
+      setActive(editingPlan.isActive !== false)
       setSortOrder(editingPlan.sort_order || 0)
       setBadgeText(editingPlan.badge_text || '')
       setColorTheme(editingPlan.color_theme || 'indigo')
+      setDurationType(editingPlan.durationType || 'monthly')
+      setDiscountPercentage(Number(editingPlan.discountPercentage) || 0)
+      setFinalPrice(Number(editingPlan.finalPrice) || 0)
+      setIsActive(editingPlan.isActive !== false)
     } else {
       // Reset defaults for Create
       setName('')
@@ -155,6 +175,10 @@ export default function SubscriptionPlans() {
       setSortOrder(plans.length)
       setBadgeText('')
       setColorTheme('indigo')
+      setDurationType('monthly')
+      setDiscountPercentage(0)
+      setFinalPrice(0)
+      setIsActive(true)
     }
   }, [editingPlan, isFormOpen])
 
@@ -269,7 +293,11 @@ export default function SubscriptionPlans() {
       active,
       sort_order: sortOrder,
       badge_text: badgeText || null,
-      color_theme: colorTheme
+      color_theme: colorTheme,
+      durationType,
+      discountPercentage,
+      finalPrice,
+      isActive
     }
 
     // Check if price changed for an existing plan
@@ -400,24 +428,36 @@ export default function SubscriptionPlans() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {plans.map((plan, index) => {
             const theme = getThemeClasses(plan.color_theme)
+            const getDurationLabel = (type: string | undefined) => {
+              switch (type) {
+                case 'monthly': return 'شهر'
+                case 'quarterly': return '3 شهور'
+                case 'semi_annual': return '6 شهور'
+                case 'yearly': return 'سنة'
+                default: return 'شهر'
+              }
+            }
+            const isPlanActive = plan.isActive !== false
             return (
               <div 
                 key={plan.id}
                 className={`bg-[var(--card-bg)] border-2 rounded-3xl p-6 flex flex-col justify-between relative shadow-md transition-all duration-300 ${
-                  plan.featured 
-                    ? 'border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.1)] scale-[1.01]' 
-                    : 'border-[var(--border-color)] hover:border-indigo-500/30'
+                  !isPlanActive
+                    ? 'border-slate-800 bg-slate-900/40 opacity-70 grayscale'
+                    : plan.featured 
+                      ? 'border-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.1)] scale-[1.01]' 
+                      : 'border-[var(--border-color)] hover:border-indigo-500/30'
                 }`}
               >
                 {/* Active Indicator / Badge */}
                 <div className="absolute top-4 left-4 flex gap-1.5 flex-row-reverse">
-                  {plan.active ? (
+                  {isPlanActive ? (
                     <span className="text-[9px] font-black bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-0.5 rounded-full shadow-sm">
-                      مرئية للمعلمين
+                      نشطة ومتاحة
                     </span>
                   ) : (
-                    <span className="text-[9px] font-black bg-rose-500/10 border border-rose-500/20 text-rose-450 px-2.5 py-0.5 rounded-full shadow-sm">
-                      غير نشطة / مخفية
+                    <span className="text-[9px] font-black bg-slate-850 border border-slate-750 text-slate-400 px-2.5 py-0.5 rounded-full shadow-sm">
+                      غير متاحة حالياً
                     </span>
                   )}
                   {plan.badge_text && (
@@ -450,10 +490,37 @@ export default function SubscriptionPlans() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400 font-bold flex items-center gap-1.5">
                         <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
-                        السعر والعملة:
+                        السعر الأصلي:
                       </span>
                       <span className="font-black text-[var(--text-color)] text-sm">
-                        {plan.price} {plan.currency} / {plan.duration_in_days} يوم
+                        {plan.price} {plan.currency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5 text-indigo-500" />
+                        الخصم:
+                      </span>
+                      <span className="font-black text-rose-500">
+                        {plan.discountPercentage || 0}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                        <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
+                        السعر النهائي:
+                      </span>
+                      <span className="font-black text-emerald-500 text-sm">
+                        {plan.finalPrice || plan.price} {plan.currency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+                        مدة الاشتراك:
+                      </span>
+                      <span className="font-black text-[var(--text-color)]">
+                        {getDurationLabel(plan.durationType)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs">
@@ -472,15 +539,6 @@ export default function SubscriptionPlans() {
                       </span>
                       <span className="font-black text-[var(--text-color)]">
                         {plan.included_codes} كود
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-                        عدد الكورسات المسموحة:
-                      </span>
-                      <span className="font-black text-[var(--text-color)]">
-                        {plan.max_courses !== null ? `${plan.max_courses} كورس` : 'بلا حد أقصى'}
                       </span>
                     </div>
                   </div>
@@ -514,9 +572,9 @@ export default function SubscriptionPlans() {
                       <span className="text-[10px] text-slate-400 font-bold">نشط:</span>
                       <button
                         onClick={() => handleToggleActive(plan)}
-                        className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${plan.active ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                        className={`w-9 h-5 rounded-full p-0.5 transition-colors duration-200 focus:outline-none cursor-pointer ${isPlanActive ? 'bg-indigo-600' : 'bg-slate-700'}`}
                       >
-                        <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 transform ${plan.active ? '-translate-x-4' : 'translate-x-0'}`} />
+                        <div className={`w-4 h-4 rounded-full bg-white transition-transform duration-200 transform ${isPlanActive ? '-translate-x-4' : 'translate-x-0'}`} />
                       </button>
                     </div>
                   </div>
@@ -630,21 +688,28 @@ export default function SubscriptionPlans() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Price */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Duration Type selector */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر *</label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      required
-                      min="0"
-                      step="0.01"
-                      value={price}
-                      onChange={(e) => setPrice(Number(e.target.value))}
-                      className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                    />
-                  </div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">مدة الاشتراك *</label>
+                  <select
+                    value={durationType}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setDurationType(val)
+                      // Auto-update durationInDays for backwards compatibility
+                      if (val === 'monthly') setDurationInDays(30)
+                      else if (val === 'quarterly') setDurationInDays(90)
+                      else if (val === 'semi_annual') setDurationInDays(180)
+                      else if (val === 'yearly') setDurationInDays(365)
+                    }}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition cursor-pointer"
+                  >
+                    <option value="monthly">شهر</option>
+                    <option value="quarterly">3 شهور</option>
+                    <option value="semi_annual">6 شهور</option>
+                    <option value="yearly">سنة</option>
+                  </select>
                 </div>
 
                 {/* Currency */}
@@ -660,17 +725,46 @@ export default function SubscriptionPlans() {
                     <option value="SAR">SAR - الريال السعودي</option>
                   </select>
                 </div>
+              </div>
 
-                {/* Duration */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Base Price */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">فترة الصلاحية (بالأيام) *</label>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر الأصلي *</label>
                   <input
                     type="number"
                     required
-                    min="1"
-                    value={durationInDays}
-                    onChange={(e) => setDurationInDays(Number(e.target.value))}
+                    min="0"
+                    step="0.01"
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
                     className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                {/* Discount Percentage */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">الخصم (%) *</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={discountPercentage}
+                    onChange={(e) => setDiscountPercentage(Number(e.target.value))}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                {/* Final Price */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر النهائي (محسوب)</label>
+                  <input
+                    type="number"
+                    readOnly
+                    value={finalPrice}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border-color)] rounded-xl text-sm font-semibold text-slate-400 focus:outline-none cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -772,16 +866,26 @@ export default function SubscriptionPlans() {
                   />
                   <span>تمييز الباقة في واجهة العرض (الأكثر شعبية)</span>
                 </label>
+              </div>
 
-                <label className="flex items-center gap-3 cursor-pointer text-xs font-bold select-none">
-                  <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={(e) => setActive(e.target.checked)}
-                    className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
-                  />
-                  <span>باقة نشطة ومتاحة للاشتراك والترقية</span>
-                </label>
+              {/* Active / Inactive Toggle Switch */}
+              <div className="flex items-center justify-between p-4 bg-[var(--surface-bg)] rounded-2xl border border-[var(--border-color)]">
+                <div>
+                  <h4 className="text-xs font-bold text-[var(--text-color)]">حالة الباقة</h4>
+                  <p className="text-[10px] text-slate-400 font-medium mt-0.5">تبديل حالة نشاط الباقة (تفعيل / إلغاء تفعيل)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isActive
+                    setIsActive(next)
+                    setActive(next)
+                  }}
+                  className={`w-20 h-8 rounded-full p-1 transition-colors duration-200 focus:outline-none cursor-pointer flex items-center justify-between relative ${isActive ? 'bg-indigo-600' : 'bg-slate-700'}`}
+                >
+                  <span className="text-[9px] font-black text-white px-2.5 select-none">{isActive ? 'نشط' : 'غير نشط'}</span>
+                  <div className="w-6 h-6 rounded-full bg-white shadow-md transform transition-transform" />
+                </button>
               </div>
 
               {/* Form buttons */}
