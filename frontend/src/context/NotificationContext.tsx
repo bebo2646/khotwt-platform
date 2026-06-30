@@ -84,7 +84,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         (value: Notification, index: number, self: Notification[]) => 
           self.findIndex(t => t.id === value.id) === index
       )
-      console.log('[Notifications Response]:', uniqueFetched)
+      if (import.meta.env.DEV) {
+        console.log('[Notifications Response]:', uniqueFetched)
+      }
       setNotifications(uniqueFetched.slice(0, 8))
 
       // 3. Find any unseen important notification that has not been shown/dismissed yet

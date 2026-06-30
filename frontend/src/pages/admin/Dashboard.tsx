@@ -63,7 +63,9 @@ export default function Dashboard() {
         // Load stats
         try {
           const statsRes = await API.get('/admin/dashboard')
-          console.log('[Dashboard Response]:', statsRes.data)
+          if (import.meta.env.DEV) {
+            console.log('[Dashboard Response]:', statsRes.data)
+          }
           setStats(statsRes.data)
         } catch (statsErr) {
           console.error('[Dashboard Response Error]:', statsErr)
@@ -84,7 +86,9 @@ export default function Dashboard() {
         // Load packages
         try {
           const pkgsRes = await API.get('/admin/packages')
-          console.log('[Packages Response]:', pkgsRes.data)
+          if (import.meta.env.DEV) {
+            console.log('[Packages Response]:', pkgsRes.data)
+          }
           setPackages(pkgsRes.data)
         } catch (pkgsErr) {
           console.error('[Packages Response Error]:', pkgsErr)

@@ -20,8 +20,8 @@ class UploadController extends Controller
             $file = $request->file('file');
             // Store file under storage/app/public/uploads
             $path = $file->store('uploads', 'public');
-            // Resolve full URL e.g. http://127.0.0.1:8000/storage/uploads/abc.png
             $url = asset('storage/' . $path);
+            $url = str_replace('http://', 'https://', $url);
 
             return response()->json([
                 'url' => $url,

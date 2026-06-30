@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
+import { ensureHttps } from '../utils/urls'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { NotificationToast } from './NotificationToast'
@@ -452,7 +453,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                 className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[var(--surface-bg)] border border-transparent hover:border-[var(--border-color)] transition cursor-pointer"
               >
                 {user?.avatar ? (
-                  <img src={user.avatar} alt="Avatar" className="w-8 h-8 rounded-lg object-cover" />
+                  <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-8 h-8 rounded-lg object-cover" />
                 ) : (
                   <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-400 font-bold flex items-center justify-center uppercase">
                     {user?.name?.slice(0, 2)}

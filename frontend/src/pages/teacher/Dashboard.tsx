@@ -1,7 +1,8 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import API from '../../services/api'
-import { BookOpen, Users, Wallet, TrendingUp, Award, ClipboardList, Package, Edit3, Trash2, Check, AlertCircle } from 'lucide-react'
+import { BookOpen, Users, Wallet, TrendingUp, Award, ClipboardList, Package, Edit3, Trash2, Check, AlertCircle, BarChart3 } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 import { 
   BarChart, 
@@ -620,16 +621,33 @@ export default function Dashboard() {
       {stats && (
         <div className="space-y-8 pt-8">
           {!hasEnoughData ? (
-            /* 3. Empty State */
-            <div className="bg-brand-card border border-[var(--border-color)] h-[320px] text-center rounded-3xl flex flex-col items-center justify-center space-y-4 shadow-sm">
-              <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-full border border-indigo-500/20">
-                <AlertCircle className="h-8 w-8 animate-pulse" />
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="bg-gradient-to-b from-brand-card/60 to-brand-card/30 border border-[var(--border-color)] min-h-[350px] p-8 text-center rounded-[32px] flex flex-col items-center justify-center space-y-5 shadow-2xl relative overflow-hidden backdrop-blur-md"
+            >
+              {/* Decorative background glow */}
+              <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+              
+              {/* Illustration / Icon Wrapper */}
+              <div className="relative flex items-center justify-center w-20 h-20 rounded-2.5xl bg-gradient-to-tr from-indigo-500/10 to-indigo-500/20 text-indigo-400 border border-indigo-500/20 shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
+                <BarChart3 className="h-10 w-10 animate-pulse text-indigo-400" />
+                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-indigo-500 border-2 border-[var(--bg-color)] flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                </div>
               </div>
-              <h3 className="text-base font-bold text-slate-200">لا توجد بيانات كافية لعرض التحليلات حتى الآن</h3>
-              <p className="text-xs text-slate-400 font-light max-w-xs leading-relaxed">
-                ستظهر الإحصائيات تلقائياً بعد وجود اشتراكات وعمليات أكثر.
-              </p>
-            </div>
+
+              <div className="space-y-2 max-w-sm">
+                <h3 className="text-lg font-black text-[var(--text-color)] tracking-wide">
+                  📊 لا توجد بيانات كافية لعرض الإحصائيات
+                </h3>
+                <p className="text-xs text-[var(--text-secondary)] font-semibold leading-relaxed">
+                  سيتم إنشاء الرسوم البيانية تلقائياً بعد وجود بيانات أكثر.
+                </p>
+              </div>
+            </motion.div>
           ) : (
             <>
               {/* Revenue Bar Chart */}

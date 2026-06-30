@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle, ChevronDown } from 'lucide-react'
 import API from '../services/api'
+import { ensureHttps } from '../utils/urls'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { UserProfileDropdown } from './UserProfileDropdown'
@@ -24,7 +25,6 @@ const getNotificationType = (title: string, message: string): 'success' | 'warni
 }
 
 export default function Navbar() {
-  console.log('Navbar render');
   const { isLoggedIn, user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
@@ -39,12 +39,10 @@ export default function Navbar() {
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      console.log('DOCUMENT CLICK', event.target);
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifDropdown(false)
       }
       if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
-        console.log('CLOSE');
         setShowProfileDropdown(false)
       }
     }
@@ -227,13 +225,12 @@ export default function Navbar() {
                       onClick={(e) => {
                         e.preventDefault();
                         const nextState = !showProfileDropdown;
-                        console.log(nextState ? 'OPEN' : 'CLOSE');
                         setShowProfileDropdown(nextState);
                       }}
                       className="flex items-center gap-2 px-3.5 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer"
                     >
                       {user.avatar ? (
-                        <img src={user.avatar} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
+                        <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
                       ) : (
                         <div className="w-6.5 h-6.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-[10px] uppercase">
                           {user.name.slice(0, 2)}
@@ -325,7 +322,7 @@ export default function Navbar() {
                   <div className="px-4 py-3 bg-[var(--surface-bg)] rounded-[18px] border border-[var(--border-color)] flex items-center gap-3">
                     {user.avatar ? (
                       <img 
-                        src={user.avatar} 
+                        src={ensureHttps(user.avatar)} 
                         alt="Avatar" 
                         className="w-10 h-10 rounded-xl object-cover border border-[var(--border-color)]" 
                       />

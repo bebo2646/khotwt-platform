@@ -52,7 +52,9 @@ export default function PWAManager() {
       navigator.serviceWorker.register('/sw.js')
         .then((reg) => {
           setSwRegistration(reg)
-          console.log('[PWA] Service Worker registered successfully')
+          if (import.meta.env.DEV) {
+            console.log('[PWA] Service Worker registered successfully')
+          }
 
           // Architecture ready for future push notifications
           preparePushNotifications(reg)
@@ -97,16 +99,29 @@ export default function PWAManager() {
       }
     }
 
+    const handleAppInstalled = () => {
+      if (import.meta.env.DEV) {
+        console.log('[PWA] Application was installed successfully')
+      }
+      setDeferredPrompt(null)
+      setShowInstallBanner(false)
+      sessionStorage.setItem('pwa-install-dismissed', 'true')
+    }
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    window.addEventListener('appinstalled', handleAppInstalled)
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', handleAppInstalled)
     }
   }, [])
 
   // 5. Push Notifications Prep Logic
   const preparePushNotifications = (reg: ServiceWorkerRegistration) => {
-    console.log('[PWA Push] Notification architecture is ready for future integration.')
+    if (import.meta.env.DEV) {
+      console.log('[PWA Push] Notification architecture is ready for future integration.')
+    }
   }
 
   // Handle Install Action
@@ -114,7 +129,9 @@ export default function PWAManager() {
     if (!deferredPrompt) return
     deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
-    console.log(`[PWA] Install user choice outcome: ${outcome}`)
+    if (import.meta.env.DEV) {
+      console.log(`[PWA] Install user choice outcome: ${outcome}`)
+    }
     setDeferredPrompt(null)
     setShowInstallBanner(false)
   }
@@ -226,7 +243,7 @@ export default function PWAManager() {
 
       {/* PWA Install Banner */}
       <AnimatePresence>
-        {showInstallBanner && !showSplash && !isOffline && (
+        {showInstallBanner && !showSplash && !isOffline && (deferredPrompt || window.location.search.includes('simulate-install=true')) && (
           <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}

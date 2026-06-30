@@ -36,7 +36,9 @@ export default function Login() {
     setSubmitting(true)
     try {
       const res = await API.post('/login', data)
-      console.log('[Login Response]:', res.data)
+      if (import.meta.env.DEV) {
+        console.log('[Login Response]:', res.data)
+      }
       const { token, session_token } = res.data
       
       // Store token immediately so Axios interceptor uses it for the next call
@@ -49,7 +51,9 @@ export default function Login() {
 
       // Verify/refetch fresh user profile from GET /api/me
       const profileRes = await API.get('/me')
-      console.log('[Me Response on Login]:', profileRes.data)
+      if (import.meta.env.DEV) {
+        console.log('[Me Response on Login]:', profileRes.data)
+      }
       const freshUser = profileRes.data.user || profileRes.data.data || profileRes.data
 
       loginUser(freshUser, token, session_token)

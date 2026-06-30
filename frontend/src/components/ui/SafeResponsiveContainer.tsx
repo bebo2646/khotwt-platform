@@ -16,16 +16,16 @@ export const SafeResponsiveContainer: React.FC<SafeResponsiveContainerProps> = (
     
     // Initial size
     setDimensions({
-      width: container.clientWidth,
-      height: container.clientHeight || height
+      width: container.clientWidth || 0,
+      height: container.clientHeight || height || 0
     })
 
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0) return
-      const { width, height } = entries[0].contentRect
+      const { width, height: entryHeight } = entries[0].contentRect
       setDimensions({ 
-        width: width || container.clientWidth, 
-        height: height || container.clientHeight || height 
+        width: width || container.clientWidth || 0, 
+        height: entryHeight || container.clientHeight || height || 0
       })
     })
 
@@ -33,13 +33,18 @@ export const SafeResponsiveContainer: React.FC<SafeResponsiveContainerProps> = (
     return () => resizeObserver.disconnect()
   }, [height])
 
+  // Explicit validation to prevent rendering charts with invalid width/height
+  if (dimensions.width <= 0 || dimensions.height <= 0) {
+    return (
+      <div ref={containerRef} className="w-full h-full" style={{ minHeight: `${height}px`, height: `${height}px` }} />
+    )
+  }
+
   return (
-    <div ref={containerRef} className="w-full" style={{ minHeight: `${height}px`, height: `${height}px` }}>
-      {dimensions.width > 0 && dimensions.height > 0 ? (
-        <ResponsiveContainer width={dimensions.width} height={dimensions.height}>
-          {children as any}
-        </ResponsiveContainer>
-      ) : null}
+    <div ref={containerRef} className="w-full h-full" style={{ minHeight: `${height}px`, height: `${height}px` }}>
+      <ResponsiveContainer width={dimensions.width} height={dimensions.height}>
+        {children as any}
+      </ResponsiveContainer>
     </div>
   )
 }

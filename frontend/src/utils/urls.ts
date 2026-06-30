@@ -3,8 +3,5 @@
  */
 export const ensureHttps = (url?: string): string => {
   if (!url) return ''
-  if (url.startsWith('http://')) {
-    return url.replace('http://', 'https://')
-  }
-  return url
+  return url.replace(/^http:\/\//i, "https://")
 }

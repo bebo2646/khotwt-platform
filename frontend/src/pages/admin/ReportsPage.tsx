@@ -68,7 +68,9 @@ export default function ReportsPage() {
     setLoading(true)
     try {
       const res = await API.get('/admin/reports')
-      console.log('[Reports Response]:', res.data)
+      if (import.meta.env.DEV) {
+        console.log('[Reports Response]:', res.data)
+      }
       setSales(res.data.sales || [])
       setMonthlySales(res.data.monthly_sales || [])
       setTeacherRevenue(res.data.teacher_revenue || [])
