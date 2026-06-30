@@ -376,8 +376,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         }`}
       >
         
-        {/* Top Header: Height 72px */}
-        <header className="sticky top-0 z-[1000] flex items-center justify-between h-[72px] px-6 border-b border-[var(--border-color)] bg-[var(--card-bg)]/80 backdrop-blur-[20px]">
+        {/* Top Header: Fixed height 72px */}
+        <header 
+          className={`fixed top-0 left-0 z-[1000] flex items-center justify-between h-[72px] px-6 border-b border-[var(--border-color)] bg-[var(--card-bg)]/85 dark:bg-[#080c18]/85 backdrop-blur-[20px] transition-all duration-300 ${
+            sidebarCollapsed ? 'right-0 lg:right-20' : 'right-0 lg:right-[280px]'
+          }`}
+        >
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
           <div className="flex items-center gap-4">
             <button
@@ -483,7 +487,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         </header>
 
         {/* 4. Page Content area */}
-        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-[1600px] mx-auto overflow-y-auto">
+        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 pt-[96px] sm:pt-[104px] md:pt-[112px] max-w-[1600px] mx-auto overflow-y-auto">
           {children}
         </main>
       </div>
