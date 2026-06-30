@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react'
 import API from '../../services/api'
 import { 
   Send, Users, BookOpen, User, Bell, CheckCircle, 
-  AlertCircle, MessageSquare, Clipboard, Calendar 
+  AlertCircle, MessageSquare, Clipboard, Calendar, Trash2
 } from 'lucide-react'
+import { useModalStore } from '../../store/modalStore'
 
 interface SelectorUser {
   id: number
@@ -40,6 +41,8 @@ export default function Notifications() {
   const [pastNotifications, setPastNotifications] = useState<PastNotification[]>([])
   const [loadingLists, setLoadingLists] = useState(false)
   const [sending, setSending] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [deleting, setDeleting] = useState(false)
 
   // Feedback states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
@@ -124,6 +127,93 @@ export default function Notifications() {
     } finally {
       setSending(false)
     }
+  }
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  }
+
+  const handleToggleSelectAll = () => {
+    if (selectedIds.length === pastNotifications.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(pastNotifications.map(n => n.id));
+    }
+  }
+
+  const handleDeleteSingle = (id: number) => {
+    useModalStore.getState().showConfirm({
+      title: 'حذف الإشعار',
+      description: 'هل أنت متأكد من رغبتك في حذف هذا الإشعار بشكل نهائي من النظام؟ لا يمكن التراجع عن هذا الإجراء.',
+      type: 'delete',
+      confirmText: 'نعم، احذف',
+      cancelText: 'إلغاء',
+      onConfirm: async () => {
+        try {
+          setDeleting(true)
+          await API.delete(`/admin/notifications/${id}`)
+          useModalStore.getState().showToast('تم حذف الإشعار بنجاح.', 'success')
+          setPastNotifications(prev => prev.filter(n => n.id !== id))
+          setSelectedIds(prev => prev.filter(item => item !== id))
+        } catch (err: any) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل حذف الإشعار.', 'error')
+        } finally {
+          setDeleting(false)
+        }
+      }
+    })
+  }
+
+  const handleDeleteSelected = () => {
+    if (selectedIds.length === 0) return;
+    useModalStore.getState().showConfirm({
+      title: 'حذف الإشعارات المحددة',
+      description: `هل أنت متأكد من رغبتك في حذف ${selectedIds.length} إشعارات محددة نهائياً؟ لا يمكن التراجع عن هذا الإجراء.`,
+      type: 'delete',
+      confirmText: 'نعم، احذف المحدد',
+      cancelText: 'إلغاء',
+      onConfirm: async () => {
+        try {
+          setDeleting(true)
+          await API.delete('/admin/notifications', { data: { ids: selectedIds } })
+          useModalStore.getState().showToast('تم حذف الإشعارات المحددة بنجاح.', 'success')
+          setPastNotifications(prev => prev.filter(n => !selectedIds.includes(n.id)))
+          setSelectedIds([])
+        } catch (err: any) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل حذف الإشعارات المحددة.', 'error')
+        } finally {
+          setDeleting(false)
+        }
+      }
+    })
+  }
+
+  const handleDeleteAll = () => {
+    useModalStore.getState().showConfirm({
+      title: 'حذف جميع الإشعارات',
+      description: 'هل أنت متأكد من رغبتك في مسح كافة سجلات الإشعارات من النظام بشكل كامل ونهائي؟',
+      type: 'delete',
+      confirmText: 'نعم، احذف الكل',
+      cancelText: 'إلغاء',
+      onConfirm: async () => {
+        try {
+          setDeleting(true)
+          await API.delete('/admin/notifications')
+          useModalStore.getState().showToast('تم مسح جميع الإشعارات بنجاح.', 'success')
+          setPastNotifications([])
+          setSelectedIds([])
+        } catch (err: any) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل حذف جميع الإشعارات.', 'error')
+        } finally {
+          setDeleting(false)
+        }
+      }
+    })
   }
 
   // Translate type
@@ -382,6 +472,42 @@ export default function Notifications() {
             استعرض آخر الإشعارات التي تم بثها وتوزيعها على مستخدمي النظام.
           </p>
 
+          {pastNotifications.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[var(--bg-color)]/20 p-3.5 rounded-2xl border border-[var(--border-color)] mb-4">
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={pastNotifications.length > 0 && selectedIds.length === pastNotifications.length}
+                  onChange={handleToggleSelectAll}
+                  className="w-4.5 h-4.5 rounded border-[var(--border-color)] text-indigo-600 accent-indigo-600 cursor-pointer"
+                />
+                <span className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {selectedIds.length > 0 ? `تم تحديد ${selectedIds.length} إشعار` : 'تحديد الكل'}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                {selectedIds.length > 0 && (
+                  <button
+                    onClick={handleDeleteSelected}
+                    disabled={deleting}
+                    className="px-3 py-1.5 bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 text-[10px] font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>حذف المحدد</span>
+                  </button>
+                )}
+                <button
+                  onClick={handleDeleteAll}
+                  disabled={deleting}
+                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-bold rounded-xl shadow-md hover:shadow-rose-550/10 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 animate-in fade-in duration-200"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف كافة السجلات</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto flex-grow max-h-[500px] overflow-y-auto pr-1">
             {pastNotifications.length === 0 ? (
               <div className="bg-[var(--bg-color)]/20 p-16 rounded-xl border border-dashed border-[var(--border-color)] text-center flex flex-col justify-center items-center">
@@ -391,30 +517,48 @@ export default function Notifications() {
             ) : (
               <div className="space-y-4">
                 {pastNotifications.map(notif => (
-                  <div key={notif.id} className="bg-[var(--bg-color)]/30 border border-[var(--border-color)] p-5 rounded-2xl">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
-                       <h3 className="text-sm font-extrabold text-[var(--text-color)] flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-                        {notif.title}
-                      </h3>
-                      <span className="px-2.5 py-0.5 text-[9px] font-bold rounded-md bg-[var(--card-bg)] border border-[var(--border-color)] text-[var(--text-secondary)]">
-                        فئة: {getRecipientTypeLabel(notif.recipient_type)}
-                      </span>
-                    </div>
-                    <p className="text-[var(--text-color)]/80 text-xs leading-relaxed mb-3">
-                      {notif.message}
-                    </p>
-                    <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)]/70 pt-2.5 border-t border-[var(--border-color)]">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(notif.created_at).toLocaleString('ar-EG', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                  <div key={notif.id} className="bg-[var(--bg-color)]/30 border border-[var(--border-color)] p-5 rounded-2xl flex items-start gap-4 transition-all hover:bg-[var(--bg-color)]/40 relative group">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(notif.id)}
+                      onChange={() => handleToggleSelect(notif.id)}
+                      className="w-4.5 h-4.5 rounded border-[var(--border-color)] text-indigo-600 accent-indigo-600 mt-1 cursor-pointer shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                        <h3 className="text-sm font-extrabold text-[var(--text-color)] flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0"></span>
+                          {notif.title}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-0.5 text-[9px] font-bold rounded-md bg-[var(--card-bg)] border border-[var(--border-color)] text-[var(--text-secondary)]">
+                            فئة: {getRecipientTypeLabel(notif.recipient_type)}
+                          </span>
+                          <button
+                            onClick={() => handleDeleteSingle(notif.id)}
+                            disabled={deleting}
+                            className="p-1.5 text-rose-500 hover:text-rose-700 bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/10 hover:border-rose-500/20 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                            title="حذف الإشعار"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-[var(--text-color)]/80 text-xs leading-relaxed mb-3">
+                        {notif.message}
+                      </p>
+                      <div className="flex items-center justify-between text-[10px] text-[var(--text-secondary)]/70 pt-2.5 border-t border-[var(--border-color)]">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(notif.created_at).toLocaleString('ar-EG', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}

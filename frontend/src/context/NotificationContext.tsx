@@ -36,8 +36,36 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [activeImportant, setActiveImportant] = useState<Notification | null>(null)
   const [loading, setLoading] = useState(false)
   
-  // Track IDs of important notifications that have already been shown as a toast/popup in this session
-  const shownImportantIds = useRef<number[]>([])
+  // Track IDs of important notifications that have already been shown as a toast/popup
+  const [shownImportantIds, setShownImportantIds] = useState<number[]>([])
+
+  useEffect(() => {
+    if (isLoggedIn && user?.id) {
+      try {
+        const stored = localStorage.getItem(`shown_notifications_${user.id}`)
+        setShownImportantIds(stored ? JSON.parse(stored) : [])
+      } catch (err) {
+        console.error('[NotificationContext] Failed to load shown notifications from localStorage:', err)
+        setShownImportantIds([])
+      }
+    } else {
+      setShownImportantIds([])
+    }
+  }, [isLoggedIn, user?.id])
+
+  const markIdAsShown = (id: number) => {
+    if (!user?.id) return
+    setShownImportantIds(prev => {
+      if (prev.includes(id)) return prev
+      const next = [...prev, id]
+      try {
+        localStorage.setItem(`shown_notifications_${user.id}`, JSON.stringify(next))
+      } catch (err) {
+        console.error('[NotificationContext] Failed to save shown notification to localStorage:', err)
+      }
+      return next
+    })
+  }
 
   const fetchNotifications = async () => {
     if (!isLoggedIn || user?.must_change_password) return
@@ -50,17 +78,23 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       // 2. Get recent notifications
       const notifRes = await API.get('/notifications')
       const fetchedNotifs = notifRes.data || []
-      console.log('[Notifications Response]:', fetchedNotifs)
-      setNotifications(fetchedNotifs.slice(0, 8))
+      
+      // Filter out duplicate IDs
+      const uniqueFetched = fetchedNotifs.filter(
+        (value: Notification, index: number, self: Notification[]) => 
+          self.findIndex(t => t.id === value.id) === index
+      )
+      console.log('[Notifications Response]:', uniqueFetched)
+      setNotifications(uniqueFetched.slice(0, 8))
 
       // 3. Find any unseen important notification that has not been shown/dismissed yet
-      const importantUnseen = fetchedNotifs.find(
-        (n: Notification) => n.important && !n.is_seen && !shownImportantIds.current.includes(n.id)
+      const importantUnseen = uniqueFetched.find(
+        (n: Notification) => n.important && !n.is_seen && !shownImportantIds.includes(n.id)
       )
 
       if (importantUnseen) {
         setActiveImportant(importantUnseen)
-        shownImportantIds.current.push(importantUnseen.id)
+        markIdAsShown(importantUnseen.id)
         
         // Auto-mark as seen on server to prevent popups on other devices/page refreshes
         API.post(`/notifications/${importantUnseen.id}/seen`).catch(err => {
@@ -129,7 +163,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       setNotifications([])
       setUnreadCount(0)
       setActiveImportant(null)
-      shownImportantIds.current = []
     }
   }, [isLoggedIn])
 

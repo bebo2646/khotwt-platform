@@ -235,6 +235,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Admin Notifications Management
             Route::post('/admin/notifications', [SubscriptionController::class, 'sendNotification']);
             Route::post('/admin/notifications/send', [SubscriptionController::class, 'sendNotification']);
+            Route::delete('/admin/notifications/{id}', [SubscriptionController::class, 'deleteNotification']);
+            Route::delete('/admin/notifications', [SubscriptionController::class, 'deleteNotifications']);
             Route::get('/admin/users-selectors', [SubscriptionController::class, 'getUsersForSelectors']);
             Route::get('/admin/notifications/users', [SubscriptionController::class, 'getUsersForSelectors']);
         });

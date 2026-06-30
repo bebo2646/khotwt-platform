@@ -419,6 +419,53 @@ class SubscriptionController extends Controller
     }
 
     /**
+     * Delete a single notification.
+     */
+    public function deleteNotification(Request $request, $id)
+    {
+        $notification = Notification::find($id);
+        if (!$notification) {
+            return response()->json(['message' => 'الإشعار غير موجود'], 404);
+        }
+
+        $notification->delete();
+
+        AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "حذف إشعار: {$notification->title}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json(['message' => 'تم حذف الإشعار بنجاح']);
+    }
+
+    /**
+     * Delete multiple or all notifications.
+     */
+    public function deleteNotifications(Request $request)
+    {
+        if ($request->has('ids') && is_array($request->ids)) {
+            $count = count($request->ids);
+            Notification::whereIn('id', $request->ids)->delete();
+            AdminActivityLog::create([
+                'admin_name' => $request->user()->name,
+                'action_type' => "حذف {$count} إشعارات محددة",
+                'ip_address' => $request->ip(),
+            ]);
+            return response()->json(['message' => 'تم حذف الإشعارات المحددة بنجاح']);
+        }
+
+        // Delete all notifications
+        Notification::query()->delete();
+        AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "حذف جميع الإشعارات من النظام",
+            'ip_address' => $request->ip(),
+        ]);
+        return response()->json(['message' => 'تم حذف جميع الإشعارات بنجاح']);
+    }
+
+    /**
      * Fetch upgrade and addon requests.
      */
     public function getSubscriptionRequests(Request $request)

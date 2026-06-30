@@ -17,6 +17,19 @@ class NotificationService
     {
         $senderId = $senderId ?? (auth()->check() ? auth()->id() : null);
 
+        // Prevent duplicate notifications in the database within a short window (e.g., 5 seconds)
+        $duplicate = Notification::where('title', $title)
+            ->where('message', $message)
+            ->where('recipient_type', $recipientType)
+            ->where('recipient_id', $recipientId)
+            ->where('sender_id', $senderId)
+            ->where('created_at', '>=', Carbon::now()->subSeconds(5))
+            ->first();
+
+        if ($duplicate) {
+            return $duplicate;
+        }
+
         // Save to database
         $notification = Notification::create([
             'title' => $title,
@@ -71,7 +84,7 @@ class NotificationService
         });
 
         // Add read status
-        return $query->leftJoin('notification_reads', function ($join) use ($user) {
+        $notifications = $query->leftJoin('notification_reads', function ($join) use ($user) {
                 $join->on('notifications.id', '=', 'notification_reads.notification_id')
                      ->where('notification_reads.user_id', '=', $user->id);
             })
@@ -83,6 +96,8 @@ class NotificationService
             )
             ->orderBy('notifications.created_at', 'desc')
             ->get();
+
+        return $notifications->unique('id')->values();
     }
 
     /**
@@ -161,11 +176,17 @@ class NotificationService
 
         foreach ($notifications as $notification) {
             if (!$notification->is_read) {
-                NotificationRead::create([
-                    'notification_id' => $notification->id,
-                    'user_id' => $user->id,
-                    'read_at' => Carbon::now(),
-                ]);
+                $exists = NotificationRead::where('notification_id', $notification->id)
+                    ->where('user_id', $user->id)
+                    ->exists();
+
+                if (!$exists) {
+                    NotificationRead::create([
+                        'notification_id' => $notification->id,
+                        'user_id' => $user->id,
+                        'read_at' => Carbon::now(),
+                    ]);
+                }
             }
         }
 
