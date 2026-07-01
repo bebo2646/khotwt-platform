@@ -782,16 +782,19 @@ class AdminController extends Controller
      */
     public function deletePackage(Request $request, $packageId)
     {
-        \Log::info("DELETE PACKAGE: " . $packageId);
-        error_log("DELETE PACKAGE: " . $packageId);
+        \Log::info("DELETE PACKAGE REQUEST: " . $packageId);
+        error_log("DELETE PACKAGE REQUEST: " . $packageId);
 
         $package = \App\Models\Package::find($packageId);
-        \Log::info("Package model: " . json_encode($package));
-        error_log("Package model: " . json_encode($package));
+        \Log::info("PACKAGE FOUND: " . json_encode($package));
+        error_log("PACKAGE FOUND: " . json_encode($package));
 
         if (!$package) {
             return response()->json(['message' => 'الباقة غير موجودة بالفعل أو تم حذفها.'], 404);
         }
+
+        \Log::info("STARTING DELETE...");
+        error_log("STARTING DELETE...");
 
         try {
             \DB::beginTransaction();
@@ -799,6 +802,8 @@ class AdminController extends Controller
             // Delete dependent records
             \DB::table('package_lessons')->where('package_id', $packageId)->delete();
             \DB::table('purchase_codes')->where('package_id', $packageId)->update(['package_id' => null]);
+            \DB::table('enrollments')->where('package_id', $packageId)->update(['package_id' => null]);
+            \DB::table('refund_logs')->where('package_id', $packageId)->update(['package_id' => null]);
             
             $package->delete();
             
