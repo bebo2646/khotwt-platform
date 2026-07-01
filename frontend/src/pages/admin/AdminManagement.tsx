@@ -715,7 +715,7 @@ export default function AdminManagement() {
       )}
 
       {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 animate-fade-in rtl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/10 animate-fade-in rtl">
           <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl relative">
             
             {/* Header */}

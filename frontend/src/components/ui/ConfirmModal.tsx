@@ -24,19 +24,8 @@ export function ConfirmModal() {
     }
     window.addEventListener('keydown', handleKeyDown)
 
-    if (confirmOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.documentElement.style.overflow = '';
-    }
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.documentElement.style.overflow = '';
     }
   }, [confirmOpen, closeConfirm, confirmOptions])
 
@@ -89,7 +78,7 @@ export function ConfirmModal() {
               closeConfirm()
               if (onCancel) onCancel()
             }}
-            className="fixed inset-0 bg-black/20"
+            className="fixed inset-0 bg-black/10"
           />
 
           {/* Modal Card */}
@@ -159,19 +148,8 @@ export function AlertModal() {
     }
     window.addEventListener('keydown', handleKeyDown)
 
-    if (alertOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.documentElement.style.overflow = '';
-    }
-
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.documentElement.style.overflow = '';
     }
   }, [alertOpen, closeAlert, alertOptions])
 
@@ -221,7 +199,7 @@ export function AlertModal() {
               closeAlert()
               if (onConfirm) onConfirm()
             }}
-            className="fixed inset-0 bg-black/20"
+            className="fixed inset-0 bg-black/10"
           />
 
           <motion.div

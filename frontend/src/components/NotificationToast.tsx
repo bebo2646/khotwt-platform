@@ -8,7 +8,7 @@ export const NotificationToast: React.FC = () => {
   if (!activeImportant) return null
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/20 p-4 animate-fade-in" dir="rtl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/10 p-4 animate-fade-in" dir="rtl">
       <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-3xl max-w-md w-full shadow-[0_20px_50px_rgba(0,0,0,0.6)] text-right animate-scale-up space-y-4">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-2xl bg-amber-500/10 text-amber-500">
