@@ -6,6 +6,7 @@ import {
   Layers, Database, Code, Calendar, AlertTriangle, AlertCircle, Percent
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { useModalStore } from '../../store/modalStore'
 
 interface Plan {
   id: number
@@ -305,25 +306,29 @@ export default function SubscriptionPlans() {
       return
     }
 
-    if (!window.confirm(`هل أنت متأكد من حذف الخطة (${plan.name})؟ لا يمكن التراجع عن هذا الإجراء.`)) {
-      return
-    }
-
-    console.log("Deleting package:", plan.id);
-
-    try {
-      const res = await API.delete(`/admin/subscription-plans/${plan.id}`)
-      console.log("Delete response:", res);
-      showToast(res.data.message || 'تم حذف الخطة بنجاح.', 'success')
-      
-      // Update UI state immediately without page reload
-      setPlans(prev => prev.filter(p => p.id !== plan.id))
-      
-      fetchPlans()
-    } catch (err: any) {
-      console.error(err)
-      showToast(err.response?.data?.message || 'فشل حذف الخطة. قد تكون مرتبطة باشتراكات نشطة.', 'error')
-    }
+    useModalStore.getState().showConfirm({
+      title: 'حذف خطة الاشتراك',
+      description: `هل أنت متأكد من حذف الخطة (${plan.name})؟ لا يمكن التراجع عن هذا الإجراء وسيتم إلغاء ارتباطها بالمعلمين المشتركين فيها بشكل غير نشط.`,
+      confirmText: 'حذف الخطة',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        console.log("Deleting package:", plan.id);
+        try {
+          const res = await API.delete(`/admin/subscription-plans/${plan.id}`)
+          console.log("Delete response:", res);
+          showToast(res.data.message || 'تم حذف الخطة بنجاح.', 'success')
+          
+          // Update UI state immediately without page reload
+          setPlans(prev => prev.filter(p => p.id !== plan.id))
+          
+          fetchPlans()
+        } catch (err: any) {
+          console.error(err)
+          showToast(err.response?.data?.message || 'فشل حذف الخطة. قد تكون مرتبطة باشتراكات نشطة.', 'error')
+        }
+      }
+    })
   }
 
   // Trigger form submit or open price confirmation modal
@@ -692,7 +697,7 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- CREATE/EDIT PLAN FORM DRAWER/MODAL -------------------- */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4">
           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
             
             <button
@@ -1175,7 +1180,7 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- PRICE CHANGE CONFIRMATION MODAL -------------------- */}
       {priceConfirmOpen && confirmPriceDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-[var(--card-bg)] border border-rose-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl relative text-right animate-in zoom-in-95 duration-200">
             <div className="flex items-start gap-4 mb-4">
               <div className="p-3 bg-rose-500/15 text-rose-500 rounded-2xl border border-rose-500/30">
@@ -1231,7 +1236,7 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- PRICE HISTORY SIDE DRAWER / MODAL -------------------- */}
       {selectedPlanForHistory && (
-        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/60">
           <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-lg w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300">
             <div>
               <button
@@ -1303,7 +1308,7 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- AUDIT LOGS SIDE DRAWER / MODAL -------------------- */}
       {selectedPlanForLogs && (
-        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/60">
           <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-xl w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300">
             <div className="flex-1 flex flex-col min-h-0">
               <button

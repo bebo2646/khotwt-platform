@@ -90,7 +90,7 @@ export function ConfirmModal() {
             closeConfirm()
             if (onCancel) onCancel()
           }}
-          className="fixed inset-0 bg-black/65 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/65"
         />
 
         {/* Modal Card */}
@@ -222,7 +222,7 @@ export function AlertModal() {
             closeAlert()
             if (onConfirm) onConfirm()
           }}
-          className="fixed inset-0 bg-black/65 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/65"
         />
 
         <motion.div
@@ -274,7 +274,7 @@ export function ToastContainer() {
             initial={{ opacity: 0, y: -20, scale: 0.9, x: -50 }}
             animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95, x: -100 }}
-            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto backdrop-blur-md ${
+            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto bg-[var(--card-bg)] ${
               toast.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
                 : toast.type === 'error'

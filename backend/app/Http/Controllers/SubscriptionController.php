@@ -1190,40 +1190,56 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
         }
 
-        $plan = SubscriptionPlan::findOrFail($id);
+        try {
+            $plan = SubscriptionPlan::findOrFail($id);
 
-        \Log::info("DELETE PACKAGE ID: " . $id);
-        error_log("DELETE PACKAGE ID: " . $id);
+            \Log::info("DELETE PACKAGE ID: " . $id);
+            error_log("DELETE PACKAGE ID: " . $id);
 
-        // Check if there are active subscriptions using this plan
-        $activeSubsCount = TeacherSubscription::where('plan_id', $id)
-            ->whereIn('status', ['Active', 'Expiring Soon'])
-            ->count();
+            // Check if there are active subscriptions using this plan
+            $activeSubsCount = TeacherSubscription::where('plan_id', $id)
+                ->whereIn('status', ['Active', 'Expiring Soon'])
+                ->count();
 
-        if ($activeSubsCount > 0) {
+            if ($activeSubsCount > 0) {
+                return response()->json([
+                    'message' => 'لا يمكن حذف هذه الخطة لأن هناك معلمين مشتركين فيها حالياً بنشاط. يرجى إلغاء تفعيلها بدلاً من ذلك.'
+                ], 400);
+            }
+
+            \DB::beginTransaction();
+
+            // Reassign any remaining inactive/expired subscriptions referencing this plan to avoid foreign key restriction
+            $starter = SubscriptionPlan::where('name', 'Starter')->where('id', '!=', $id)->first();
+            $fallbackPlan = $starter ?: SubscriptionPlan::where('id', '!=', $id)->first();
+            
+            if ($fallbackPlan) {
+                TeacherSubscription::where('plan_id', $id)->update(['plan_id' => $fallbackPlan->id]);
+            } else {
+                TeacherSubscription::where('plan_id', $id)->delete();
+            }
+
+            // Also delete history/audit logs manually to ensure integrity on all DB engines
+            \DB::table('subscription_plan_price_history')->where('plan_id', $id)->delete();
+            \DB::table('subscription_plan_audit_logs')->where('plan_id', $id)->delete();
+
+            $oldValues = $plan->toArray();
+            $plan->delete();
+
+            $this->logPlanAudit($id, $request->user()->id, 'delete', $oldValues, null);
+
+            \DB::commit();
+
             return response()->json([
-                'message' => 'لا يمكن حذف هذه الخطة لأن هناك معلمين مشتركين فيها حالياً بنشاط. يرجى إلغاء تفعيلها بدلاً من ذلك.'
-            ], 400);
+                'message' => 'تم حذف خطة الاشتراك بنجاح'
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error("Failed to delete plan ID {$id}: " . $e->getMessage());
+            return response()->json([
+                'message' => 'فشل حذف الخطة من قاعدة البيانات: ' . $e->getMessage()
+            ], 500);
         }
-
-        // Reassign any remaining inactive/expired subscriptions referencing this plan to avoid foreign key restriction
-        $starter = SubscriptionPlan::where('name', 'Starter')->where('id', '!=', $id)->first();
-        $fallbackPlan = $starter ?: SubscriptionPlan::where('id', '!=', $id)->first();
-        
-        if ($fallbackPlan) {
-            TeacherSubscription::where('plan_id', $id)->update(['plan_id' => $fallbackPlan->id]);
-        } else {
-            TeacherSubscription::where('plan_id', $id)->delete();
-        }
-
-        $oldValues = $plan->toArray();
-        $plan->delete();
-
-        $this->logPlanAudit($id, $request->user()->id, 'delete', $oldValues, null);
-
-        return response()->json([
-            'message' => 'تم حذف خطة الاشتراك بنجاح'
-        ]);
     }
 
     /**
