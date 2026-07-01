@@ -1191,7 +1191,7 @@ class SubscriptionController extends Controller
         }
 
         try {
-            $plan = SubscriptionPlan::findOrFail($id);
+            $plan = SubscriptionPlan::find($id);
 
             \Log::info("DELETE PACKAGE REQUEST: " . $id);
             error_log("DELETE PACKAGE REQUEST: " . $id);
@@ -1199,20 +1199,20 @@ class SubscriptionController extends Controller
             \Log::info("Package Found: " . json_encode($plan));
             error_log("Package Found: " . json_encode($plan));
 
-            // Check if there are active subscriptions using this plan
-            $activeSubsCount = TeacherSubscription::where('plan_id', $id)
-                ->whereIn('status', ['Active', 'Expiring Soon'])
-                ->count();
-
-            if ($activeSubsCount > 0) {
+            if (!$plan) {
                 return response()->json([
-                    'message' => 'لا يمكن حذف هذه الخطة لأن هناك معلمين مشتركين فيها حالياً بنشاط. يرجى إلغاء تفعيلها بدلاً من ذلك.'
-                ], 400);
+                    'success' => false,
+                    'message' => 'Package not found',
+                    'package_id' => $id
+                ], 404);
             }
+
+            \Log::info("STARTING DELETE...");
+            error_log("STARTING DELETE...");
 
             \DB::beginTransaction();
 
-            // Reassign any remaining inactive/expired subscriptions referencing this plan to avoid foreign key restriction
+            // Reassign any remaining subscriptions referencing this plan to avoid foreign key restriction
             $starter = SubscriptionPlan::where('name', 'Starter')->where('id', '!=', $id)->first();
             $fallbackPlan = $starter ?: SubscriptionPlan::where('id', '!=', $id)->first();
             
@@ -1237,8 +1237,9 @@ class SubscriptionController extends Controller
             error_log("Delete Success");
 
             return response()->json([
-                'message' => 'تم حذف خطة الاشتراك بنجاح'
-            ]);
+                'success' => true,
+                'message' => 'تم حذف الباقة بنجاح'
+            ], 200);
         } catch (\Exception $e) {
             \DB::rollBack();
             \Log::error("Delete Error: " . $e->getMessage());
