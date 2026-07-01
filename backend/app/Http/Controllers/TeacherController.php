@@ -1237,23 +1237,28 @@ class TeacherController extends Controller
      */
     public function deletePackage(Request $request, $packageId)
     {
-        \Log::info("DELETE PACKAGE REQUEST: " . $packageId);
-        error_log("DELETE PACKAGE REQUEST: " . $packageId);
-
-        $package = Package::find($packageId);
-        \Log::info("PACKAGE FOUND: " . json_encode($package));
-        error_log("PACKAGE FOUND: " . json_encode($package));
-
-        if (!$package) {
-            return response()->json(['message' => 'الباقة غير موجودة.'], 404);
-        }
-
-        $this->verifyCourseTeacher($request, $package->course_id);
-
-        \Log::info("STARTING DELETE...");
-        error_log("STARTING DELETE...");
+        \Log::info('DELETE PACKAGE REQUEST', [
+            'package_id' => $packageId
+        ]);
 
         try {
+            $package = Package::find($packageId);
+
+            \Log::info('PACKAGE FOUND', [
+                'package' => $package
+            ]);
+
+            if (!$package) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Package not found'
+                ], 404);
+            }
+
+            $this->verifyCourseTeacher($request, $package->course_id);
+
+            \Log::info('STARTING DELETE');
+
             \DB::beginTransaction();
             
             // Delete dependent records
@@ -1265,11 +1270,19 @@ class TeacherController extends Controller
             $package->delete();
             
             \DB::commit();
+
+            \Log::info('DELETE SUCCESS');
+
             return response()->json(['message' => 'تم حذف الباقة بنجاح'], 200);
-        } catch (\Exception $e) {
-            \DB::rollBack();
-            \Log::error("Failed to delete teacher package {$packageId}: " . $e->getMessage());
-            return response()->json(['message' => 'فشل حذف الباقة: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            if (\DB::transactionLevel() > 0) {
+                \DB::rollBack();
+            }
+            \Log::error('DELETE FAILED', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
     }
 
