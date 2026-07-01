@@ -1043,6 +1043,7 @@ class SubscriptionController extends Controller
             'discountPercentage' => 'required|numeric|between:0,100',
             'finalPrice' => 'required|numeric|min:0',
             'isActive' => 'required|boolean',
+            'billing_options' => 'nullable|array',
         ]);
 
         $data = $request->all();
@@ -1107,6 +1108,7 @@ class SubscriptionController extends Controller
             'discountPercentage' => 'required|numeric|between:0,100',
             'finalPrice' => 'required|numeric|min:0',
             'isActive' => 'required|boolean',
+            'billing_options' => 'nullable|array',
         ]);
 
         $plan = SubscriptionPlan::findOrFail($id);
@@ -1338,6 +1340,52 @@ class SubscriptionController extends Controller
 
     public function getSubscriptionPriceDetails($plan, $billingCycle)
     {
+        // Standardize billing cycle name
+        $standardCycle = $billingCycle;
+        if ($standardCycle === 'yearly') {
+            $standardCycle = 'annual';
+        }
+        
+        if (!empty($plan->billing_options)) {
+            $options = is_string($plan->billing_options) ? json_decode($plan->billing_options, true) : $plan->billing_options;
+            if (is_array($options)) {
+                $cycleKey = $standardCycle;
+                if ($cycleKey === 'quarterly') {
+                    $cycleKey = 'three_months';
+                } elseif ($cycleKey === 'semi_annual') {
+                    $cycleKey = 'six_months';
+                } elseif ($cycleKey === 'annual') {
+                    $cycleKey = 'yearly';
+                }
+                
+                if (isset($options[$cycleKey]) && !empty($options[$cycleKey]['enabled'])) {
+                    $opt = $options[$cycleKey];
+                    $price = (float)($opt['price'] ?? 0);
+                    $discountPercentage = (float)($opt['discount'] ?? 0);
+                    $discountAmount = $price * ($discountPercentage / 100);
+                    $finalPrice = $price - $discountAmount;
+                    
+                    $months = 1;
+                    if ($standardCycle === 'quarterly') {
+                        $months = 3;
+                    } elseif ($standardCycle === 'semi_annual') {
+                        $months = 6;
+                    } elseif ($standardCycle === 'annual') {
+                        $months = 12;
+                    }
+                    
+                    return [
+                        'months' => $months,
+                        'billing_cycle' => $standardCycle,
+                        'discount_percentage' => $discountPercentage,
+                        'discount_amount' => round($discountAmount, 2),
+                        'final_price' => round($finalPrice, 2),
+                        'base_price' => round($price, 2)
+                    ];
+                }
+            }
+        }
+
         if (!empty($plan->durationType)) {
             $months = 1;
             if ($plan->durationType === 'quarterly') {

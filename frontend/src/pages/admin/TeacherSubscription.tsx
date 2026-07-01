@@ -15,6 +15,7 @@ interface Plan {
   price_egp: number
   is_popular?: boolean
   is_trial?: boolean
+  billing_options?: any
 }
 
 interface Subscription {
@@ -128,9 +129,46 @@ export default function TeacherSubscription() {
     loadData()
   }, [id])
 
-  const getBillingCycleDetails = (basePricePerMonth: number, period: 'monthly' | 'quarterly' | 'semi_annual' | 'annual') => {
+  const getBillingCycleDetails = (plan: any, period: 'monthly' | 'quarterly' | 'semi_annual' | 'annual') => {
     let months = 1;
     let discountPercent = 0;
+    
+    // Check if custom billing options exist and are enabled
+    if (plan && plan.billing_options) {
+      let opts = plan.billing_options;
+      if (typeof opts === 'string') {
+        try { opts = JSON.parse(opts); } catch(e) { opts = {}; }
+      }
+      
+      let cycleKey: string = period;
+      if (cycleKey === 'quarterly') {
+        cycleKey = 'three_months';
+      } else if (cycleKey === 'semi_annual') {
+        cycleKey = 'six_months';
+      } else if (cycleKey === 'annual') {
+        cycleKey = 'yearly';
+      }
+      
+      if (opts[cycleKey]?.enabled) {
+        const price = Number(opts[cycleKey].price) || 0;
+        const discount = Number(opts[cycleKey].discount) || 0;
+        const finalPrice = price - (price * discount / 100);
+        
+        if (period === 'quarterly') months = 3;
+        else if (period === 'semi_annual') months = 6;
+        else if (period === 'annual') months = 12;
+        
+        return {
+          months,
+          discountPercent: discount,
+          basePrice: price,
+          discountAmount: price * (discount / 100),
+          finalPrice: finalPrice
+        };
+      }
+    }
+
+    const basePricePerMonth = plan ? (Number(plan.price_egp) || 0) : 0;
     
     if (period === 'quarterly') {
       months = 3;
@@ -587,7 +625,7 @@ export default function TeacherSubscription() {
           <form onSubmit={handlePlanUpdate} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               {plans.filter(p => !p.is_trial).map(p => {
-                const cycle = getBillingCycleDetails(Number(p.price_egp), billingPeriod);
+                const cycle = getBillingCycleDetails(p, billingPeriod);
                 return (
                   <div 
                     key={p.id}
@@ -634,7 +672,7 @@ export default function TeacherSubscription() {
             {(() => {
               const selectedPlan = plans.find(p => Number(p.id) === Number(selectedPlanId));
               if (!selectedPlan) return null;
-              const details = getBillingCycleDetails(Number(selectedPlan.price_egp), billingPeriod);
+              const details = getBillingCycleDetails(selectedPlan, billingPeriod);
               return (
                 <div className="bg-[var(--bg-color)]/70 p-4 rounded-xl border border-[var(--border-color)] space-y-2 mt-4">
                   <h4 className="text-xs font-black text-[var(--text-color)] mb-2 border-b border-[var(--border-color)] pb-2">ملخص الفاتورة والأسعار المقدرة:</h4>

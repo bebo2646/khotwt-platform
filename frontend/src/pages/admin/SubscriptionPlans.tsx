@@ -29,6 +29,7 @@ interface Plan {
   isActive?: boolean
   created_at?: string
   updated_at?: string
+  billing_options?: any
 }
 
 interface PriceHistory {
@@ -95,6 +96,12 @@ export default function SubscriptionPlans() {
   const [discountPercentage, setDiscountPercentage] = useState<number>(0)
   const [finalPrice, setFinalPrice] = useState<number>(0)
   const [isActive, setIsActive] = useState(true)
+  const [billingOptions, setBillingOptions] = useState({
+    monthly: { enabled: false, price: 0, discount: 0 },
+    three_months: { enabled: false, price: 0, discount: 0 },
+    six_months: { enabled: false, price: 0, discount: 0 },
+    yearly: { enabled: false, price: 0, discount: 0 },
+  })
 
   // Auto-calculate final price
   useEffect(() => {
@@ -159,6 +166,42 @@ export default function SubscriptionPlans() {
       setDiscountPercentage(Number(editingPlan.discountPercentage) || 0)
       setFinalPrice(Number(editingPlan.finalPrice) || 0)
       setIsActive(editingPlan.isActive !== false)
+
+      if (editingPlan.billing_options) {
+        let opts = editingPlan.billing_options;
+        if (typeof opts === 'string') {
+          try { opts = JSON.parse(opts); } catch(e) { opts = {}; }
+        }
+        setBillingOptions({
+          monthly: {
+            enabled: !!opts.monthly?.enabled,
+            price: Number(opts.monthly?.price) || 0,
+            discount: Number(opts.monthly?.discount) || 0,
+          },
+          three_months: {
+            enabled: !!opts.three_months?.enabled,
+            price: Number(opts.three_months?.price) || 0,
+            discount: Number(opts.three_months?.discount) || 0,
+          },
+          six_months: {
+            enabled: !!opts.six_months?.enabled,
+            price: Number(opts.six_months?.price) || 0,
+            discount: Number(opts.six_months?.discount) || 0,
+          },
+          yearly: {
+            enabled: !!opts.yearly?.enabled,
+            price: Number(opts.yearly?.price) || 0,
+            discount: Number(opts.yearly?.discount) || 0,
+          },
+        })
+      } else {
+        setBillingOptions({
+          monthly: { enabled: false, price: 0, discount: 0 },
+          three_months: { enabled: false, price: 0, discount: 0 },
+          six_months: { enabled: false, price: 0, discount: 0 },
+          yearly: { enabled: false, price: 0, discount: 0 },
+        })
+      }
     } else {
       // Reset defaults for Create
       setName('')
@@ -179,6 +222,12 @@ export default function SubscriptionPlans() {
       setDiscountPercentage(0)
       setFinalPrice(0)
       setIsActive(true)
+      setBillingOptions({
+        monthly: { enabled: false, price: 0, discount: 0 },
+        three_months: { enabled: false, price: 0, discount: 0 },
+        six_months: { enabled: false, price: 0, discount: 0 },
+        yearly: { enabled: false, price: 0, discount: 0 },
+      })
     }
   }, [editingPlan, isFormOpen])
 
@@ -297,7 +346,8 @@ export default function SubscriptionPlans() {
       durationType,
       discountPercentage,
       finalPrice,
-      isActive
+      isActive,
+      billing_options: billingOptions
     }
 
     // Check if price changed for an existing plan
@@ -861,6 +911,202 @@ export default function SubscriptionPlans() {
                     onChange={(e) => setSortOrder(Number(e.target.value))}
                     className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
                   />
+                </div>
+              </div>
+
+              {/* Subscription Billing Options */}
+              <div className="bg-[var(--bg-color)]/20 border border-[var(--border-color)] p-5 rounded-2xl space-y-4">
+                <h3 className="text-sm font-black text-indigo-400">Subscription Billing Options (اختيارات الدفع المخصصة للاشتراك)</h3>
+                <p className="text-[10px] text-slate-400 font-medium">تخصيص فترات دفع متعددة لهذه الباقة. هذه الخيارات اختيارية. إذا تم إبقاؤها غير مفعلة، ستعمل الباقة بالنظام الافتراضي الحالي.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Monthly Option */}
+                  <div className="border border-[var(--border-color)] p-4 rounded-xl space-y-3 bg-[var(--surface-bg)]/40">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold select-none">
+                      <input 
+                        type="checkbox"
+                        checked={billingOptions.monthly.enabled}
+                        onChange={(e) => setBillingOptions({
+                          ...billingOptions,
+                          monthly: { ...billingOptions.monthly, enabled: e.target.checked }
+                        })}
+                        className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                      />
+                      <span>تفعيل الدفع الشهري (Monthly)</span>
+                    </label>
+                    {billingOptions.monthly.enabled && (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">السعر (EGP)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={billingOptions.monthly.price}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              monthly: { ...billingOptions.monthly, price: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">الخصم (%)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={billingOptions.monthly.discount}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              monthly: { ...billingOptions.monthly, discount: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3 Months Option */}
+                  <div className="border border-[var(--border-color)] p-4 rounded-xl space-y-3 bg-[var(--surface-bg)]/40">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold select-none">
+                      <input 
+                        type="checkbox"
+                        checked={billingOptions.three_months.enabled}
+                        onChange={(e) => setBillingOptions({
+                          ...billingOptions,
+                          three_months: { ...billingOptions.three_months, enabled: e.target.checked }
+                        })}
+                        className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                      />
+                      <span>تفعيل دفع 3 أشهر (3 Months)</span>
+                    </label>
+                    {billingOptions.three_months.enabled && (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">السعر الإجمالي (EGP)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={billingOptions.three_months.price}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              three_months: { ...billingOptions.three_months, price: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">الخصم (%)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={billingOptions.three_months.discount}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              three_months: { ...billingOptions.three_months, discount: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 6 Months Option */}
+                  <div className="border border-[var(--border-color)] p-4 rounded-xl space-y-3 bg-[var(--surface-bg)]/40">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold select-none">
+                      <input 
+                        type="checkbox"
+                        checked={billingOptions.six_months.enabled}
+                        onChange={(e) => setBillingOptions({
+                          ...billingOptions,
+                          six_months: { ...billingOptions.six_months, enabled: e.target.checked }
+                        })}
+                        className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                      />
+                      <span>تفعيل دفع 6 أشهر (6 Months)</span>
+                    </label>
+                    {billingOptions.six_months.enabled && (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">السعر الإجمالي (EGP)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={billingOptions.six_months.price}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              six_months: { ...billingOptions.six_months, price: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">الخصم (%)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={billingOptions.six_months.discount}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              six_months: { ...billingOptions.six_months, discount: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Yearly Option */}
+                  <div className="border border-[var(--border-color)] p-4 rounded-xl space-y-3 bg-[var(--surface-bg)]/40">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold select-none">
+                      <input 
+                        type="checkbox"
+                        checked={billingOptions.yearly.enabled}
+                        onChange={(e) => setBillingOptions({
+                          ...billingOptions,
+                          yearly: { ...billingOptions.yearly, enabled: e.target.checked }
+                        })}
+                        className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                      />
+                      <span>تفعيل الدفع السنوي (Yearly)</span>
+                    </label>
+                    {billingOptions.yearly.enabled && (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">السعر الإجمالي (EGP)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            value={billingOptions.yearly.price}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              yearly: { ...billingOptions.yearly, price: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-300 mb-1">الخصم (%)</label>
+                          <input 
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={billingOptions.yearly.discount}
+                            onChange={(e) => setBillingOptions({
+                              ...billingOptions,
+                              yearly: { ...billingOptions.yearly, discount: Number(e.target.value) }
+                            })}
+                            className="w-full px-3 py-1.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-color)] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

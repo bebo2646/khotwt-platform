@@ -39,6 +39,21 @@ export default function Plans() {
   })
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'semi_annual' | 'annual'>('monthly')
   const [submittingId, setSubmittingId] = useState<number | null>(null)
+  const [selectedPeriods, setSelectedPeriods] = useState<Record<number, string>>({})
+
+  const getEnabledBillingOptions = (plan: any) => {
+    if (!plan.billing_options) return [];
+    let opts = plan.billing_options;
+    if (typeof opts === 'string') {
+      try { opts = JSON.parse(opts); } catch(e) { return []; }
+    }
+    const result = [];
+    if (opts.monthly?.enabled) result.push({ key: 'monthly', label: 'شهري', price: Number(opts.monthly.price), discount: Number(opts.monthly.discount) });
+    if (opts.three_months?.enabled) result.push({ key: 'quarterly', label: '3 أشهر', price: Number(opts.three_months.price), discount: Number(opts.three_months.discount) });
+    if (opts.six_months?.enabled) result.push({ key: 'semi_annual', label: '6 أشهر', price: Number(opts.six_months.price), discount: Number(opts.six_months.discount) });
+    if (opts.yearly?.enabled) result.push({ key: 'annual', label: 'سنوي', price: Number(opts.yearly.price), discount: Number(opts.yearly.discount) });
+    return result;
+  }
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
@@ -88,12 +103,19 @@ export default function Plans() {
     try {
       setSubmittingId(planId)
       const selectedPlan = plans.find(p => p.id === planId)
-      const pDuration = selectedPlan && (selectedPlan as any).durationType ? (selectedPlan as any).durationType : billingPeriod
+      
+      let pDuration = billingPeriod;
+      const customOpts = getEnabledBillingOptions(selectedPlan);
+      if (customOpts.length > 0) {
+        pDuration = (selectedPeriods[planId] || customOpts[0].key) as any;
+      } else if (selectedPlan && (selectedPlan as any).durationType) {
+        pDuration = (selectedPlan as any).durationType;
+      }
       
       await API.post('/teacher/subscription/upgrade-request', {
         type: 'plan_upgrade',
         requested_plan_id: planId,
-        billing_period: pDuration === 'yearly' ? 'annual' : pDuration
+        billing_period: (pDuration as string) === 'yearly' ? 'annual' : pDuration
       })
       showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
       // Refresh to get any updated request status
@@ -108,6 +130,30 @@ export default function Plans() {
 
   // Calculate pricing based on period and discounts
   const calculatePrice = (plan: Plan) => {
+    // If custom options exist, use them
+    const customOpts = getEnabledBillingOptions(plan);
+    if (customOpts.length > 0) {
+      const currentPeriod = selectedPeriods[plan.id] || customOpts[0].key;
+      const opt = customOpts.find(o => o.key === currentPeriod) || customOpts[0];
+      
+      const price = opt.price;
+      const discount = opt.discount;
+      const finalPrice = price - (price * discount / 100);
+      
+      let label = 'EGP / شهرياً';
+      if (opt.key === 'quarterly') label = 'EGP / 3 أشهر';
+      else if (opt.key === 'semi_annual') label = 'EGP / 6 أشهر';
+      else if (opt.key === 'annual') label = 'EGP / سنوي';
+      
+      return {
+        price: finalPrice,
+        text: label,
+        originalPrice: discount > 0 ? price : null,
+        discountPercent: discount > 0 ? discount : null,
+        discountAmount: discount > 0 ? (price * discount / 100) : null
+      }
+    }
+
     if ((plan as any).durationType) {
       const price = Number((plan as any).price) || Number(plan.price_egp) || 0
       const discount = Number((plan as any).discountPercentage) || 0
@@ -245,6 +291,33 @@ export default function Plans() {
                 {/* Plan Header */}
                 <div className="text-center mb-6">
                   <h3 className="text-lg font-black text-[var(--text-color)] mb-2">{p.name}</h3>
+                  
+                  {/* Duration Selector if billing options exist */}
+                  {getEnabledBillingOptions(p).length > 0 && (
+                    <div className="flex justify-center gap-1.5 mb-4 bg-[var(--bg-color)]/30 p-1.5 rounded-xl border border-[var(--border-color)]">
+                      {getEnabledBillingOptions(p).map(opt => {
+                        const isSelected = (selectedPeriods[p.id] || getEnabledBillingOptions(p)[0].key) === opt.key;
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setSelectedPeriods({
+                              ...selectedPeriods,
+                              [p.id]: opt.key
+                            })}
+                            className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                              isSelected 
+                                ? 'bg-indigo-600 text-white shadow-sm' 
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   <div className="flex flex-col items-center justify-center mb-2 min-h-[75px]">
                     {calculated.originalPrice && (
                       <div className="text-[10px] text-[var(--text-secondary)] font-medium mb-1 flex flex-col items-center">

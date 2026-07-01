@@ -30,7 +30,8 @@ class SubscriptionPlan extends Model
         'student_codes',
         'price_egp',
         'duration_days',
-        'is_popular'
+        'is_popular',
+        'billing_options'
     ];
 
     protected $casts = [
@@ -46,6 +47,7 @@ class SubscriptionPlan extends Model
         'discountPercentage' => 'decimal:2',
         'finalPrice' => 'decimal:2',
         'isActive' => 'boolean',
+        'billing_options' => 'array',
     ];
 
     public function subscriptions()
