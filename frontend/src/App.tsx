@@ -143,6 +143,14 @@ function App() {
     };
   }, []);
 
+  // One-time reset / clear of stale packages and subscription plans caches
+  React.useEffect(() => {
+    localStorage.removeItem('packages');
+    localStorage.removeItem('subscription-packages');
+    localStorage.removeItem('subscription-plans');
+    sessionStorage.clear();
+  }, []);
+
   // Debug scroll lock issues: log every 2 seconds & debug wheel/touch event targets
   React.useEffect(() => {
     const logWheel = (e: WheelEvent) => {
