@@ -967,6 +967,14 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   top: 80px !important;
 }
 
+@media (max-width: 768px) {
+  [data-sonner-toaster],
+  .toast-container,
+  .fixed.top-5.left-5 {
+    top: 90px !important;
+  }
+}
+
 /* Modal and Overlay layers */
 .modal-overlay {
   z-index: 9998 !important;
