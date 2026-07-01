@@ -29,6 +29,8 @@ export function ConfirmModal() {
     }
   }, [confirmOpen, closeConfirm, confirmOptions])
 
+  if (!confirmOpen || !confirmOptions) return null
+
   const {
     title = '',
     description = '',
@@ -66,72 +68,66 @@ export function ConfirmModal() {
   }
 
   return (
-    <AnimatePresence>
-      {confirmOpen && confirmOptions && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-          {/* Backdrop overlay */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      {/* Backdrop overlay */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        onClick={() => {
+          closeConfirm()
+          if (onCancel) onCancel()
+        }}
+        className="fixed inset-0 bg-black/10"
+      />
+
+      {/* Modal Card */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', duration: 0.3 }}
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-10 text-right font-sans space-y-6"
+        dir="rtl"
+      >
+        {/* Header section with Icon */}
+        <div className="flex items-start gap-4">
+          <span className={`p-3 rounded-2xl border ${getIconBg()} shrink-0`}>
+            {getIcon()}
+          </span>
+          <div className="space-y-1.5 pt-1">
+            <h3 className="text-base font-black text-slate-100">{title}</h3>
+            <p className="text-xs text-slate-400 font-light leading-relaxed">{description}</p>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <div className="flex gap-3 justify-end pt-2">
+          <button
+            type="button"
             onClick={() => {
               closeConfirm()
               if (onCancel) onCancel()
             }}
-            className="fixed inset-0 bg-black/10"
-          />
-
-          {/* Modal Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-10 text-right font-sans space-y-6"
-            dir="rtl"
+            className="px-4 py-2.5 btn-secondary rounded-xl text-xs font-semibold cursor-pointer transition-all"
           >
-            {/* Header section with Icon */}
-            <div className="flex items-start gap-4">
-              <span className={`p-3 rounded-2xl border ${getIconBg()} shrink-0`}>
-                {getIcon()}
-              </span>
-              <div className="space-y-1.5 pt-1">
-                <h3 className="text-base font-black text-slate-100">{title}</h3>
-                <p className="text-xs text-slate-400 font-light leading-relaxed">{description}</p>
-              </div>
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  closeConfirm()
-                  if (onCancel) onCancel()
-                }}
-                className="px-4 py-2.5 btn-secondary rounded-xl text-xs font-semibold cursor-pointer transition-all"
-              >
-                {cancelText}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  closeConfirm()
-                  if (onConfirm) onConfirm()
-                }}
-                className={`px-5 py-2.5 text-white rounded-xl text-xs font-black cursor-pointer transition-all ${
-                  type === 'delete' 
-                    ? 'bg-rose-500 hover:bg-rose-600' 
-                    : 'bg-brand-primary hover:bg-brand-primary-hover'
-                }`}
-              >
-                {confirmText}
-              </button>
-            </div>
-          </motion.div>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              closeConfirm()
+              if (onConfirm) onConfirm()
+            }}
+            className={`px-5 py-2.5 text-white rounded-xl text-xs font-black cursor-pointer transition-all ${
+              type === 'delete' 
+                ? 'bg-rose-500 hover:bg-rose-600' 
+                : 'bg-brand-primary hover:bg-brand-primary-hover'
+            }`}
+          >
+            {confirmText}
+          </button>
         </div>
-      )}
-    </AnimatePresence>
+      </motion.div>
+    </div>
   )
 }
 
@@ -152,6 +148,8 @@ export function AlertModal() {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [alertOpen, closeAlert, alertOptions])
+
+  if (!alertOpen || !alertOptions) return null
 
   const {
     title = '',
@@ -188,54 +186,48 @@ export function AlertModal() {
   }
 
   return (
-    <AnimatePresence>
-      {alertOpen && alertOptions && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        onClick={() => {
+          closeAlert()
+          if (onConfirm) onConfirm()
+        }}
+        className="fixed inset-0 bg-black/10"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', duration: 0.3 }}
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-10 text-right font-sans space-y-6"
+        dir="rtl"
+      >
+        <div className="flex items-start gap-4">
+          <span className={`p-3 rounded-2xl border ${getIconBg()} shrink-0`}>
+            {getIcon()}
+          </span>
+          <div className="space-y-1.5 pt-1">
+            <h3 className="text-base font-black text-slate-100">{title}</h3>
+            <p className="text-xs text-slate-400 font-light leading-relaxed">{description}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <button
+            type="button"
             onClick={() => {
               closeAlert()
               if (onConfirm) onConfirm()
             }}
-            className="fixed inset-0 bg-black/10"
-          />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3 }}
-            className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-10 text-right font-sans space-y-6"
-            dir="rtl"
+            className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer transition-all"
           >
-            <div className="flex items-start gap-4">
-              <span className={`p-3 rounded-2xl border ${getIconBg()} shrink-0`}>
-                {getIcon()}
-              </span>
-              <div className="space-y-1.5 pt-1">
-                <h3 className="text-base font-black text-slate-100">{title}</h3>
-                <p className="text-xs text-slate-400 font-light leading-relaxed">{description}</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  closeAlert()
-                  if (onConfirm) onConfirm()
-                }}
-                className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer transition-all"
-              >
-                {buttonText}
-              </button>
-            </div>
-          </motion.div>
+            {buttonText}
+          </button>
         </div>
-      )}
-    </AnimatePresence>
+      </motion.div>
+    </div>
   )
 }
 

@@ -698,10 +698,13 @@ export default function SubscriptionPlans() {
         </div>
       )}
 
-      {/* -------------------- CREATE/EDIT PLAN FORM DRAWER/MODAL -------------------- */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/10 p-4">
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-black/10" 
+            onClick={() => setIsFormOpen(false)} 
+          />
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto z-10">
             
             <button
               onClick={() => setIsFormOpen(false)}
@@ -1181,10 +1184,17 @@ export default function SubscriptionPlans() {
         </div>
       )}
 
-      {/* -------------------- PRICE CHANGE CONFIRMATION MODAL -------------------- */}
       {priceConfirmOpen && confirmPriceDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 p-4">
-          <div className="bg-[var(--card-bg)] border border-rose-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl relative text-right animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="fixed inset-0 bg-black/10" 
+            onClick={() => {
+              setPriceConfirmOpen(false)
+              setPendingSubmitData(null)
+              setConfirmPriceDetails(null)
+            }} 
+          />
+          <div className="bg-[var(--card-bg)] border border-rose-500/30 rounded-3xl max-w-md w-full p-6 shadow-2xl relative text-right animate-in zoom-in-95 duration-200 z-10">
             <div className="flex items-start gap-4 mb-4">
               <div className="p-3 bg-rose-500/15 text-rose-500 rounded-2xl border border-rose-500/30">
                 <AlertTriangle className="w-6 h-6 animate-pulse" />
@@ -1239,8 +1249,12 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- PRICE HISTORY SIDE DRAWER / MODAL -------------------- */}
       {selectedPlanForHistory && (
-        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/10">
-          <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-lg w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300">
+        <div className="fixed inset-0 z-40 flex items-center justify-end">
+          <div 
+            className="fixed inset-0 bg-black/10" 
+            onClick={() => setSelectedPlanForHistory(null)} 
+          />
+          <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-lg w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300 z-10">
             <div>
               <button
                 onClick={() => setSelectedPlanForHistory(null)}
@@ -1311,8 +1325,12 @@ export default function SubscriptionPlans() {
 
       {/* -------------------- AUDIT LOGS SIDE DRAWER / MODAL -------------------- */}
       {selectedPlanForLogs && (
-        <div className="fixed inset-0 z-40 flex items-center justify-end bg-black/10">
-          <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-xl w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300">
+        <div className="fixed inset-0 z-40 flex items-center justify-end">
+          <div 
+            className="fixed inset-0 bg-black/10" 
+            onClick={() => setSelectedPlanForLogs(null)} 
+          />
+          <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-xl w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300 z-10">
             <div className="flex-1 flex flex-col min-h-0">
               <button
                 onClick={() => setSelectedPlanForLogs(null)}
