@@ -782,10 +782,35 @@ class AdminController extends Controller
      */
     public function deletePackage(Request $request, $packageId)
     {
-        $package = \App\Models\Package::findOrFail($packageId);
-        $package->delete();
+        \Log::info("DELETE PACKAGE: " . $packageId);
+        error_log("DELETE PACKAGE: " . $packageId);
 
-        return response()->json(['message' => 'Package deleted successfully'], 200);
+        $package = \App\Models\Package::find($packageId);
+        \Log::info("Package model: " . json_encode($package));
+        error_log("Package model: " . json_encode($package));
+
+        if (!$package) {
+            return response()->json(['message' => 'الباقة غير موجودة بالفعل أو تم حذفها.'], 404);
+        }
+
+        try {
+            \DB::beginTransaction();
+            
+            // Delete dependent records
+            \DB::table('package_lessons')->where('package_id', $packageId)->delete();
+            \DB::table('purchase_codes')->where('package_id', $packageId)->update(['package_id' => null]);
+            
+            $package->delete();
+            
+            \DB::commit();
+            return response()->json(['message' => 'تم حذف الباقة المجمعة بنجاح'], 200);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error("Failed to delete package {$packageId}: " . $e->getMessage());
+            return response()->json([
+                'message' => 'فشل حذف الباقة من قاعدة البيانات: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

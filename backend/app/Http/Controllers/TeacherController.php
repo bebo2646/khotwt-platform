@@ -1237,12 +1237,35 @@ class TeacherController extends Controller
      */
     public function deletePackage(Request $request, $packageId)
     {
-        $package = Package::findOrFail($packageId);
+        \Log::info("DELETE PACKAGE: " . $packageId);
+        error_log("DELETE PACKAGE: " . $packageId);
+
+        $package = Package::find($packageId);
+        \Log::info("Package model: " . json_encode($package));
+        error_log("Package model: " . json_encode($package));
+
+        if (!$package) {
+            return response()->json(['message' => 'الباقة غير موجودة.'], 404);
+        }
+
         $this->verifyCourseTeacher($request, $package->course_id);
 
-        $package->delete();
-
-        return response()->json(['message' => 'Package deleted successfully'], 200);
+        try {
+            \DB::beginTransaction();
+            
+            // Delete dependent records
+            \DB::table('package_lessons')->where('package_id', $packageId)->delete();
+            \DB::table('purchase_codes')->where('package_id', $packageId)->update(['package_id' => null]);
+            
+            $package->delete();
+            
+            \DB::commit();
+            return response()->json(['message' => 'تم حذف الباقة بنجاح'], 200);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error("Failed to delete teacher package {$packageId}: " . $e->getMessage());
+            return response()->json(['message' => 'فشل حذف الباقة: ' . $e->getMessage()], 500);
+        }
     }
 
     /**

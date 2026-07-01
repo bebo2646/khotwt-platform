@@ -155,6 +155,7 @@ export default function Dashboard() {
   }
 
   const handleDeletePackage = (packageId: number) => {
+    console.log("Deleting package:", packageId);
     useModalStore.getState().showConfirm({
       title: 'حذف الباقة المجمعة (مسؤول المنصة)',
       description: 'هل أنت متأكد من حذف هذه الباقة كمسؤول للموقع؟ سيتم إلغاء تفعيل الباقة للطلاب الجدد فوراً.',
@@ -164,12 +165,17 @@ export default function Dashboard() {
       onConfirm: async () => {
         setLoading(true)
         try {
-          await API.delete(`/admin/packages/${packageId}`)
+          const res = await API.delete(`/admin/packages/${packageId}`)
+          console.log("Delete response:", res);
+          
+          // Update local packages state immediately
+          setPackages(prev => prev.filter(pkg => pkg.id !== packageId))
+          
           fetchPackages()
-          useModalStore.getState().showToast('تم حذف الباقة بنجاح.', 'success')
-        } catch (err) {
+          useModalStore.getState().showToast(res.data.message || 'تم حذف الباقة بنجاح.', 'success')
+        } catch (err: any) {
           console.error(err)
-          useModalStore.getState().showToast('فشل حذف الباقة.', 'error')
+          useModalStore.getState().showToast(err.response?.data?.message || 'فشل حذف الباقة.', 'error')
         } finally {
           setLoading(false)
         }
@@ -422,7 +428,10 @@ export default function Dashboard() {
                         <Edit3 className="h-4 w-4" /> <span>تعديل</span>
                       </button>
                       <button
-                        onClick={() => handleDeletePackage(pkg.id)}
+                        onClick={() => {
+                          console.log("Delete button clicked", pkg.id);
+                          handleDeletePackage(pkg.id);
+                        }}
                         className="flex-1 py-2 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/10 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
                       >
                         <Trash2 className="h-4 w-4" /> <span>حذف</span>
