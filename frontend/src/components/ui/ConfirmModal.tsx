@@ -114,8 +114,8 @@ export function ConfirmModal() {
           <button
             type="button"
             onClick={() => {
-              closeConfirm()
               if (onConfirm) onConfirm()
+              closeConfirm()
             }}
             className={`px-5 py-2.5 text-white rounded-xl text-xs font-black cursor-pointer transition-all ${
               type === 'delete' 

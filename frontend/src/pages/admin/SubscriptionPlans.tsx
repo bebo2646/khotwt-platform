@@ -307,6 +307,7 @@ export default function SubscriptionPlans() {
     }
 
     console.log("Delete button clicked:", plan.id);
+    console.log('DELETE FUNCTION CALLED', plan.id);
 
     useModalStore.getState().showConfirm({
       title: 'حذف خطة الاشتراك',
@@ -666,7 +667,11 @@ export default function SubscriptionPlans() {
                       تعديل
                     </button>
                     <button
-                      onClick={() => handleDelete(plan)}
+                      type="button"
+                      onClick={() => {
+                        console.log('DELETE BUTTON CLICKED', plan.id);
+                        handleDelete(plan);
+                      }}
                       className="py-2.5 bg-slate-800 hover:bg-rose-950/20 border border-[var(--border-color)] hover:border-rose-900/30 text-[var(--text-color)] rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-500" />
