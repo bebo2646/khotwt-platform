@@ -404,8 +404,8 @@ export default function StudentsList() {
       {/* 1. Reset Student Password Modal */}
       {resetPasswordStudent && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/10" onClick={() => setResetPasswordStudent(null)} />
-          <form onSubmit={submitResetPassword} className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
+          <div className="fixed inset-0 bg-black/10 z-40" onClick={() => setResetPasswordStudent(null)} />
+          <form onSubmit={submitResetPassword} className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-50 text-right">
             <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <KeyRound className="h-5 w-5 text-brand-primary" />
               <span>إعادة تعيين كلمة مرور الطالب</span>
@@ -450,8 +450,8 @@ export default function StudentsList() {
       {/* 3. View Student Statistics & Profile Modal */}
       {viewStudentItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/10" onClick={() => setViewStudentItem(null)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
+          <div className="fixed inset-0 bg-black/10 z-40" onClick={() => setViewStudentItem(null)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-50 text-right">
             
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
               <h3 className="text-lg font-black text-slate-200">ملف الطالب ومراجعة الإحصائيات</h3>
@@ -683,8 +683,8 @@ export default function StudentsList() {
       {/* 4. Bulk Delete Confirmation Modal */}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/10" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-10 text-right">
+          <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right">
             <h3 className="text-lg font-black text-red-500 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
               <span>تأكيد الإجراء الخطير: حذف جميع الطلاب</span>

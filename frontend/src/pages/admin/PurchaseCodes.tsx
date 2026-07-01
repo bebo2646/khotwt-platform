@@ -353,8 +353,8 @@ export default function PurchaseCodes() {
       {/* Generation Form Popup Modal */}
       {showGenForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/10" onClick={() => setShowGenForm(false)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
+          <div className="fixed inset-0 bg-black/10 z-40" onClick={() => setShowGenForm(false)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-50 text-right">
             <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3 text-right">توليد أكواد شحن وتفعيل</h3>
             
             <form onSubmit={handleGenerate} className="space-y-4 text-right">
@@ -544,8 +544,8 @@ export default function PurchaseCodes() {
       {/* 6. Bulk Delete Codes Modal */}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/10" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-10 text-right">
+          <div className="fixed inset-0 bg-black/10 z-40" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right">
             <h3 className="text-lg font-black text-red-500 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />
               <span>تأكيد الإجراء الخطير: حذف جميع الأكواد</span>

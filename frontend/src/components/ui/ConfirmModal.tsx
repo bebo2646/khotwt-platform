@@ -77,7 +77,7 @@ export function ConfirmModal() {
           closeConfirm()
           if (onCancel) onCancel()
         }}
-        className="fixed inset-0 bg-black/10"
+        className="fixed inset-0 bg-black/10 z-40"
       />
 
       {/* Modal Card */}
@@ -85,7 +85,7 @@ export function ConfirmModal() {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-10 text-right font-sans space-y-6"
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-50 text-right font-sans space-y-6"
         dir="rtl"
       >
         {/* Header section with Icon */}
@@ -194,14 +194,14 @@ export function AlertModal() {
           closeAlert()
           if (onConfirm) onConfirm()
         }}
-        className="fixed inset-0 bg-black/10"
+        className="fixed inset-0 bg-black/10 z-40"
       />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-10 text-right font-sans space-y-6"
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-50 text-right font-sans space-y-6"
         dir="rtl"
       >
         <div className="flex items-start gap-4">

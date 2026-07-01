@@ -88,7 +88,7 @@ export default function PurchaseModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/10"
+          className="absolute inset-0 bg-black/10 z-40"
         />
 
         {/* Modal content */}
@@ -97,7 +97,7 @@ export default function PurchaseModal({
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: 'spring', duration: 0.4 }}
-          className="relative w-full max-w-md bg-brand-card border border-[var(--border-color)] rounded-[32px] shadow-2xl p-6 sm:p-8 text-right z-10 font-sans"
+          className="relative w-full max-w-md bg-brand-card border border-[var(--border-color)] rounded-[32px] shadow-2xl p-6 sm:p-8 text-right z-50 font-sans"
           dir="rtl"
         >
           {/* Close button */}
