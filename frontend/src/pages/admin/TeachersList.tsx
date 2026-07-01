@@ -983,7 +983,7 @@ export default function TeachersList() {
       {/* 1. Add/Edit Teacher Modal */}
       {showAddForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddForm(false)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setShowAddForm(false)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3 text-slate-200">
               {editTeacher ? 'تعديل بيانات المعلم' : 'إضافة حساب معلم جديد'}
@@ -1140,7 +1140,7 @@ export default function TeachersList() {
       {/* 2. Admin resets teacher password modal */}
       {resetPasswordTeacher && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setResetPasswordTeacher(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setResetPasswordTeacher(null)} />
           <form onSubmit={submitResetPassword} className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10">
             <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <KeyRound className="h-5 w-5 text-brand-primary" />
@@ -1186,7 +1186,7 @@ export default function TeachersList() {
       {/* 3. Delete Teacher Modal with Warning & Options */}
       {deleteTeacherItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteTeacherItem(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setDeleteTeacherItem(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <AlertTriangle className="h-5 w-5 text-rose-500" />
@@ -1275,7 +1275,7 @@ export default function TeachersList() {
       {/* 4. View Teacher Profile & Courses Modal */}
       {viewTeacherItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewTeacherItem(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setViewTeacherItem(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-2xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
@@ -1376,7 +1376,7 @@ export default function TeachersList() {
       {/* Generated Credentials Popup Modal */}
       {showCredentialsPopup && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCredentialsPopup(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setShowCredentialsPopup(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl text-center z-10">
             
             <div className="p-4 bg-emerald-500/10 border border-emerald-500/25 rounded-full inline-block mb-2 text-brand-primary">
@@ -1414,7 +1414,7 @@ export default function TeachersList() {
       {/* 5. Bulk Delete Teachers Modal */}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => { if (!bulkDeleting) setShowBulkDeleteModal(false); }} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-lg font-black text-red-500 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <AlertTriangle className="h-5 w-5 text-red-500 animate-pulse" />

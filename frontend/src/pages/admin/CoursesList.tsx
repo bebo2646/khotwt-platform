@@ -289,7 +289,7 @@ export default function CoursesList() {
       {/* 1. Syllabus View Audit Modal */}
       {viewCourse && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setViewCourse(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setViewCourse(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-3xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
@@ -460,7 +460,7 @@ export default function CoursesList() {
       {/* 2. Delete Course Modal */}
       {deleteCourseItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setDeleteCourseItem(null)} />
+          <div className="fixed inset-0 bg-black/20" onClick={() => setDeleteCourseItem(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
               <AlertTriangle className="h-5 w-5 text-rose-500" />
