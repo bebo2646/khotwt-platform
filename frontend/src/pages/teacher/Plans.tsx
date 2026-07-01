@@ -104,11 +104,13 @@ export default function Plans() {
         pDuration = (selectedPlan as any).durationType;
       }
       
-      await API.post('/teacher/subscription/upgrade-request', {
+      const payload = {
         type: 'plan_upgrade',
         requested_plan_id: planId,
         billing_period: (pDuration as string) === 'yearly' ? 'annual' : pDuration
-      })
+      }
+      console.log('Upgrade request payload', payload);
+      await API.post('/teacher/subscription/upgrade-request', payload)
       showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
       // Refresh to get any updated request status
       loadData()

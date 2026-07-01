@@ -210,12 +210,14 @@ export default function Subscription() {
 
     try {
       setSendingRequest(true)
-      await API.post('/teacher/subscription/upgrade-request', {
+      const payload = {
         type: requestType,
         requested_plan_id: requestType === 'plan_upgrade' ? Number(reqPlanId) : null,
         amount: requestType !== 'plan_upgrade' ? reqAmount : null,
         billing_period: requestType === 'plan_upgrade' ? billingPeriod : null,
-      })
+      }
+      console.log('Upgrade request payload', payload);
+      await API.post('/teacher/subscription/upgrade-request', payload)
 
       showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
       setReqAmount(0)

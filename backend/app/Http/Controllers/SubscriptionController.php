@@ -826,88 +826,110 @@ class SubscriptionController extends Controller
      */
     public function requestUpgradeSelf(Request $request)
     {
-        $request->validate([
-            'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
-            'requested_plan_id' => 'required_if:type,plan_upgrade|exists:subscription_plans,id',
-            'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
-            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
+        \Log::info('UPGRADE REQUEST', [
+            'teacher_id' => auth()->id(),
+            'payload' => $request->all(),
         ]);
 
-        $teacher = $request->user();
-        if (!$teacher->isTeacher() && !$teacher->is_super_admin && !$teacher->is_super) {
-            return response()->json(['message' => 'غير مصرح للوصول لغير المعلمين'], 403);
-        }
+        try {
+            $request->validate([
+                'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
+                'requested_plan_id' => 'nullable|required_if:type,plan_upgrade|exists:subscription_plans,id',
+                'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
+                'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
+            ]);
 
-        // Support super_admin impersonation for request upgrade
-        if ($teacher->role !== 'teacher') {
-            $firstTeacher = \App\Models\User::where('role', 'teacher')->first();
-            if ($firstTeacher) {
-                $teacher = $firstTeacher;
+            $teacher = $request->user();
+            if (!$teacher->isTeacher() && !$teacher->is_super_admin && !$teacher->is_super) {
+                return response()->json(['message' => 'غير مصرح للوصول لغير المعلمين'], 403);
+            }
+
+            // Support super_admin impersonation for request upgrade
+            if ($teacher->role !== 'teacher') {
+                $firstTeacher = \App\Models\User::where('role', 'teacher')->first();
+                if ($firstTeacher) {
+                    $teacher = $firstTeacher;
+                } else {
+                    return response()->json(['message' => 'لا يوجد معلم في النظام لتنفيذ الطلب عليه.'], 400);
+                }
+            }
+
+            // Check if there is an existing pending request of the same type to prevent spamming
+            $pendingExists = SubscriptionRequest::where('teacher_id', $teacher->id)
+                ->where('type', $request->type)
+                ->where('status', 'Pending')
+                ->exists();
+
+            if ($pendingExists) {
+                return response()->json([
+                    'message' => 'لديك طلب معلق من نفس النوع بالفعل بانتظار موافقة الإدارة.'
+                ], 400);
+            }
+
+            $billingCycle = $request->type === 'plan_upgrade' ? ($request->billing_period ?: 'monthly') : 'monthly';
+            if ($billingCycle === 'yearly') {
+                $billingCycle = 'annual';
+            }
+            $discountPercentage = 0;
+            $discountAmount = 0;
+            $finalPrice = 0;
+
+            if ($request->type === 'plan_upgrade') {
+                $plan = SubscriptionPlan::findOrFail($request->requested_plan_id);
+                
+                // Protection: Deactivated plans cannot be requested/purchased
+                if (!$plan->isActive) {
+                    return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير متاحة حالياً ولا يمكن الترقية إليها.'], 400);
+                }
+                
+                $details = $this->getSubscriptionPriceDetails($plan, $billingCycle);
+                $discountPercentage = $details['discount_percentage'];
+                $discountAmount = $details['discount_amount'];
+                $finalPrice = $details['final_price'];
             } else {
-                return response()->json(['message' => 'لا يوجد معلم في النظام لتنفيذ الطلب عليه.'], 400);
+                $finalPrice = $this->calculateAddonPrice($request->type, $request->amount);
             }
-        }
 
-        // Check if there is an existing pending request of the same type to prevent spamming
-        $pendingExists = SubscriptionRequest::where('teacher_id', $teacher->id)
-            ->where('type', $request->type)
-            ->where('status', 'Pending')
-            ->exists();
+            $upgradeRequest = SubscriptionRequest::create([
+                'teacher_id' => $teacher->id,
+                'type' => $request->type,
+                'requested_plan_id' => $request->type === 'plan_upgrade' ? $request->requested_plan_id : null,
+                'amount' => $request->type !== 'plan_upgrade' ? $request->amount : null,
+                'billing_period' => $billingCycle,
+                'billing_cycle' => $billingCycle,
+                'discount_percentage' => $discountPercentage,
+                'discount_amount' => $discountAmount,
+                'final_price' => $finalPrice,
+                'status' => 'Pending',
+            ]);
 
-        if ($pendingExists) {
+            // Send alert to admin
+            $this->notificationService->sendNotification(
+                'طلب ترقية اشتراك جديد',
+                "المعلم {$teacher->name} أرسل طلب ترقية من نوع ({$request->type}) وبانتظار المراجعة.",
+                'admin' // Delivers to admin notification views
+            );
+
             return response()->json([
-                'message' => 'لديك طلب معلق من نفس النوع بالفعل بانتظار موافقة الإدارة.'
-            ], 400);
-        }
+                'message' => 'تم إرسال طلب الترقية بنجاح إلى الإدارة وسيتم مراجعته قريباً.',
+                'request' => $upgradeRequest,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('UPGRADE REQUEST FAILED', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
 
-        $billingCycle = $request->type === 'plan_upgrade' ? ($request->billing_period ?: 'monthly') : 'monthly';
-        if ($billingCycle === 'yearly') {
-            $billingCycle = 'annual';
-        }
-        $discountPercentage = 0;
-        $discountAmount = 0;
-        $finalPrice = 0;
-
-        if ($request->type === 'plan_upgrade') {
-            $plan = SubscriptionPlan::findOrFail($request->requested_plan_id);
-            
-            // Protection: Deactivated plans cannot be requested/purchased
-            if (!$plan->isActive) {
-                return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير متاحة حالياً ولا يمكن الترقية إليها.'], 400);
+            $message = $e->getMessage();
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                $message = "بيانات المدخلات غير صالحة: " . implode(', ', \Arr::flatten($e->errors()));
             }
-            
-            $details = $this->getSubscriptionPriceDetails($plan, $billingCycle);
-            $discountPercentage = $details['discount_percentage'];
-            $discountAmount = $details['discount_amount'];
-            $finalPrice = $details['final_price'];
-        } else {
-            $finalPrice = $this->calculateAddonPrice($request->type, $request->amount);
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+            ], 500);
         }
-
-        $upgradeRequest = SubscriptionRequest::create([
-            'teacher_id' => $teacher->id,
-            'type' => $request->type,
-            'requested_plan_id' => $request->type === 'plan_upgrade' ? $request->requested_plan_id : null,
-            'amount' => $request->type !== 'plan_upgrade' ? $request->amount : null,
-            'billing_period' => $billingCycle,
-            'billing_cycle' => $billingCycle,
-            'discount_percentage' => $discountPercentage,
-            'discount_amount' => $discountAmount,
-            'final_price' => $finalPrice,
-            'status' => 'Pending',
-        ]);
-
-        // Send alert to admin
-        $this->notificationService->sendNotification(
-            'طلب ترقية اشتراك جديد',
-            "المعلم {$teacher->name} أرسل طلب ترقية من نوع ({$request->type}) وبانتظار المراجعة.",
-            'admin' // Delivers to admin notification views
-        );
-
-        return response()->json([
-            'message' => 'تم إرسال طلب الترقية بنجاح إلى الإدارة وسيتم مراجعته قريباً.',
-            'request' => $upgradeRequest,
-        ]);
     }
 
     /*
