@@ -1192,6 +1192,9 @@ class SubscriptionController extends Controller
 
         $plan = SubscriptionPlan::findOrFail($id);
 
+        \Log::info("DELETE PACKAGE ID: " . $id);
+        error_log("DELETE PACKAGE ID: " . $id);
+
         // Check if there are active subscriptions using this plan
         $activeSubsCount = TeacherSubscription::where('plan_id', $id)
             ->whereIn('status', ['Active', 'Expiring Soon'])
@@ -1201,6 +1204,16 @@ class SubscriptionController extends Controller
             return response()->json([
                 'message' => 'لا يمكن حذف هذه الخطة لأن هناك معلمين مشتركين فيها حالياً بنشاط. يرجى إلغاء تفعيلها بدلاً من ذلك.'
             ], 400);
+        }
+
+        // Reassign any remaining inactive/expired subscriptions referencing this plan to avoid foreign key restriction
+        $starter = SubscriptionPlan::where('name', 'Starter')->where('id', '!=', $id)->first();
+        $fallbackPlan = $starter ?: SubscriptionPlan::where('id', '!=', $id)->first();
+        
+        if ($fallbackPlan) {
+            TeacherSubscription::where('plan_id', $id)->update(['plan_id' => $fallbackPlan->id]);
+        } else {
+            TeacherSubscription::where('plan_id', $id)->delete();
         }
 
         $oldValues = $plan->toArray();

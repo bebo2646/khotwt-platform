@@ -309,9 +309,16 @@ export default function SubscriptionPlans() {
       return
     }
 
+    console.log("Deleting package:", plan.id);
+
     try {
       const res = await API.delete(`/admin/subscription-plans/${plan.id}`)
+      console.log("Delete response:", res);
       showToast(res.data.message || 'تم حذف الخطة بنجاح.', 'success')
+      
+      // Update UI state immediately without page reload
+      setPlans(prev => prev.filter(p => p.id !== plan.id))
+      
       fetchPlans()
     } catch (err: any) {
       console.error(err)

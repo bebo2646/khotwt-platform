@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import API from '../../services/api'
+import { useAuthStore } from '../../store/authStore'
 import { 
   Award, HardDrive, Users, Calendar, Clock, DollarSign, 
   PlusCircle, CheckCircle, AlertCircle, RefreshCw, ChevronDown, 
@@ -48,6 +49,8 @@ interface Addon {
 
 export default function Subscription() {
   const navigate = useNavigate()
+  const { user } = useAuthStore()
+
   const [loading, setLoading] = useState(true)
   const [subscription, setSubscription] = useState<Subscription | null>(null)
   const [addons, setAddons] = useState<Addon[]>([])
@@ -67,6 +70,11 @@ export default function Subscription() {
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
 
+  console.log("Subscription Page Render");
+  console.log("Packages Response:", plans);
+  console.log("Subscription State:", subscription);
+  console.log("Current User:", user);
+
   const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
@@ -78,12 +86,16 @@ export default function Subscription() {
       const res = await API.get('/teacher/subscription')
       setSubscription(res.data.subscription)
       setAddons(res.data.addons)
-      setPlans(res.data.plans)
+      
+      const rawPlans = res.data.plans || []
+      const activePlans = rawPlans.filter((p: any) => p.active !== false && (p as any).active !== 0 && (p as any).active !== '0' && (p as any).isActive !== false && ((p as any).isActive as any) !== 0 && ((p as any).isActive as any) !== '0')
+      setPlans(activePlans)
+      
       setSettings(res.data.settings)
       setAlerts(res.data.alerts || [])
 
-      if (res.data.plans?.length > 0 && !reqPlanId) {
-        setReqPlanId(res.data.plans[0].id.toString())
+      if (activePlans.length > 0 && !reqPlanId) {
+        setReqPlanId(activePlans[0].id.toString())
       }
     } catch (err: any) {
       console.error(err)
@@ -173,17 +185,7 @@ export default function Subscription() {
     }
   }
 
-  // Invalidate stale cache and auto-refetch if inactive plan is found
-  useEffect(() => {
-    if (plans.length > 0) {
-      const hasInactive = plans.some(p => p.active === false || (p.active as any) === 0 || (p as any).active === '0' || (p as any).isActive === false || ((p as any).isActive as any) === 0 || ((p as any).isActive as any) === '0');
-      if (hasInactive) {
-        console.warn("Inactive plan detected in cache. Invalidating and auto-refetching...");
-        setPlans(prev => prev.filter(p => p.active !== false && (p.active as any) !== 0 && (p as any).active !== '0' && (p as any).isActive !== false && ((p as any).isActive as any) !== 0 && ((p as any).isActive as any) !== '0'));
-        loadData();
-      }
-    }
-  }, [plans]);
+
 
   const triggerSync = async () => {
     try {
