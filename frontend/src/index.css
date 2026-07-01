@@ -943,6 +943,33 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   overflow: hidden !important;
 }
 
+/* Toast/Toaster pointer-events overrides to prevent invisible layer click blocking */
+[data-sonner-toaster],
+[data-toast-container],
+.toast-container,
+.fixed.top-6.left-4.right-4,
+.fixed.bottom-6.left-4 {
+  pointer-events: none !important;
+}
+
+[data-sonner-toast],
+.toast-item,
+.fixed.top-6.left-4.right-4 > *,
+.fixed.bottom-6.left-4 > * {
+  pointer-events: auto !important;
+}
+
+/* Modal and Overlay layers */
+.modal-overlay {
+  z-index: 9998 !important;
+  pointer-events: auto !important;
+}
+
+.modal-content {
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+}
+
 
 
 

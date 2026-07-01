@@ -68,7 +68,7 @@ export function ConfirmModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop overlay */}
       <motion.div 
         initial={{ opacity: 0 }}
@@ -77,7 +77,7 @@ export function ConfirmModal() {
           closeConfirm()
           if (onCancel) onCancel()
         }}
-        className="fixed inset-0 bg-black/10 z-40"
+        className="fixed inset-0 bg-black/10 z-[9998]"
       />
 
       {/* Modal Card */}
@@ -85,7 +85,7 @@ export function ConfirmModal() {
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-50 text-right font-sans space-y-6"
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-[9999] text-right font-sans space-y-6"
         dir="rtl"
       >
         {/* Header section with Icon */}
@@ -186,7 +186,7 @@ export function AlertModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -194,14 +194,14 @@ export function AlertModal() {
           closeAlert()
           if (onConfirm) onConfirm()
         }}
-        className="fixed inset-0 bg-black/10 z-40"
+        className="fixed inset-0 bg-black/10 z-[9998]"
       />
 
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-50 text-right font-sans space-y-6"
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-[9999] text-right font-sans space-y-6"
         dir="rtl"
       >
         <div className="flex items-start gap-4">
