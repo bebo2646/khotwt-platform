@@ -1190,27 +1190,31 @@ class SubscriptionController extends Controller
             return response()->json(['message' => 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية.'], 403);
         }
 
+        \Log::info('DELETE PLAN REQUEST', [
+            'id' => $id,
+            'user_id' => auth()->id(),
+        ]);
+
         try {
             $plan = SubscriptionPlan::find($id);
 
-            \Log::info("DELETE PACKAGE REQUEST: " . $id);
-            error_log("DELETE PACKAGE REQUEST: " . $id);
-            
-            \Log::info("Package Found: " . json_encode($plan));
-            error_log("Package Found: " . json_encode($plan));
+            \Log::info('PLAN FOUND', ['plan' => $plan]);
 
             if (!$plan) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Package not found',
-                    'package_id' => $id
+                    'message' => 'Plan not found',
+                    'plan_id' => $id
                 ], 404);
             }
 
-            \Log::info("STARTING DELETE...");
-            error_log("STARTING DELETE...");
-
+            \Log::info('STARTING DELETE');
             \DB::beginTransaction();
+
+            \Log::info('DELETING RELATIONS');
+
+            // Clean dependencies on subscription_requests table manually
+            \DB::table('subscription_requests')->where('requested_plan_id', $id)->update(['requested_plan_id' => null]);
 
             // Reassign any remaining subscriptions referencing this plan to avoid foreign key restriction
             $starter = SubscriptionPlan::where('name', 'Starter')->where('id', '!=', $id)->first();
@@ -1226,24 +1230,38 @@ class SubscriptionController extends Controller
             \DB::table('subscription_plan_price_history')->where('plan_id', $id)->delete();
             \DB::table('subscription_plan_audit_logs')->where('plan_id', $id)->delete();
 
+            \Log::info('DELETING PLAN');
             $oldValues = $plan->toArray();
             $plan->delete();
 
-            $this->logPlanAudit($id, $request->user()->id, 'delete', $oldValues, null);
+            // Verify deletion immediately
+            $exists = SubscriptionPlan::find($id);
+            \Log::info('AFTER DELETE', [
+                'exists' => $exists
+            ]);
+
+            // Write to AdminActivityLog instead of SubscriptionPlanAuditLog to avoid Foreign Key constraint violation
+            \App\Models\AdminActivityLog::create([
+                'admin_name' => $request->user()->name,
+                'action_type' => "حذف خطة الاشتراك: {$plan->name} (ID: {$id})",
+                'ip_address' => $request->ip(),
+            ]);
 
             \DB::commit();
 
-            \Log::info("Delete Success");
-            error_log("Delete Success");
+            \Log::info('DELETE SUCCESS');
 
             return response()->json([
                 'success' => true,
+                'deleted_id' => $id,
                 'message' => 'تم حذف الباقة بنجاح'
             ], 200);
         } catch (\Exception $e) {
             \DB::rollBack();
-            \Log::error("Delete Error: " . $e->getMessage());
-            error_log("Delete Error: " . $e->getMessage());
+            \Log::error('DELETE FAILED', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'message' => 'فشل حذف الخطة من قاعدة البيانات: ' . $e->getMessage()
             ], 500);
