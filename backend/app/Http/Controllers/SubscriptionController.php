@@ -826,19 +826,39 @@ class SubscriptionController extends Controller
      */
     public function requestUpgradeSelf(Request $request)
     {
-        \Log::info('UPGRADE REQUEST', [
-            'teacher_id' => auth()->id(),
-            'payload' => $request->all(),
+        \Log::info('ADDITIONAL RESOURCE REQUEST', [
+            'payload' => $request->all()
         ]);
 
-        try {
-            $request->validate([
-                'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
-                'requested_plan_id' => 'nullable|required_if:type,plan_upgrade|exists:subscription_plans,id',
-                'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
-                'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
-            ]);
+        // Map alternate field names to amount for robustness
+        foreach (['storage_amount', 'extra_storage', 'gb_amount', 'resource_amount', 'quantity'] as $field) {
+            if ($request->has($field) && !$request->has('amount')) {
+                $request->merge(['amount' => $request->input($field)]);
+            }
+        }
 
+        // Default to 1 if no amount is selected for additional resources
+        if ($request->type !== 'plan_upgrade') {
+            $request->merge([
+                'amount' => $request->amount ?? 1
+            ]);
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
+            'requested_plan_id' => 'nullable|required_if:type,plan_upgrade|exists:subscription_plans,id',
+            'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
+            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
             $teacher = $request->user();
             if (!$teacher->isTeacher() && !$teacher->is_super_admin && !$teacher->is_super) {
                 return response()->json(['message' => 'غير مصرح للوصول لغير المعلمين'], 403);
@@ -920,14 +940,9 @@ class SubscriptionController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            $message = $e->getMessage();
-            if ($e instanceof \Illuminate\Validation\ValidationException) {
-                $message = "بيانات المدخلات غير صالحة: " . implode(', ', \Arr::flatten($e->errors()));
-            }
-
             return response()->json([
                 'success' => false,
-                'message' => $message,
+                'message' => $e->getMessage(),
             ], 500);
         }
     }

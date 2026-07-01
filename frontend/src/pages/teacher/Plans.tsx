@@ -116,7 +116,10 @@ export default function Plans() {
       loadData()
     } catch (err: any) {
       console.error(err)
-      showToast(err.response?.data?.message || 'فشل تقديم طلب الترقية.', 'error')
+      const errorMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join(', ')
+        : (err.response?.data?.message || 'فشل تقديم طلب الترقية.')
+      showToast(errorMsg, 'error')
     } finally {
       setSubmittingId(null)
     }
