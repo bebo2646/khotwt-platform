@@ -97,6 +97,82 @@ export default function Subscription() {
     loadData()
   }, [])
 
+  useEffect(() => {
+    if (plans.length > 0) {
+      console.log("Teacher Packages:", plans);
+      plans.forEach(p => {
+        console.log(`Package: ID=${p.id}, Name=${p.name}, Price=${(p as any).price}, FinalPrice=${(p as any).finalPrice}, Duration=${(p as any).duration_in_days || (p as any).duration_days}, BillingOptions=${JSON.stringify((p as any).billing_options)}`);
+      });
+    }
+  }, [plans]);
+
+  const getEnabledBillingOptions = (plan: any) => {
+    if (!plan.billing_options) return [];
+    let opts = plan.billing_options;
+    if (typeof opts === 'string') {
+      try { opts = JSON.parse(opts); } catch(e) { return []; }
+    }
+    const result = [];
+    if (opts.monthly?.enabled) result.push({ key: 'monthly', label: 'شهري', price: Number(opts.monthly.price), discount: Number(opts.monthly.discount) });
+    if (opts.three_months?.enabled) result.push({ key: 'quarterly', label: '3 أشهر', price: Number(opts.three_months.price), discount: Number(opts.three_months.discount) });
+    if (opts.six_months?.enabled) result.push({ key: 'semi_annual', label: '6 أشهر', price: Number(opts.six_months.price), discount: Number(opts.six_months.discount) });
+    if (opts.yearly?.enabled) result.push({ key: 'annual', label: 'سنوي', price: Number(opts.yearly.price), discount: Number(opts.yearly.discount) });
+    return result;
+  }
+
+  const calculatePrice = (plan: Plan) => {
+    const customOpts = getEnabledBillingOptions(plan);
+    if (customOpts.length > 0) {
+      const opt = customOpts.find(o => o.key === 'monthly') || customOpts[0];
+      
+      const price = opt.price;
+      const discount = opt.discount;
+      const finalPrice = price - (price * discount / 100);
+      
+      let label = 'ج.م / شهرياً';
+      if (opt.key === 'quarterly') label = 'ج.م / 3 أشهر';
+      else if (opt.key === 'semi_annual') label = 'ج.م / 6 أشهر';
+      else if (opt.key === 'annual') label = 'ج.م / سنوي';
+      
+      return {
+        price: finalPrice,
+        text: label,
+        originalPrice: discount > 0 ? price : null,
+        discountPercent: discount > 0 ? discount : null,
+        discountAmount: discount > 0 ? (price * discount / 100) : null
+      }
+    }
+
+    const price = Number((plan as any).price) || Number(plan.price_egp) || 0;
+    const finalPriceVal = Number((plan as any).finalPrice) || price;
+    const discount = Number((plan as any).discountPercentage) || 0;
+
+    if ((plan as any).durationType) {
+      let label = 'ج.م / شهرياً'
+      if ((plan as any).durationType === 'quarterly') label = 'ج.م / 3 أشهر'
+      else if ((plan as any).durationType === 'semi_annual') label = 'ج.م / 6 أشهر'
+      else if ((plan as any).durationType === 'yearly' || (plan as any).durationType === 'annual') label = 'ج.م / سنوي'
+      
+      return {
+        price: finalPriceVal > 0 ? finalPriceVal : price,
+        text: label,
+        originalPrice: discount > 0 ? price : null,
+        discountPercent: discount > 0 ? discount : null,
+        discountAmount: discount > 0 ? (price - finalPriceVal) : null
+      }
+    }
+
+    if (price === 0) return { price: 0, text: 'مجاناً' }
+    
+    return {
+      price: finalPriceVal > 0 ? finalPriceVal : price,
+      text: 'ج.م / شهر',
+      originalPrice: discount > 0 ? price : null,
+      discountPercent: discount > 0 ? discount : null,
+      discountAmount: discount > 0 ? (price - finalPriceVal) : null
+    }
+  }
+
   // Invalidate stale cache and auto-refetch if inactive plan is found
   useEffect(() => {
     if (plans.length > 0) {
@@ -547,6 +623,7 @@ export default function Subscription() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {plans.filter(p => p.active && !p.is_trial).map(p => {
             const isCurrent = subscription.plan?.id === p.id
+            const calculated = calculatePrice(p)
             return (
               <div 
                 key={p.id}
@@ -572,29 +649,19 @@ export default function Subscription() {
                 <div>
                   <h3 className="text-base font-black text-[var(--text-color)] mb-2">{p.name}</h3>
                   <div className="text-xl font-black text-[var(--text-color)] mb-4">
-                    {(p as any).finalPrice !== undefined && (p as any).finalPrice !== null ? (
-                      Number((p as any).discountPercentage) > 0 ? (
-                        <div className="flex flex-col items-center">
-                          <span className="text-[10px] text-slate-400 line-through mb-0.5">
-                            {Number((p as any).price).toFixed(2)} ج.م
-                          </span>
-                          <span className="text-emerald-500 font-extrabold text-sm">
-                            {Number((p as any).finalPrice).toFixed(2)} ج.م
-                            <span className="text-[10px] text-slate-400 font-medium mr-1">
-                              / {(p as any).durationType === 'quarterly' ? '3 أشهر' : (p as any).durationType === 'semi_annual' ? '6 أشهر' : (p as any).durationType === 'yearly' || (p as any).durationType === 'annual' ? 'سنة' : 'شهر'}
-                            </span>
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm">
-                          {Number((p as any).finalPrice).toFixed(2)} ج.م
-                          <span className="text-[10px] text-slate-400 font-medium mr-1">
-                            / {(p as any).durationType === 'quarterly' ? '3 أشهر' : (p as any).durationType === 'semi_annual' ? '6 أشهر' : (p as any).durationType === 'yearly' || (p as any).durationType === 'annual' ? 'سنة' : 'شهر'}
-                          </span>
+                    {calculated.originalPrice ? (
+                      <div className="flex flex-col items-center">
+                        <span className="text-[10px] text-slate-400 line-through mb-0.5">
+                          {calculated.originalPrice.toFixed(2)} ج.م
                         </span>
-                      )
+                        <span className="text-emerald-500 font-extrabold text-sm">
+                          {calculated.price.toFixed(2)} {calculated.text}
+                        </span>
+                      </div>
                     ) : (
-                      p.price_egp === 0 ? 'مجاناً' : `${p.price_egp} ج.م / شهر`
+                      <span className="text-sm">
+                        {calculated.price === 0 ? 'مجاناً' : `${calculated.price.toFixed(2)} ${calculated.text}`}
+                      </span>
                     )}
                   </div>
                   <hr className="border-[var(--border-color)] mb-4" />
