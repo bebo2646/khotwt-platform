@@ -847,7 +847,7 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
 }
 
 /* ==========================================
-   Course Card Layout & Pricing Fixes (Premium Upgrade)
+   Course Card Layout & Pricing Fixes
    ========================================== */
 
 .course-card {
@@ -863,73 +863,57 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   align-items: center !important;
   justify-content: space-between !important;
   gap: 16px !important;
-  min-height: 160px !important;
-  height: 160px !important;
+  min-height: 90px !important;
   padding: 16px 24px !important;
   border-top: 1px solid var(--border-color) !important;
   box-sizing: border-box !important;
   width: 100% !important;
 }
 
-.course-price-box {
+.price-box {
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-end !important;
   justify-content: center !important;
   text-align: right !important;
-  background: rgba(16, 185, 129, 0.08) !important;
-  border: 1px solid rgba(16, 185, 129, 0.18) !important;
-  border-radius: 18px !important;
-  padding: 12px 16px !important;
-  min-width: 120px !important;
-  gap: 10px !important;
-  transition: all 0.3s ease !important;
-}
-
-.course-card:hover .course-price-box {
-  transform: scale(1.03) !important;
-}
-
-.price-label {
-  font-size: 12px !important;
-  opacity: 0.6 !important;
-  color: var(--text-color) !important;
-  line-height: 1 !important;
-  font-weight: 600 !important;
+  min-height: 58px !important; /* Ensures stable height for alignment */
 }
 
 .discount-badge {
-  font-size: 13px !important;
-  font-weight: 700 !important;
-  padding: 6px 12px !important;
-  border-radius: 999px !important;
-  background: rgba(16, 185, 129, 0.2) !important; /* Default dark mode */
-  color: rgb(5, 150, 105) !important;
+  padding: 2px 8px !important;
+  border-radius: 9999px !important;
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  color: #34D399 !important;
   border: 1px solid rgba(16, 185, 129, 0.25) !important;
-  line-height: 1 !important;
+  font-size: 9px !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15) !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
 }
 
-.light-theme .discount-badge {
-  background: rgba(16, 185, 129, 0.15) !important;
-}
-
 .old-price {
-  font-size: 15px !important;
-  opacity: 0.6 !important;
+  font-size: 10px !important;
+  color: #64748B !important;
   text-decoration: line-through !important;
   font-weight: 600 !important;
   line-height: 1 !important;
-  color: var(--text-color) !important;
+  margin-top: 4px !important;
 }
 
 .new-price {
-  font-size: 32px !important;
-  font-weight: 800 !important;
-  color: var(--success-color) !important;
+  font-size: 1.25rem !important; /* text-xl */
+  font-weight: 900 !important;
+  background: linear-gradient(to right, #10B981, #34D399) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  filter: drop-shadow(0 2px 8px rgba(16,185,129,0.15)) !important;
   line-height: 1 !important;
+  margin-top: 6px !important;
   font-family: var(--font-sans), sans-serif !important;
 }
 
@@ -938,18 +922,16 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   .course-card-footer {
     flex-direction: column !important;
     height: auto !important;
-    min-height: 250px !important;
+    min-height: 130px !important;
     justify-content: center !important;
     align-items: center !important;
-    gap: 16px !important;
-    padding-bottom: 24px !important;
+    gap: 12px !important;
+    padding-bottom: 20px !important;
   }
   
-  .course-price-box {
+  .price-box {
     align-items: center !important;
     text-align: center !important;
-    width: 100% !important;
-    max-width: 180px !important;
   }
 }
 
@@ -960,7 +942,6 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
 }
-
 
 
 

@@ -162,8 +162,7 @@ export default function CourseCard({
       <div className="course-card-footer bg-brand-surface/20">
         {isSubscribed ? (
           <>
-            <div className="course-price-box">
-              <span className="price-label">السعر</span>
+            <div className="price-box">
               <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
               <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
               <span className="new-price text-xs font-bold" style={{ background: 'none', color: 'var(--text-secondary)', WebkitTextFillColor: 'initial', WebkitBackgroundClip: 'unset', backgroundClip: 'unset' }}>
@@ -180,8 +179,7 @@ export default function CourseCard({
           </>
         ) : (
           <>
-            <div className="course-price-box">
-              <span className="price-label">السعر</span>
+            <div className="price-box">
               {pricing.hasDiscount ? (
                 <span className="discount-badge">
                   {discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`}
