@@ -306,6 +306,8 @@ export default function SubscriptionPlans() {
       return
     }
 
+    console.log("Delete button clicked:", plan.id);
+
     useModalStore.getState().showConfirm({
       title: 'حذف خطة الاشتراك',
       description: `هل أنت متأكد من حذف الخطة (${plan.name})؟ لا يمكن التراجع عن هذا الإجراء وسيتم إلغاء ارتباطها بالمعلمين المشتركين فيها بشكل غير نشط.`,
@@ -313,7 +315,7 @@ export default function SubscriptionPlans() {
       cancelText: 'إلغاء',
       type: 'delete',
       onConfirm: async () => {
-        console.log("Deleting package:", plan.id);
+        console.log("Sending DELETE request...");
         try {
           const res = await API.delete(`/admin/subscription-plans/${plan.id}`)
           console.log("Delete response:", res);
@@ -324,6 +326,7 @@ export default function SubscriptionPlans() {
           
           fetchPlans()
         } catch (err: any) {
+          console.log("Delete error:", err);
           console.error(err)
           showToast(err.response?.data?.message || 'فشل حذف الخطة. قد تكون مرتبطة باشتراكات نشطة.', 'error')
         }

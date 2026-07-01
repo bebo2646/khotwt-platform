@@ -448,7 +448,7 @@ export default function Dashboard() {
       {/* Package Edit Form Modal (Admin View) */}
       {showPackageForm && editPackageMode && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
+          <div className="fixed inset-0 bg-black/60" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3">تعديل الباقة المجمعة (مدير النظام)</h3>
             

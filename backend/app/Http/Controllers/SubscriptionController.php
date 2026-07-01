@@ -1193,8 +1193,11 @@ class SubscriptionController extends Controller
         try {
             $plan = SubscriptionPlan::findOrFail($id);
 
-            \Log::info("DELETE PACKAGE ID: " . $id);
-            error_log("DELETE PACKAGE ID: " . $id);
+            \Log::info("DELETE PACKAGE REQUEST: " . $id);
+            error_log("DELETE PACKAGE REQUEST: " . $id);
+            
+            \Log::info("Package Found: " . json_encode($plan));
+            error_log("Package Found: " . json_encode($plan));
 
             // Check if there are active subscriptions using this plan
             $activeSubsCount = TeacherSubscription::where('plan_id', $id)
@@ -1230,12 +1233,16 @@ class SubscriptionController extends Controller
 
             \DB::commit();
 
+            \Log::info("Delete Success");
+            error_log("Delete Success");
+
             return response()->json([
                 'message' => 'تم حذف خطة الاشتراك بنجاح'
             ]);
         } catch (\Exception $e) {
             \DB::rollBack();
-            \Log::error("Failed to delete plan ID {$id}: " . $e->getMessage());
+            \Log::error("Delete Error: " . $e->getMessage());
+            error_log("Delete Error: " . $e->getMessage());
             return response()->json([
                 'message' => 'فشل حذف الخطة من قاعدة البيانات: ' . $e->getMessage()
             ], 500);
