@@ -77,7 +77,7 @@ export function ConfirmModal() {
           closeConfirm()
           if (onCancel) onCancel()
         }}
-        className="fixed inset-0 bg-black/10 z-[9998]"
+        className="absolute inset-0 bg-black/10 z-[9998]"
       />
 
       {/* Modal Card */}
@@ -194,7 +194,7 @@ export function AlertModal() {
           closeAlert()
           if (onConfirm) onConfirm()
         }}
-        className="fixed inset-0 bg-black/10 z-[9998]"
+        className="absolute inset-0 bg-black/10 z-[9998]"
       />
 
       <motion.div

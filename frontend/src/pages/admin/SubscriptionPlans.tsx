@@ -701,7 +701,7 @@ export default function SubscriptionPlans() {
       {isFormOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-black/10 z-40" 
+            className="absolute inset-0 bg-black/10 z-40" 
             onClick={() => setIsFormOpen(false)} 
           />
           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto z-50">
@@ -1187,7 +1187,7 @@ export default function SubscriptionPlans() {
       {priceConfirmOpen && confirmPriceDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
-            className="fixed inset-0 bg-black/10 z-40" 
+            className="absolute inset-0 bg-black/10 z-40" 
             onClick={() => {
               setPriceConfirmOpen(false)
               setPendingSubmitData(null)
@@ -1251,7 +1251,7 @@ export default function SubscriptionPlans() {
       {selectedPlanForHistory && (
         <div className="fixed inset-0 z-40 flex items-center justify-end">
           <div 
-            className="fixed inset-0 bg-black/10 z-40" 
+            className="absolute inset-0 bg-black/10 z-40" 
             onClick={() => setSelectedPlanForHistory(null)} 
           />
           <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-lg w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300 z-50">
@@ -1327,7 +1327,7 @@ export default function SubscriptionPlans() {
       {selectedPlanForLogs && (
         <div className="fixed inset-0 z-40 flex items-center justify-end">
           <div 
-            className="fixed inset-0 bg-black/10 z-40" 
+            className="absolute inset-0 bg-black/10 z-40" 
             onClick={() => setSelectedPlanForLogs(null)} 
           />
           <div className="bg-[var(--card-bg)] border-r border-[var(--border-color)] h-full max-w-xl w-full p-6 shadow-2xl relative flex flex-col justify-between animate-in slide-in-from-left duration-300 z-50">
