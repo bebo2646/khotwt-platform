@@ -368,7 +368,7 @@ export default function ExamsManager() {
       {/* 1. Manual Grader Overlay Panel */}
       {activeAttempt && selectedExam && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setActiveAttempt(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setActiveAttempt(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-3">
               <h3 className="font-black text-base text-slate-200">تصحيح إجابات: {activeAttempt.student.name}</h3>

@@ -1392,7 +1392,7 @@ export default function ManageCourses() {
       {/* Course Form Modal */}
       {showCourseForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => { setShowCourseForm(false); setEditCourseMode(null); }} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => { setShowCourseForm(false); setEditCourseMode(null); }} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3">
               {editCourseMode ? 'تعديل بيانات الكورس' : 'إنشاء كورس دراسي جديد'}
@@ -1577,7 +1577,7 @@ export default function ManageCourses() {
       {/* Unit Form Modal */}
       {showUnitForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setShowUnitForm(false)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setShowUnitForm(false)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">إضافة وحدة دراسية جديدة</h3>
             
@@ -1606,7 +1606,7 @@ export default function ManageCourses() {
       {/* Lesson Form Modal */}
       {showLessonForm !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setShowLessonForm(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setShowLessonForm(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">إضافة محاضرة/درس جديد للوحدة</h3>
             
@@ -1658,7 +1658,7 @@ export default function ManageCourses() {
       {/* Video Form Modal */}
       {showVideoForm !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setShowVideoForm(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setShowVideoForm(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black flex items-center justify-between">
               <span>ربط فيديو شرح</span>
@@ -1834,7 +1834,7 @@ export default function ManageCourses() {
       {/* PDF Form Modal */}
       {showPdfForm !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setShowPdfForm(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setShowPdfForm(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">ربط مذكرة / ملف PDF للدرس</h3>
             
@@ -1913,7 +1913,7 @@ export default function ManageCourses() {
       {/* Edit Video Form Modal */}
       {editingVideo !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setEditingVideo(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setEditingVideo(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">تعديل بيانات الفيديو المرفق</h3>
             
@@ -1990,7 +1990,7 @@ export default function ManageCourses() {
       {/* Replace Video Form Modal */}
       {replacingVideo !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setReplacingVideo(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setReplacingVideo(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">استبدال ملف الفيديو</h3>
             
@@ -2087,7 +2087,7 @@ export default function ManageCourses() {
       {/* Replace PDF Form Modal */}
       {replacingPdf !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setReplacingPdf(null)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => setReplacingPdf(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
             <h3 className="text-base font-black">استبدال ملف الـ PDF</h3>
             
@@ -2166,7 +2166,7 @@ export default function ManageCourses() {
       {/* Package Form Modal */}
       {showPackageForm && selectedCourse && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
             <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3">
               {editPackageMode ? 'تعديل الباقة المجمعة' : 'بناء باقة مجمعة (عرض شهري)'}
