@@ -6,6 +6,7 @@ import {
   Users, Calendar, Clock, DollarSign, PlusCircle, 
   CheckCircle, AlertCircle, RefreshCw, FileText, AlertTriangle
 } from 'lucide-react'
+import { useModalStore } from '../../store/modalStore'
 
 interface Plan {
   id: number
@@ -93,6 +94,22 @@ export default function TeacherSubscription() {
   const [paymentNotes, setPaymentNotes] = useState<string>('')
   const [updatingPayment, setUpdatingPayment] = useState(false)
 
+  // Override admin states
+  const [resourceOverrides, setResourceOverrides] = useState<{
+    base_storage_gb: number
+    base_student_codes: number
+    extra_storage_gb: number
+    extra_student_codes: number
+    storage_limit_gb: number
+    student_codes_limit: number
+    plan_name: string
+  } | null>(null)
+  
+  const [extraStorageInput, setExtraStorageInput] = useState<number>(0)
+  const [extraCodesInput, setExtraCodesInput] = useState<number>(0)
+  const [showOverrideModal, setShowOverrideModal] = useState(false)
+  const [overrideSubmitting, setOverrideSubmitting] = useState(false)
+
   // Message alert states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
 
@@ -101,9 +118,9 @@ export default function TeacherSubscription() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await API.get(`/admin/teachers/${id}/subscription`)
       setTeacher(res.data.teacher)
       setSubscription(res.data.subscription)
@@ -117,11 +134,21 @@ export default function TeacherSubscription() {
         setSelectedPlanId(res.data.subscription.plan.id)
         setCalcPlanId(res.data.subscription.plan.id)
       }
+
+      // Load resources overrides
+      try {
+        const overridesRes = await API.get(`/admin/teachers/${id}/resources`)
+        setResourceOverrides(overridesRes.data)
+        setExtraStorageInput(overridesRes.data.extra_storage_gb)
+        setExtraCodesInput(overridesRes.data.extra_student_codes)
+      } catch (errOverrides) {
+        console.error("Failed to load resources overrides:", errOverrides)
+      }
     } catch (err: any) {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل بيانات الاشتراك.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -274,6 +301,45 @@ export default function TeacherSubscription() {
     } finally {
       setUpdatingPayment(false)
     }
+  }
+
+  const handleSaveOverrides = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      setOverrideSubmitting(true)
+      await API.put(`/admin/teachers/${id}/resources`, {
+        extra_storage_gb: Number(extraStorageInput),
+        extra_student_codes: Number(extraCodesInput)
+      })
+      showToast('تم تحديث الموارد بنجاح.', 'success')
+      setShowOverrideModal(false)
+      await loadData(true)
+    } catch (err: any) {
+      console.error(err)
+      showToast(err.response?.data?.message || 'فشل تحديث الموارد.', 'error')
+    } finally {
+      setOverrideSubmitting(false)
+    }
+  }
+
+  const handleRemoveOverrides = () => {
+    useModalStore.getState().showConfirm({
+      title: 'إزالة وتصفير الموارد الإضافية',
+      description: `هل أنت متأكد من رغبتك في إزالة الموارد الإضافية المخصصة لهذا المعلم وإعادتها للصفر؟`,
+      confirmText: 'نعم، إزالة الموارد',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        try {
+          await API.delete(`/admin/teachers/${id}/resources`)
+          showToast('تمت إزالة الموارد الإضافية بنجاح.', 'success')
+          await loadData(true)
+        } catch (err: any) {
+          console.error(err)
+          showToast('فشل إزالة الموارد.', 'error')
+        }
+      }
+    })
   }
 
   // Live Calculation Computation
@@ -607,6 +673,137 @@ export default function TeacherSubscription() {
           )}
         </div>
       </div>
+
+      {/* Additional Resources Overrides Card */}
+      {resourceOverrides && (
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md mb-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2">
+                <HardDrive className="w-5 h-5 text-indigo-400" />
+                إدارة الموارد الإضافية الاستثنائية
+              </h2>
+              <p className="text-[var(--text-secondary)] text-xs mt-1">تخصيص مساحات وأكواد إضافية للمعلم يدوياً خارج الباقة.</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowOverrideModal(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
+              >
+                تعديل الموارد
+              </button>
+              {(resourceOverrides.extra_storage_gb > 0 || resourceOverrides.extra_student_codes > 0) && (
+                <button
+                  type="button"
+                  onClick={handleRemoveOverrides}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
+                >
+                  تصفير الزيادات
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Storage override column */}
+            <div className="bg-[var(--bg-color)]/25 border border-[var(--border-color)] p-5 rounded-2xl space-y-4">
+              <h3 className="text-xs font-bold border-b border-[var(--border-color)] pb-2 text-[var(--text-secondary)]">مساحة التخزين</h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-secondary)]">المساحة الأساسية بالباقة (Base):</span>
+                  <span className="font-bold text-[var(--text-color)]">{resourceOverrides.base_storage_gb} GB</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-secondary)]">المساحة الإضافية يدوياً (Extra):</span>
+                  <span className="font-bold text-amber-500">+{resourceOverrides.extra_storage_gb} GB</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-dashed border-[var(--border-color)] text-sm">
+                  <span className="font-extrabold text-[var(--text-color)]">الحد النهائي للمساحة (Final):</span>
+                  <span className="font-black text-emerald-400">{resourceOverrides.storage_limit_gb} GB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Student codes override column */}
+            <div className="bg-[var(--bg-color)]/25 border border-[var(--border-color)] p-5 rounded-2xl space-y-4">
+              <h3 className="text-xs font-bold border-b border-[var(--border-color)] pb-2 text-[var(--text-secondary)]">أكواد الطلاب</h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-secondary)]">أكواد الطلاب الأساسية بالباقة (Base):</span>
+                  <span className="font-bold text-[var(--text-color)]">{resourceOverrides.base_student_codes} كود</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--text-secondary)]">أكواد إضافية يدوياً (Extra):</span>
+                  <span className="font-bold text-amber-500">+{resourceOverrides.extra_student_codes} كود</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t border-dashed border-[var(--border-color)] text-sm">
+                  <span className="font-extrabold text-[var(--text-color)]">الحد النهائي للأكواد (Final):</span>
+                  <span className="font-black text-emerald-400">{resourceOverrides.student_codes_limit} كود</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Override Modal */}
+      {showOverrideModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowOverrideModal(false)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right">
+            <div>
+              <h3 className="text-base font-black text-[var(--text-color)]">تعديل الموارد الإضافية</h3>
+              <p className="text-[10px] text-slate-400 mt-1">تعديل الموارد الاستثنائية المخصصة للمعلم: <strong className="text-white">{teacher?.name}</strong></p>
+            </div>
+
+            <form onSubmit={handleSaveOverrides} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold block text-slate-300">المساحة الإضافية (بالجيجابايت GB):</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={extraStorageInput}
+                  onChange={(e) => setExtraStorageInput(Number(e.target.value))}
+                  placeholder="مثال: 5"
+                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none text-right"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold block text-slate-300">أكواد الطلاب الإضافية يدوياً:</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={extraCodesInput}
+                  onChange={(e) => setExtraCodesInput(Number(e.target.value))}
+                  placeholder="مثال: 20"
+                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none text-right"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+                <button
+                  type="button"
+                  onClick={() => setShowOverrideModal(false)}
+                  className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={overrideSubmitting}
+                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  {overrideSubmitting ? 'جاري الحفظ...' : 'حفظ وتحديث الموارد'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Platform Plans Section & Live Calculator */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

@@ -46,16 +46,6 @@ export default function Dashboard() {
   const [courseLessons, setCourseLessons] = React.useState<any[]>([])
   const [actionLoading, setActionLoading] = React.useState(false)
 
-  // Override admin states
-  const [teachersSummary, setTeachersSummary] = React.useState<any[]>([])
-  const [summaryLoading, setSummaryLoading] = React.useState(false)
-  const [showOverrideModal, setShowOverrideModal] = React.useState(false)
-  const [selectedTeacherId, setSelectedTeacherId] = React.useState<number | null>(null)
-  const [selectedTeacherName, setSelectedTeacherName] = React.useState('')
-  const [extraStorageInput, setExtraStorageInput] = React.useState<number>(0)
-  const [extraCodesInput, setExtraCodesInput] = React.useState<number>(0)
-  const [overrideSubmitting, setOverrideSubmitting] = React.useState(false)
-
   const fetchPackages = async () => {
     try {
       const res = await API.get('/admin/packages')
@@ -63,19 +53,6 @@ export default function Dashboard() {
     } catch (err) {
       console.error('[Dashboard Packages Fetch Error]:', err)
       useModalStore.getState().showToast('حدث خطأ أثناء تحميل الباقات.', 'error')
-    }
-  }
-
-  const fetchTeachersSummary = async () => {
-    try {
-      setSummaryLoading(true)
-      const res = await API.get('/admin/teachers-resources-summary')
-      setTeachersSummary(res.data)
-    } catch (err) {
-      console.error('[Dashboard Overrides Fetch Error]:', err)
-      useModalStore.getState().showToast('فشل تحميل موارد المعلمين.', 'error')
-    } finally {
-      setSummaryLoading(false)
     }
   }
 
@@ -117,9 +94,6 @@ export default function Dashboard() {
           console.error('[Packages Response Error]:', pkgsErr)
           useModalStore.getState().showToast('فشل تحميل الباقات المجمعة.', 'error')
         }
-
-        // Load teacher resources overrides
-        await fetchTeachersSummary()
       } catch (err) {
         console.error('[Dashboard Loader Error]:', err)
       } finally {
@@ -237,53 +211,7 @@ export default function Dashboard() {
       }
     })
   }, [stats])
-  const openOverrideModal = (teacher: any) => {
-    setSelectedTeacherId(teacher.teacher_id)
-    setSelectedTeacherName(teacher.teacher_name)
-    setExtraStorageInput(teacher.extra_storage_gb)
-    setExtraCodesInput(teacher.extra_student_codes)
-    setShowOverrideModal(true)
-  }
 
-  const handleSaveOverrides = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedTeacherId) return
-    try {
-      setOverrideSubmitting(true)
-      await API.put(`/admin/teachers/${selectedTeacherId}/resources`, {
-        extra_storage_gb: Number(extraStorageInput),
-        extra_student_codes: Number(extraCodesInput)
-      })
-      useModalStore.getState().showToast('تم تحديث الموارد بنجاح.', 'success')
-      setShowOverrideModal(false)
-      fetchTeachersSummary()
-    } catch (err: any) {
-      console.error(err)
-      useModalStore.getState().showToast('فشل تحديث الموارد.', 'error')
-    } finally {
-      setOverrideSubmitting(false)
-    }
-  }
-
-  const handleRemoveOverrides = (teacherId: number, teacherName: string) => {
-    useModalStore.getState().showConfirm({
-      title: 'إزالة الموارد الإضافية',
-      description: `هل أنت متأكد من حذف الموارد الإضافية للمعلم (${teacherName}) وإعادتها للصفر؟`,
-      confirmText: 'نعم، حذف الموارد',
-      cancelText: 'إلغاء',
-      type: 'delete',
-      onConfirm: async () => {
-        try {
-          await API.delete(`/admin/teachers/${teacherId}/resources`)
-          useModalStore.getState().showToast('تم حذف الموارد الإضافية بنجاح.', 'success')
-          fetchTeachersSummary()
-        } catch (err: any) {
-          console.error(err)
-          useModalStore.getState().showToast('فشل حذف الموارد.', 'error')
-        }
-      }
-    })
-  }
   if (loading) {
     return (
       <div className="flex justify-center py-32">
@@ -693,138 +621,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Additional Resources Management Section */}
-      <div className="space-y-6 pt-12 border-t border-[var(--border-color)]">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <HardDrive className="h-5 w-5 text-indigo-400" />
-            <span>إدارة الموارد الإضافية والزيادات الاستثنائية للمعلمين</span>
-          </h2>
-          <p className="text-xs text-slate-400 font-light mt-1">
-            إضافة أو تعديل مساحات تخزين إضافية (بالجيجابايت) أو أكواد طلاب يدوياً للمعلمين خارج حدود باقاتهم الافتراضية.
-          </p>
-        </div>
 
-        {summaryLoading ? (
-          <div className="text-center py-12 text-xs text-slate-400 animate-pulse">جاري تحميل بيانات الموارد...</div>
-        ) : teachersSummary.length === 0 ? (
-          <div className="bg-brand-card border border-[var(--border-color)] p-12 text-center rounded-3xl text-slate-500 font-light text-sm">
-            لا يوجد معلمون مسجلون في النظام حالياً.
-          </div>
-        ) : (
-          <div className="overflow-x-auto bg-brand-card border border-[var(--border-color)] rounded-3xl shadow-md">
-            <table className="w-full text-right text-xs" dir="rtl">
-              <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] text-[var(--text-secondary)] font-bold">
-                  <th className="p-4 text-right">اسم المعلم</th>
-                  <th className="p-4 text-right">الباقة الحالية</th>
-                  <th className="p-4 text-right">مساحة الباقة الأساسية</th>
-                  <th className="p-4 text-right">المساحة الإضافية يدوياً</th>
-                  <th className="p-4 text-right">الحد النهائي للمساحة</th>
-                  <th className="p-4 text-right">أكواد الباقة الأساسية</th>
-                  <th className="p-4 text-right">أكواد الطلاب الإضافية يدوياً</th>
-                  <th className="p-4 text-right">الحد النهائي للأكواد</th>
-                  <th className="p-4 text-center">الإجراءات</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)] font-medium text-[var(--text-color)]">
-                {teachersSummary.map((t) => (
-                  <tr key={t.teacher_id} className="hover:bg-[rgba(255,255,255,0.01)] transition-colors">
-                    <td className="p-4 font-bold">{t.teacher_name}</td>
-                    <td className="p-4">
-                      <span className="px-2.5 py-1 bg-indigo-500/10 text-indigo-400 rounded-full font-bold text-[10px]">
-                        {t.plan_name}
-                      </span>
-                    </td>
-                    <td className="p-4 text-slate-400">{t.base_storage_gb} GB</td>
-                    <td className="p-4 text-amber-500">+{t.extra_storage_gb} GB</td>
-                    <td className="p-4 text-emerald-400 font-black">{t.final_storage_gb} GB</td>
-                    <td className="p-4 text-slate-400">{t.base_student_codes} كود</td>
-                    <td className="p-4 text-amber-500">+{t.extra_student_codes} كود</td>
-                    <td className="p-4 text-emerald-400 font-black">{t.final_student_codes} كود</td>
-                    <td className="p-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <button
-                          onClick={() => openOverrideModal(t)}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition text-[10px] cursor-pointer"
-                        >
-                          تعديل / تخصيص
-                        </button>
-                        {(t.extra_storage_gb > 0 || t.extra_student_codes > 0) && (
-                          <button
-                            onClick={() => handleRemoveOverrides(t.teacher_id, t.teacher_name)}
-                            className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 font-bold rounded-lg transition text-[10px] cursor-pointer"
-                          >
-                            إزالة الزيادات
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Override Modal */}
-      {showOverrideModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowOverrideModal(false)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right">
-            <div>
-              <h3 className="text-base font-black text-[var(--text-color)]">تخصيص موارد إضافية يدوياً</h3>
-              <p className="text-[10px] text-slate-400 mt-1">تعديل الموارد الإضافية المخصصة للمعلم: <strong className="text-white">{selectedTeacherName}</strong></p>
-            </div>
-
-            <form onSubmit={handleSaveOverrides} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold block text-slate-300">المساحة الإضافية (بالجيجابايت GB):</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={extraStorageInput}
-                  onChange={(e) => setExtraStorageInput(Number(e.target.value))}
-                  placeholder="مثال: 50"
-                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none text-right"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold block text-slate-300">أكواد الطلاب الإضافية يدوياً:</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={extraCodesInput}
-                  onChange={(e) => setExtraCodesInput(Number(e.target.value))}
-                  placeholder="مثال: 100"
-                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none text-right"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button
-                  type="button"
-                  onClick={() => setShowOverrideModal(false)}
-                  className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={overrideSubmitting}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
-                >
-                  {overrideSubmitting ? 'جاري الحفظ...' : 'حفظ وتحديث الموارد'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   )
