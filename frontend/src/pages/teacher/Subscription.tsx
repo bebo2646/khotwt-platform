@@ -73,6 +73,7 @@ export default function Subscription() {
   const [reqAmount, setReqAmount] = useState<number>(0)
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'semi_annual' | 'annual'>('monthly')
   const [sendingRequest, setSendingRequest] = useState(false)
+  const [hasPendingRequest, setHasPendingRequest] = useState(false)
 
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
@@ -106,6 +107,7 @@ export default function Subscription() {
       if (filterPlans.length > 0 && !reqPlanId) {
         setReqPlanId(filterPlans[0].id.toString())
       }
+      setHasPendingRequest(!!res.data.has_pending_request)
     } catch (err: any) {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل بيانات الاشتراك.', 'error')
@@ -142,7 +144,7 @@ export default function Subscription() {
   }
 
   const submitSubscriptionRequest = async (payload: any) => {
-    await API.post('/teacher/subscription/upgrade-request', payload)
+    return await API.post('/teacher/subscription/upgrade-request', payload)
   }
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
@@ -161,10 +163,13 @@ export default function Subscription() {
         billing_period: requestType === 'plan_upgrade' ? billingPeriod : null,
       }
       console.log('TOP FORM PAYLOAD', payload)
-      await submitSubscriptionRequest(payload)
+      const response = await submitSubscriptionRequest(payload)
+      console.log('UPGRADE RESPONSE', response)
+      console.log('UPGRADE RESPONSE DATA', response.data)
 
-      showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
+      showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
       setReqAmount(0)
+      setRequestType('plan_upgrade')
       setShowRequestSection(false)
       loadData()
     } catch (err: any) {
@@ -187,8 +192,11 @@ export default function Subscription() {
         billing_period: duration === 'yearly' ? 'annual' : duration
       }
       console.log('BOTTOM CARD PAYLOAD', payload)
-      await submitSubscriptionRequest(payload)
-      showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
+      const response = await submitSubscriptionRequest(payload)
+      console.log('UPGRADE RESPONSE', response)
+      console.log('UPGRADE RESPONSE DATA', response.data)
+
+      showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
       loadData()
     } catch (err: any) {
       console.error(err)
@@ -566,10 +574,10 @@ export default function Subscription() {
 
             <button
               type="submit"
-              disabled={sendingRequest || (requestType !== 'plan_upgrade' && reqAmount <= 0)}
+              disabled={sendingRequest || hasPendingRequest || (requestType !== 'plan_upgrade' && reqAmount <= 0)}
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg active:scale-95 transition cursor-pointer disabled:opacity-50"
             >
-              {sendingRequest ? 'جاري تقديم الطلب...' : 'إرسال طلب الترقية'}
+              {sendingRequest ? 'جاري تقديم الطلب...' : hasPendingRequest ? 'لديك طلب ترقية معلق' : 'إرسال طلب الترقية'}
             </button>
           </form>
         </div>
@@ -607,6 +615,7 @@ export default function Subscription() {
                 settings={settings || { discount_semi_annually: '10', discount_annually: '20' }}
                 onUpgradeRequest={handleRequestUpgrade}
                 submitting={sendingRequest}
+                hasPendingRequest={hasPendingRequest}
               />
             )
           })}

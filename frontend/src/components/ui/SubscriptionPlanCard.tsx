@@ -29,6 +29,7 @@ interface SubscriptionPlanCardProps {
   }
   onUpgradeRequest: (planId: number, duration: string) => Promise<void>
   submitting: boolean
+  hasPendingRequest?: boolean
 }
 
 export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
@@ -37,7 +38,8 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
   billingPeriod,
   settings,
   onUpgradeRequest,
-  submitting
+  submitting,
+  hasPendingRequest = false
 }) => {
   const getEnabledBillingOptions = (p: Plan) => {
     if (!p.billing_options) return []
@@ -257,15 +259,17 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
       ) : (
         <button
           onClick={() => onUpgradeRequest(plan.id, selectedPeriod)}
-          disabled={submitting}
+          disabled={submitting || hasPendingRequest}
           className={`w-full py-3 text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${
             plan.is_popular
               ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold shadow-lg shadow-indigo-600/15'
               : 'bg-[var(--card-bg)] hover:bg-[var(--bg-color)] text-[var(--text-color)] border border-[var(--border-color)]'
-          }`}
+          } ${(submitting || hasPendingRequest) ? 'opacity-60 cursor-not-allowed' : ''}`}
         >
           {submitting ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : hasPendingRequest ? (
+            'لديك طلب معلق'
           ) : (
             'طلب تفعيل / ترقية'
           )}

@@ -44,6 +44,7 @@ export default function Plans() {
   })
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'semi_annual' | 'annual'>('monthly')
   const [submittingId, setSubmittingId] = useState<number | null>(null)
+  const [hasPendingRequest, setHasPendingRequest] = useState(false)
   
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
@@ -69,6 +70,7 @@ export default function Plans() {
       if (res.data.subscription?.billing_cycle) {
         setBillingPeriod(res.data.subscription.billing_cycle)
       }
+      setHasPendingRequest(!!res.data.has_pending_request)
     } catch (err: any) {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل خطط الاشتراك.', 'error')
@@ -82,7 +84,7 @@ export default function Plans() {
   }, [])
 
   const submitSubscriptionRequest = async (payload: any) => {
-    await API.post('/teacher/subscription/upgrade-request', payload)
+    return await API.post('/teacher/subscription/upgrade-request', payload)
   }
 
   const handleRequestUpgrade = async (planId: number, duration: string) => {
@@ -94,8 +96,11 @@ export default function Plans() {
         billing_period: duration === 'yearly' ? 'annual' : duration
       }
       console.log('BOTTOM CARD PAYLOAD', payload)
-      await submitSubscriptionRequest(payload)
-      showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
+      const response = await submitSubscriptionRequest(payload)
+      console.log('UPGRADE RESPONSE', response)
+      console.log('UPGRADE RESPONSE DATA', response.data)
+
+      showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
       loadData()
     } catch (err: any) {
       console.error(err)
@@ -171,6 +176,7 @@ export default function Plans() {
               settings={settings}
               onUpgradeRequest={handleRequestUpgrade}
               submitting={submittingId === p.id}
+              hasPendingRequest={hasPendingRequest}
             />
           )
         })}

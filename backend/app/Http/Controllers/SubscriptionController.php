@@ -794,6 +794,10 @@ class SubscriptionController extends Controller
             $alerts[] = 'تنبيه: لقد استهلكت أكثر من 90% من المساحة المتاحة باشتراكك.';
         }
 
+        $hasPendingRequest = \App\Models\SubscriptionRequest::where('teacher_id', $teacher->id)
+            ->where('status', 'Pending')
+            ->exists();
+
         return response()->json([
             'subscription' => [
                 'id' => $subscription->id,
@@ -818,6 +822,7 @@ class SubscriptionController extends Controller
             'plans' => SubscriptionPlan::where('isActive', true)->orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
+            'has_pending_request' => $hasPendingRequest,
         ]);
     }
 
