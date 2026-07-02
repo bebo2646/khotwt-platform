@@ -1604,8 +1604,8 @@ class AdminController extends Controller
                             default => floatval($subscription->plan->video_storage_gb ?? $subscription->plan->max_storage_gb ?? 10.00)
                         };
                     }
-                    $addonStorage = $subscription->addons()->where('type', 'storage')->sum('amount');
-                    $limitGb = $planLimit + $addonStorage;
+                    $overrideStorage = \DB::table('teacher_resource_overrides')->where('teacher_id', $teacher->id)->value('extra_storage_gb') ?? 0;
+                    $limitGb = $planLimit + $overrideStorage;
                 }
                 
                 // Keep DB aligned

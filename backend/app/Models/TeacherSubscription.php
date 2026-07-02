@@ -80,16 +80,12 @@ class TeacherSubscription extends Model
 
     public function getExtraStorageGbAttribute()
     {
-        $addonStorage = $this->addons()->where('type', 'storage')->sum('amount');
-        $overrideStorage = $this->resourceOverride ? $this->resourceOverride->extra_storage_gb : 0;
-        return $addonStorage + $overrideStorage;
+        return $this->resourceOverride ? $this->resourceOverride->extra_storage_gb : 0;
     }
 
     public function getExtraCodesAttribute()
     {
-        $addonCodes = $this->addons()->where('type', 'codes')->sum('amount');
-        $overrideCodes = $this->resourceOverride ? $this->resourceOverride->extra_student_codes : 0;
-        return $addonCodes + $overrideCodes;
+        return $this->resourceOverride ? $this->resourceOverride->extra_student_codes : 0;
     }
 
     public function getTotalStorageGbAttribute()
