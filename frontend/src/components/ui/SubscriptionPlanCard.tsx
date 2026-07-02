@@ -258,6 +258,7 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
         </div>
       ) : (
         <button
+          type="button"
           onClick={() => onUpgradeRequest(plan.id, selectedPeriod)}
           disabled={submitting || hasPendingRequest}
           className={`w-full py-3 text-xs font-bold rounded-xl transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer ${

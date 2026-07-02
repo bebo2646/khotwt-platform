@@ -61,6 +61,11 @@ class TeacherSubscription extends Model
         return $this->hasMany(SubscriptionPayment::class, 'teacher_subscription_id');
     }
 
+    public function resourceOverride()
+    {
+        return $this->hasOne(TeacherResourceOverride::class, 'teacher_id', 'teacher_id');
+    }
+
     // Accessors
     public function getUsedCodesAttribute()
     {
@@ -75,12 +80,16 @@ class TeacherSubscription extends Model
 
     public function getExtraStorageGbAttribute()
     {
-        return $this->addons()->where('type', 'storage')->sum('amount');
+        $addonStorage = $this->addons()->where('type', 'storage')->sum('amount');
+        $overrideStorage = $this->resourceOverride ? $this->resourceOverride->extra_storage_gb : 0;
+        return $addonStorage + $overrideStorage;
     }
 
     public function getExtraCodesAttribute()
     {
-        return $this->addons()->where('type', 'codes')->sum('amount');
+        $addonCodes = $this->addons()->where('type', 'codes')->sum('amount');
+        $overrideCodes = $this->resourceOverride ? $this->resourceOverride->extra_student_codes : 0;
+        return $addonCodes + $overrideCodes;
     }
 
     public function getTotalStorageGbAttribute()

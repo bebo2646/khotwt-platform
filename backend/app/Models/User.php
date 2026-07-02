@@ -152,4 +152,12 @@ class User extends Authenticatable
     {
         return $this->hasOne(TeacherSubscription::class, 'teacher_id');
     }
+
+    public function getRemainingStorageGbAttribute()
+    {
+        if ($this->teacherSubscription) {
+            return $this->teacherSubscription->remaining_storage_gb;
+        }
+        return max(0, ($this->bunny_storage_limit_gb ?? 0) - ($this->bunny_storage_used_gb ?? 0));
+    }
 }

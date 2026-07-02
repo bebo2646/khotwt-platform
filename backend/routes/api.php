@@ -218,6 +218,12 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/admin/teachers/{id}/subscription/addons', [SubscriptionController::class, 'addSubscriptionAddon']);
             Route::post('/admin/teachers/{id}/subscription/payments', [SubscriptionController::class, 'confirmSubscriptionPayment']);
             Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);
+
+            // Teacher Resource Overrides Management
+            Route::get('/admin/teachers-resources-summary', [SubscriptionController::class, 'getTeachersResourcesSummary']);
+            Route::get('/admin/teachers/{id}/resources', [SubscriptionController::class, 'getTeacherResourceOverrides']);
+            Route::put('/admin/teachers/{id}/resources', [SubscriptionController::class, 'updateTeacherResourceOverrides']);
+            Route::delete('/admin/teachers/{id}/resources', [SubscriptionController::class, 'deleteTeacherResourceOverrides']);
             Route::get('/admin/subscriptions/requests', [SubscriptionController::class, 'getSubscriptionRequests']);
             Route::post('/admin/subscriptions/requests/{id}/action', [SubscriptionController::class, 'handleSubscriptionRequest']);
             

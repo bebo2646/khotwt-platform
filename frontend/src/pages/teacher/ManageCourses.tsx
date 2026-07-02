@@ -493,6 +493,21 @@ export default function ManageCourses() {
 
     setUploadingVideo(true);
     setUploadProgress(0);
+
+    // Validate storage quota before starting upload
+    try {
+      const subRes = await API.get('/teacher/subscription');
+      const remainingStorageGb = subRes.data.subscription?.remaining_storage_gb ?? 0;
+      const fileSizeGb = file.size / (1024 * 1024 * 1024);
+      if (fileSizeGb > remainingStorageGb) {
+        useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
+        setUploadingVideo(false);
+        return;
+      }
+    } catch (errQuota) {
+      console.warn("Could not verify storage quota:", errQuota);
+    }
+
     setVideoFileDetails({
       name: file.name,
       size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,

@@ -54,9 +54,9 @@ export default function Plans() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await API.get('/teacher/subscription')
       setSubscription(res.data.subscription)
       
@@ -75,7 +75,7 @@ export default function Plans() {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل خطط الاشتراك.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -101,7 +101,7 @@ export default function Plans() {
       console.log('UPGRADE RESPONSE DATA', response.data)
 
       showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
-      loadData()
+      loadData(true)
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.errors 

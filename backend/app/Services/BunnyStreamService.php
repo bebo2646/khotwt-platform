@@ -194,7 +194,8 @@ class BunnyStreamService
 
             // Add any storage addon amounts
             $addonStorage = $subscription->addons()->where('type', 'storage')->sum('amount');
-            $limitGb = $planLimit + $addonStorage;
+            $overrideStorage = \DB::table('teacher_resource_overrides')->where('teacher_id', $teacherId)->value('extra_storage_gb') ?? 0;
+            $limitGb = $planLimit + $addonStorage + $overrideStorage;
 
             // Sync values to the TeacherSubscription model
             $subscription->update([

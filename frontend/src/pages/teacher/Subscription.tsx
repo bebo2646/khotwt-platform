@@ -88,9 +88,9 @@ export default function Subscription() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const res = await API.get('/teacher/subscription')
       setSubscription(res.data.subscription)
       setAddons(res.data.addons)
@@ -112,7 +112,7 @@ export default function Subscription() {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل بيانات الاشتراك.', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -133,7 +133,7 @@ export default function Subscription() {
     try {
       setSyncing(true)
       await API.get('/teacher/subscription') // Trigger sync endpoint
-      await loadData()
+      await loadData(true)
       showToast('تم تحديث إحصائيات التخزين مباشرة من خوادم Bunny Stream.', 'success')
     } catch (err) {
       console.error(err)
@@ -171,7 +171,7 @@ export default function Subscription() {
       setReqAmount(0)
       setRequestType('plan_upgrade')
       setShowRequestSection(false)
-      loadData()
+      loadData(true)
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.errors 
@@ -197,7 +197,7 @@ export default function Subscription() {
       console.log('UPGRADE RESPONSE DATA', response.data)
 
       showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
-      loadData()
+      loadData(true)
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.errors 

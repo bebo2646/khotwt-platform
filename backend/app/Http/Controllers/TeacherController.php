@@ -215,11 +215,35 @@ class TeacherController extends Controller
         }
 
         // Validate teacher subscription storage limit
-        $teacherId = $request->user()->id;
+        $teacher = $request->user();
+        $teacherId = $teacher->id;
         $fileSize = (int) $request->input('file_size', 0);
+        if ($request->hasFile('video')) {
+            $fileSize = $request->file('video')->getSize();
+        } elseif ($request->hasFile('file')) {
+            $fileSize = $request->file('file')->getSize();
+        }
+
+        $videoSizeGb = $fileSize / 1024 / 1024 / 1024;
+        $remainingStorageGb = $teacher->remaining_storage_gb;
+
+        \Log::info('VIDEO STORAGE CHECK', [
+            'teacher_id' => $teacherId,
+            'video_size_gb' => $videoSizeGb,
+            'remaining_storage_gb' => $remainingStorageGb,
+        ]);
+
+        if ($videoSizeGb > $remainingStorageGb) {
+            return response()->json([
+                'success' => false,
+                'message' => 'مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.'
+            ], 422);
+        }
+
         $bunnyService = new \App\Services\BunnyStreamService();
         if ($bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
             return response()->json([
+                'success' => false,
                 'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة لتتمكن من إضافة فيديوهات جديدة.'
             ], 403);
         }

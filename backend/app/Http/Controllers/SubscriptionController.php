@@ -8,6 +8,7 @@ use App\Models\SubscriptionAddon;
 use App\Models\SubscriptionPayment;
 use App\Models\SubscriptionRequest;
 use App\Models\AdminActivityLog;
+use App\Models\TeacherResourceOverride;
 use App\Models\User;
 use App\Models\Course;
 use App\Models\Enrollment;
@@ -1601,6 +1602,182 @@ class SubscriptionController extends Controller
                 ->orderBy('sort_order', 'asc')
                 ->get(),
             'settings' => $this->getSettings()
+        ]);
+    }
+
+    public function getTeachersResourcesSummary(Request $request)
+    {
+        $teachers = User::where('role', 'teacher')->orderBy('name', 'asc')->get();
+        $summary = [];
+        
+        foreach ($teachers as $t) {
+            $subscription = TeacherSubscription::with('plan')->where('teacher_id', $t->id)->first();
+            $plan = $subscription ? $subscription->plan : null;
+            
+            $baseStorage = $plan ? $plan->video_storage_gb : 10;
+            $baseCodes = $plan ? $plan->student_codes : 0;
+            
+            $override = TeacherResourceOverride::where('teacher_id', $t->id)->first();
+            $extraStorage = $override ? $override->extra_storage_gb : 0;
+            $extraCodes = $override ? $override->extra_student_codes : 0;
+            
+            $summary[] = [
+                'teacher_id' => $t->id,
+                'teacher_name' => $t->name,
+                'plan_name' => $plan ? $plan->name : 'Starter (Default)',
+                'base_storage_gb' => $baseStorage,
+                'extra_storage_gb' => $extraStorage,
+                'base_student_codes' => $baseCodes,
+                'extra_student_codes' => $extraCodes,
+                'final_storage_gb' => $baseStorage + $extraStorage,
+                'final_student_codes' => $baseCodes + $extraCodes,
+            ];
+        }
+        
+        return response()->json($summary);
+    }
+
+    public function getTeacherResourceOverrides(Request $request, $id)
+    {
+        $teacher = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
+        
+        $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
+        $plan = $subscription ? $subscription->plan : null;
+        
+        $baseStorage = $plan ? $plan->video_storage_gb : 10;
+        $baseCodes = $plan ? $plan->student_codes : 0;
+        
+        $override = TeacherResourceOverride::where('teacher_id', $id)->first();
+        $extraStorage = $override ? $override->extra_storage_gb : 0;
+        $extraCodes = $override ? $override->extra_student_codes : 0;
+        
+        $finalStorage = $baseStorage + $extraStorage;
+        $finalCodes = $baseCodes + $extraCodes;
+        
+        return response()->json([
+            'success' => true,
+            'teacher_name' => $teacher->name,
+            'plan_name' => $plan ? $plan->name : 'لا يوجد',
+            'base_storage_gb' => $baseStorage,
+            'base_student_codes' => $baseCodes,
+            'extra_storage_gb' => $extraStorage,
+            'extra_student_codes' => $extraCodes,
+            'storage_limit_gb' => $finalStorage,
+            'student_codes_limit' => $finalCodes,
+        ]);
+    }
+
+    public function updateTeacherResourceOverrides(Request $request, $id)
+    {
+        $teacher = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
+        
+        $request->validate([
+            'extra_storage_gb' => 'required|integer|min:0',
+            'extra_student_codes' => 'required|integer|min:0',
+        ]);
+        
+        $override = TeacherResourceOverride::where('teacher_id', $id)->first();
+        $oldStorage = $override ? $override->extra_storage_gb : 0;
+        $oldCodes = $override ? $override->extra_student_codes : 0;
+        
+        $newStorage = (int) $request->extra_storage_gb;
+        $newCodes = (int) $request->extra_student_codes;
+        
+        $override = TeacherResourceOverride::updateOrCreate(
+            ['teacher_id' => $id],
+            [
+                'extra_storage_gb' => $newStorage,
+                'extra_student_codes' => $newCodes,
+                'created_by' => $override ? $override->created_by : auth()->id(),
+                'updated_by' => auth()->id(),
+            ]
+        );
+        
+        \Log::info('ADMIN_RESOURCE_UPDATE', [
+            'admin_id' => auth()->id(),
+            'teacher_id' => $id,
+            'old_extra_storage' => $oldStorage,
+            'new_extra_storage' => $newStorage,
+            'old_extra_codes' => $oldCodes,
+            'new_extra_codes' => $newCodes,
+        ]);
+        
+        // Recalculate limits immediately
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $bunnyService->recalculateStorage($id);
+        
+        // Load plan base limits
+        $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
+        $plan = $subscription ? $subscription->plan : null;
+        $baseStorage = $plan ? $plan->video_storage_gb : 10;
+        $baseCodes = $plan ? $plan->student_codes : 0;
+        
+        $finalStorage = $baseStorage + $newStorage;
+        $finalCodes = $baseCodes + $newCodes;
+        
+        // Clear caches if any
+        \Cache::forget("teacher_subscription_{$id}");
+        
+        return response()->json([
+            'success' => true,
+            'storage_limit_gb' => $finalStorage,
+            'student_codes_limit' => $finalCodes,
+            'extra_storage_gb' => $newStorage,
+            'extra_student_codes' => $newCodes,
+        ]);
+    }
+
+    public function deleteTeacherResourceOverrides(Request $request, $id)
+    {
+        $teacher = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
+        
+        $override = TeacherResourceOverride::where('teacher_id', $id)->first();
+        $oldStorage = $override ? $override->extra_storage_gb : 0;
+        $oldCodes = $override ? $override->extra_student_codes : 0;
+        
+        if ($override) {
+            $override->update([
+                'extra_storage_gb' => 0,
+                'extra_student_codes' => 0,
+                'updated_by' => auth()->id(),
+            ]);
+        } else {
+            TeacherResourceOverride::create([
+                'teacher_id' => $id,
+                'extra_storage_gb' => 0,
+                'extra_student_codes' => 0,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+            ]);
+        }
+        
+        \Log::info('ADMIN_RESOURCE_UPDATE', [
+            'admin_id' => auth()->id(),
+            'teacher_id' => $id,
+            'old_extra_storage' => $oldStorage,
+            'new_extra_storage' => 0,
+            'old_extra_codes' => $oldCodes,
+            'new_extra_codes' => 0,
+        ]);
+        
+        // Recalculate limits immediately
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $bunnyService->recalculateStorage($id);
+        
+        // Load plan base limits
+        $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
+        $plan = $subscription ? $subscription->plan : null;
+        $baseStorage = $plan ? $plan->video_storage_gb : 10;
+        $baseCodes = $plan ? $plan->student_codes : 0;
+        
+        \Cache::forget("teacher_subscription_{$id}");
+        
+        return response()->json([
+            'success' => true,
+            'storage_limit_gb' => $baseStorage,
+            'student_codes_limit' => $baseCodes,
+            'extra_storage_gb' => 0,
+            'extra_student_codes' => 0,
         ]);
     }
 }

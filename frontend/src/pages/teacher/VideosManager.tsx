@@ -141,6 +141,21 @@ export default function VideosManager() {
     try {
       setUploading(true)
       setUploadProgress(0)
+
+      // Validate storage quota before starting upload
+      try {
+        const subRes = await API.get('/teacher/subscription');
+        const remainingStorageGb = subRes.data.subscription?.remaining_storage_gb ?? 0;
+        const fileSizeGb = videoFile.size / (1024 * 1024 * 1024);
+        if (fileSizeGb > remainingStorageGb) {
+          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
+          setUploading(false);
+          return;
+        }
+      } catch (errQuota) {
+        console.warn("Could not verify storage quota:", errQuota);
+      }
+
       setUploadStatusText('جاري إنشاء كائن الفيديو على خوادم Bunny Stream...')
 
       // 1. Get signed upload credentials from our server
