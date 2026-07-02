@@ -688,7 +688,7 @@ export default function VideosManager() {
 
       {/* Modal for replacing video */}
       {replacingVideo && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl w-full max-w-md space-y-6 shadow-2xl relative">
             
             <div className="space-y-1">
