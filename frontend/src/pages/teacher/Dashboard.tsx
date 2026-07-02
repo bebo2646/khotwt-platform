@@ -625,7 +625,7 @@ export default function Dashboard() {
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="bg-gradient-to-b from-brand-card/60 to-brand-card/30 border border-[var(--border-color)] min-h-[350px] p-8 text-center rounded-[32px] flex flex-col items-center justify-center space-y-5 shadow-2xl relative overflow-hidden backdrop-blur-md"
+              className="bg-gradient-to-b from-brand-card/60 to-brand-card/30 border border-[var(--border-color)] min-h-[350px] p-8 text-center rounded-[32px] flex flex-col items-center justify-center space-y-5 shadow-2xl relative overflow-hidden"
             >
               {/* Decorative background glow */}
               <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -783,7 +783,7 @@ export default function Dashboard() {
                       alt={pkg.title} 
                       className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
                     />
-                    <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black border border-white/10">
+                    <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 text-white rounded-full text-[10px] font-black border border-white/10">
                       باقة مجمعة
                     </div>
                   </div>

@@ -478,7 +478,7 @@ export default function TeacherSubscription() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         
         {/* Subscription Info Card */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md">
+        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6">
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2">
               <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
@@ -580,7 +580,7 @@ export default function TeacherSubscription() {
         </div>
 
         {/* Payment Confirmation Card */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md flex flex-col justify-between">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-4">
               <DollarSign className="w-5 h-5 text-emerald-400" />
@@ -676,7 +676,7 @@ export default function TeacherSubscription() {
 
       {/* Additional Resources Overrides Card */}
       {resourceOverrides && (
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md mb-8">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
               <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2">
@@ -810,7 +810,7 @@ export default function TeacherSubscription() {
         
         {/* Available Plans */}
         {/* Available Plans */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md">
+        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-2">
             <Award className="w-5 h-5 text-indigo-400" />
             خطط ترقية الاشتراك المتاحة
@@ -917,7 +917,7 @@ export default function TeacherSubscription() {
         </div>
 
         {/* Live Calculation Panel */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md flex flex-col justify-between">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-1">
               <Shield className="w-5 h-5 text-purple-400" />
@@ -992,7 +992,7 @@ export default function TeacherSubscription() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Add Addon Forms */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-2">
             <PlusCircle className="w-5 h-5 text-emerald-500" />
             زيادة مساحة أو أكواد
@@ -1065,7 +1065,7 @@ export default function TeacherSubscription() {
         </div>
 
         {/* Addons History List */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md overflow-hidden flex flex-col">
+        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 overflow-hidden flex flex-col">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-2">
             <FileText className="w-5 h-5 text-indigo-400" />
             تاريخ الإضافات والموارد المشتراة

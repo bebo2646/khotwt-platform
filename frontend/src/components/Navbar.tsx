@@ -160,7 +160,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-[1000] backdrop-blur-[20px] bg-[var(--card-bg)]/80 border-b border-[var(--border-color)] transition-colors duration-300">
+      <nav className="fixed top-0 left-0 right-0 z-[1000] bg-[var(--card-bg)]/95 border-b border-[var(--border-color)] transition-colors duration-300">
       <div className="max-w-[1600px] w-full mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-[72px]">
           

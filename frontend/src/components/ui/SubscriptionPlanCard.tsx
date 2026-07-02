@@ -148,7 +148,7 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
 
   return (
     <div
-      className={`bg-[var(--card-bg)] border-2 rounded-3xl p-6 backdrop-blur-md flex flex-col justify-between relative transition-all duration-300 ${
+      className={`bg-[var(--card-bg)] border-2 rounded-3xl p-6 flex flex-col justify-between relative transition-all duration-300 ${
         isCurrent
           ? 'border-indigo-500 bg-indigo-500/5 shadow-[0_0_40px_rgba(99,102,241,0.15)] scale-105 z-10'
           : plan.is_popular

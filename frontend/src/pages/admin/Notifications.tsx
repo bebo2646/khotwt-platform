@@ -254,7 +254,7 @@ export default function Notifications() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Notification Form Card */}
-        <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md h-fit">
+        <div className="lg:col-span-1 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 h-fit">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-4">
             <MessageSquare className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             إرسال إشعار جديد
@@ -463,7 +463,7 @@ export default function Notifications() {
         </div>
 
         {/* Sent Notifications History Card */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md flex flex-col">
+        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-2">
             <Clipboard className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             سجل الإشعارات المرسلة

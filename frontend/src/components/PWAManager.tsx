@@ -229,7 +229,7 @@ export default function PWAManager() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, pointerEvents: 'none' }}
             style={{ pointerEvents: isOffline ? 'auto' : 'none' }}
-            className="fixed inset-0 z-[99998] flex flex-col items-center justify-center bg-[var(--bg-color)]/95 backdrop-blur-md text-[var(--text-color)] p-6 text-center select-none"
+            className="fixed inset-0 z-[99998] flex flex-col items-center justify-center bg-[var(--bg-color)]/98 text-[var(--text-color)] p-6 text-center select-none"
           >
             <motion.div
               initial={{ scale: 0.9, y: 15 }}

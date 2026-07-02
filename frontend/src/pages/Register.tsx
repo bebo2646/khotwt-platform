@@ -343,7 +343,7 @@ export default function Register() {
 
         {/* Top Badges */}
         <div className="flex justify-between items-center relative z-10">
-          <div className="flex items-center gap-2 bg-brand-card border border-[var(--border-color)] px-4 py-2 rounded-full shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-2 bg-brand-card border border-[var(--border-color)] px-4 py-2 rounded-full shadow-sm">
             <Sparkles className="h-4 w-4 text-brand-primary animate-pulse" />
             <span className="text-[10px] text-slate-200 font-bold">بوابة الطلاب المتفوقين 🛡️</span>
           </div>

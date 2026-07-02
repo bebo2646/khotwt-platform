@@ -306,7 +306,7 @@ export default function StudentDashboard() {
           {/* Premium Wallet Widget */}
           <motion.div 
             whileHover={{ y: -4, boxShadow: "0 20px 30px rgba(0,0,0,0.3)" }}
-            className="relative shrink-0 w-full md:w-80 bg-brand-card/90 border border-border-color p-6 rounded-3xl shadow-xl hover:border-brand-primary/30 transition-all duration-300 backdrop-blur-md overflow-hidden"
+            className="relative shrink-0 w-full md:w-80 bg-brand-card/90 border border-border-color p-6 rounded-3xl shadow-xl hover:border-brand-primary/30 transition-all duration-300 overflow-hidden"
           >
             <div className="absolute top-0 left-0 w-24 h-24 bg-brand-primary/5 rounded-full blur-2xl pointer-events-none"></div>
             <div className="absolute bottom-[-20px] right-[-20px] w-24 h-24 bg-accent/5 rounded-full blur-xl pointer-events-none"></div>
@@ -443,7 +443,7 @@ export default function StudentDashboard() {
                           alt={course.title} 
                           className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
                         />
-                        <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-black text-brand-primary rounded-full">
+                        <div className="absolute top-3 right-3 px-3 py-1 bg-black/80 border border-white/10 text-[10px] font-black text-brand-primary rounded-full">
                           {SUBJECTS_TRANSLATION[course.subject] || course.subject}
                         </div>
                       </div>

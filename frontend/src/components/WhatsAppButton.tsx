@@ -12,10 +12,7 @@ export default function WhatsAppButton() {
       target="_blank"
       rel="noopener noreferrer"
       className="fixed bottom-6 left-4 md:left-6 z-[999] flex items-center gap-2 px-3.5 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full shadow-[0_10px_30px_rgba(16,185,129,0.35)] hover:shadow-[0_12px_35px_rgba(16,185,129,0.55)] transition-all duration-300 hover:scale-105 active:scale-95 border border-emerald-400/20 group cursor-pointer"
-      style={{
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-      }}
+      style={{}}
     >
       <div className="absolute inset-0 rounded-full bg-emerald-500/10 group-hover:animate-ping -z-10" />
       

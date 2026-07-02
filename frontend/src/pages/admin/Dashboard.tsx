@@ -395,7 +395,7 @@ export default function Dashboard() {
                       alt={pkg.title} 
                       className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
                     />
-                    <div className="absolute top-3 right-3 px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black border border-white/10">
+                    <div className="absolute top-3 right-3 px-3 py-1 bg-black/80 text-white rounded-full text-[10px] font-black border border-white/10">
                       باقة مجمعة
                     </div>
                   </div>

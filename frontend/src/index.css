@@ -314,16 +314,12 @@ button, a, input, select, textarea {
 
 /* Utilities */
 .glass {
-  background: rgba(11, 17, 32, 0.75) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(11, 17, 32, 0.9) !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 .light-theme .glass {
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
   border: 1px solid rgba(15, 23, 42, 0.06) !important;
 }
 
@@ -838,6 +834,8 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
 [class*="fixed inset-0"][class*="bg-black/"],
 .modal-overlay {
   z-index: 2999 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .fixed.inset-0.flex.items-center.justify-center,
@@ -979,6 +977,8 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
 .modal-overlay {
   z-index: 9998 !important;
   pointer-events: auto !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .modal-content {

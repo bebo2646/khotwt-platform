@@ -465,7 +465,7 @@ export default function ExamBuilder() {
     <div className="min-h-screen bg-[var(--background-color)] text-right flex flex-col" dir="rtl">
       
       {/* STICKY HEADER */}
-      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur border-b border-[var(--border-color)] px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+      <header className="sticky top-0 z-40 bg-slate-900 border-b border-[var(--border-color)] px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center gap-4 w-full md:w-auto">
           <button 
             onClick={() => navigate('/teacher/exams')}

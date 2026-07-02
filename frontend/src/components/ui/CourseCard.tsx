@@ -85,11 +85,11 @@ export default function CourseCard({
         
         {/* Subject & Grade Overlay Badges */}
         <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end z-10">
-          <div className="px-3 py-1 bg-black/60 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
+          <div className="px-3 py-1 bg-black/80 text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
             {SUBJECTS_TRANSLATION[subject] || subject}
           </div>
           {grade && (
-            <div className="px-3 py-1 bg-indigo-600/85 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-500/25 shadow-md">
+            <div className="px-3 py-1 bg-indigo-700 text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-500/25 shadow-md">
               {GRADES_MAP[grade] || grade}
             </div>
           )}

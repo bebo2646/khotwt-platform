@@ -397,7 +397,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
             theme === 'light'
               ? 'bg-white border-b-[#e5e7eb] text-[#0f172a] shadow-[0_4px_20px_rgba(0,0,0,0.04)]'
-              : 'bg-[var(--card-bg)]/85 border-b-[var(--border-color)] text-[var(--text-color)] backdrop-blur-[20px] dark:bg-[#080c18]/85'
+              : 'bg-[var(--card-bg)]/95 border-b-[var(--border-color)] text-[var(--text-color)] dark:bg-[#080c18]/95'
           }`}
         >
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}

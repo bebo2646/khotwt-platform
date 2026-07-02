@@ -257,7 +257,7 @@ export default function Home() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand-primary/10 border border-brand-primary/20 backdrop-blur-md text-brand-primary text-xs font-bold hover:bg-brand-primary/15 transition-all cursor-pointer"
+            className="inline-flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-bold hover:bg-brand-primary/15 transition-all cursor-pointer"
           >
             <Sparkles className="h-4 w-4 text-brand-primary animate-pulse" />
             <span>خطوتك هي أول خطوة في طريق النجاح 🚀</span>
@@ -309,7 +309,7 @@ export default function Home() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-16"
             >
               
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl backdrop-blur-md flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
+              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
                 <div className="p-4 bg-brand-primary/10 text-brand-primary rounded-2xl group-hover:bg-brand-primary group-hover:text-white transition-all">
                   <Users className="h-6 w-6" />
                 </div>
@@ -319,7 +319,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl backdrop-blur-md flex items-center gap-4 text-right hover:border-brand-accent/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(6,182,212,0.08)]">
+              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-accent/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(6,182,212,0.08)]">
                 <div className="p-4 bg-brand-accent/10 text-brand-accent rounded-2xl group-hover:bg-brand-accent group-hover:text-white transition-all">
                   <BookOpen className="h-6 w-6" />
                 </div>
@@ -329,7 +329,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl backdrop-blur-md flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
+              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
                 <div className="p-4 bg-brand-primary/10 text-brand-primary rounded-2xl group-hover:bg-brand-primary group-hover:text-white transition-all">
                   <Award className="h-6 w-6" />
                 </div>
@@ -346,7 +346,7 @@ export default function Home() {
 
       {/* 2. Cascading Filter Section */}
       <section id="advanced-filter" className="max-w-7xl mx-auto px-4 scroll-mt-24">
-        <div className="bg-brand-card border border-[var(--border-color)] rounded-[36px] p-8 sm:p-12 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+        <div className="bg-brand-card border border-[var(--border-color)] rounded-[36px] p-8 sm:p-12 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-[var(--primary-color)]/5 rounded-full blur-3xl pointer-events-none"></div>
           
           <div className="max-w-3xl mb-10 text-right">

@@ -328,7 +328,7 @@ export default function Subscription() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         
         {/* Plan Specs & Quotas */}
-        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md">
+        <div className="lg:col-span-2 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2">
               <Shield className="w-5 h-5 text-indigo-400" />
@@ -411,7 +411,7 @@ export default function Subscription() {
         </div>
 
         {/* Purchased Add-ons Card */}
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md flex flex-col justify-between">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-4">
               <PlusCircle className="w-5 h-5 text-emerald-400" />
@@ -463,7 +463,7 @@ export default function Subscription() {
 
       {/* Expandable Upgrade Request Section */}
       {showRequestSection && (
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 backdrop-blur-md mb-8 animate-in slide-in-from-top duration-300">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 mb-8 animate-in slide-in-from-top duration-300">
           <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-2">
             <PlusCircle className="w-5 h-5 text-indigo-400" />
             تقديم طلب ترقية أو إضافة جديدة

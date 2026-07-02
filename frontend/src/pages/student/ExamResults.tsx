@@ -204,7 +204,7 @@ export default function ExamResults() {
                   </div>
 
                   {/* Right: Highly Prominent Score Card / Widget */}
-                  <div className="flex flex-col items-center shrink-0 relative z-10 bg-brand-surface/90 border border-border-color p-8 rounded-[24px] w-full md:w-64 shadow-lg backdrop-blur-md">
+                  <div className="flex flex-col items-center shrink-0 relative z-10 bg-brand-surface/95 border border-border-color p-8 rounded-[24px] w-full md:w-64 shadow-lg">
                     
                     {isGraded ? (
                       <div className="w-full text-center flex flex-col items-center">
