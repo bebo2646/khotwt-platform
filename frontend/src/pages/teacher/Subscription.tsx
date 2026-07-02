@@ -7,6 +7,7 @@ import {
   PlusCircle, CheckCircle, AlertCircle, RefreshCw, ChevronDown, 
   HelpCircle, ChevronUp, AlertTriangle, Shield, Check
 } from 'lucide-react'
+import { SubscriptionPlanCard } from '../../components/ui/SubscriptionPlanCard'
 
 interface Plan {
   id: number
@@ -17,6 +18,12 @@ interface Plan {
   is_popular?: boolean
   is_trial?: boolean
   active?: boolean
+  isActive?: boolean
+  billing_options?: any
+  durationType?: string
+  discountPercentage?: number | string
+  finalPrice?: number | string
+  price?: number | string
 }
 
 interface Subscription {
@@ -94,8 +101,10 @@ export default function Subscription() {
       setSettings(res.data.settings)
       setAlerts(res.data.alerts || [])
 
-      if (activePlans.length > 0 && !reqPlanId) {
-        setReqPlanId(activePlans[0].id.toString())
+      const currentPlanId = res.data.subscription?.plan?.id
+      const filterPlans = activePlans.filter((p: any) => p.id !== currentPlanId && !p.is_trial)
+      if (filterPlans.length > 0 && !reqPlanId) {
+        setReqPlanId(filterPlans[0].id.toString())
       }
     } catch (err: any) {
       console.error(err)
@@ -118,75 +127,6 @@ export default function Subscription() {
     }
   }, [plans]);
 
-  const getEnabledBillingOptions = (plan: any) => {
-    if (!plan.billing_options) return [];
-    let opts = plan.billing_options;
-    if (typeof opts === 'string') {
-      try { opts = JSON.parse(opts); } catch(e) { return []; }
-    }
-    const result = [];
-    if (opts.monthly?.enabled) result.push({ key: 'monthly', label: 'شهري', price: Number(opts.monthly.price), discount: Number(opts.monthly.discount) });
-    if (opts.three_months?.enabled) result.push({ key: 'quarterly', label: '3 أشهر', price: Number(opts.three_months.price), discount: Number(opts.three_months.discount) });
-    if (opts.six_months?.enabled) result.push({ key: 'semi_annual', label: '6 أشهر', price: Number(opts.six_months.price), discount: Number(opts.six_months.discount) });
-    if (opts.yearly?.enabled) result.push({ key: 'annual', label: 'سنوي', price: Number(opts.yearly.price), discount: Number(opts.yearly.discount) });
-    return result;
-  }
-
-  const calculatePrice = (plan: Plan) => {
-    const customOpts = getEnabledBillingOptions(plan);
-    if (customOpts.length > 0) {
-      const opt = customOpts.find(o => o.key === 'monthly') || customOpts[0];
-      
-      const price = opt.price;
-      const discount = opt.discount;
-      const finalPrice = price - (price * discount / 100);
-      
-      let label = 'ج.م / شهرياً';
-      if (opt.key === 'quarterly') label = 'ج.م / 3 أشهر';
-      else if (opt.key === 'semi_annual') label = 'ج.م / 6 أشهر';
-      else if (opt.key === 'annual') label = 'ج.م / سنوي';
-      
-      return {
-        price: finalPrice,
-        text: label,
-        originalPrice: discount > 0 ? price : null,
-        discountPercent: discount > 0 ? discount : null,
-        discountAmount: discount > 0 ? (price * discount / 100) : null
-      }
-    }
-
-    const price = Number((plan as any).price) || Number(plan.price_egp) || 0;
-    const finalPriceVal = Number((plan as any).finalPrice) || price;
-    const discount = Number((plan as any).discountPercentage) || 0;
-
-    if ((plan as any).durationType) {
-      let label = 'ج.م / شهرياً'
-      if ((plan as any).durationType === 'quarterly') label = 'ج.م / 3 أشهر'
-      else if ((plan as any).durationType === 'semi_annual') label = 'ج.م / 6 أشهر'
-      else if ((plan as any).durationType === 'yearly' || (plan as any).durationType === 'annual') label = 'ج.م / سنوي'
-      
-      return {
-        price: finalPriceVal > 0 ? finalPriceVal : price,
-        text: label,
-        originalPrice: discount > 0 ? price : null,
-        discountPercent: discount > 0 ? discount : null,
-        discountAmount: discount > 0 ? (price - finalPriceVal) : null
-      }
-    }
-
-    if (price === 0) return { price: 0, text: 'مجاناً' }
-    
-    return {
-      price: finalPriceVal > 0 ? finalPriceVal : price,
-      text: 'ج.م / شهر',
-      originalPrice: discount > 0 ? price : null,
-      discountPercent: discount > 0 ? discount : null,
-      discountAmount: discount > 0 ? (price - finalPriceVal) : null
-    }
-  }
-
-
-
   const triggerSync = async () => {
     try {
       setSyncing(true)
@@ -199,6 +139,10 @@ export default function Subscription() {
     } finally {
       setSyncing(false)
     }
+  }
+
+  const submitSubscriptionRequest = async (payload: any) => {
+    await API.post('/teacher/subscription/upgrade-request', payload)
   }
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
@@ -216,12 +160,36 @@ export default function Subscription() {
         amount: requestType !== 'plan_upgrade' ? reqAmount : null,
         billing_period: requestType === 'plan_upgrade' ? billingPeriod : null,
       }
-      console.log('Upgrade request payload', payload);
-      await API.post('/teacher/subscription/upgrade-request', payload)
+      console.log('TOP FORM PAYLOAD', payload)
+      await submitSubscriptionRequest(payload)
 
       showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
       setReqAmount(0)
       setShowRequestSection(false)
+      loadData()
+    } catch (err: any) {
+      console.error(err)
+      const errorMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join(', ')
+        : (err.response?.data?.message || 'حدث خطأ أثناء إرسال طلب الترقية.')
+      showToast(errorMsg, 'error')
+    } finally {
+      setSendingRequest(false)
+    }
+  }
+
+  const handleRequestUpgrade = async (planId: number, duration: string) => {
+    try {
+      setSendingRequest(true)
+      const payload = {
+        type: 'plan_upgrade',
+        requested_plan_id: planId,
+        billing_period: duration === 'yearly' ? 'annual' : duration
+      }
+      console.log('BOTTOM CARD PAYLOAD', payload)
+      await submitSubscriptionRequest(payload)
+      showToast('تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
+      loadData()
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.errors 
@@ -629,88 +597,17 @@ export default function Subscription() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {plans.filter(p => p.active && !p.is_trial).map(p => {
-            const isCurrent = subscription.plan?.id === p.id
-            const calculated = calculatePrice(p)
+            const isCurrent = subscription?.plan?.id === p.id
             return (
-              <div 
+              <SubscriptionPlanCard
                 key={p.id}
-                className={`bg-[var(--card-bg)] border-2 rounded-2xl p-5 backdrop-blur-md text-center flex flex-col justify-between relative transition-all ${
-                  isCurrent 
-                    ? 'border-indigo-500 bg-indigo-500/5 shadow-[0_0_30px_rgba(99,102,241,0.1)] scale-105 z-10' 
-                    : p.is_popular 
-                    ? 'border-indigo-500/50 shadow-xl' 
-                    : 'border-[var(--border-color)] hover:border-indigo-500/50'
-                }`}
-              >
-                {isCurrent && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-600 text-[8px] font-black text-white px-3.5 py-0.5 rounded-full border border-indigo-400 shadow-md">
-                    اشتراكك النشط حالياً
-                  </span>
-                )}
-                {p.is_popular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-[8px] font-black text-white px-3.5 py-0.5 rounded-full border border-indigo-400 shadow-md">
-                    الأكثر استخداماً
-                  </span>
-                )}
-                
-                <div>
-                  <h3 className="text-base font-black text-[var(--text-color)] mb-2">{p.name}</h3>
-                  <div className="text-xl font-black text-[var(--text-color)] mb-4">
-                    {calculated.originalPrice ? (
-                      <div className="flex flex-col items-center">
-                        <span className="text-[10px] text-slate-400 line-through mb-0.5">
-                          {calculated.originalPrice.toFixed(2)} ج.م
-                        </span>
-                        <span className="text-emerald-500 font-extrabold text-sm">
-                          {calculated.price.toFixed(2)} {calculated.text}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-sm">
-                        {calculated.price === 0 ? 'مجاناً' : `${calculated.price.toFixed(2)} ${calculated.text}`}
-                      </span>
-                    )}
-                  </div>
-                  <hr className="border-[var(--border-color)] mb-4" />
-                  <ul className="space-y-3.5 text-xs text-[var(--text-secondary)] text-right pr-2 mb-6">
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                      <span>قدرة الطلاب: <strong className="text-[var(--text-color)]">{p.student_codes} طالب نشط</strong></span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                      <span>أكواد نشطة: <strong className="text-[var(--text-color)]">{p.student_codes} كود طلاب</strong></span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                      <span>مساحة الفيديو: <strong className="text-[var(--text-color)]">{p.video_storage_gb} جيجابايت</strong></span>
-                    </li>
-                  </ul>
-                </div>
-
-                {!isCurrent ? (
-                  <button
-                    onClick={() => {
-                      setRequestType('plan_upgrade')
-                      setReqPlanId(p.id.toString())
-                      if ((p as any).durationType) {
-                        const pDuration = (p as any).durationType
-                        setBillingPeriod(pDuration === 'yearly' ? 'annual' : pDuration as any)
-                      }
-                      setShowRequestSection(true)
-                      window.scrollTo({ top: 300, behavior: 'smooth' })
-                    }}
-                    className="w-full py-2.5 bg-[var(--bg-color)]/30 hover:bg-[var(--bg-color)]/50 text-[var(--text-color)] border border-[var(--border-color)] font-bold text-xs rounded-xl transition cursor-pointer"
-                  >
-                    طلب ترقية الباقة
-                  </button>
-                ) : (
-                  <div className="w-full py-2.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs rounded-xl border border-emerald-500/20 text-center flex items-center justify-center gap-1">
-                    <CheckCircle className="w-4 h-4" />
-                    باقة مفعلة
-                  </div>
-                )}
-              </div>
+                plan={p}
+                isCurrent={isCurrent}
+                billingPeriod={billingPeriod as any}
+                settings={settings || { discount_semi_annually: '10', discount_annually: '20' }}
+                onUpgradeRequest={handleRequestUpgrade}
+                submitting={sendingRequest}
+              />
             )
           })}
         </div>
