@@ -129,7 +129,43 @@ export default function Dashboard() {
     }
   }, [user])
 
+  // Synchronize maintenance state changes in real-time across layout components
+  React.useEffect(() => {
+    const handleSyncUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      setMaintenanceMode(!!detail)
+    }
+    window.addEventListener('elm_maintenance_updated', handleSyncUpdate)
+    return () => window.removeEventListener('elm_maintenance_updated', handleSyncUpdate)
+  }, [])
+
+  const saveMaintenanceSettings = async (mode: boolean, msg: string, etaStr: string) => {
+    setSavingSettings(true)
+    try {
+      const res = await API.post('/admin/maintenance-settings', {
+        maintenance_mode: mode,
+        maintenance_message: msg,
+        maintenance_eta: etaStr,
+      })
+      
+      setMaintenanceMode(res.data.settings.maintenance_mode)
+      setMaintenanceMessage(res.data.settings.maintenance_message || '')
+      setMaintenanceEta(res.data.settings.maintenance_eta || '')
+      
+      useModalStore.getState().showToast('تم تحديث حالة وضع الصيانة', 'success')
+      
+      // Dispatch event to sync banner
+      window.dispatchEvent(new CustomEvent('elm_maintenance_updated', { detail: res.data.settings.maintenance_mode }))
+    } catch (err: any) {
+      console.error(err)
+      useModalStore.getState().showToast(err.response?.data?.message || 'فشل تحديث وضع الصيانة.', 'error')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   const handleMaintenanceToggle = () => {
+    if (savingSettings) return
     const nextState = !maintenanceMode
     if (nextState) {
       useModalStore.getState().showConfirm({
@@ -138,29 +174,17 @@ export default function Dashboard() {
         confirmText: 'نعم، قم بالتفعيل',
         cancelText: 'إلغاء',
         type: 'delete',
-        onConfirm: () => setMaintenanceMode(true)
+        onConfirm: () => saveMaintenanceSettings(true, maintenanceMessage, maintenanceEta)
       })
     } else {
-      setMaintenanceMode(false)
+      saveMaintenanceSettings(false, maintenanceMessage, maintenanceEta)
     }
   }
 
   const handleSaveMaintenanceSettings = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSavingSettings(true)
-    try {
-      const res = await API.post('/admin/maintenance-settings', {
-        maintenance_mode: maintenanceMode,
-        maintenance_message: maintenanceMessage,
-        maintenance_eta: maintenanceEta,
-      })
-      useModalStore.getState().showToast(res.data.message || 'تم تحديث وضع الصيانة بنجاح.', 'success')
-    } catch (err: any) {
-      console.error(err)
-      useModalStore.getState().showToast(err.response?.data?.message || 'فشل تحديث إعدادات وضع الصيانة.', 'error')
-    } finally {
-      setSavingSettings(false)
-    }
+    if (savingSettings) return
+    await saveMaintenanceSettings(maintenanceMode, maintenanceMessage, maintenanceEta)
   }
 
 
@@ -716,7 +740,8 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleMaintenanceToggle}
-                  className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  disabled={savingSettings}
+                  className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
                     maintenanceMode ? 'bg-indigo-600' : 'bg-slate-700'
                   }`}
                 >
@@ -752,8 +777,9 @@ export default function Dashboard() {
                     <textarea
                       value={maintenanceMessage}
                       onChange={(e) => setMaintenanceMessage(e.target.value)}
+                      disabled={savingSettings}
                       placeholder="مثال: يتم إضافة مميزات جديدة..."
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 min-h-[80px]"
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 min-h-[80px] disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
 
@@ -764,8 +790,9 @@ export default function Dashboard() {
                       type="text"
                       value={maintenanceEta}
                       onChange={(e) => setMaintenanceEta(e.target.value)}
+                      disabled={savingSettings}
                       placeholder="مثال: سيتم الانتهاء خلال ساعة"
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50"
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>

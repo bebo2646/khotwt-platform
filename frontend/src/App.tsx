@@ -261,20 +261,6 @@ function App() {
           <AnalyticsTracker />
           <RobotsTracker />
           <ModalProvider />
-          {isMaintenanceOn && (user?.is_super_admin || user?.is_super) && (
-            <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-600 text-white text-xs font-bold py-2.5 px-4 flex items-center justify-between shadow-md select-none text-right" dir="rtl">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                <span>وضع الصيانة نشط حالياً (Maintenance Mode is ACTIVE)</span>
-              </div>
-              <button
-                onClick={handleDisableMaintenance}
-                className="px-3.5 py-1 bg-white text-amber-800 rounded-lg font-black hover:bg-slate-100 transition-all cursor-pointer active:scale-95"
-              >
-                إلغاء تفعيل وضع الصيانة
-              </button>
-            </div>
-          )}
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>

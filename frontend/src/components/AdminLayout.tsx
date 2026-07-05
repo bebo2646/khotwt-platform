@@ -7,6 +7,8 @@ import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { NotificationToast } from './NotificationToast'
 import { AnimatePresence } from 'framer-motion'
+import API from '../services/api'
+import { useModalStore } from '../store/modalStore'
 import {
   LayoutDashboard,
   Users,
@@ -28,7 +30,8 @@ import {
   ShieldAlert,
   Tv,
   ChevronLeft,
-  UserCheck
+  UserCheck,
+  AlertTriangle
 } from 'lucide-react'
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -47,6 +50,52 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const notifRef = React.useRef<HTMLDivElement>(null)
   const profileRef = React.useRef<HTMLDivElement>(null)
+
+  // Maintenance mode layout states
+  const [isMaintenanceActive, setIsMaintenanceActive] = useState(false)
+
+  const checkMaintenance = async () => {
+    try {
+      const res = await API.get('/config')
+      setIsMaintenanceActive(!!res.data?.maintenance)
+    } catch (err) {
+      console.error('Error fetching config in AdminLayout', err)
+    }
+  }
+
+  const handleDisableMaintenance = async () => {
+    try {
+      await API.post('/admin/maintenance-settings', {
+        maintenance_mode: false,
+        maintenance_message: '',
+        maintenance_eta: ''
+      })
+      setIsMaintenanceActive(false)
+      useModalStore.getState().showToast('تم إلغاء تفعيل وضع الصيانة بنجاح.', 'success')
+      window.dispatchEvent(new CustomEvent('elm_maintenance_updated', { detail: false }))
+    } catch (err) {
+      console.error('Error disabling maintenance from layout banner', err)
+      useModalStore.getState().showToast('فشل إلغاء تفعيل وضع الصيانة.', 'error')
+    }
+  }
+
+  useEffect(() => {
+    checkMaintenance()
+    // Poll maintenance status every 15 seconds
+    const interval = setInterval(checkMaintenance, 15000)
+
+    // Listen to custom maintenance state updates (from dashboard switch toggle)
+    const handleMaintenanceUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      setIsMaintenanceActive(!!detail)
+    }
+    window.addEventListener('elm_maintenance_updated', handleMaintenanceUpdate)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('elm_maintenance_updated', handleMaintenanceUpdate)
+    }
+  }, [])
 
   // Auto-close mobile sidebar on route change
   useEffect(() => {
@@ -496,7 +545,25 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         </header>
 
         {/* 4. Page Content area */}
-        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-[1600px] mx-auto overflow-y-auto">
+        <main className="flex-1 w-full p-6 sm:p-8 md:p-10 max-w-[1600px] mx-auto overflow-y-auto space-y-6">
+          {isMaintenanceActive && (
+            <div className="flex items-center justify-between gap-3 p-4 bg-amber-500/10 border border-amber-500/25 text-amber-500 rounded-2xl max-h-[56px] overflow-hidden select-none text-right" dir="rtl">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-xs sm:text-sm text-amber-500">وضع الصيانة مفعل حالياً</span>
+                  <span className="hidden sm:inline text-xs text-slate-500">|</span>
+                  <span className="hidden sm:inline text-[10px] sm:text-xs text-slate-300 font-light">يمكنك متابعة إدارة المنصة بينما الطلاب والمعلمون لا يمكنهم استخدامها.</span>
+                </div>
+              </div>
+              <button
+                onClick={handleDisableMaintenance}
+                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-[10px] font-black rounded-lg transition-all cursor-pointer shrink-0"
+              >
+                إلغاء التفعيل
+              </button>
+            </div>
+          )}
           {children}
         </main>
       </div>
