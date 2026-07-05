@@ -29,6 +29,7 @@ const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
 const NotFound = React.lazy(() => import('./pages/NotFound'))
 const ServerError = React.lazy(() => import('./pages/ServerError'))
+const Maintenance = React.lazy(() => import('./pages/Maintenance'))
 
 // Student Pages (Lazy Loaded)
 const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'))
@@ -83,6 +84,51 @@ function App() {
   const initTheme = useThemeStore((state) => state.initTheme)
   const navigateRef = React.useRef<any>(null)
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn)
+  const user = useAuthStore((state) => state.user)
+  const [isMaintenanceOn, setIsMaintenanceOn] = React.useState(false)
+
+  const handleDisableMaintenance = async () => {
+    try {
+      await API.post('/admin/maintenance-settings', {
+        maintenance_mode: false,
+        maintenance_message: '',
+        maintenance_eta: ''
+      })
+      setIsMaintenanceOn(false)
+      useModalStore.getState().showToast('تم إلغاء تفعيل وضع الصيانة بنجاح.', 'success')
+      window.location.reload()
+    } catch (err) {
+      console.error('Error disabling maintenance from banner', err)
+      useModalStore.getState().showToast('فشل إلغاء تفعيل وضع الصيانة.', 'error')
+    }
+  }
+
+  // Periodic maintenance checker & real-time client kick-out
+  React.useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const res = await API.get('/config')
+        const isMaint = !!res.data?.maintenance
+        setIsMaintenanceOn(isMaint)
+
+        if (isMaint) {
+          const currentUser = useAuthStore.getState().user
+          if (currentUser && (currentUser.role === 'student' || currentUser.role === 'teacher')) {
+            sessionStorage.setItem('maintenance_message', res.data.maintenance_message || '')
+            sessionStorage.setItem('maintenance_eta', res.data.maintenance_eta || '')
+            useAuthStore.getState().logout()
+            window.location.href = '/maintenance'
+          }
+        }
+      } catch (err) {
+        console.error('Error in App global maintenance check', err)
+      }
+    }
+
+    checkMaintenance()
+    const interval = setInterval(checkMaintenance, 15000)
+    return () => clearInterval(interval)
+  }, [])
 
   React.useEffect(() => {
     // Load default theme (Dark)
@@ -215,6 +261,20 @@ function App() {
           <AnalyticsTracker />
           <RobotsTracker />
           <ModalProvider />
+          {isMaintenanceOn && (user?.is_super_admin || user?.is_super) && (
+            <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-600 text-white text-xs font-bold py-2.5 px-4 flex items-center justify-between shadow-md select-none text-right" dir="rtl">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+                <span>وضع الصيانة نشط حالياً (Maintenance Mode is ACTIVE)</span>
+              </div>
+              <button
+                onClick={handleDisableMaintenance}
+                className="px-3.5 py-1 bg-white text-amber-800 rounded-lg font-black hover:bg-slate-100 transition-all cursor-pointer active:scale-95"
+              >
+                إلغاء تفعيل وضع الصيانة
+              </button>
+            </div>
+          )}
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -226,6 +286,7 @@ function App() {
             Public Scope Routes
             ========================================================================== */}
         <Route path="/" element={<Layout><Home /></Layout>} />
+        <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/login" element={<Layout><Login /></Layout>} />
         <Route path="/register" element={<Layout><Register /></Layout>} />
         <Route path="/courses" element={<Layout><Courses /></Layout>} />

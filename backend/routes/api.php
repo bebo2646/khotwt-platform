@@ -202,6 +202,10 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Admin logs (Super Admin only)
             Route::get('/admin/logs', [AdminController::class, 'activityLogs']);
 
+            // Maintenance Mode Control (Super Admin only)
+            Route::get('/admin/maintenance-settings', [AdminController::class, 'getMaintenanceSettings']);
+            Route::post('/admin/maintenance-settings', [AdminController::class, 'updateMaintenanceSettings']);
+
             // Admins CRUD (Super Admin restricted inside controller as well)
             Route::middleware('permission:admins.manage')->group(function () {
                 Route::get('/admin/permissions', [AdminController::class, 'listAllPermissions']);

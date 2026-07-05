@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useModalStore } from '../store/modalStore'
+import { useAuthStore } from '../store/authStore'
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000/api',
@@ -75,6 +76,21 @@ API.interceptors.response.use(
         // Handle forcing password change redirection
         if (window.location.pathname !== '/change-password') {
           window.dispatchEvent(new CustomEvent('elm_must_change_password'))
+        }
+      }
+
+      if (status === 503 && data && data.maintenance) {
+        // Store maintenance details in sessionStorage for the /maintenance page
+        sessionStorage.setItem('maintenance_message', data.message || '')
+        sessionStorage.setItem('maintenance_eta', data.eta || '')
+        
+        // Log out the user
+        const authStore = useAuthStore.getState()
+        authStore.logout()
+
+        // Redirect to maintenance screen
+        if (window.location.pathname !== '/maintenance') {
+          window.location.href = '/maintenance'
         }
       }
     }

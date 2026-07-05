@@ -13,6 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(\App\Http\Middleware\CheckMaintenanceMode::class);
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
             'must_change_password' => \App\Http\Middleware\EnforcePasswordChange::class,

@@ -1662,5 +1662,85 @@ class AdminController extends Controller
             'largest_videos' => $largestVideos,
         ]);
     }
+
+    /**
+     * Get maintenance mode settings (Super Admin only).
+     */
+    public function getMaintenanceSettings(Request $request)
+    {
+        if (!$request->user() || !$request->user()->is_super_admin) {
+            return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
+        }
+
+        $settings = \App\Models\PlatformSetting::first();
+        return response()->json($settings);
+    }
+
+    /**
+     * Update maintenance mode settings (Super Admin only).
+     */
+    public function updateMaintenanceSettings(Request $request)
+    {
+        if (!$request->user() || !$request->user()->is_super_admin) {
+            return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
+        }
+
+        $request->validate([
+            'maintenance_mode' => 'required|boolean',
+            'maintenance_message' => 'nullable|string',
+            'maintenance_eta' => 'nullable|string',
+        ]);
+
+        $settings = \App\Models\PlatformSetting::first();
+        $oldMaintenanceMode = $settings ? $settings->maintenance_mode : false;
+
+        if (!$settings) {
+            $settings = new \App\Models\PlatformSetting();
+        }
+
+        $settings->maintenance_mode = $request->maintenance_mode;
+        $settings->maintenance_message = $request->maintenance_message;
+        $settings->maintenance_eta = $request->maintenance_eta;
+        $settings->save();
+
+        // Maintenance History logging
+        $isTurningOn = $request->maintenance_mode && !$oldMaintenanceMode;
+        $isTurningOff = !$request->maintenance_mode && $oldMaintenanceMode;
+
+        if ($isTurningOn) {
+            \App\Models\MaintenanceLog::create([
+                'enabled_by' => $request->user()->id,
+                'enabled_at' => now(),
+                'message' => $request->maintenance_message,
+            ]);
+        } elseif ($isTurningOff) {
+            $latestLog = \App\Models\MaintenanceLog::whereNull('disabled_at')
+                ->latest()
+                ->first();
+            if ($latestLog) {
+                $enabledAt = $latestLog->enabled_at;
+                $disabledAt = now();
+                $duration = $disabledAt->diffInSeconds($enabledAt);
+
+                $latestLog->update([
+                    'disabled_at' => $disabledAt,
+                    'duration' => $duration,
+                ]);
+            }
+        }
+
+        $statusStr = $settings->maintenance_mode ? 'تفعيل' : 'إلغاء تفعيل';
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تعديل وضع الصيانة: {$statusStr}",
+            'deleted_count' => 0,
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم تحديث إعدادات وضع الصيانة بنجاح.',
+            'settings' => $settings
+        ]);
+    }
 }
 

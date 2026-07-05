@@ -2,8 +2,9 @@ import React from 'react'
 import API from '../../services/api'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { SafeResponsiveContainer } from '../../components/ui/SafeResponsiveContainer'
-import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check, HardDrive } from 'lucide-react'
+import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check, HardDrive, Settings } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import { useAuthStore } from '../../store/authStore'
 
 interface MonthlyChartItem {
   month: string
@@ -28,9 +29,16 @@ interface StatsData {
 }
 
 export default function Dashboard() {
+  const { user } = useAuthStore()
   const [stats, setStats] = React.useState<StatsData | null>(null)
   const [packages, setPackages] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(true)
+
+  // Maintenance states (Super Admin)
+  const [maintenanceMode, setMaintenanceMode] = React.useState(false)
+  const [maintenanceMessage, setMaintenanceMessage] = React.useState('')
+  const [maintenanceEta, setMaintenanceEta] = React.useState('')
+  const [savingSettings, setSavingSettings] = React.useState(false)
 
   // Package admin states
   const [showPackageForm, setShowPackageForm] = React.useState(false)
@@ -102,6 +110,59 @@ export default function Dashboard() {
     }
     loadDashboardData()
   }, [])
+
+  React.useEffect(() => {
+    if (user?.is_super_admin || user?.is_super) {
+      const fetchMaintenanceSettings = async () => {
+        try {
+          const res = await API.get('/admin/maintenance-settings')
+          if (res.data) {
+            setMaintenanceMode(res.data.maintenance_mode)
+            setMaintenanceMessage(res.data.maintenance_message || '')
+            setMaintenanceEta(res.data.maintenance_eta || '')
+          }
+        } catch (err) {
+          console.error('[Maintenance Fetch Error]:', err)
+        }
+      }
+      fetchMaintenanceSettings()
+    }
+  }, [user])
+
+  const handleMaintenanceToggle = () => {
+    const nextState = !maintenanceMode
+    if (nextState) {
+      useModalStore.getState().showConfirm({
+        title: 'تفعيل وضع الصيانة',
+        description: 'سيؤدي تفعيل وضع الصيانة إلى قطع الاتصال فوراً عن جميع الطلاب والمعلمين المسجلين في المنصة. هل ترغب في المتابعة؟',
+        confirmText: 'نعم، قم بالتفعيل',
+        cancelText: 'إلغاء',
+        type: 'delete',
+        onConfirm: () => setMaintenanceMode(true)
+      })
+    } else {
+      setMaintenanceMode(false)
+    }
+  }
+
+  const handleSaveMaintenanceSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSavingSettings(true)
+    try {
+      const res = await API.post('/admin/maintenance-settings', {
+        maintenance_mode: maintenanceMode,
+        maintenance_message: maintenanceMessage,
+        maintenance_eta: maintenanceEta,
+      })
+      useModalStore.getState().showToast(res.data.message || 'تم تحديث وضع الصيانة بنجاح.', 'success')
+    } catch (err: any) {
+      console.error(err)
+      useModalStore.getState().showToast(err.response?.data?.message || 'فشل تحديث إعدادات وضع الصيانة.', 'error')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
 
   const handleEditPackageClick = async (pkg: any) => {
     setEditPackageMode(pkg)
@@ -621,7 +682,108 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Platform Settings (Super Admin Only) */}
+      {(user?.is_super_admin || user?.is_super) && (
+        <div className="space-y-6 pt-12 border-t border-[var(--border-color)] text-right">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <Settings className="h-5 w-5 text-indigo-400" />
+              <span>إعدادات المنصة (المشرف العام)</span>
+            </h2>
+            <p className="text-xs text-slate-400 font-light mt-1">
+              التحكم في حالة تشغيل المنصة العامة وتفعيل وضع الصيانة لجميع المستخدمين عدا الإدارة.
+            </p>
+          </div>
 
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 bg-brand-card border border-border-color p-8 rounded-3xl space-y-6 shadow-sm">
+              <h3 className="font-bold text-base flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+                <span>وضع الصيانة (Maintenance Mode)</span>
+              </h3>
+              
+              <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                <span className="text-xs text-slate-400">حالة وضع الصيانة الحالية</span>
+                
+                {/* Status Indicator */}
+                <div className="flex items-center gap-2">
+                  <span className={`w-3.5 h-3.5 rounded-full ${maintenanceMode ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  <span className="text-lg font-black tracking-wide">
+                    {maintenanceMode ? 'ON (نشط)' : 'OFF (معطل)'}
+                  </span>
+                </div>
+
+                {/* Beautiful Switch Button */}
+                <button
+                  type="button"
+                  onClick={handleMaintenanceToggle}
+                  className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    maintenanceMode ? 'bg-indigo-600' : 'bg-slate-700'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      maintenanceMode ? '-translate-x-8' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+
+                {/* Preview Button */}
+                <button
+                  type="button"
+                  onClick={() => window.open('/maintenance', '_blank')}
+                  className="mt-4 px-4 py-2 border border-[var(--border-color)] hover:border-slate-500 text-slate-300 text-xs font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  معاينة صفحة الصيانة
+                </button>
+              </div>
+            </div>
+
+            <div className="lg:col-span-2 bg-brand-card border border-border-color p-8 rounded-3xl shadow-sm">
+              <form onSubmit={handleSaveMaintenanceSettings} className="space-y-6 text-right">
+                <h3 className="font-bold text-base border-b border-[var(--border-color)] pb-3">
+                  <span>إعدادات رسالة ووقت الصيانة</span>
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Custom Message */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold block text-slate-300">رسالة مخصصة تظهر للطلاب (اختياري)</label>
+                    <textarea
+                      value={maintenanceMessage}
+                      onChange={(e) => setMaintenanceMessage(e.target.value)}
+                      placeholder="مثال: يتم إضافة مميزات جديدة..."
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 min-h-[80px]"
+                    />
+                  </div>
+
+                  {/* Estimated Time */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold block text-slate-300">الوقت المتوقع للانتهاء (اختياري)</label>
+                    <input
+                      type="text"
+                      value={maintenanceEta}
+                      onChange={(e) => setMaintenanceEta(e.target.value)}
+                      placeholder="مثال: سيتم الانتهاء خلال ساعة"
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-[var(--border-color)]">
+                  <button
+                    type="submit"
+                    disabled={savingSettings}
+                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-950/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {savingSettings ? 'جاري حفظ الإعدادات...' : 'حفظ إعدادات الصيانة'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )
