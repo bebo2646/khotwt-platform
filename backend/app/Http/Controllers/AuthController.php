@@ -82,21 +82,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.'], 403);
         }
 
-        $settings = \App\Models\PlatformSetting::first();
-        if ($settings && $settings->maintenance_mode) {
-            if (!$user->is_super_admin && !$user->is_super) {
-                // Delete active sessions/tokens
-                $user->tokens()->delete();
-                $user->update(['current_session_token' => null]);
-
-                return response()->json([
-                    'maintenance' => true,
-                    'message' => $settings->maintenance_message ?? 'نعتذر لكم، يتم حالياً إجراء تحديثات لتحسين المنصة.',
-                    'eta' => $settings->maintenance_eta
-                ], 503);
-            }
-        }
-
         // Deactivate previous sessions: delete existing Sanctum tokens
         $user->tokens()->delete();
 

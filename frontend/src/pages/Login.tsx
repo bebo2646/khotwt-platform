@@ -56,6 +56,31 @@ export default function Login() {
       }
       const freshUser = profileRes.data.user || profileRes.data.data || profileRes.data
 
+      // Check maintenance status after successful authentication
+      const configRes = await API.get('/config')
+      if (configRes.data && configRes.data.maintenance) {
+        if (!freshUser.is_super_admin && !freshUser.is_super) {
+          // Immediately logout the user safely
+          try {
+            await API.post('/logout')
+          } catch (logoutErr) {
+            console.error('Logout failed during login maintenance redirect', logoutErr)
+          }
+
+          // Clear frontend state and credentials
+          const authStore = useAuthStore.getState()
+          authStore.logout()
+
+          // Store maintenance parameters for display
+          sessionStorage.setItem('maintenance_message', configRes.data.maintenance_message || '')
+          sessionStorage.setItem('maintenance_eta', configRes.data.maintenance_eta || '')
+
+          // Redirect to maintenance screen
+          window.location.href = '/maintenance'
+          return
+        }
+      }
+
       loginUser(freshUser, token, session_token)
       
       if (rememberMe) {

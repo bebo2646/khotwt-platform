@@ -73,9 +73,39 @@ export default function Register() {
         grade: data.grade,
         password: data.password,
       })
-      const { user, token, session_token } = res.data
+      const { user: registeredUser, token, session_token } = res.data
       
-      loginUser(user, token, session_token)
+      // Check maintenance status after successful registration
+      const configRes = await API.get('/config')
+      if (configRes.data && configRes.data.maintenance) {
+        // Store the token momentarily so we can call the logout API to destroy backend session
+        localStorage.setItem('auth_token', token)
+        localStorage.setItem('elm_token', token)
+        if (session_token) {
+          localStorage.setItem('session_token', session_token)
+          localStorage.setItem('elm_session_token', session_token)
+        }
+
+        try {
+          await API.post('/logout')
+        } catch (logoutErr) {
+          console.error('Logout failed during register maintenance redirect', logoutErr)
+        }
+
+        // Clear frontend credentials
+        const authStore = useAuthStore.getState()
+        authStore.logout()
+
+        // Store maintenance params for display
+        sessionStorage.setItem('maintenance_message', configRes.data.maintenance_message || '')
+        sessionStorage.setItem('maintenance_eta', configRes.data.maintenance_eta || '')
+
+        // Redirect to maintenance screen
+        window.location.href = '/maintenance'
+        return
+      }
+
+      loginUser(registeredUser, token, session_token)
       navigate('/student/dashboard', { replace: true })
     } catch (err: any) {
       console.error(err)
