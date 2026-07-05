@@ -113,7 +113,7 @@ function App() {
 
         if (isMaint) {
           const currentUser = useAuthStore.getState().user
-          if (currentUser && (currentUser.role === 'student' || currentUser.role === 'teacher')) {
+          if (currentUser && !currentUser.is_super_admin && !currentUser.is_super) {
             sessionStorage.setItem('maintenance_message', res.data.maintenance_message || '')
             sessionStorage.setItem('maintenance_eta', res.data.maintenance_eta || '')
             useAuthStore.getState().logout()

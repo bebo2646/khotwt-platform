@@ -35,19 +35,6 @@ export default function Login() {
     setApiError(null)
     setSubmitting(true)
     try {
-      // Check maintenance status first
-      const configRes = await API.get('/config')
-      if (configRes.data && configRes.data.maintenance) {
-        const params = new URLSearchParams(location.search)
-        const isBypass = params.get('admin') === 'true' || params.get('bypass') === 'true'
-        if (!isBypass) {
-          sessionStorage.setItem('maintenance_message', configRes.data.maintenance_message || '')
-          sessionStorage.setItem('maintenance_eta', configRes.data.maintenance_eta || '')
-          window.location.href = '/maintenance'
-          return
-        }
-      }
-
       const res = await API.post('/login', data)
       if (import.meta.env.DEV) {
         console.log('[Login Response]:', res.data)
@@ -114,25 +101,8 @@ export default function Login() {
     }
   }
 
-  // Check maintenance status on mount, set remembered email, and check for session invalidation redirect
+  // Set remembered email and check for session invalidation redirect
   React.useEffect(() => {
-    const checkMaintenance = async () => {
-      try {
-        const res = await API.get('/config')
-        if (res.data && res.data.maintenance) {
-          const params = new URLSearchParams(location.search)
-          if (params.get('admin') === 'true' || params.get('bypass') === 'true') {
-            return
-          }
-          sessionStorage.setItem('maintenance_message', res.data.maintenance_message || '')
-          sessionStorage.setItem('maintenance_eta', res.data.maintenance_eta || '')
-          window.location.href = '/maintenance'
-        }
-      } catch (err) {
-        console.error('Error fetching config on login mount', err)
-      }
-    }
-    checkMaintenance()
 
     const email = localStorage.getItem('elm_remembered_email')
     if (email) {

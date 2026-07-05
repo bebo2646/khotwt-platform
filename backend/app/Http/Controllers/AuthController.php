@@ -15,15 +15,6 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        $settings = \App\Models\PlatformSetting::first();
-        if ($settings && $settings->maintenance_mode) {
-            return response()->json([
-                'maintenance' => true,
-                'message' => $settings->maintenance_message ?? 'نعتذر لكم، يتم حالياً إجراء تحديثات لتحسين المنصة.',
-                'eta' => $settings->maintenance_eta
-            ], 503);
-        }
-
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|unique:users|max:255',
@@ -94,6 +85,10 @@ class AuthController extends Controller
         $settings = \App\Models\PlatformSetting::first();
         if ($settings && $settings->maintenance_mode) {
             if (!$user->is_super_admin && !$user->is_super) {
+                // Delete active sessions/tokens
+                $user->tokens()->delete();
+                $user->update(['current_session_token' => null]);
+
                 return response()->json([
                     'maintenance' => true,
                     'message' => $settings->maintenance_message ?? 'نعتذر لكم، يتم حالياً إجراء تحديثات لتحسين المنصة.',
