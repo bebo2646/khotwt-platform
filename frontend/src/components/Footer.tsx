@@ -86,7 +86,7 @@ export default function Footer() {
           <p className="footer-credit font-medium">Developed By: ENG Belal Ahmed</p>
           <p className="flex items-center gap-1.5 justify-center">
             <a 
-              href="https://belal-portfolio1.netlify.app/" 
+              href="https://belal-portfolio1.vercel.app" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="footer-credit-link font-bold"
