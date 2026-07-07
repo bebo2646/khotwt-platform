@@ -335,10 +335,10 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           
           {/* Revenue */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-[20px] space-y-4 shadow-sm hover:border-brand-success/30 hover:shadow-[0_0_20px_rgba(16,185,129,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">إحصائيات المبيعات والأرباح</span>
-              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+              <div className="p-2.5 bg-emerald-500/10 text-brand-success rounded-2xl border border-emerald-500/20">
                 <Coins className="h-5 w-5" />
               </div>
             </div>
@@ -349,7 +349,7 @@ export default function Dashboard() {
                   {Number(stats.net_revenue ?? stats.total_revenue).toFixed(2)} ج.م
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-color)]">
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
                 <div>
                   <span className="text-[9px] text-[var(--text-secondary)] block">الإجمالي (Gross)</span>
                   <span className="text-xs font-bold text-[var(--text-secondary)]">{Number(stats.gross_revenue ?? stats.total_revenue).toFixed(2)} ج.م</span>
@@ -366,10 +366,10 @@ export default function Dashboard() {
           </div>
 
           {/* Subscription Revenue */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-[20px] space-y-4 shadow-sm hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">إيرادات اشتراكات المعلمين</span>
-              <div className="p-2.5 bg-indigo-500/10 text-indigo-500 rounded-2xl">
+              <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-2xl border border-indigo-500/20">
                 <Shield className="h-5 w-5" />
               </div>
             </div>
@@ -391,7 +391,7 @@ export default function Dashboard() {
                   {Number(stats.sub_lifetime_revenue ?? 0).toFixed(2)} ج.م
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-color)]">
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
                 <div>
                   <span className="text-[8px] text-[var(--text-secondary)] block">الشهر الحالي</span>
                   <span className="text-[10px] font-bold text-[var(--text-secondary)]">{Number(stats.sub_current_month_revenue ?? 0).toFixed(1)} ج.م</span>
@@ -401,28 +401,28 @@ export default function Dashboard() {
                   <span className="text-[10px] font-bold text-[var(--text-secondary)]">{Number(stats.sub_previous_month_revenue ?? 0).toFixed(1)} ج.م</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-[var(--border-color)] text-[8px]">
+              <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-slate-800/80 text-[8px]">
                 <div>
                   <span className="text-[8px] text-slate-500 block">اليوم</span>
-                  <span className="font-semibold text-emerald-500">{Number(stats.sub_today_revenue ?? 0).toFixed(0)} ج.م</span>
+                  <span className="font-semibold text-emerald-500">{Number(stats.sub_today_revenue ?? 0).toFixed(0)}...</span>
                 </div>
                 <div>
                   <span className="text-[8px] text-slate-500 block">معلق</span>
-                  <span className="font-semibold text-amber-500">{Number(stats.sub_pending_revenue ?? 0).toFixed(0)} ج.م</span>
+                  <span className="font-semibold text-amber-500">{Number(stats.sub_pending_revenue ?? 0).toFixed(0)}...</span>
                 </div>
                 <div>
                   <span className="text-[8px] text-slate-500 block">مسترجع</span>
-                  <span className="font-semibold text-rose-500">{Number(stats.sub_refunded_revenue ?? 0).toFixed(0)} ج.م</span>
+                  <span className="font-semibold text-rose-500">{Number(stats.sub_refunded_revenue ?? 0).toFixed(0)}...</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Students */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-[20px] space-y-4 shadow-sm hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">الطلاب المسجلون</span>
-              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+              <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-2xl border border-brand-primary/20">
                 <Users className="h-5 w-5" />
               </div>
             </div>
@@ -433,10 +433,10 @@ export default function Dashboard() {
           </div>
 
           {/* Teachers */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-[20px] space-y-4 shadow-sm hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-[var(--text-secondary)] font-semibold">أعضاء هيئة التدريس</span>
-              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+              <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-2xl border border-brand-primary/20">
                 <GraduationCap className="h-5 w-5" />
               </div>
             </div>
@@ -447,10 +447,10 @@ export default function Dashboard() {
           </div>
 
           {/* Enrollments */}
-          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-[20px] space-y-4 shadow-sm hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
-              <span className="text-xs text-[var(--text-secondary)] font-semibold">الاشتراكات بالكورسات</span>
-              <div className="p-2.5 bg-emerald-500/10 text-brand-primary rounded-2xl">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">الاشتراسات بالكورسات</span>
+              <div className="p-2.5 bg-brand-primary/10 text-brand-primary rounded-2xl border border-brand-primary/20">
                 <BookOpen className="h-5 w-5" />
               </div>
             </div>
