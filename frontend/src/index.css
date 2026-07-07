@@ -82,9 +82,9 @@
   scroll-behavior: smooth;
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
-  --bg-color: #0B1120;
-  --surface-bg: #111827;
-  --card-bg: #111827;
+  --bg-color: #030712;
+  --surface-bg: #090d16;
+  --card-bg: rgba(15, 23, 42, 0.45);
   --primary-color: #6366F1;
   --primary-hover: #4F46E5;
   --secondary-color: #8B5CF6;
@@ -97,12 +97,12 @@
   --text-color: #E5E7EB;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --border-color: #1F2937;
-  --input-bg: rgba(17, 24, 39, 0.45);
-  --input-border: rgba(99, 102, 241, 0.18);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(9, 13, 22, 0.6);
+  --input-border: rgba(255, 255, 255, 0.08);
   --input-text: #E5E7EB;
   --placeholder-color: #64748B;
-  --glow-color: rgba(99, 102, 241, 0.35);
+  --glow-color: rgba(99, 102, 241, 0.15);
   
   /* Slate dynamic values (Dark Mode) */
   --slate-50: #E5E7EB;
@@ -112,10 +112,10 @@
   --slate-400: #475569;
   --slate-500: #334155;
   --slate-600: #1E293B;
-  --slate-700: #1F2937;
-  --slate-800: #1F2937;
-  --slate-900: #111827;
-  --slate-950: #0B1120;
+  --slate-700: rgba(255, 255, 255, 0.08);
+  --slate-800: rgba(255, 255, 255, 0.08);
+  --slate-900: rgba(15, 23, 42, 0.45);
+  --slate-950: #030712;
 }
 
 :root.light-theme {
