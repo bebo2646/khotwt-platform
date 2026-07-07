@@ -310,7 +310,7 @@ export default function Home() {
               className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto pt-16"
             >
               
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
+              <div className="p-6 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all group shadow-sm">
                 <div className="p-4 bg-brand-primary/10 text-brand-primary rounded-2xl group-hover:bg-brand-primary group-hover:text-white transition-all">
                   <Users className="h-6 w-6" />
                 </div>
@@ -320,7 +320,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-accent/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(6,182,212,0.08)]">
+              <div className="p-6 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-3xl flex items-center gap-4 text-right hover:border-brand-accent/30 hover:shadow-[0_0_20px_rgba(6,182,212,0.15)] transition-all group shadow-sm">
                 <div className="p-4 bg-brand-accent/10 text-brand-accent rounded-2xl group-hover:bg-brand-accent group-hover:text-white transition-all">
                   <BookOpen className="h-6 w-6" />
                 </div>
@@ -330,7 +330,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="p-6 bg-brand-card border border-[var(--border-color)] rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group shadow-sm hover:shadow-[0_8px_30px_rgba(99,102,241,0.08)]">
+              <div className="p-6 bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-3xl flex items-center gap-4 text-right hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.15)] transition-all group shadow-sm">
                 <div className="p-4 bg-brand-primary/10 text-brand-primary rounded-2xl group-hover:bg-brand-primary group-hover:text-white transition-all">
                   <Award className="h-6 w-6" />
                 </div>
@@ -347,7 +347,7 @@ export default function Home() {
 
       {/* 2. Cascading Filter Section */}
       <section id="advanced-filter" className="max-w-7xl mx-auto px-4 scroll-mt-24">
-        <div className="bg-brand-card border border-[var(--border-color)] rounded-[36px] p-8 sm:p-12 shadow-2xl relative overflow-hidden">
+        <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 rounded-[32px] p-8 sm:p-12 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-0 w-32 h-32 bg-[var(--primary-color)]/5 rounded-full blur-3xl pointer-events-none"></div>
           
           <div className="max-w-3xl mb-10 text-right">
@@ -359,12 +359,12 @@ export default function Home() {
             
             {/* Grade Selector */}
             <div className="space-y-2 text-right">
-              <label className="text-xs font-semibold text-slate-300">الصف الدراسي</label>
+              <label className="text-xs font-bold text-slate-400">الصف الدراسي</label>
               <div className="relative">
                 <select
                   value={selectedGrade}
                   onChange={handleGradeChange}
-                  className="w-full bg-brand-surface border border-[var(--border-color)] rounded-2xl px-4 py-4 appearance-none focus:outline-none focus:border-[var(--primary-color)] text-xs font-medium cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 appearance-none focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/30 transition-all text-xs font-semibold text-slate-200 cursor-pointer"
                 >
                   <option value="">اختر الصف الدراسي...</option>
                   {GRADES.map((g) => (
@@ -377,13 +377,13 @@ export default function Home() {
 
             {/* Subject Selector */}
             <div className="space-y-2 text-right">
-              <label className="text-xs font-semibold text-slate-300">المادة المقررة</label>
+              <label className="text-xs font-bold text-slate-400">المادة المقررة</label>
               <div className="relative">
                 <select
                   value={selectedSubject}
                   onChange={handleSubjectChange}
                   disabled={!selectedGrade || subjects.length === 0}
-                  className="w-full bg-brand-surface border border-[var(--border-color)] rounded-2xl px-4 py-4 appearance-none focus:outline-none focus:border-[var(--primary-color)] disabled:opacity-40 text-xs font-medium cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 appearance-none focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/30 transition-all text-xs font-semibold text-slate-200 cursor-pointer disabled:opacity-40"
                 >
                   <option value="">{subjects.length === 0 ? 'حدد الصف الدراسي أولاً...' : 'اختر المادة العلمية...'}</option>
                   {subjects.map((sub) => (
@@ -396,13 +396,13 @@ export default function Home() {
 
             {/* Teacher Selector */}
             <div className="space-y-2 text-right">
-              <label className="text-xs font-semibold text-slate-300">معلم المادة</label>
+              <label className="text-xs font-bold text-slate-400">معلم المادة</label>
               <div className="relative">
                 <select
                   value={selectedTeacherId}
                   onChange={handleTeacherChange}
                   disabled={!selectedSubject || filteredTeachers.length === 0}
-                  className="w-full bg-brand-surface border border-[var(--border-color)] rounded-2xl px-4 py-4 appearance-none focus:outline-none focus:border-[var(--primary-color)] disabled:opacity-40 text-xs font-medium cursor-pointer"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 appearance-none focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/30 transition-all text-xs font-semibold text-slate-200 cursor-pointer disabled:opacity-40"
                 >
                   <option value="">{filteredTeachers.length === 0 ? 'حدد المادة العلمية أولاً...' : 'اختر اسم المدرس...'}</option>
                   {filteredTeachers.map((t) => (
