@@ -91,7 +91,7 @@ export default function Footer() {
               rel="noopener noreferrer" 
               className="footer-credit-link font-bold"
             >
-              https://belal-portfolio1.netlify.app/
+             https://belal-portfolio1.vercel.app/
             </a>
           </p>
         </div>
