@@ -120,7 +120,8 @@ export default function PWAManager() {
       // Show install banner if not dismissed in the current session
       const isDismissedSession = sessionStorage.getItem('pwa-install-dismissed')
       const isDismissedLocal = localStorage.getItem('pwa-install-dismissed')
-      if (!isDismissedSession && !isDismissedLocal) {
+      const isSimulate = window.location.search.includes('simulate-install=true')
+      if (isSimulate || (!isDismissedSession && !isDismissedLocal)) {
         setShowInstallBanner(true)
       }
     }
@@ -274,17 +275,17 @@ export default function PWAManager() {
             exit={{ opacity: 0, y: 50, pointerEvents: 'none' }}
             style={{ pointerEvents: showInstallBanner ? 'auto' : 'none' }}
             transition={{ type: 'spring', damping: 20 }}
-            className="fixed bottom-24 left-4 right-4 md:bottom-6 md:left-6 md:right-auto md:max-w-sm z-[999] md:z-[9999] bg-[var(--card-bg)] border border-[var(--border-color)] p-5 rounded-3xl shadow-2xl flex flex-col gap-4 text-[var(--text-color)]"
+            className="fixed bottom-[90px] left-4 right-4 md:bottom-6 md:left-auto md:right-6 md:max-w-md z-[999] md:z-[9999] bg-[var(--card-bg)] border border-[var(--border-color)] p-5 rounded-3xl shadow-2xl flex flex-col gap-4 text-[var(--text-color)]"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex gap-3 items-center">
-                <div className="w-12 h-12 rounded-2xl bg-slate-900/60 flex items-center justify-center border border-slate-800 shrink-0 overflow-hidden">
-                  <img src="/logo.png" alt="خطوتك" className="w-8 h-8 object-contain" />
+                <div className="w-12 h-12 rounded-2xl bg-[var(--primary-color)]/10 flex items-center justify-center border border-[var(--primary-color)]/20 text-[var(--primary-color)] shrink-0">
+                  <Download className="w-6 h-6" />
                 </div>
                 <div className="space-y-0.5">
-                  <h3 className="font-bold text-base text-[var(--text-color)]">تثبيت التطبيق</h3>
+                  <h3 className="font-bold text-base text-[var(--text-color)]">تثبيت تطبيق خطوتك</h3>
                   <p className="text-xs text-[var(--text-secondary)] leading-normal">
-                    قم بتثبيت تطبيق خطوتك على جهازك للوصول السريع للمحاضرات والامتحانات في أي وقت.
+                    ثبت تطبيق خطوتك على جهازك للوصول السريع
                   </p>
                 </div>
               </div>
@@ -302,13 +303,13 @@ export default function PWAManager() {
                 onClick={handleInstallClick}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-brand-primary text-white text-sm font-bold hover:bg-brand-primary-hover transition-all text-center cursor-pointer"
               >
-                تثبيت التطبيق
+                تثبيت الآن
               </button>
               <button
                 onClick={handleInstallDismiss}
                 className="flex-1 py-2.5 px-4 rounded-xl bg-[var(--border-color)] hover:brightness-110 text-[var(--text-color)] text-sm font-medium transition-all text-center cursor-pointer"
               >
-                لاحقاً
+                لاحقًا
               </button>
             </div>
           </motion.div>
