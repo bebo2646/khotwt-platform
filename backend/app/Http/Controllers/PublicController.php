@@ -34,6 +34,9 @@ class PublicController extends Controller
             ->withCount(['courses as students_count' => function ($query) {
                 $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
             }])
+            ->withCount(['courses as published_courses_count' => function ($query) {
+                $query->where('is_published', true);
+            }])
             ->orderBy('students_count', 'desc')
             ->take(4)
             ->get();
@@ -93,6 +96,9 @@ class PublicController extends Controller
                         ->whereJsonContains('grades', $grade);
                 });
             })
+            ->withCount(['courses as published_courses_count' => function ($query) {
+                $query->where('is_published', true);
+            }])
             ->get();
 
         return response()->json($teachers);
@@ -107,6 +113,9 @@ class PublicController extends Controller
             ->where('status', 'active')
             ->withCount(['courses as students_count' => function ($query) {
                 $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
+            }])
+            ->withCount(['courses as published_courses_count' => function ($query) {
+                $query->where('is_published', true);
             }])
             ->get();
 
@@ -134,6 +143,9 @@ class PublicController extends Controller
         $teacher = $query->withCount(['courses as students_count' => function ($query) {
                 $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
             }])
+            ->withCount(['courses as published_courses_count' => function ($query) {
+                $query->where('is_published', true);
+            }])
             ->first();
 
         // Fallback search if not found
@@ -150,6 +162,9 @@ class PublicController extends Controller
                 })
                 ->withCount(['courses as students_count' => function ($query) {
                     $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
+                }])
+                ->withCount(['courses as published_courses_count' => function ($query) {
+                    $query->where('is_published', true);
                 }])
                 ->first();
         }

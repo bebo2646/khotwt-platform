@@ -2,7 +2,7 @@ import React from 'react'
 import API from '../../services/api'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import { SafeResponsiveContainer } from '../../components/ui/SafeResponsiveContainer'
-import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check, HardDrive, Settings } from 'lucide-react'
+import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check, HardDrive, Settings, Shield, TrendingUp } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 import { useAuthStore } from '../../store/authStore'
 
@@ -26,6 +26,15 @@ interface StatsData {
   net_monthly_revenue?: string | number
   recent_transactions: any[]
   monthly_chart: MonthlyChartItem[]
+  
+  // Teacher Subscription metrics
+  sub_lifetime_revenue?: number
+  sub_current_month_revenue?: number
+  sub_previous_month_revenue?: number
+  sub_today_revenue?: number
+  sub_pending_revenue?: number
+  sub_refunded_revenue?: number
+  sub_growth_percentage?: number
 }
 
 export default function Dashboard() {
@@ -87,7 +96,14 @@ export default function Dashboard() {
             total_revenue: '0.00',
             monthly_revenue: '0.00',
             recent_transactions: [],
-            monthly_chart: []
+            monthly_chart: [],
+            sub_lifetime_revenue: 0,
+            sub_current_month_revenue: 0,
+            sub_previous_month_revenue: 0,
+            sub_today_revenue: 0,
+            sub_pending_revenue: 0,
+            sub_refunded_revenue: 0,
+            sub_growth_percentage: 0,
           })
         }
 
@@ -316,7 +332,7 @@ export default function Dashboard() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           
           {/* Revenue */}
           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
@@ -345,6 +361,59 @@ export default function Dashboard() {
               </div>
               <div className="text-[9px] text-[var(--text-secondary)] pt-1">
                 صافي الشهر: {Number(stats.net_monthly_revenue ?? stats.monthly_revenue).toFixed(2)} ج.م
+              </div>
+            </div>
+          </div>
+
+          {/* Subscription Revenue */}
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-6 rounded-[20px] space-y-4 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-[var(--text-secondary)] font-semibold">إيرادات اشتراكات المعلمين</span>
+              <div className="p-2.5 bg-indigo-500/10 text-indigo-500 rounded-2xl">
+                <Shield className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="space-y-2 text-right">
+              <div>
+                <div className="flex justify-between items-center">
+                  {stats.sub_growth_percentage !== undefined && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                      stats.sub_growth_percentage >= 0 
+                        ? 'bg-emerald-500/10 text-emerald-500' 
+                        : 'bg-rose-500/10 text-rose-500'
+                    }`}>
+                      {stats.sub_growth_percentage >= 0 ? '+' : ''}{Number(stats.sub_growth_percentage).toFixed(1)}%
+                    </span>
+                  )}
+                  <span className="text-[10px] text-[var(--text-secondary)] block font-medium">الإيراد الكلي (Lifetime)</span>
+                </div>
+                <div className="text-xl font-black text-indigo-600 dark:text-indigo-400">
+                  {Number(stats.sub_lifetime_revenue ?? 0).toFixed(2)} ج.م
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border-color)]">
+                <div>
+                  <span className="text-[8px] text-[var(--text-secondary)] block">الشهر الحالي</span>
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">{Number(stats.sub_current_month_revenue ?? 0).toFixed(1)} ج.م</span>
+                </div>
+                <div>
+                  <span className="text-[8px] text-[var(--text-secondary)] block">الشهر السابق</span>
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">{Number(stats.sub_previous_month_revenue ?? 0).toFixed(1)} ج.م</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-[var(--border-color)] text-[8px]">
+                <div>
+                  <span className="text-[8px] text-slate-500 block">اليوم</span>
+                  <span className="font-semibold text-emerald-500">{Number(stats.sub_today_revenue ?? 0).toFixed(0)} ج.م</span>
+                </div>
+                <div>
+                  <span className="text-[8px] text-slate-500 block">معلق</span>
+                  <span className="font-semibold text-amber-500">{Number(stats.sub_pending_revenue ?? 0).toFixed(0)} ج.م</span>
+                </div>
+                <div>
+                  <span className="text-[8px] text-slate-500 block">مسترجع</span>
+                  <span className="font-semibold text-rose-500">{Number(stats.sub_refunded_revenue ?? 0).toFixed(0)} ج.م</span>
+                </div>
               </div>
             </div>
           </div>

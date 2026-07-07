@@ -44,6 +44,7 @@ interface TeacherItem {
   bio: string
   students_count?: number
   slug?: string
+  published_courses_count?: number
 }
 
 const GRADES = [
@@ -519,7 +520,7 @@ export default function Home() {
                 experience={teacher.experience}
                 bio={teacher.bio}
                 studentsCount={teacher.students_count}
-                coursesCount={0}
+                coursesCount={teacher.published_courses_count || 0}
                 slug={teacher.slug}
               />
             ))}

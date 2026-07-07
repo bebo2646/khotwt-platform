@@ -13,6 +13,7 @@ interface TeacherItem {
   bio: string
   students_count: number
   courses_count: number
+  published_courses_count?: number
   slug?: string
 }
 
@@ -65,7 +66,7 @@ export default function Teachers() {
               avatar={teacher.avatar}
               experience={teacher.experience}
               bio={teacher.bio}
-              coursesCount={teacher.courses_count || 0}
+              coursesCount={teacher.published_courses_count || 0}
               studentsCount={teacher.students_count || 0}
               slug={teacher.slug}
             />

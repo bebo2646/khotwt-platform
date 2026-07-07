@@ -72,6 +72,29 @@ class AdminController extends Controller
             ->orderBy('month', 'asc')
             ->get();
 
+        // Calculate Teacher Subscription Revenue Metrics
+        $subLifetimeRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Paid')->sum('amount');
+        $subCurrentMonthRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Paid')
+            ->whereYear('payment_date', Carbon::now()->year)
+            ->whereMonth('payment_date', Carbon::now()->month)
+            ->sum('amount');
+        $subPreviousMonthRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Paid')
+            ->whereYear('payment_date', Carbon::now()->subMonth()->year)
+            ->whereMonth('payment_date', Carbon::now()->subMonth()->month)
+            ->sum('amount');
+        $subTodayRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Paid')
+            ->whereDate('payment_date', Carbon::today())
+            ->sum('amount');
+        $subPendingRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Pending')->sum('amount');
+        $subRefundedRevenue = (float) \App\Models\SubscriptionPayment::where('payment_status', 'Refunded')->sum('amount');
+        
+        $subGrowth = 0.0;
+        if ($subPreviousMonthRevenue > 0) {
+            $subGrowth = (($subCurrentMonthRevenue - $subPreviousMonthRevenue) / $subPreviousMonthRevenue) * 100;
+        } elseif ($subCurrentMonthRevenue > 0) {
+            $subGrowth = 100.0;
+        }
+
         // System analytics logs
         $analytics = [
             'total_teachers' => $totalTeachers,
@@ -88,6 +111,15 @@ class AdminController extends Controller
             'net_monthly_revenue' => $netMonthlyRevenue,
             'recent_transactions' => $recentTransactions,
             'monthly_chart' => $monthlyChart,
+            
+            // Teacher Subscription metrics
+            'sub_lifetime_revenue' => $subLifetimeRevenue,
+            'sub_current_month_revenue' => $subCurrentMonthRevenue,
+            'sub_previous_month_revenue' => $subPreviousMonthRevenue,
+            'sub_today_revenue' => $subTodayRevenue,
+            'sub_pending_revenue' => $subPendingRevenue,
+            'sub_refunded_revenue' => $subRefundedRevenue,
+            'sub_growth_percentage' => $subGrowth,
         ];
 
         return response()->json($analytics);

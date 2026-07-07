@@ -105,6 +105,7 @@ interface Teacher {
   subject: string
   avatar?: string
   courses_count: number
+  published_courses_count?: number
   experience?: string
 }
 
@@ -554,7 +555,7 @@ export default function StudentDashboard() {
                     subject={teacher.subject}
                     avatar={teacher.avatar}
                     experience={teacher.experience}
-                    coursesCount={teacher.courses_count}
+                    coursesCount={teacher.published_courses_count || 0}
                   />
                 </motion.div>
               ))}

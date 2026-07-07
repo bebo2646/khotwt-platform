@@ -213,6 +213,16 @@ class SubscriptionController extends Controller
         }
 
         $details = $this->getSubscriptionPriceDetails($plan, $billingPeriod);
+        
+        $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
+        $baseDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) 
+            ? $currentEndDate 
+            : Carbon::now();
+        $newEndDate = $baseDate->addMonths($details['months'])->toDateString();
+        $newStartDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture())
+            ? $subscription->start_date
+            : Carbon::now()->toDateString();
+
         $subscription->update([
             'plan_id' => $plan->id,
             'billing_period' => $details['billing_cycle'],
@@ -220,8 +230,8 @@ class SubscriptionController extends Controller
             'discount_percentage' => $details['discount_percentage'],
             'discount_amount' => $details['discount_amount'],
             'final_price' => $details['final_price'],
-            'start_date' => Carbon::now()->toDateString(),
-            'end_date' => Carbon::now()->addMonths($details['months'])->toDateString(),
+            'start_date' => $newStartDate,
+            'end_date' => $newEndDate,
             'status' => 'Active',
         ]);
 
@@ -319,7 +329,7 @@ class SubscriptionController extends Controller
     {
         $request->validate([
             'payment_id' => 'required|exists:subscription_payments,id',
-            'payment_status' => 'required|in:Paid,Pending,Unpaid',
+            'payment_status' => 'required|in:Paid,Pending,Unpaid,Refunded',
             'notes' => 'nullable|string',
         ]);
 
@@ -535,10 +545,19 @@ class SubscriptionController extends Controller
                     }
                 }
 
+                $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
+                $baseDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) 
+                    ? $currentEndDate 
+                    : Carbon::now();
+                $newEndDate = $baseDate->addMonths($months)->toDateString();
+                $newStartDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture())
+                    ? $subscription->start_date
+                    : Carbon::now()->toDateString();
+
                 $subscription->update([
                     'plan_id' => $plan->id,
-                    'start_date' => Carbon::now()->toDateString(),
-                    'end_date' => Carbon::now()->addMonths($months)->toDateString(),
+                    'start_date' => $newStartDate,
+                    'end_date' => $newEndDate,
                     'status' => 'Active',
                     'billing_period' => $period,
                     'billing_cycle' => $period,

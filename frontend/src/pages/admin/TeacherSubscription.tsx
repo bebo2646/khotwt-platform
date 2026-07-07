@@ -513,9 +513,12 @@ export default function TeacherSubscription() {
               <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[9px] font-bold border ${
                 (subscription as any).payment_status === 'Paid' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
                 (subscription as any).payment_status === 'Pending' ? 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-500' :
-                'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-500'
+                (subscription as any).payment_status === 'Refunded' ? 'bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-500' :
+                'bg-slate-500/10 border-slate-500/20 text-slate-600 dark:text-slate-400'
               }`}>
-                {(subscription as any).payment_status === 'Paid' ? 'تم الدفع' : (subscription as any).payment_status === 'Pending' ? 'معلق' : 'غير مدفوع'}
+                {(subscription as any).payment_status === 'Paid' ? 'تم الدفع' : 
+                 (subscription as any).payment_status === 'Pending' ? 'معلق' : 
+                 (subscription as any).payment_status === 'Refunded' ? 'مسترجع' : 'غير مدفوع'}
               </span>
             </div>
             <div className="bg-[var(--bg-color)]/25 border border-[var(--border-color)] p-4 rounded-xl">
@@ -606,9 +609,10 @@ export default function TeacherSubscription() {
                       <span className={`px-2 py-0.5 text-[9px] font-bold rounded-md ${
                         p.payment_status === 'Paid' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                         p.payment_status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                        'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                        p.payment_status === 'Refunded' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                        'bg-slate-500/10 text-slate-400 border border-slate-500/20'
                       }`}>
-                        {p.payment_status === 'Paid' ? 'تم الدفع' : p.payment_status === 'Pending' ? 'معلق' : 'غير مدفوع'}
+                        {p.payment_status === 'Paid' ? 'تم الدفع' : p.payment_status === 'Pending' ? 'معلق' : p.payment_status === 'Refunded' ? 'مسترجع' : 'غير مدفوع'}
                       </span>
                       {editingPaymentId !== p.id ? (
                         <button
@@ -642,6 +646,7 @@ export default function TeacherSubscription() {
                   <option value="Paid">مدفوعة (Paid)</option>
                   <option value="Pending">معلقة (Pending)</option>
                   <option value="Unpaid">غير مدفوعة (Unpaid)</option>
+                  <option value="Refunded">مسترجعة (Refunded)</option>
                 </select>
               </div>
               <div>
