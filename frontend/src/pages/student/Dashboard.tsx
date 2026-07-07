@@ -348,8 +348,8 @@ export default function StudentDashboard() {
             {/* Stats: Enrolled */}
             <motion.div 
               variants={cardItemVariants}
-              whileHover={{ y: -4, borderColor: "rgba(22, 196, 127, 0.4)", boxShadow: "0 10px 25px rgba(22, 196, 127, 0.08)" }}
-              className="bg-brand-card border border-border-color p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
+              whileHover={{ y: -4, borderColor: "rgba(99, 102, 241, 0.4)", boxShadow: "0 0 20px rgba(99, 102, 241, 0.15)" }}
+              className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
             >
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-400 font-black tracking-wider block">الكورسات المشترك بها</span>
@@ -363,8 +363,8 @@ export default function StudentDashboard() {
             {/* Stats: Lectures Completed */}
             <motion.div 
               variants={cardItemVariants}
-              whileHover={{ y: -4, borderColor: "rgba(56, 189, 248, 0.4)", boxShadow: "0 10px 25px rgba(56, 189, 248, 0.08)" }}
-              className="bg-brand-card border border-border-color p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
+              whileHover={{ y: -4, borderColor: "rgba(56, 189, 248, 0.4)", boxShadow: "0 0 20px rgba(56, 189, 248, 0.15)" }}
+              className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
             >
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-400 font-black tracking-wider block">المحاضرات المكتملة</span>
@@ -378,8 +378,8 @@ export default function StudentDashboard() {
             {/* Stats: Exams Solved */}
             <motion.div 
               variants={cardItemVariants}
-              whileHover={{ y: -4, borderColor: "rgba(129, 140, 248, 0.4)", boxShadow: "0 10px 25px rgba(129, 140, 248, 0.08)" }}
-              className="bg-brand-card border border-border-color p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
+              whileHover={{ y: -4, borderColor: "rgba(129, 140, 248, 0.4)", boxShadow: "0 0 20px rgba(129, 140, 248, 0.15)" }}
+              className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
             >
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-400 font-black tracking-wider block">الامتحانات المحلولة</span>
@@ -393,8 +393,8 @@ export default function StudentDashboard() {
             {/* Stats: Average Score */}
             <motion.div 
               variants={cardItemVariants}
-              whileHover={{ y: -4, borderColor: "rgba(245, 158, 11, 0.4)", boxShadow: "0 10px 25px rgba(245, 158, 11, 0.08)" }}
-              className="bg-brand-card border border-border-color p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
+              whileHover={{ y: -4, borderColor: "rgba(245, 158, 11, 0.4)", boxShadow: "0 0 20px rgba(245, 158, 11, 0.15)" }}
+              className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl flex flex-row items-center justify-between transition-all duration-300 group"
             >
               <div className="space-y-1">
                 <span className="text-[10px] text-slate-400 font-black tracking-wider block">متوسط الدرجات</span>
@@ -433,9 +433,9 @@ export default function StudentDashboard() {
                 return (
                   <motion.div 
                     variants={cardItemVariants}
-                    whileHover={{ y: -6, boxShadow: "0 15px 30px rgba(0,0,0,0.15)" }}
+                    whileHover={{ y: -6, boxShadow: "0 0 25px rgba(99, 102, 241, 0.12)" }}
                     key={course.id} 
-                    className="group bg-brand-card border border-border-color rounded-3xl overflow-hidden flex flex-col justify-between transition-all duration-350"
+                    className="group bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-3xl overflow-hidden flex flex-col justify-between transition-all duration-350 hover:border-brand-primary/30"
                   >
                     <div>
                       <div className="aspect-video bg-brand-surface relative overflow-hidden">
