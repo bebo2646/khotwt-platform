@@ -251,21 +251,14 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   ]
 
-  const isRouteActive = (path: string) => {
-    if (path === '/admin/dashboard') {
-      return location.pathname === '/admin' || location.pathname === '/admin/dashboard'
-    }
-    return location.pathname.startsWith(path)
-  }
-
   const renderSidebarContent = () => (
-    <div className="flex flex-col h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] select-none transition-all duration-300">
+    <div className="flex flex-col h-full bg-slate-900/90 backdrop-blur-md border-l border-slate-800/80 select-none transition-all duration-300">
       {/* Sidebar Header Logo */}
-      <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-6 h-16 border-b border-[var(--border-color)]`}>
+      <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'justify-between'} px-6 h-16 border-b border-slate-800/80`}>
         {!sidebarCollapsed ? (
           <Link to="/admin/dashboard" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-            <span className="text-lg font-black text-indigo-400">خطوتك</span>
+            <span className="text-xl font-black text-brand-primary bg-clip-text">خطوتك</span>
           </Link>
         ) : (
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
@@ -274,9 +267,9 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         {/* Collapse Button for desktop */}
         <button 
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
+          className="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[var(--text-secondary)] hover:text-brand-primary hover:border-brand-primary/30 transition-all cursor-pointer"
         >
-          <ChevronLeft className={`w-3.5 h-3.5 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
+          <ChevronLeft className={`w-4 h-4 transition-transform duration-300 ${sidebarCollapsed ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
@@ -289,7 +282,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           return (
             <div key={gIdx} className="space-y-2">
               {!sidebarCollapsed && (
-                <span className="px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block">
+                <span className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest block">
                   {group.label}
                 </span>
               )}
@@ -300,10 +293,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                     <Link
                       key={iIdx}
                       to={item.path}
-                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 border ${
                         active 
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/15' 
-                          : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent hover:border-[var(--border-color)]'
+                          ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/30 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border-transparent hover:border-[var(--border-color)]'
                       } ${sidebarCollapsed ? 'justify-center' : ''}`}
                       title={sidebarCollapsed ? item.label : undefined}
                     >
@@ -320,7 +313,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         {/* Settings Group */}
         <div className="space-y-2">
           {!sidebarCollapsed && (
-            <span className="px-3 text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-widest block">
+            <span className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest block">
               النظام والإعدادات
             </span>
           )}
@@ -338,17 +331,17 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   {settingsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 </button>
                 {settingsOpen && (
-                  <div className="mr-4 pr-3 border-r border-[var(--border-color)] mt-1 space-y-1 animate-slide-down">
+                  <div className="mr-4 pr-3 border-r border-slate-800/80 mt-1 space-y-1 animate-slide-down">
                     {settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
                       const active = isRouteActive(subItem.path)
                       return (
                         <Link
                           key={sIdx}
                           to={subItem.path}
-                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 border ${
                             active 
-                              ? 'text-indigo-400 bg-indigo-500/5' 
-                              : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
+                              ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20' 
+                              : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] border-transparent'
                           }`}
                         >
                           {subItem.icon}
@@ -366,10 +359,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   <Link
                     key={sIdx}
                     to={subItem.path}
-                    className={`flex items-center justify-center p-2.5 rounded-xl transition-all duration-200 ${
+                    className={`flex items-center justify-center p-2.5 rounded-xl transition-all duration-200 border ${
                       active 
-                        ? 'bg-indigo-600 text-white shadow-md' 
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60'
+                        ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/30 shadow-md' 
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border-transparent'
                     }`}
                     title={subItem.label}
                   >
@@ -383,10 +376,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       </div>
 
       {/* Logout Footer Button */}
-      <div className="p-4 border-t border-[var(--border-color)]">
+      <div className="p-4 border-t border-slate-800/80">
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-500 hover:text-white hover:bg-rose-600/10 cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold text-rose-500 hover:text-white hover:bg-rose-500/10 transition-all cursor-pointer ${
             sidebarCollapsed ? 'justify-center' : ''
           }`}
           title={sidebarCollapsed ? 'تسجيل الخروج' : undefined}
@@ -398,8 +391,15 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     </div>
   )
 
+  const isRouteActive = (path: string) => {
+    if (path === '/admin/dashboard') {
+      return location.pathname === '/admin' || location.pathname === '/admin/dashboard'
+    }
+    return location.pathname.startsWith(path)
+  }
+
   return (
-    <div className="flex min-h-screen w-full bg-[var(--bg-color)] text-[var(--text-color)]" dir="rtl">
+    <div className="flex min-h-screen w-full bg-slate-950 text-[var(--text-color)]" dir="rtl">
       
       {/* 1. Desktop Sidebar */}
       <aside 
@@ -420,10 +420,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
           />
           {/* Drawer Body */}
-          <aside className="fixed top-0 right-0 w-[280px] max-w-xs h-full bg-[var(--surface-bg)] border-l border-[var(--border-color)] animate-slide-in-right z-[1000] flex flex-col">
+          <aside className="fixed top-0 right-0 w-[280px] max-w-xs h-full bg-slate-900 border-l border-slate-800 animate-slide-in-right z-[1000] flex flex-col">
             <button 
               onClick={() => setMobileSidebarOpen(false)}
-              className="absolute left-4 top-4 p-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
+              className="absolute left-4 top-4 p-1.5 rounded-lg border border-slate-800 bg-slate-950 text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -443,17 +443,17 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         
         {/* Top Header: Fixed height 72px */}
         <header 
-          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
+          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 backdrop-blur-md ${
             theme === 'light'
-              ? 'bg-white border-b-[#e5e7eb] text-[#0f172a] shadow-[0_4px_20px_rgba(0,0,0,0.04)]'
-              : 'bg-[var(--card-bg)]/95 border-b-[var(--border-color)] text-[var(--text-color)] dark:bg-[#080c18]/95'
+              ? 'bg-white/80 border-b-slate-200 text-slate-900 shadow-sm'
+              : 'bg-slate-950/80 border-b-slate-800/80 text-slate-100'
           }`}
         >
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileSidebarOpen(true)}
-              className="lg:hidden flex items-center justify-center p-2 rounded-xl bg-[var(--surface-bg)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
+              className="lg:hidden flex items-center justify-center p-2 rounded-xl bg-slate-900/40 border border-slate-800/80 text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -466,10 +466,10 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition cursor-pointer"
+              className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 text-[var(--text-secondary)] hover:text-brand-primary hover:border-brand-primary/30 transition-all cursor-pointer"
               title={theme === 'dark' ? 'الوضع المضيء' : 'الوضع المظلم'}
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-400" />}
             </button>
 
             {/* Notification Bell Dropdown wrapper */}
@@ -480,11 +480,11 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   setShowNotifDropdown(!showNotifDropdown);
                 }}
                 onClick={(e) => e.preventDefault()}
-                className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition relative cursor-pointer"
+                className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 text-[var(--text-secondary)] hover:text-brand-primary hover:border-brand-primary/30 transition-all relative cursor-pointer"
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-3 h-3 bg-indigo-500 text-[9px] font-black text-white flex items-center justify-center rounded-full animate-bounce-subtle">
+                  <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-rose-500 text-[9px] font-black text-white flex items-center justify-center rounded-full animate-pulse border border-slate-950">
                     {unreadCount}
                   </span>
                 )}
@@ -505,12 +505,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                   setShowProfileMenu(!showProfileMenu);
                 }}
                 onClick={(e) => e.preventDefault()}
-                className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-[var(--surface-bg)] border border-transparent hover:border-[var(--border-color)] transition cursor-pointer"
+                className="flex items-center gap-2.5 p-1.5 rounded-xl hover:bg-slate-900/40 border border-transparent hover:border-slate-800/80 transition-all cursor-pointer"
               >
                 {user?.avatar ? (
-                  <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-8 h-8 rounded-lg object-cover" />
+                  <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-8 h-8 rounded-lg object-cover border border-slate-800" />
                 ) : (
-                  <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-400 font-bold flex items-center justify-center uppercase">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600/10 text-indigo-400 font-bold flex items-center justify-center uppercase border border-indigo-500/20">
                     {user?.name?.slice(0, 2)}
                   </div>
                 )}

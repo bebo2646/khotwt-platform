@@ -90,10 +90,10 @@ export default function Navbar() {
     return (
       <Link 
         to={to} 
-        className={`font-black text-xs transition-all duration-300 relative py-1.5 px-3 rounded-lg whitespace-nowrap shrink-0 ${
+        className={`font-black text-xs transition-all duration-300 relative py-1.5 px-3 rounded-lg whitespace-nowrap shrink-0 border ${
           active 
-            ? 'text-brand-primary bg-brand-primary/5 border border-brand-primary/10' 
-            : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent'
+            ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-slate-800/40 border-transparent hover:border-slate-800/80'
         }`}
       >
         {label}
@@ -160,7 +160,7 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-[1000] bg-[var(--card-bg)]/95 border-b border-[var(--border-color)] transition-colors duration-300">
+      <nav className="fixed top-0 left-0 right-0 z-[1000] bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 transition-all duration-300">
       <div className="max-w-[1600px] w-full mx-auto px-6 lg:px-8">
         <div className="flex items-center justify-between h-[72px]">
           
@@ -193,13 +193,13 @@ export default function Navbar() {
                     setShowNotifDropdown(!showNotifDropdown);
                   }}
                   onClick={(e) => e.preventDefault()}
-                  className="p-2 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[var(--border-color)] cursor-pointer text-current relative transition-all duration-200"
+                  className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 cursor-pointer text-current relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
                 >
                   <Bell className="h-5 w-5 text-indigo-400" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -left-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-zinc-950 animate-pulse">
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-slate-950 animate-pulse">
                       {unreadCount}
                     </span>
                   )}
@@ -216,11 +216,11 @@ export default function Navbar() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[var(--border-color)] cursor-pointer text-current"
+              className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 cursor-pointer text-current transition-all"
               title="تغيير المظهر"
               aria-label="تغيير المظهر"
             >
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-indigo-500" />}
+              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-indigo-400" />}
             </button>
 
             {/* Auth Buttons */}
