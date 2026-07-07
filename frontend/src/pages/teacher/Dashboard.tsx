@@ -434,10 +434,10 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
           
           {/* Courses */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">المواد الدراسية</span>
-              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl">
+              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl border border-brand-primary/20">
                 <BookOpen className="h-4.5 w-4.5" />
               </div>
             </div>
@@ -448,10 +448,10 @@ export default function Dashboard() {
           </div>
 
           {/* Students (Total & Active) */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">الطلاب (نشط/كلي)</span>
-              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl">
+              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl border border-brand-primary/20">
                 <Users className="h-4.5 w-4.5" />
               </div>
             </div>
@@ -465,10 +465,10 @@ export default function Dashboard() {
           </div>
 
           {/* Total Rev */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-success/30 hover:shadow-[0_0_20px_rgba(16,185,129,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">إجمالي الأرباح</span>
-              <div className="p-2 bg-emerald-500/10 text-brand-success rounded-xl">
+              <div className="p-2 bg-emerald-500/10 text-brand-success rounded-xl border border-emerald-500/20">
                 <Wallet className="h-4.5 w-4.5" />
               </div>
             </div>
@@ -479,10 +479,10 @@ export default function Dashboard() {
           </div>
 
           {/* Course Sales vs Exam Sales */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">مبيعات الكورسات / الامتحانات</span>
-              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl">
+              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl border border-brand-primary/20">
                 <TrendingUp className="h-4.5 w-4.5" />
               </div>
             </div>
@@ -495,10 +495,10 @@ export default function Dashboard() {
           </div>
 
           {/* Quizzes & Grade */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">الاختبارات / متوسط الدرجات</span>
-              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl">
+              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl border border-brand-primary/20">
                 <ClipboardList className="h-4.5 w-4.5" />
               </div>
             </div>
@@ -512,10 +512,10 @@ export default function Dashboard() {
           </div>
 
           {/* Watch Statistics */}
-          <div className="bg-brand-card border border-[var(--border-color)] p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/20 transition-all duration-300">
+          <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm flex flex-col justify-between hover:border-brand-primary/30 hover:shadow-[0_0_20px_rgba(99,102,241,0.12)] transition-all duration-300">
             <div className="flex justify-between items-center">
               <span className="text-xs text-slate-400 font-semibold">إحصائيات المشاهدة</span>
-              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl">
+              <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-xl border border-brand-primary/20">
                 <Award className="h-4.5 w-4.5" />
               </div>
             </div>
