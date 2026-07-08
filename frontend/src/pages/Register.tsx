@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import { useConfigStore } from '../store/configStore'
 import { Mail, Lock, User, Phone, ShieldCheck, AlertCircle, Loader2, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
 import { useModalStore } from '../store/modalStore'
@@ -82,9 +83,8 @@ export default function Register() {
         return
       }
 
-      // Check maintenance status after successful registration
-      const configRes = await API.get('/config')
-      if (configRes.data && configRes.data.maintenance) {
+      const configData = await useConfigStore.getState().fetchConfig(true)
+      if (configData && configData.maintenance) {
         // Store the token momentarily so we can call the logout API to destroy backend session
         localStorage.setItem('auth_token', token)
         localStorage.setItem('elm_token', token)
@@ -104,8 +104,8 @@ export default function Register() {
         authStore.logout()
 
         // Store maintenance params for display
-        sessionStorage.setItem('maintenance_message', configRes.data.maintenance_message || '')
-        sessionStorage.setItem('maintenance_eta', configRes.data.maintenance_eta || '')
+        sessionStorage.setItem('maintenance_message', configData.maintenance_message || '')
+        sessionStorage.setItem('maintenance_eta', configData.maintenance_eta || '')
 
         // Redirect to maintenance screen
         window.location.href = '/maintenance'

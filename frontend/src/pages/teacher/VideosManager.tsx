@@ -2,6 +2,7 @@ import React from 'react'
 import API from '../../services/api'
 import { Film, UploadCloud, Copy, Check, Trash2, RefreshCw, AlertTriangle, HardDrive, Play, ArrowRight, Loader2, Link2 } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import { useConfigStore } from '../../store/configStore'
 import * as tus from 'tus-js-client'
 
 interface VideoItem {
@@ -100,9 +101,9 @@ export default function VideosManager() {
   React.useEffect(() => {
     fetchData()
     fetchCourses()
-    API.get('/config')
-      .then((res) => {
-        setIsBunnyConfigured(res.data.bunny_stream_configured)
+    useConfigStore.getState().fetchConfig()
+      .then((data) => {
+        setIsBunnyConfigured(data.bunny_stream_configured)
       })
       .catch((err) => console.error(err))
   }, [])

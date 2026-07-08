@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import { useConfigStore } from '../store/configStore'
 import { useModalStore } from '../store/modalStore'
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
@@ -57,8 +58,8 @@ export default function Login() {
       const freshUser = profileRes.data.user || profileRes.data.data || profileRes.data
 
       // Check maintenance status after successful authentication
-      const configRes = await API.get('/config')
-      if (configRes.data && configRes.data.maintenance) {
+      const configData = await useConfigStore.getState().fetchConfig(true)
+      if (configData && configData.maintenance) {
         if (!freshUser.is_super_admin && !freshUser.is_super) {
           // Immediately logout the user safely
           try {
@@ -72,8 +73,8 @@ export default function Login() {
           authStore.logout()
 
           // Store maintenance parameters for display
-          sessionStorage.setItem('maintenance_message', configRes.data.maintenance_message || '')
-          sessionStorage.setItem('maintenance_eta', configRes.data.maintenance_eta || '')
+          sessionStorage.setItem('maintenance_message', configData.maintenance_message || '')
+          sessionStorage.setItem('maintenance_eta', configData.maintenance_eta || '')
 
           // Redirect to maintenance screen
           window.location.href = '/maintenance'

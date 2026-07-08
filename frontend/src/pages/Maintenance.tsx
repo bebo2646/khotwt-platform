@@ -3,6 +3,8 @@ import SEO from '../components/SEO'
 import API from '../services/api'
 import { AlertCircle, RefreshCw, Calendar, MessageCircle } from 'lucide-react'
 
+import { useConfigStore } from '../store/configStore'
+
 export default function Maintenance() {
   const [loading, setLoading] = React.useState(true)
   const [message, setMessage] = React.useState<string | null>(null)
@@ -13,8 +15,7 @@ export default function Maintenance() {
   const checkStatus = async (silent = false) => {
     if (!silent) setRechecking(true)
     try {
-      const res = await API.get('/config')
-      const data = res.data
+      const data = await useConfigStore.getState().fetchConfig(true)
       
       // If maintenance mode is disabled, redirect home
       if (data && !data.maintenance) {

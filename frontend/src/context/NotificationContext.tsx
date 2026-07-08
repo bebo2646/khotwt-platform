@@ -159,7 +159,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (isLoggedIn) {
       fetchNotifications()
-      const interval = setInterval(fetchNotifications, 30000) // Poll every 30s
+      const interval = setInterval(() => {
+        if (!document.hidden) {
+          fetchNotifications()
+        }
+      }, 60000) // Poll every 60s, only when tab is active
       return () => clearInterval(interval)
     } else {
       setNotifications([])

@@ -1,6 +1,7 @@
 import React from 'react'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
+import { useConfigStore } from '../../store/configStore'
 import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
@@ -209,10 +210,10 @@ export default function ManageCourses() {
 
   React.useEffect(() => {
     fetchCourses()
-    API.get('/config')
-      .then((res) => {
-        setIsDevMode(res.data.development_mode)
-        setIsBunnyConfigured(res.data.bunny_stream_configured)
+    useConfigStore.getState().fetchConfig()
+      .then((data) => {
+        setIsDevMode(data.development_mode)
+        setIsBunnyConfigured(data.bunny_stream_configured)
       })
       .catch((err) => console.error('Failed to load configuration:', err))
   }, [])

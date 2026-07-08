@@ -16,6 +16,7 @@ import { NotificationProvider } from './context/NotificationContext'
 import { AdminLayout } from './components/AdminLayout'
 import { NotificationToast } from './components/NotificationToast'
 import { ThemeProvider } from './context/ThemeContext'
+import { useConfigStore } from './store/configStore'
 
 
 // Public Pages (Lazy Loaded)
@@ -108,19 +109,18 @@ function App() {
     }
   }
 
-  // Periodic maintenance checker & real-time client kick-out
+  // Maintenance check & client kick-out (run once on load/auth change)
   React.useEffect(() => {
     const checkMaintenance = async () => {
       try {
-        const res = await API.get('/config')
-        const isMaint = !!res.data?.maintenance
-        setIsMaintenanceOn(isMaint)
+        const data = await useConfigStore.getState().fetchConfig()
+        const isMaint = !!data?.maintenance
 
         if (isMaint) {
           const currentUser = useAuthStore.getState().user
           if (currentUser && !currentUser.is_super_admin && !currentUser.is_super) {
-            sessionStorage.setItem('maintenance_message', res.data.maintenance_message || '')
-            sessionStorage.setItem('maintenance_eta', res.data.maintenance_eta || '')
+            sessionStorage.setItem('maintenance_message', data.maintenance_message || '')
+            sessionStorage.setItem('maintenance_eta', data.maintenance_eta || '')
             useAuthStore.getState().logout()
             window.location.href = '/maintenance'
           }
@@ -131,8 +131,6 @@ function App() {
     }
 
     checkMaintenance()
-    const interval = setInterval(checkMaintenance, 15000)
-    return () => clearInterval(interval)
   }, [])
 
   React.useEffect(() => {
@@ -202,41 +200,13 @@ function App() {
     sessionStorage.clear();
   }, []);
 
-  // Debug scroll lock issues: log every 2 seconds & debug wheel/touch event targets
-  React.useEffect(() => {
-    const logWheel = (e: WheelEvent) => {
-      console.log('wheel', e.target);
-    };
-    const logTouch = (e: TouchEvent) => {
-      console.log('touchmove', e.target);
-    };
-
-    window.addEventListener('wheel', logWheel, { passive: true });
-    window.addEventListener('touchmove', logTouch, { passive: true });
-
-    const interval = setInterval(() => {
-      console.log({
-        bodyOverflow: document.body.style.overflow,
-        htmlOverflow: document.documentElement.style.overflow,
-        bodyClasses: document.body.className,
-        htmlClasses: document.documentElement.className,
-      });
-    }, 2000);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('wheel', logWheel);
-      window.removeEventListener('touchmove', logTouch);
-    };
-  }, []);
-
-
-  // Poll session state every 10 seconds while logged in
+  // Check session state (heartbeat) every 10 minutes while logged in
   React.useEffect(() => {
     let intervalId: any = null
 
     if (isLoggedIn) {
       intervalId = setInterval(async () => {
+        if (document.hidden) return // Skip heartbeat if tab is hidden
         try {
           const res = await API.get('/auth/check-session')
           if (res.data && res.data.valid === false) {
@@ -249,7 +219,7 @@ function App() {
             window.location.href = '/login?session_invalid=true'
           }
         }
-      }, 10000)
+      }, 600000) // 10 minutes
     }
 
     return () => {

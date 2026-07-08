@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
+import { useConfigStore } from '../store/configStore'
 import { ensureHttps } from '../utils/urls'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
@@ -57,8 +58,8 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const checkMaintenance = async () => {
     try {
-      const res = await API.get('/config')
-      setIsMaintenanceActive(!!res.data?.maintenance)
+      const data = await useConfigStore.getState().fetchConfig()
+      setIsMaintenanceActive(!!data?.maintenance)
     } catch (err) {
       console.error('Error fetching config in AdminLayout', err)
     }
@@ -82,8 +83,6 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     checkMaintenance()
-    // Poll maintenance status every 15 seconds
-    const interval = setInterval(checkMaintenance, 15000)
 
     // Listen to custom maintenance state updates (from dashboard switch toggle)
     const handleMaintenanceUpdate = (e: Event) => {
@@ -93,7 +92,6 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('elm_maintenance_updated', handleMaintenanceUpdate)
 
     return () => {
-      clearInterval(interval)
       window.removeEventListener('elm_maintenance_updated', handleMaintenanceUpdate)
     }
   }, [])
