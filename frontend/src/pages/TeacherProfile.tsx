@@ -79,6 +79,20 @@ export default function TeacherProfile() {
   const [stats, setStats] = React.useState({ courses_count: 0, students_count: 0 })
   const [loading, setLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<'courses' | 'packages'>('courses')
+  const [courseFilter, setCourseFilter] = React.useState<'all' | 'online' | 'center'>('all')
+
+  const filteredCourses = React.useMemo(() => {
+    return courses.filter((course) => {
+      if (courseFilter === 'all') return true
+      if (courseFilter === 'online') {
+        return course.availability === 'online' || course.availability === 'both'
+      }
+      if (courseFilter === 'center') {
+        return course.availability === 'center' || course.availability === 'both'
+      }
+      return true
+    })
+  }, [courses, courseFilter])
 
   React.useEffect(() => {
     setLoading(true)
@@ -283,26 +297,84 @@ export default function TeacherProfile() {
         courses.length === 0 ? (
           <EmptyState type="courses" title="لا يوجد كورسات منشورة بعد" description="لم يقم المعلم بنشر أي كورسات تفصيلية حتى الآن." />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {courses.map((course) => (
-              <CourseCard
-                key={course.id}
-                id={course.id}
-                title={course.title}
-                description={course.description}
-                coverImage={course.cover_image}
-                price={course.price}
-                subject={course.subject}
-                teacherName={teacher.name}
-                teacherAvatar={teacher.avatar}
-                slug={course.slug}
-                enableDiscount={course.enable_discount === true}
-                discountType={course.discount_type ?? undefined}
-                discountValue={course.discount_value ?? undefined}
-                finalPrice={course.final_price ?? undefined}
-                availability={course.availability}
+          <div className="space-y-6">
+            
+            {/* Filter segmented tabs */}
+            <div className="flex justify-center items-center pb-2 border-b border-[var(--border-color)]/30">
+              <div className="flex bg-slate-900/80 backdrop-blur-md p-1 border border-slate-800 rounded-2xl gap-1 overflow-x-auto no-scrollbar scroll-smooth max-w-full sm:max-w-md w-auto">
+                <button
+                  type="button"
+                  onClick={() => setCourseFilter('all')}
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                    courseFilter === 'all'
+                      ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-[1.02]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  }`}
+                >
+                  الكل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCourseFilter('online')}
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                    courseFilter === 'online'
+                      ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-[1.02]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  }`}
+                >
+                  أونلاين
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCourseFilter('center')}
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                    courseFilter === 'center'
+                      ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/20 scale-[1.02]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  }`}
+                >
+                  سنتر
+                </button>
+              </div>
+            </div>
+
+            {filteredCourses.length === 0 ? (
+              <EmptyState 
+                type="courses" 
+                title={
+                  courseFilter === 'online' 
+                    ? "لا توجد كورسات أونلاين" 
+                    : "لا توجد كورسات سنتر"
+                } 
+                description={
+                  courseFilter === 'online' 
+                    ? "لم يتم نشر أي كورسات متوفرة للمشاهدة أونلاين لهذا المعلم بعد." 
+                    : "لم يتم نشر أي كورسات مخصصة لطلاب السنتر لهذا المعلم بعد."
+                } 
               />
-            ))}
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {filteredCourses.map((course) => (
+                  <CourseCard
+                    key={course.id}
+                    id={course.id}
+                    title={course.title}
+                    description={course.description}
+                    coverImage={course.cover_image}
+                    price={course.price}
+                    subject={course.subject}
+                    teacherName={teacher.name}
+                    teacherAvatar={teacher.avatar}
+                    slug={course.slug}
+                    enableDiscount={course.enable_discount === true}
+                    discountType={course.discount_type ?? undefined}
+                    discountValue={course.discount_value ?? undefined}
+                    finalPrice={course.final_price ?? undefined}
+                    availability={course.availability}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )
       ) : (
