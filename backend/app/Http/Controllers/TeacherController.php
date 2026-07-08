@@ -346,16 +346,16 @@ class TeacherController extends Controller
     {
         $teacher = $request->user();
 
-        // Recalculate storage fallback if cached value is incorrect
+        // Recalculate storage fallback if cached value is incorrect (using 2-decimal rounded comparison to prevent floating-point mismatches)
         $bunnyService = new \App\Services\BunnyStreamService();
         $totalBytes = Video::whereHas('lesson.unit.course', function ($q) use ($teacher) {
             $q->where('teacher_id', $teacher->id);
         })->sum(\Illuminate\Support\Facades\DB::raw('COALESCE(bunny_size_bytes, storage_size, 0)'));
         
-        $calculatedGb = round($totalBytes / (1024 * 1024 * 1024), 4);
-        $cachedGb = (float)$teacher->bunny_storage_used_gb;
+        $calculatedGb = round($totalBytes / (1024 * 1024 * 1024), 2);
+        $cachedGb = round((float)$teacher->bunny_storage_used_gb, 2);
         
-        if (abs($calculatedGb - $cachedGb) > 0.0001) {
+        if ($calculatedGb !== $cachedGb) {
             $bunnyService->recalculateStorage($teacher->id);
             $teacher->refresh();
         }

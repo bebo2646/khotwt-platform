@@ -1580,6 +1580,11 @@ class StudentController extends Controller
             ->latest()
             ->get();
 
+        // Pre-fetch progress records to eliminate nested N+1 queries
+        $progressRecords = VideoProgress::where('student_id', $user->id)
+            ->get()
+            ->keyBy('video_id');
+
         $coursesData = [];
         $totalVideosCount = 0;
         $completedVideosCount = 0;
@@ -1604,14 +1609,9 @@ class StudentController extends Controller
             $watchedSeconds = 0;
 
             if ($totalVideos > 0) {
-                $completedVideos = VideoProgress::where('student_id', $user->id)
-                    ->whereIn('video_id', $videoIds)
-                    ->where('completed', true)
-                    ->count();
-
-                $sumPercentage = VideoProgress::where('student_id', $user->id)
-                    ->whereIn('video_id', $videoIds)
-                    ->sum('watched_percentage');
+                $courseProgress = $progressRecords->only($videoIds);
+                $completedVideos = $courseProgress->where('completed', true)->count();
+                $sumPercentage = $courseProgress->sum('watched_percentage');
 
                 $progress = min(100, round($sumPercentage / $totalVideos));
                 
@@ -1620,9 +1620,7 @@ class StudentController extends Controller
                     foreach ($unit->lessons as $lesson) {
                         foreach ($lesson->videos as $video) {
                             $totalDuration += $video->duration_seconds;
-                            $prog = VideoProgress::where('student_id', $user->id)
-                                ->where('video_id', $video->id)
-                                ->first();
+                            $prog = $progressRecords->get($video->id);
                             if ($prog) {
                                 $watchedSeconds += $prog->watched_seconds;
                             }
@@ -1818,10 +1816,15 @@ class StudentController extends Controller
             ->latest()
             ->get();
 
+        // Pre-fetch progress records to eliminate nested N+1 queries
+        $progressRecords = VideoProgress::where('student_id', $user->id)
+            ->get()
+            ->keyBy('video_id');
+
         $coursesData = [];
         $totalVideosCount = 0;
         $completedVideosCount = 0;
-        $totalWatchedSeconds = VideoProgress::where('student_id', $user->id)->sum('watched_seconds');
+        $totalWatchedSeconds = $progressRecords->sum('watched_seconds');
 
         foreach ($enrollments as $enrollment) {
             $course = $enrollment->course;
@@ -1840,14 +1843,9 @@ class StudentController extends Controller
             $completedVideos = 0;
 
             if ($totalVideos > 0) {
-                $completedVideos = VideoProgress::where('student_id', $user->id)
-                    ->whereIn('video_id', $videoIds)
-                    ->where('completed', true)
-                    ->count();
-
-                $sumPercentage = VideoProgress::where('student_id', $user->id)
-                    ->whereIn('video_id', $videoIds)
-                    ->sum('watched_percentage');
+                $courseProgress = $progressRecords->only($videoIds);
+                $completedVideos = $courseProgress->where('completed', true)->count();
+                $sumPercentage = $courseProgress->sum('watched_percentage');
 
                 $progress = min(100, round($sumPercentage / $totalVideos));
             } else {
@@ -2087,31 +2085,36 @@ class StudentController extends Controller
         }
         
         $studentGrade = !empty($studentGrades) ? $studentGrades[0] : null;
+        $cacheKey = 'recommended_courses_' . ($studentGrade ?? 'none');
 
-        $recommended = [];
-        if ($studentGrade) {
-            $recommended = \App\Models\Course::with('teacher')
+        $data = \Cache::remember($cacheKey, 300, function() use ($studentGrade) {
+            $recommended = [];
+            if ($studentGrade) {
+                $recommended = \App\Models\Course::with('teacher')
+                    ->where('is_published', true)
+                    ->where('grade', $studentGrade)
+                    ->latest()
+                    ->get();
+            }
+
+            $latest = \App\Models\Course::with('teacher')
                 ->where('is_published', true)
-                ->where('grade', $studentGrade)
+                ->latest()
+                ->take(6)
+                ->get();
+
+            $allCourses = \App\Models\Course::with('teacher')
+                ->where('is_published', true)
                 ->latest()
                 ->get();
-        }
 
-        $latest = \App\Models\Course::with('teacher')
-            ->where('is_published', true)
-            ->latest()
-            ->take(6)
-            ->get();
+            return [
+                'recommended' => $recommended,
+                'latest' => $latest,
+                'allCourses' => $allCourses,
+            ];
+        });
 
-        $allCourses = \App\Models\Course::with('teacher')
-            ->where('is_published', true)
-            ->latest()
-            ->get();
-
-        return response()->json([
-            'recommended' => $recommended,
-            'latest' => $latest,
-            'allCourses' => $allCourses,
-        ]);
+        return response()->json($data);
     }
 }

@@ -71,12 +71,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (!isLoggedIn || user?.must_change_password) return
     
     try {
-      // 1. Get unread count
-      const countRes = await API.get('/notifications/unread-count')
+      // 1 & 2. Get unread count and recent notifications in parallel
+      const [countRes, notifRes] = await Promise.all([
+        API.get('/notifications/unread-count'),
+        API.get('/notifications')
+      ])
       setUnreadCount(countRes.data.unread_count || 0)
-
-      // 2. Get recent notifications
-      const notifRes = await API.get('/notifications')
       const fetchedNotifs = notifRes.data || []
       
       // Filter out duplicate IDs

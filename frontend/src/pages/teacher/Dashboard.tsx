@@ -136,7 +136,7 @@ export default function Dashboard() {
       .catch((err) => console.error(err))
   }
 
-  const getGrowthRate = () => {
+  const growthRate = React.useMemo(() => {
     if (!stats || !stats.enrollments_chart || stats.enrollments_chart.length < 2) return '0%'
     const len = stats.enrollments_chart.length
     const current = stats.enrollments_chart[len - 1].count
@@ -144,7 +144,7 @@ export default function Dashboard() {
     if (previous === 0) return current > 0 ? '+100%' : '0%'
     const pct = ((current - previous) / previous) * 100
     return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
-  }
+  }, [stats])
 
   const getCurrentMonthArabic = () => {
     const months = [
@@ -621,7 +621,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="text-2xl font-black text-amber-500">
-              {getGrowthRate()}
+              {growthRate}
             </div>
           </div>
 

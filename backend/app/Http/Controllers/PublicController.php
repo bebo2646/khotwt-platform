@@ -109,27 +109,31 @@ class PublicController extends Controller
      */
     public function teachers(Request $request)
     {
-        $query = User::where('role', 'teacher')
-            ->where('status', 'active');
+        $teachingMode = $request->input('teaching_mode');
+        $cacheKey = 'public_teachers_list_' . ($teachingMode ?: 'all');
 
-        if ($request->has('teaching_mode') && $request->teaching_mode) {
-            $mode = $request->teaching_mode;
-            if ($mode === 'online') {
-                $query->whereIn('teaching_mode', ['online', 'both']);
-            } elseif ($mode === 'center') {
-                $query->whereIn('teaching_mode', ['center', 'both']);
-            } elseif ($mode === 'both') {
-                $query->where('teaching_mode', 'both');
+        $teachers = \Cache::remember($cacheKey, 300, function() use ($teachingMode) {
+            $query = User::where('role', 'teacher')
+                ->where('status', 'active');
+
+            if ($teachingMode) {
+                if ($teachingMode === 'online') {
+                    $query->whereIn('teaching_mode', ['online', 'both']);
+                } elseif ($teachingMode === 'center') {
+                    $query->whereIn('teaching_mode', ['center', 'both']);
+                } elseif ($teachingMode === 'both') {
+                    $query->where('teaching_mode', 'both');
+                }
             }
-        }
 
-        $teachers = $query->withCount(['courses as students_count' => function ($query) {
-                $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
-            }])
-            ->withCount(['courses as published_courses_count' => function ($query) {
-                $query->where('is_published', true);
-            }])
-            ->get();
+            return $query->withCount(['courses as students_count' => function ($query) {
+                    $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
+                }])
+                ->withCount(['courses as published_courses_count' => function ($query) {
+                    $query->where('is_published', true);
+                }])
+                ->get();
+        });
 
         return response()->json($teachers);
     }

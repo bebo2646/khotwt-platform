@@ -14,13 +14,20 @@ class BunnySubscriptionService
     /**
      * Sync video storage sizes from Bunny Stream and update teacher subscription usage.
      */
-    public function syncStorageAndCodes($teacherId = null)
+    public function syncStorageAndCodes($teacherId = null, $force = false)
     {
+        $cacheKey = 'bunny_sync_' . ($teacherId ?? 'all');
+        if (!$force && \Cache::has($cacheKey)) {
+            \Log::info('Bunny Stream storage and codes sync throttled via Cache.');
+            return true;
+        }
+        \Cache::put($cacheKey, true, 120); // Throttle for 2 minutes
+
         $libraryId = config('services.bunny.library_id');
         $apiKey = config('services.bunny.api_key');
 
         if (empty($libraryId) || empty($apiKey)) {
-            Log::warning('Bunny Stream is not configured. Skipping storage synchronization.');
+            \Log::warning('Bunny Stream is not configured. Skipping storage synchronization.');
             return false;
         }
 
