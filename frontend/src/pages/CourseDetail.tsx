@@ -96,6 +96,7 @@ export default function CourseDetail() {
   const [packages, setPackages] = React.useState<PackageItem[]>([])
   const [isEnrolled, setIsEnrolled] = React.useState(false)
   const [lastWatched, setLastWatched] = React.useState<LastWatched | null>(null)
+  const [availabilityMessage, setAvailabilityMessage] = React.useState<string | null>(null)
   
   const [loading, setLoading] = React.useState(true)
   const [purchasing, setPurchasing] = React.useState(false)
@@ -113,10 +114,11 @@ export default function CourseDetail() {
     API.get(`/courses/${id}`)
       .then((res) => {
         setCourse(res.data.course)
-        setUnits(res.data.units)
-        setPackages(res.data.packages)
-        setIsEnrolled(res.data.is_enrolled)
-        setLastWatched(res.data.last_watched)
+        setUnits(res.data.units || [])
+        setPackages(res.data.packages || [])
+        setIsEnrolled(res.data.is_enrolled || false)
+        setLastWatched(res.data.last_watched || null)
+        setAvailabilityMessage(res.data.availability_message || null)
 
         // Expand the first unit by default
         if (res.data.units.length > 0) {
@@ -507,7 +509,13 @@ export default function CourseDetail() {
       <div className="space-y-4">
         <h2 className="text-xl font-bold">منهج ومحتوى الكورس:</h2>
 
-        {units.length === 0 ? (
+        {availabilityMessage ? (
+          <div className="bg-amber-500/10 border border-amber-500/30 p-8 rounded-3xl flex flex-col items-center text-center gap-3 max-w-xl mx-auto shadow-md">
+            <span className="text-3xl">🏫</span>
+            <h3 className="font-black text-sm sm:text-base text-amber-500">هذا الكورس مخصص لطلاب السنتر</h3>
+            <p className="text-xs text-slate-300 font-light leading-relaxed">{availabilityMessage}</p>
+          </div>
+        ) : units.length === 0 ? (
           <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
             لم يقم المدرس بنشر أي وحدات دراسية لهذا الكورس حتى الآن.
           </div>

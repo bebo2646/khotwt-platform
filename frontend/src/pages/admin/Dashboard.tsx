@@ -35,6 +35,14 @@ interface StatsData {
   sub_pending_revenue?: number
   sub_refunded_revenue?: number
   sub_growth_percentage?: number
+
+  // Revenue splits & Payout metrics
+  platform_commission_lifetime?: number | string
+  platform_commission_today?: number | string
+  platform_commission_this_month?: number | string
+  platform_commission_prev_month?: number | string
+  pending_teacher_payouts?: number | string
+  paid_teacher_payouts?: number | string
 }
 
 export default function Dashboard() {
@@ -460,6 +468,59 @@ export default function Dashboard() {
             </div>
           </div>
 
+        </div>
+      )}
+
+      {/* Revenue Sharing & Payouts (Feature 3) */}
+      {stats && (stats.platform_commission_lifetime !== undefined || stats.pending_teacher_payouts !== undefined) && (
+        <div className="space-y-6 text-right" dir="rtl">
+          <h2 className="text-xl font-black text-slate-200 border-r-4 border-indigo-500 pr-3 leading-none">
+            <span>مشاركة الأرباح والتوزيع المالي (مستحقات المعلمين)</span>
+          </h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Platform Lifetime Commission */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-indigo-550/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">عمولات المنصة التراكمية</span>
+              <div className="text-xl font-black text-indigo-400">{parseFloat(String(stats.platform_commission_lifetime || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">إجمالي أرباح المنصة من عمولات المبيعات</p>
+            </div>
+
+            {/* Platform Today Commission */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-indigo-550/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">عمولات المنصة اليوم</span>
+              <div className="text-xl font-black text-indigo-400">{parseFloat(String(stats.platform_commission_today || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">مبيعات وعمولات اليوم فقط</p>
+            </div>
+
+            {/* Platform This Month Commission */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-indigo-550/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">عمولات الشهر الحالي</span>
+              <div className="text-xl font-black text-indigo-400">{parseFloat(String(stats.platform_commission_this_month || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">منذ بداية الشهر الجاري</p>
+            </div>
+
+            {/* Platform Prev Month Commission */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-indigo-550/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">عمولات الشهر الماضي</span>
+              <div className="text-xl font-black text-indigo-400">{parseFloat(String(stats.platform_commission_prev_month || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">إجمالي أرباح الشهر المنصرم</p>
+            </div>
+
+            {/* Pending Teacher Payouts */}
+            <div className="bg-amber-500/5 border border-amber-500/25 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-amber-500/30 transition-all duration-300">
+              <span className="text-xs text-amber-400 font-semibold block">مستحقات معلقة للمعلمين</span>
+              <div className="text-xl font-black text-amber-500">{parseFloat(String(stats.pending_teacher_payouts || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">جاهزة ومطلوب تسجيل صرفها</p>
+            </div>
+
+            {/* Paid Teacher Payouts */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-[20px] space-y-3.5 shadow-sm hover:border-emerald-500/30 transition-all duration-300">
+              <span className="text-xs text-emerald-400 font-semibold block">إجمالي مدفوعات المعلمين</span>
+              <div className="text-xl font-black text-emerald-500">{parseFloat(String(stats.paid_teacher_payouts || 0)).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">الأرباح التي تم صرفها للمعلمين</p>
+            </div>
+          </div>
         </div>
       )}
 

@@ -13,6 +13,7 @@ interface TeacherCardProps {
   coursesCount?: number
   studentsCount?: number
   slug?: string
+  teaching_mode?: string
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -35,8 +36,33 @@ export default function TeacherCard({
   coursesCount = 0,
   studentsCount,
   slug,
+  teaching_mode,
 }: TeacherCardProps) {
   const displaySubject = SUBJECTS_TRANSLATION[subject] || subject
+
+  let teachingModeBadge = null;
+  if (teaching_mode === 'online') {
+    teachingModeBadge = (
+      <span className="absolute top-3 left-3 px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-[9px] text-green-400 font-black rounded-full flex items-center gap-1 z-10">
+        <span>🟢</span>
+        <span>أونلاين</span>
+      </span>
+    );
+  } else if (teaching_mode === 'center') {
+    teachingModeBadge = (
+      <span className="absolute top-3 left-3 px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-[9px] text-yellow-400 font-black rounded-full flex items-center gap-1 z-10">
+        <span>🏫</span>
+        <span>سنتر</span>
+      </span>
+    );
+  } else if (teaching_mode === 'both') {
+    teachingModeBadge = (
+      <span className="absolute top-3 left-3 px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 text-[9px] text-purple-400 font-black rounded-full flex items-center gap-1 z-10">
+        <span>🟣</span>
+        <span>أونلاين + سنتر</span>
+      </span>
+    );
+  }
 
   return (
     <motion.div 
@@ -44,6 +70,7 @@ export default function TeacherCard({
       transition={{ type: "spring", stiffness: 300, damping: 20 }}
       className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 text-center space-y-4 hover:border-brand-primary/40 hover:shadow-xl hover:shadow-[0_0_25px_var(--glow-color)] transition-all duration-300 flex flex-col justify-between h-full"
     >
+      {teachingModeBadge}
       <div className="absolute top-0 right-0 w-20 h-20 bg-brand-primary/5 rounded-full blur-2xl pointer-events-none"></div>
       
       <div className="space-y-4 flex flex-col items-center w-full">

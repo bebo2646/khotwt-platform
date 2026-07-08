@@ -16,6 +16,7 @@ interface TeacherItem {
   experience: string
   bio: string
   grades?: string[]
+  teaching_mode?: string
 }
 
 interface CourseItem {
@@ -31,6 +32,7 @@ interface CourseItem {
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
   final_price?: number | null
+  availability?: 'online' | 'center' | 'both'
 }
 
 interface PackageItem {
@@ -190,11 +192,31 @@ export default function TeacherProfile() {
                 <h1 className="text-2xl sm:text-3xl font-black text-foreground">{teacher.name}</h1>
                 <ShieldCheck className="h-5 w-5 text-brand-primary shrink-0" />
               </div>
-              <p className="text-sm font-bold">
-                <Link to={`/subject/${teacher.subject}`} className="text-brand-primary hover:underline transition-all">
-                  مدرس {SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}
-                </Link>
-              </p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-1">
+                <p className="text-sm font-bold">
+                  <Link to={`/subject/${teacher.subject}`} className="text-brand-primary hover:underline transition-all">
+                    مدرس {SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}
+                  </Link>
+                </p>
+                {teacher.teaching_mode === 'online' && (
+                  <span className="px-2.5 py-0.5 bg-green-500/10 border border-green-500/30 text-[10px] text-green-400 font-black rounded-full flex items-center gap-1">
+                    <span>🟢</span>
+                    <span>أونلاين</span>
+                  </span>
+                )}
+                {teacher.teaching_mode === 'center' && (
+                  <span className="px-2.5 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-[10px] text-yellow-400 font-black rounded-full flex items-center gap-1">
+                    <span>🏫</span>
+                    <span>سنتر</span>
+                  </span>
+                )}
+                {teacher.teaching_mode === 'both' && (
+                  <span className="px-2.5 py-0.5 bg-purple-500/10 border border-purple-500/30 text-[10px] text-purple-400 font-black rounded-full flex items-center gap-1">
+                    <span>🟣</span>
+                    <span>أونلاين + سنتر</span>
+                  </span>
+                )}
+              </div>
               {teacher.grades && teacher.grades.length > 0 && (
                 <div className="flex flex-wrap justify-center md:justify-start gap-1.5 mt-2">
                   {teacher.grades.map((gradeKey) => (
@@ -278,6 +300,7 @@ export default function TeacherProfile() {
                 discountType={course.discount_type ?? undefined}
                 discountValue={course.discount_value ?? undefined}
                 finalPrice={course.final_price ?? undefined}
+                availability={course.availability}
               />
             ))}
           </div>

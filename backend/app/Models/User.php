@@ -32,6 +32,7 @@ use Laravel\Sanctum\HasApiTokens;
     'current_session_token',
     'bunny_storage_used_gb',
     'bunny_storage_limit_gb',
+    'teaching_mode',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable

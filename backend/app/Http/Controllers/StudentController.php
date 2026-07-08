@@ -171,6 +171,18 @@ class StudentController extends Controller
                 $purchaseCode->redeemed_at = Carbon::now();
                 $purchaseCode->save();
 
+                // Split revenue
+                \App\Services\RevenueSharingService::handlePurchase(
+                    $user->id,
+                    $course->teacher_id,
+                    $course->final_price,
+                    $course->id,
+                    null,
+                    null,
+                    $purchaseCode->id,
+                    'code'
+                );
+
                 return response()->json([
                     'type' => 'course',
                     'message' => 'تم الاشتراك في الكورس بنجاح',
@@ -263,6 +275,18 @@ class StudentController extends Controller
                     $purchaseCode->redeemed_at = Carbon::now();
                     $purchaseCode->save();
 
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $course->teacher_id,
+                        $course->final_price,
+                        $course->id,
+                        null,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
+
                     return response()->json([
                         'message' => 'تم الاشتراك في الكورس بنجاح.',
                         'balance' => $wallet->balance,
@@ -325,6 +349,18 @@ class StudentController extends Controller
                         'enrolled_at' => Carbon::now(),
                     ]);
 
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $course->teacher_id,
+                        $course->final_price,
+                        $course->id,
+                        null,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
+
                     return response()->json([
                         'message' => 'تم شحن رصيد المعلم المخصص والاشتراك في الكورس بنجاح.',
                         'balance' => $wallet->balance,
@@ -369,6 +405,18 @@ class StudentController extends Controller
                         'course_id' => $course->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
+
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $course->teacher_id,
+                        $course->final_price,
+                        $course->id,
+                        null,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
 
                     return response()->json([
                         'message' => 'تم شحن الرصيد والاشتراك في الكورس بنجاح.',
@@ -421,6 +469,18 @@ class StudentController extends Controller
                 'course_id' => $course->id,
                 'enrolled_at' => Carbon::now(),
             ]);
+
+            // Split revenue
+            \App\Services\RevenueSharingService::handlePurchase(
+                $user->id,
+                $course->teacher_id,
+                $course->final_price,
+                $course->id,
+                null,
+                null,
+                null,
+                'wallet'
+            );
 
             return response()->json([
                 'message' => 'تم الاشتراك في الكورس بنجاح.',
@@ -511,6 +571,18 @@ class StudentController extends Controller
                     $purchaseCode->redeemed_at = Carbon::now();
                     $purchaseCode->save();
 
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $package->course->teacher_id,
+                        $package->price,
+                        $package->course_id,
+                        $package->id,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
+
                     return response()->json([
                         'message' => 'تم الاشتراك في الباقة بنجاح.',
                         'balance' => $wallet->balance,
@@ -575,6 +647,18 @@ class StudentController extends Controller
                         'enrolled_at' => Carbon::now(),
                     ]);
 
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $package->course->teacher_id,
+                        $package->price,
+                        $package->course_id,
+                        $package->id,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
+
                     return response()->json([
                         'message' => 'تم شحن رصيد المعلم المخصص والاشتراك في الباقة بنجاح.',
                         'balance' => $wallet->balance,
@@ -621,6 +705,18 @@ class StudentController extends Controller
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
+
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $package->course->teacher_id,
+                        $package->price,
+                        $package->course_id,
+                        $package->id,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
 
                     return response()->json([
                         'message' => 'تم شحن الرصيد والاشتراك في الباقة بنجاح.',
@@ -674,6 +770,18 @@ class StudentController extends Controller
                 'package_id' => $package->id,
                 'enrolled_at' => Carbon::now(),
             ]);
+
+            // Split revenue
+            \App\Services\RevenueSharingService::handlePurchase(
+                $user->id,
+                $package->course->teacher_id,
+                $package->price,
+                $package->course_id,
+                $package->id,
+                null,
+                null,
+                'wallet'
+            );
 
             return response()->json([
                 'message' => 'تم الاشتراك في الباقة بنجاح.',
@@ -827,6 +935,18 @@ class StudentController extends Controller
                 'lesson_id' => $lesson->id,
                 'enrolled_at' => Carbon::now(),
             ]);
+
+            // Split revenue
+            \App\Services\RevenueSharingService::handlePurchase(
+                $user->id,
+                $lesson->unit->course->teacher_id,
+                $lesson->price,
+                $courseId,
+                null,
+                $lesson->id,
+                null,
+                'wallet'
+            );
 
             return response()->json([
                 'message' => 'تم الاشتراك في المحاضرة بنجاح.',

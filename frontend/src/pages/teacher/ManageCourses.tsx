@@ -19,6 +19,7 @@ interface CourseItem {
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
   final_price?: number | null
+  availability?: 'online' | 'center' | 'both'
 }
 
 interface LessonItem {
@@ -103,6 +104,7 @@ export default function ManageCourses() {
   const [courseDiscountValue, setCourseDiscountValue] = React.useState('')
   const [courseGrade, setCourseGrade] = React.useState('')
   const [courseSubject, setCourseSubject] = React.useState('')
+  const [courseAvailability, setCourseAvailability] = React.useState<'online' | 'center' | 'both'>('online')
 
   const [unitTitle, setUnitTitle] = React.useState('')
   const [lessonTitle, setLessonTitle] = React.useState('')
@@ -268,6 +270,7 @@ export default function ManageCourses() {
       enable_discount: courseEnableDiscount,
       discount_type: courseDiscountType,
       discount_value: courseDiscountValue || '0.00',
+      availability: courseAvailability,
     }
 
     try {
@@ -298,6 +301,7 @@ export default function ManageCourses() {
     setCoursePrice(course.price)
     setCourseGrade(course.grade)
     setCourseSubject(course.subject)
+    setCourseAvailability(course.availability || 'online')
     setCourseEnableDiscount(!!course.enable_discount)
     setCourseDiscountType(course.discount_type || 'percentage')
     setCourseDiscountValue(course.discount_value !== null && course.discount_value !== undefined ? course.discount_value.toString() : '')
@@ -335,6 +339,7 @@ export default function ManageCourses() {
     setCoursePrice('')
     setCourseGrade('')
     setCourseSubject('')
+    setCourseAvailability('online')
     setCourseEnableDiscount(false)
     setCourseDiscountType('percentage')
     setCourseDiscountValue('')
@@ -1468,6 +1473,21 @@ export default function ManageCourses() {
                     placeholder="مثال: 50.00"
                     className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
                   />
+                </div>
+
+                {/* Availability */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold">نظام إتاحة الكورس</label>
+                  <select
+                    required
+                    value={courseAvailability}
+                    onChange={(e: any) => setCourseAvailability(e.target.value)}
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
+                  >
+                    <option value="online">أونلاين فقط</option>
+                    <option value="center">سنتر فقط</option>
+                    <option value="both">أونلاين + سنتر</option>
+                  </select>
                 </div>
 
                 {/* Enable Discount Toggle */}

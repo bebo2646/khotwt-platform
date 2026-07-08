@@ -19,6 +19,8 @@ class TeacherSubscription extends Model
         'discount_percentage',
         'discount_amount',
         'final_price',
+        'allocated_storage_from_sales',
+        'auto_expand_storage',
     ];
 
     protected $casts = [
@@ -29,6 +31,8 @@ class TeacherSubscription extends Model
         'discount_percentage' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'final_price' => 'decimal:2',
+        'allocated_storage_from_sales' => 'float',
+        'auto_expand_storage' => 'boolean',
     ];
 
     protected $appends = [
@@ -90,8 +94,16 @@ class TeacherSubscription extends Model
 
     public function getTotalStorageGbAttribute()
     {
-        $planStorage = $this->plan ? $this->plan->video_storage_gb : 0;
-        return $planStorage + $this->getExtraStorageGbAttribute();
+        $planStorage = 0;
+        if ($this->plan) {
+            if ($this->plan->billing_type === 'revenue_sharing') {
+                $planStorage = $this->plan->default_storage_gb;
+            } else {
+                $planStorage = $this->plan->video_storage_gb;
+            }
+        }
+        $salesStorage = $this->allocated_storage_from_sales ?? 0;
+        return $planStorage + $this->getExtraStorageGbAttribute() + $salesStorage;
     }
 
     public function getTotalStorageBytesAttribute()
@@ -101,7 +113,10 @@ class TeacherSubscription extends Model
 
     public function getTotalCodesAttribute()
     {
-        $planCodes = $this->plan ? $this->plan->student_codes : 0;
+        if ($this->plan && $this->plan->codes_limit_type === 'unlimited') {
+            return 999999; // Represents Unlimited
+        }
+        $planCodes = $this->plan ? ($this->plan->max_codes_limit ?? $this->plan->student_codes) : 0;
         return $planCodes + $this->getExtraCodesAttribute();
     }
 

@@ -107,11 +107,23 @@ class PublicController extends Controller
     /**
      * Get teachers list.
      */
-    public function teachers()
+    public function teachers(Request $request)
     {
-        $teachers = User::where('role', 'teacher')
-            ->where('status', 'active')
-            ->withCount(['courses as students_count' => function ($query) {
+        $query = User::where('role', 'teacher')
+            ->where('status', 'active');
+
+        if ($request->has('teaching_mode') && $request->teaching_mode) {
+            $mode = $request->teaching_mode;
+            if ($mode === 'online') {
+                $query->whereIn('teaching_mode', ['online', 'both']);
+            } elseif ($mode === 'center') {
+                $query->whereIn('teaching_mode', ['center', 'both']);
+            } elseif ($mode === 'both') {
+                $query->where('teaching_mode', 'both');
+            }
+        }
+
+        $teachers = $query->withCount(['courses as students_count' => function ($query) {
                 $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
             }])
             ->withCount(['courses as published_courses_count' => function ($query) {
@@ -214,6 +226,10 @@ class PublicController extends Controller
             $query->where('teacher_id', $request->teacher_id);
         }
 
+        if ($request->has('availability') && $request->availability) {
+            $query->where('availability', $request->availability);
+        }
+
         if ($request->has('search') && $request->search) {
             $query->where('title', 'ilike', '%' . $request->search . '%');
         }
@@ -299,11 +315,14 @@ class PublicController extends Controller
         $isEnrolled = false;
         $user = Auth::guard('sanctum')->user();
         $lastWatchedVideo = null;
+        $isStudent = true;
 
         if ($user) {
             if ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id)) {
                 $isEnrolled = true;
+                $isStudent = false;
             } elseif ($user->isStudent()) {
+                $isStudent = true;
                 $isEnrolled = Enrollment::where('student_id', $user->id)
                     ->where('course_id', $courseId)
                     ->exists();
@@ -331,14 +350,19 @@ class PublicController extends Controller
             }
         }
 
+        $availabilityMessage = null;
+        if ($course->availability === 'center' && $isStudent) {
+            $availabilityMessage = 'هذا الكورس مخصص لطلاب السنتر.';
+        }
+
         // Clean lesson data if NOT enrolled (hide actual video links and file paths)
         // Keep structure so visitors can see curriculum list
-        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled) {
+        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent) {
             return [
                 'id' => $unit->id,
                 'title' => $unit->title,
                 'order' => $unit->order,
-                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled) {
+                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent) {
                     $lessonData = [
                         'id' => $lesson->id,
                         'title' => $lesson->title,
@@ -359,8 +383,12 @@ class PublicController extends Controller
                     $lessonData['exams_count'] = $lesson->exams()->count();
 
                     if ($isEnrolled && !$isLocked) {
-                        // Include full details
-                        $lessonData['videos'] = $lesson->videos;
+                        // Include full details - block videos if course is center-only and user is student
+                        if ($course->availability === 'center' && $isStudent) {
+                            $lessonData['videos'] = [];
+                        } else {
+                            $lessonData['videos'] = $lesson->videos;
+                        }
                         $lessonData['pdfs'] = $lesson->pdfs;
                         $lessonData['exams'] = $lesson->exams;
                     }
@@ -376,6 +404,7 @@ class PublicController extends Controller
             'packages' => $packages,
             'is_enrolled' => $isEnrolled,
             'last_watched' => $lastWatchedVideo,
+            'availability_message' => $availabilityMessage,
         ]);
     }
 

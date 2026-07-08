@@ -33,6 +33,7 @@ interface CourseItem {
     avatar?: string
     subject: string
   }
+  availability?: 'online' | 'center' | 'both'
 }
 
 interface TeacherItem {
@@ -45,6 +46,7 @@ interface TeacherItem {
   students_count?: number
   slug?: string
   published_courses_count?: number
+  teaching_mode?: 'online' | 'center' | 'both'
 }
 
 const GRADES = [
@@ -446,6 +448,7 @@ export default function Home() {
                     discountType={course.discount_type ?? undefined}
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
+                    availability={course.availability}
                   />
                 ))}
               </div>
@@ -493,6 +496,7 @@ export default function Home() {
                 discountType={course.discount_type ?? undefined}
                 discountValue={course.discount_value ?? undefined}
                 finalPrice={course.final_price ?? undefined}
+                availability={course.availability}
               />
             ))}
           </div>
@@ -522,6 +526,7 @@ export default function Home() {
                 studentsCount={teacher.students_count}
                 coursesCount={teacher.published_courses_count || 0}
                 slug={teacher.slug}
+                teaching_mode={teacher.teaching_mode}
               />
             ))}
           </div>

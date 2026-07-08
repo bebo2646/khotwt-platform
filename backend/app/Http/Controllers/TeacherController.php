@@ -23,6 +23,30 @@ use Carbon\Carbon;
 class TeacherController extends Controller
 {
     /**
+     * Update teacher profile settings.
+     */
+    public function updateProfile(Request $request)
+    {
+        $teacher = $request->user();
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string',
+            'bio' => 'nullable|string',
+            'experience' => 'nullable|string',
+            'teaching_mode' => 'required|string|in:online,center,both',
+        ]);
+
+        $teacher->update($request->only([
+            'name', 'phone', 'bio', 'experience', 'teaching_mode'
+        ]));
+
+        return response()->json([
+            'user' => $teacher,
+            'message' => 'تم تحديث بيانات الملف الشخصي بنجاح.',
+        ]);
+    }
+    /**
      * Helper to verify if the course belongs to the authenticated teacher.
      */
     private function verifyCourseTeacher(Request $request, $courseId)
@@ -608,6 +632,7 @@ class TeacherController extends Controller
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
+            'availability' => 'nullable|string|in:online,center,both',
         ]);
 
         $course = Course::create([
@@ -622,6 +647,7 @@ class TeacherController extends Controller
             'enable_discount' => $request->enable_discount ?? false,
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,
+            'availability' => $request->availability ?? 'both',
         ]);
 
         // Send Student Notification
@@ -656,6 +682,7 @@ class TeacherController extends Controller
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
+            'availability' => 'nullable|string|in:online,center,both',
         ]);
 
         $course->update([
@@ -668,6 +695,7 @@ class TeacherController extends Controller
             'enable_discount' => $request->enable_discount ?? false,
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,
+            'availability' => $request->availability ?? $course->availability ?? 'both',
         ]);
 
         return response()->json($course);

@@ -15,33 +15,60 @@ interface TeacherItem {
   courses_count: number
   published_courses_count?: number
   slug?: string
+  teaching_mode?: string
 }
 
 export default function Teachers() {
   const [teachers, setTeachers] = React.useState<TeacherItem[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [filterMode, setFilterMode] = React.useState<string>('')
 
   React.useEffect(() => {
-    API.get('/teachers')
+    setLoading(true)
+    API.get('/teachers', { params: { teaching_mode: filterMode || undefined } })
       .then((res) => {
         setTeachers(res.data)
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [])
+  }, [filterMode])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12" dir="rtl">
       <SEO 
         title="نخبة المعلمين | منصة خطوتك"
         description="تصفح قائمة المعلمين المميزين على منصة خطوتك، والذين يقدمون أفضل شروحات المناهج الإعدادية والثانوية مع المتابعة والاختبارات المستمرة."
         keywords="مدرسين ثانوية عامة, معلمي منصة خطوتك, مدرس الكيمياء, مدرس الفيزياء"
       />
       
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black">أعضاء هيئة التدريس</h1>
-        <p className="text-sm text-text-secondary font-light mt-1">كبار معلمي وموجهي المواد بمصر لمساعدتك في رحلة التعلم</p>
+      {/* Header and Filter */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-[var(--border-color)] pb-6">
+        <div>
+          <h1 className="text-3xl font-black">أعضاء هيئة التدريس</h1>
+          <p className="text-sm text-text-secondary font-light mt-1">كبار معلمي وموجهي المواد بمصر لمساعدتك في رحلة التعلم</p>
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex flex-wrap gap-2 text-xs font-black">
+          {[
+            { label: 'الكل', value: '' },
+            { label: '🟢 أونلاين', value: 'online' },
+            { label: '🏫 سنتر', value: 'center' },
+            { label: '🟣 أونلاين + سنتر', value: 'both' }
+          ].map((pill) => (
+            <button
+              key={pill.value}
+              onClick={() => setFilterMode(pill.value)}
+              className={`px-4 py-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                filterMode === pill.value
+                  ? 'bg-brand-primary text-white border-brand-primary shadow-md'
+                  : 'bg-brand-card hover:bg-brand-surface border-[var(--border-color)] text-text-secondary hover:text-foreground'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -52,7 +79,7 @@ export default function Teachers() {
         <EmptyState
           type="teachers"
           title="لا يوجد مدرسون مسجلون"
-          description="لا يوجد معلمون مسجلون في المنصة حالياً."
+          description="لا يوجد معلمون يطابقون خيارات التصفية الحالية."
         />
       ) : (
         /* Teachers Grid */
@@ -69,6 +96,7 @@ export default function Teachers() {
               coursesCount={teacher.published_courses_count || 0}
               studentsCount={teacher.students_count || 0}
               slug={teacher.slug}
+              teaching_mode={teacher.teaching_mode}
             />
           ))}
         </div>

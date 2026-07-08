@@ -31,7 +31,8 @@ import {
   Tv,
   ChevronLeft,
   UserCheck,
-  AlertTriangle
+  AlertTriangle,
+  Wallet
 } from 'lucide-react'
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -151,6 +152,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/notifications')) return 'إرسال الإشعارات الجماعية'
     if (path.startsWith('/admin/subscription-plans')) return 'إعدادات باقات الاشتراك'
     if (path.startsWith('/admin/bunny')) return 'إحصائيات مساحات تخزين Bunny Stream'
+    if (path.startsWith('/admin/payouts')) return 'إدارة مستحقات ومدفوعات المعلمين'
     if (path.startsWith('/admin/manage')) return 'إدارة صلاحيات المشرفين'
     return 'لوحة الإدارة'
   }
@@ -214,6 +216,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           path: '/admin/reports',
           icon: <BarChart3 className="w-5 h-5 shrink-0" />,
           visible: hasPerm('reports.view')
+        },
+        {
+          label: 'مستحقات المعلمين',
+          path: '/admin/payouts',
+          icon: <Wallet className="w-5 h-5 shrink-0" />,
+          visible: true
         }
       ]
     },

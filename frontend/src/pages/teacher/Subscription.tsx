@@ -65,6 +65,7 @@ export default function Subscription() {
   const [alerts, setAlerts] = useState<string[]>([])
   const [syncing, setSyncing] = useState(false)
   const [settings, setSettings] = useState<any>(null)
+  const [earnings, setEarnings] = useState<any>(null)
 
   // Expandable request panel state
   const [showRequestSection, setShowRequestSection] = useState(false)
@@ -94,6 +95,7 @@ export default function Subscription() {
       const res = await API.get('/teacher/subscription')
       setSubscription(res.data.subscription)
       setAddons(res.data.addons)
+      setEarnings(res.data.earnings || null)
       
       const rawPlans = res.data.plans || []
       const activePlans = rawPlans.filter((p: any) => p.active !== false && (p as any).active !== 0 && (p as any).active !== '0' && (p as any).isActive !== false && ((p as any).isActive as any) !== 0 && ((p as any).isActive as any) !== '0')
@@ -282,6 +284,86 @@ export default function Subscription() {
               <p className="text-xs font-bold">{alert}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Commission Earnings Report (Feature 3) */}
+      {earnings && (
+        <div className="mb-8 space-y-6">
+          <h2 className="text-lg font-black text-[var(--text-color)] flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
+            <span>تقرير أرباح نسبة المشاركة والمدفوعات</span>
+          </h2>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Today's earnings */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm hover:border-brand-primary/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">أرباح اليوم</span>
+              <div className="text-xl font-black text-brand-primary">{parseFloat(earnings.today_earnings || 0).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">مبيعات اليوم حتى الآن</p>
+            </div>
+
+            {/* Monthly earnings */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm hover:border-brand-primary/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">أرباح الشهر الحالي</span>
+              <div className="text-xl font-black text-brand-primary">{parseFloat(earnings.monthly_earnings || 0).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">الشهر الحالي بالكامل</p>
+            </div>
+
+            {/* Lifetime earnings */}
+            <div className="bg-slate-900/50 backdrop-blur-md border border-slate-800/80 p-5 rounded-3xl space-y-3.5 shadow-sm hover:border-brand-primary/30 transition-all duration-300">
+              <span className="text-xs text-slate-400 font-semibold block">إجمالي الأرباح التراكمية</span>
+              <div className="text-xl font-black text-brand-primary">{parseFloat(earnings.lifetime_earnings || 0).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-slate-500 font-light">تراكمي مبيعات الكورسات والحصص</p>
+            </div>
+
+            {/* Pending Payout balance */}
+            <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-3xl space-y-3.5 shadow-sm hover:border-emerald-500/30 transition-all duration-300">
+              <span className="text-xs text-emerald-400/80 font-semibold block">الرصيد المعلق المستحق للصرف</span>
+              <div className="text-xl font-black text-emerald-400">{parseFloat(earnings.pending_payout || 0).toFixed(2)} ج.م</div>
+              <p className="text-[10px] text-emerald-500/60 font-light">الرصيد الجاهز لطلب الدفع</p>
+            </div>
+          </div>
+
+          {/* Payout Logs Table */}
+          {earnings.payouts && earnings.payouts.length > 0 && (
+            <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl overflow-hidden p-6 space-y-4">
+              <h3 className="text-sm font-black text-slate-200">سجل دفعاتي المالية المستلمة</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-900/40 text-slate-400 border-b border-[var(--border-color)] font-bold">
+                    <tr>
+                      <th className="p-3">تاريخ الصرف</th>
+                      <th className="p-3">المبلغ المستلم</th>
+                      <th className="p-3">وسيلة الدفع</th>
+                      <th className="p-3">ملاحظات التحويل</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-color)]">
+                    {earnings.payouts.map((log: any) => (
+                      <tr key={log.id} className="hover:bg-slate-900/10">
+                        <td className="p-3 text-slate-400">
+                          {new Date(log.payout_date).toLocaleDateString('ar-EG', {
+                            year: 'numeric', month: 'long', day: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          })}
+                        </td>
+                        <td className="p-3 font-extrabold text-emerald-400">
+                          {parseFloat(log.amount).toFixed(2)} ج.م
+                        </td>
+                        <td className="p-3 text-slate-400 font-bold">
+                          {log.payment_method === 'bank_transfer' ? '🏦 تحويل بنكي' : 
+                           log.payment_method === 'vodafone_cash' ? '📱 محفظة إلكترونية' : '💵 كاش / نقدي'}
+                        </td>
+                        <td className="p-3 text-slate-400 font-light max-w-[250px] truncate" title={log.notes || ''}>
+                          {log.notes || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

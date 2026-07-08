@@ -22,6 +22,7 @@ class Course extends Model
         'enable_discount',
         'discount_type',
         'discount_value',
+        'availability',
     ];
 
     protected static function booted()

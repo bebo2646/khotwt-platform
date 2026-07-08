@@ -23,6 +23,7 @@ interface CourseCardProps {
   discountValue?: string | number
   finalPrice?: string | number
   grade?: string
+  availability?: 'online' | 'center' | 'both'
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -62,6 +63,7 @@ export default function CourseCard({
   discountValue = 0,
   finalPrice = 0,
   grade,
+  availability,
 }: CourseCardProps) {
   const pricing = getCourseDisplayPrice({
     price,
@@ -83,7 +85,7 @@ export default function CourseCard({
           className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
         />
         
-        {/* Subject & Grade Overlay Badges */}
+        {/* Subject, Grade & Availability Overlay Badges */}
         <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end z-10">
           <div className="px-3 py-1 bg-black/80 text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
             {SUBJECTS_TRANSLATION[subject] || subject}
@@ -91,6 +93,17 @@ export default function CourseCard({
           {grade && (
             <div className="px-3 py-1 bg-indigo-700 text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-500/25 shadow-md">
               {GRADES_MAP[grade] || grade}
+            </div>
+          )}
+          {availability && (
+            <div className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wide border shadow-md ${
+              availability === 'online'
+                ? 'bg-emerald-600 text-white border-emerald-500/25'
+                : availability === 'center'
+                ? 'bg-amber-600 text-white border-amber-500/25'
+                : 'bg-indigo-650 text-white border-indigo-550/25'
+            }`}>
+              {availability === 'online' ? '🟢 أونلاين' : availability === 'center' ? '🏫 سنتر' : '🟣 أونلاين + سنتر'}
             </div>
           )}
         </div>

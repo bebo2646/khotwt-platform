@@ -17,7 +17,7 @@ export default function Footer() {
               منصة تعليمية حديثة تجمع أفضل المعلمين والدورات والاختبارات التفاعلية في مكان واحد، لتمنحك تجربة تعليمية ذكية تساعدك على التفوق وتحقيق أهدافك الأكاديمية بثقة.
             </p>
             <div className="flex gap-4 justify-center">
-              <a href="#" aria-label="فيسبوك" className="social-icon">
+              <a href="https://www.facebook.com/profile.php?id=61591376162499" aria-label="فيسبوك" className="social-icon">
                 <Facebook className="h-4 w-4" />
               </a>
               <a href="#" aria-label="إنستجرام" className="social-icon">
@@ -91,7 +91,7 @@ export default function Footer() {
               rel="noopener noreferrer" 
               className="footer-credit-link font-bold"
             >
-             https://belal-portfolio1.vercel.app/
+             https://belal-portfolio1.vercel.app
             </a>
           </p>
         </div>

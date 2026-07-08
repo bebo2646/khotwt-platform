@@ -57,6 +57,7 @@ export default function CreateTeacher() {
   const [bio, setBio] = React.useState('')
   const [selectedGrades, setSelectedGrades] = React.useState<string[]>([])
   const [status, setStatus] = React.useState<'active' | 'disabled'>('active')
+  const [teachingMode, setTeachingMode] = React.useState<string>('online')
   const [avatar, setAvatar] = React.useState('')
   const [uploading, setUploading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
@@ -192,6 +193,7 @@ export default function CreateTeacher() {
       bio,
       grades: selectedGrades,
       status,
+      teaching_mode: teachingMode,
       avatar,
       plan_id: Number(selectedPlanId) || (plans[0] ? Number(plans[0].id) : 1),
       billing_cycle: billingCycle,
@@ -398,6 +400,19 @@ export default function CreateTeacher() {
                 >
                   <option value="active">نشط ومفعل</option>
                   <option value="disabled">معطل وموقوف</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[var(--text-color)]">نظام التدريس (أونلاين/سنتر)</label>
+                <select
+                  value={teachingMode}
+                  onChange={(e: any) => setTeachingMode(e.target.value)}
+                  className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
+                >
+                  <option value="online">أونلاين فقط</option>
+                  <option value="center">سنتر فقط</option>
+                  <option value="both">أونلاين + سنتر</option>
                 </select>
               </div>
 

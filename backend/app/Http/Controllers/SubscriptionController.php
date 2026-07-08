@@ -818,6 +818,17 @@ class SubscriptionController extends Controller
             ->where('status', 'Pending')
             ->exists();
 
+        // Calculate earnings for dashboard
+        $earningsPlatformCommission = (float) \App\Models\PlatformEarning::where('teacher_id', $teacher->id)->sum('amount');
+        $earningsTeacherTotal = (float) \App\Models\TeacherEarning::where('teacher_id', $teacher->id)->sum('amount');
+        $earningsToday = (float) \App\Models\TeacherEarning::where('teacher_id', $teacher->id)
+            ->whereDate('created_at', Carbon::today())
+            ->sum('amount');
+        $earningsMonth = (float) \App\Models\TeacherEarning::where('teacher_id', $teacher->id)
+            ->whereYear('created_at', Carbon::now()->year)
+            ->whereMonth('created_at', Carbon::now()->month)
+            ->sum('amount');
+
         return response()->json([
             'subscription' => [
                 'id' => $subscription->id,
@@ -843,6 +854,13 @@ class SubscriptionController extends Controller
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
             'has_pending_request' => $hasPendingRequest,
+            'earnings' => [
+                'platform_commission' => $earningsPlatformCommission,
+                'teacher_earnings' => $earningsTeacherTotal,
+                'today_earnings' => $earningsToday,
+                'monthly_earnings' => $earningsMonth,
+                'lifetime_earnings' => $earningsTeacherTotal,
+            ]
         ]);
     }
 

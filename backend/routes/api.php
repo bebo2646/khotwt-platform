@@ -97,6 +97,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
          */
         Route::middleware('role:teacher')->group(function () {
             Route::get('/teacher/dashboard', [TeacherController::class, 'dashboard']);
+            Route::post('/teacher/profile/update', [TeacherController::class, 'updateProfile']);
             Route::get('/teacher/revenue-report', [TeacherController::class, 'revenueReport']);
             Route::get('/teacher/courses', [TeacherController::class, 'courses']);
             Route::get('/teacher/exams', [TeacherController::class, 'listExams']);
@@ -250,6 +251,10 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::delete('/admin/notifications', [SubscriptionController::class, 'deleteNotifications']);
             Route::get('/admin/users-selectors', [SubscriptionController::class, 'getUsersForSelectors']);
             Route::get('/admin/notifications/users', [SubscriptionController::class, 'getUsersForSelectors']);
+
+            // Admin Payouts Management
+            Route::get('/admin/payouts', [AdminController::class, 'listPayouts']);
+            Route::post('/admin/payouts', [AdminController::class, 'createPayout']);
         });
 
     });

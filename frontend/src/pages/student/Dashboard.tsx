@@ -107,6 +107,7 @@ interface Teacher {
   courses_count: number
   published_courses_count?: number
   experience?: string
+  teaching_mode?: 'online' | 'center' | 'both'
 }
 
 interface AvailableCourse {
@@ -126,6 +127,7 @@ interface AvailableCourse {
     avatar?: string
   }
   grade?: string
+  availability?: 'online' | 'center' | 'both'
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -556,6 +558,7 @@ export default function StudentDashboard() {
                     avatar={teacher.avatar}
                     experience={teacher.experience}
                     coursesCount={teacher.published_courses_count || 0}
+                    teaching_mode={teacher.teaching_mode}
                   />
                 </motion.div>
               ))}
@@ -627,6 +630,7 @@ export default function StudentDashboard() {
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
                     grade={course.grade}
+                    availability={course.availability}
                   />
                 ))}
               </div>
@@ -639,7 +643,7 @@ export default function StudentDashboard() {
             ==================================== */}
         <div className="space-y-6">
           <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-            <span>🔥 أحدث الكورسات</span>
+            <span> أحدث الكورسات</span>
           </h2>
           
           {recommendedData.latest.length === 0 ? (
@@ -665,6 +669,7 @@ export default function StudentDashboard() {
                   discountValue={course.discount_value ?? undefined}
                   finalPrice={course.final_price ?? undefined}
                   grade={course.grade}
+                  availability={course.availability}
                 />
               ))}
             </div>
@@ -676,7 +681,7 @@ export default function StudentDashboard() {
             ==================================== */}
         <div className="space-y-6">
           <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-            <span>📚 جميع الكورسات</span>
+            <span> جميع الكورسات</span>
           </h2>
 
           {filteredCourses.length === 0 ? (
@@ -702,6 +707,7 @@ export default function StudentDashboard() {
                   discountValue={course.discount_value ?? undefined}
                   finalPrice={course.final_price ?? undefined}
                   grade={course.grade}
+                  availability={course.availability}
                 />
               ))}
             </div>

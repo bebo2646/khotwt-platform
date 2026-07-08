@@ -25,6 +25,7 @@ interface CourseItem {
     avatar?: string
     subject: string
   }
+  availability?: 'online' | 'center' | 'both'
 }
 
 const GRADES = [
@@ -335,6 +336,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                       discountValue={course.discount_value ?? undefined}
                       finalPrice={course.final_price ?? undefined}
                       grade={course.grade}
+                      availability={course.availability}
                     />
                   ))}
                 </div>
@@ -378,6 +380,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
                     grade={course.grade}
+                    availability={course.availability}
                   />
                 ))}
               </div>

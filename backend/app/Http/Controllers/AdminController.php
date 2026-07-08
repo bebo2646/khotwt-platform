@@ -95,6 +95,22 @@ class AdminController extends Controller
             $subGrowth = 100.0;
         }
 
+        // Platform Commission Calculations
+        $commissionLifetime = (float) \App\Models\PlatformEarning::sum('amount');
+        $commissionCurrentMonth = (float) \App\Models\PlatformEarning::whereYear('created_at', Carbon::now()->year)
+            ->whereMonth('created_at', Carbon::now()->month)
+            ->sum('amount');
+        $commissionPreviousMonth = (float) \App\Models\PlatformEarning::whereYear('created_at', Carbon::now()->subMonth()->year)
+            ->whereMonth('created_at', Carbon::now()->subMonth()->month)
+            ->sum('amount');
+        $commissionToday = (float) \App\Models\PlatformEarning::whereDate('created_at', Carbon::today())
+            ->sum('amount');
+
+        // Teacher Earning Payouts Calculations
+        $pendingPayouts = (float) \App\Models\TeacherEarning::where('status', 'pending')->sum('amount');
+        $paidPayouts = (float) \App\Models\TeacherEarning::where('status', 'paid')->sum('amount');
+        $lifetimeTeacherRevenue = (float) \App\Models\TeacherEarning::sum('amount');
+
         // System analytics logs
         $analytics = [
             'total_teachers' => $totalTeachers,
@@ -120,6 +136,15 @@ class AdminController extends Controller
             'sub_pending_revenue' => $subPendingRevenue,
             'sub_refunded_revenue' => $subRefundedRevenue,
             'sub_growth_percentage' => $subGrowth,
+
+            // Revenue Split Metrics
+            'commission_lifetime' => $commissionLifetime,
+            'commission_current_month' => $commissionCurrentMonth,
+            'commission_previous_month' => $commissionPreviousMonth,
+            'commission_today' => $commissionToday,
+            'pending_teacher_payouts' => $pendingPayouts,
+            'paid_teacher_payouts' => $paidPayouts,
+            'lifetime_teacher_revenue' => $lifetimeTeacherRevenue,
         ];
 
         return response()->json($analytics);
@@ -201,6 +226,7 @@ class AdminController extends Controller
             'billing_cycle' => 'nullable|string|in:monthly,quarterly,semi_annual,annual',
             'extra_storage_gb' => 'nullable|integer|min:0',
             'extra_codes' => 'nullable|integer|min:0',
+            'teaching_mode' => 'nullable|string|in:online,center,both',
         ]);
 
         $status = $request->status ?? 'active';
@@ -245,6 +271,7 @@ class AdminController extends Controller
                 'avatar' => $request->avatar,
                 'must_change_password' => $mustChange,
                 'status' => $status,
+                'teaching_mode' => $request->teaching_mode ?? 'both',
             ]);
 
             // Initialize subscription if plan is provided
@@ -386,10 +413,11 @@ class AdminController extends Controller
             'grades' => 'required|array',
             'status' => 'required|string|in:active,disabled',
             'avatar' => 'nullable|string',
+            'teaching_mode' => 'nullable|string|in:online,center,both',
         ]);
 
         $teacher->update($request->only([
-            'name', 'phone', 'subject', 'bio', 'experience', 'grades', 'status', 'avatar'
+            'name', 'phone', 'subject', 'bio', 'experience', 'grades', 'status', 'avatar', 'teaching_mode'
         ]));
 
         return response()->json([
@@ -1773,6 +1801,88 @@ class AdminController extends Controller
             'message' => 'تم تحديث إعدادات وضع الصيانة بنجاح.',
             'settings' => $settings
         ]);
+    }
+
+    /**
+     * List pending and completed payouts (Admin).
+     */
+    public function listPayouts()
+    {
+        // 1. Group pending earnings by teacher
+        $pendingPayouts = \App\Models\TeacherEarning::where('status', 'pending')
+            ->select('teacher_id', DB::raw('SUM(amount) as pending_amount'))
+            ->groupBy('teacher_id')
+            ->with('teacher:id,name,email,phone')
+            ->get();
+
+        // 2. Fetch history of payouts
+        $payoutHistory = \App\Models\TeacherPayout::with('teacher:id,name,email,phone')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'pending_payouts' => $pendingPayouts,
+            'payout_history' => $payoutHistory,
+        ]);
+    }
+
+    /**
+     * Record a payout to a teacher (Admin).
+     */
+    public function createPayout(Request $request)
+    {
+        $request->validate([
+            'teacher_id' => 'required|exists:users,id',
+            'amount' => 'required|numeric|min:0.01',
+            'notes' => 'nullable|string',
+        ]);
+
+        $teacherId = $request->teacher_id;
+        $amount = (float)$request->amount;
+
+        // Check if there is enough pending earnings
+        $pendingSum = (float) \App\Models\TeacherEarning::where('teacher_id', $teacherId)
+            ->where('status', 'pending')
+            ->sum('amount');
+
+        if ($pendingSum < $amount) {
+            return response()->json(['message' => 'المبلغ المحدد أكبر من الرصيد المعلق للمعلم.'], 422);
+        }
+
+        return DB::transaction(function () use ($teacherId, $amount, $request) {
+            // Create payout record
+            $payout = \App\Models\TeacherPayout::create([
+                'teacher_id' => $teacherId,
+                'amount' => $amount,
+                'status' => 'paid',
+                'payout_date' => now(),
+                'notes' => $request->notes,
+            ]);
+
+            // Mark pending earnings as paid and link to payout
+            $earnings = \App\Models\TeacherEarning::where('teacher_id', $teacherId)
+                ->where('status', 'pending')
+                ->get();
+
+            foreach ($earnings as $earning) {
+                $earning->update([
+                    'status' => 'paid',
+                    'payout_id' => $payout->id,
+                ]);
+            }
+
+            // Create admin activity log
+            \App\Models\AdminActivityLog::create([
+                'admin_name' => $request->user()->name,
+                'action_type' => "تسجيل عملية دفع للمعلم ID: {$teacherId} بقيمة {$amount} ج.م",
+                'ip_address' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'message' => 'تم تسجيل دفعة المعلم بنجاح.',
+                'payout' => $payout,
+            ]);
+        });
     }
 }
 

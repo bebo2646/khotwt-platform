@@ -21,6 +21,7 @@ export interface UserProfile {
     id: number
     balance: string
   }
+  teaching_mode?: 'online' | 'center' | 'both'
 }
 
 interface AuthState {

@@ -43,6 +43,7 @@ interface TeacherItem {
   avatar?: string
   students_count: number
   discounted_courses_count: number
+  teaching_mode?: string
   teacher_subscription?: {
     id: number
     plan?: {
@@ -212,6 +213,7 @@ export default function TeachersList() {
   const [bio, setBio] = React.useState('')
   const [selectedGrades, setSelectedGrades] = React.useState<string[]>([])
   const [status, setStatus] = React.useState<'active' | 'disabled'>('active')
+  const [teachingMode, setTeachingMode] = React.useState<string>('online')
   const [avatar, setAvatar] = React.useState('')
   const [uploading, setUploading] = React.useState(false)
   
@@ -281,6 +283,7 @@ export default function TeachersList() {
       bio,
       grades: selectedGrades,
       status,
+      teaching_mode: teachingMode,
       avatar,
     }
 
@@ -337,6 +340,7 @@ export default function TeachersList() {
     setBio(t.bio)
     setSelectedGrades(t.grades || [])
     setStatus(t.status)
+    setTeachingMode(t.teaching_mode || 'online')
     setAvatar(t.avatar || '')
     setShowAddForm(true)
   }
@@ -455,6 +459,7 @@ export default function TeachersList() {
     setBio('')
     setSelectedGrades([])
     setStatus('active')
+    setTeachingMode('online')
     setAvatar('')
   }
 
@@ -1098,6 +1103,19 @@ export default function TeachersList() {
                     )
                   })}
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-300">نظام التدريس (أونلاين/سنتر)</label>
+                <select
+                  value={teachingMode}
+                  onChange={(e: any) => setTeachingMode(e.target.value)}
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
+                >
+                  <option value="online">أونلاين فقط</option>
+                  <option value="center">سنتر فقط</option>
+                  <option value="both">أونلاين + سنتر</option>
+                </select>
               </div>
 
               {editTeacher && (

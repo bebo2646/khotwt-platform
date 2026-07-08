@@ -1,9 +1,10 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
 import { BookOpen, Users, Wallet, TrendingUp, Award, ClipboardList, Package, Edit3, Trash2, Check, AlertCircle, BarChart3 } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import { useAuthStore } from '../../store/authStore'
 import { 
   BarChart, 
   Bar, 
@@ -102,6 +103,14 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { user, updateUser } = useAuthStore()
+  const [showProfileModal, setShowProfileModal] = React.useState(false)
+  const [profileName, setProfileName] = React.useState(user?.name || '')
+  const [profileExperience, setProfileExperience] = React.useState(user?.experience || '')
+  const [profileBio, setProfileBio] = React.useState(user?.bio || '')
+  const [profileTeachingMode, setProfileTeachingMode] = React.useState(user?.teaching_mode || 'online')
+  const [profileSaving, setProfileSaving] = React.useState(false)
+
   const [stats, setStats] = React.useState<DashboardStats | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -424,9 +433,23 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black">لوحة التحكم للمعلم</h1>
-        <p className="text-sm text-slate-400 font-light mt-1">مرحباً بك مجدداً. تابع مبيعاتك وحضور طلابك في حصصك ومحاضراتك</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-6" dir="rtl">
+        <div>
+          <h1 className="text-3xl font-black">لوحة التحكم للمعلم</h1>
+          <p className="text-sm text-slate-400 font-light mt-1">مرحباً بك مجدداً. تابع مبيعاتك وحضور طلابك في حصصك ومحاضراتك</p>
+        </div>
+        <button
+          onClick={() => {
+            setProfileName(user?.name || '')
+            setProfileExperience(user?.experience || '')
+            setProfileBio(user?.bio || '')
+            setProfileTeachingMode(user?.teaching_mode || 'online')
+            setShowProfileModal(true)
+          }}
+          className="px-5 py-2.5 bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-brand-primary text-slate-200 hover:text-white rounded-xl text-xs font-black transition-all duration-200 cursor-pointer shadow-sm"
+        >
+          ⚙️ إعدادات الملف الشخصي
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -1004,6 +1027,123 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Profile Edit Modal */}
+      <AnimatePresence>
+        {showProfileModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowProfileModal(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
+            />
+
+            {/* Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10"
+              dir="rtl"
+            >
+              <div>
+                <h3 className="text-lg font-black text-slate-100">تعديل الملف الشخصي</h3>
+                <p className="text-xs text-slate-400 font-light mt-1">تحديث بياناتك الشخصية ونظام التدريس الخاص بك والمظهر العام للطلاب</p>
+              </div>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault()
+                  setProfileSaving(true)
+                  try {
+                    const res = await API.post('/teacher/profile/update', {
+                      name: profileName,
+                      experience: profileExperience,
+                      bio: profileBio,
+                      teaching_mode: profileTeachingMode
+                    })
+                    updateUser(res.data.user)
+                    useModalStore.getState().showToast('تم تحديث الملف الشخصي بنجاح.', 'success')
+                    setShowProfileModal(false)
+                  } catch (err: any) {
+                    console.error(err)
+                    useModalStore.getState().showToast('حدث خطأ أثناء تحديث البيانات.', 'error')
+                  } finally {
+                    setProfileSaving(false)
+                  }
+                }}
+                className="space-y-4 text-right"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">الاسم بالكامل <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    required
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">نظام التدريس</label>
+                  <select
+                    value={profileTeachingMode}
+                    onChange={(e) => setProfileTeachingMode(e.target.value as 'online' | 'center' | 'both')}
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                  >
+                    <option value="online">أونلاين فقط</option>
+                    <option value="center">سنتر فقط</option>
+                    <option value="both">أونلاين + سنتر</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">الخبرة وسنوات التدريس</label>
+                  <input
+                    type="text"
+                    required
+                    value={profileExperience}
+                    onChange={(e) => setProfileExperience(e.target.value)}
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">النبذة التعريفية للملف (Bio)</label>
+                  <textarea
+                    rows={3}
+                    value={profileBio}
+                    onChange={(e) => setProfileBio(e.target.value)}
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl p-4 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileModal(false)}
+                    className="px-5 py-2.5 border border-slate-800 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-black rounded-xl cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={profileSaving}
+                    className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-black rounded-xl cursor-pointer flex items-center gap-2"
+                  >
+                    {profileSaving && <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>}
+                    حفظ التغييرات
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   )

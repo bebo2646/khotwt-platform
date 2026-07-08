@@ -31,7 +31,13 @@ class SubscriptionPlan extends Model
         'price_egp',
         'duration_days',
         'is_popular',
-        'billing_options'
+        'billing_options',
+        // New flexible columns
+        'billing_type',
+        'commission_percentage',
+        'default_storage_gb',
+        'codes_limit_type',
+        'max_codes_limit',
     ];
 
     protected $casts = [
@@ -48,6 +54,9 @@ class SubscriptionPlan extends Model
         'finalPrice' => 'decimal:2',
         'isActive' => 'boolean',
         'billing_options' => 'array',
+        'commission_percentage' => 'decimal:2',
+        'default_storage_gb' => 'float',
+        'max_codes_limit' => 'integer',
     ];
 
     public function subscriptions()

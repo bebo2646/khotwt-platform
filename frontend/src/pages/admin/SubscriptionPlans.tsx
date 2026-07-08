@@ -31,6 +31,12 @@ interface Plan {
   created_at?: string
   updated_at?: string
   billing_options?: any
+  billing_type?: 'monthly' | 'revenue_sharing'
+  commission_percentage?: number | string
+  default_storage_gb?: number
+  auto_expand_storage?: boolean
+  codes_limit_type?: 'unlimited' | 'max'
+  max_codes_limit?: number
 }
 
 interface PriceHistory {
@@ -97,6 +103,15 @@ export default function SubscriptionPlans() {
   const [discountPercentage, setDiscountPercentage] = useState<number>(0)
   const [finalPrice, setFinalPrice] = useState<number>(0)
   const [isActive, setIsActive] = useState(true)
+
+  // Flexible Billing Type & Revenue Sharing States
+  const [billingType, setBillingType] = useState<'monthly' | 'revenue_sharing'>('monthly')
+  const [commissionPercentage, setCommissionPercentage] = useState<number>(10)
+  const [defaultStorageGb, setDefaultStorageGb] = useState<number>(50)
+  const [autoExpandStorage, setAutoExpandStorage] = useState<boolean>(true)
+  const [codesLimitType, setCodesLimitType] = useState<'unlimited' | 'max'>('unlimited')
+  const [maxCodesLimit, setMaxCodesLimit] = useState<number>(100)
+
   const [billingOptions, setBillingOptions] = useState({
     monthly: { enabled: false, price: 0, discount: 0 },
     three_months: { enabled: false, price: 0, discount: 0 },
@@ -168,6 +183,13 @@ export default function SubscriptionPlans() {
       setFinalPrice(Number(editingPlan.finalPrice) || 0)
       setIsActive(editingPlan.isActive !== false)
 
+      setBillingType(editingPlan.billing_type || 'monthly')
+      setCommissionPercentage(Number(editingPlan.commission_percentage) || 10)
+      setDefaultStorageGb(Number(editingPlan.default_storage_gb) || 50)
+      setAutoExpandStorage(editingPlan.auto_expand_storage !== false)
+      setCodesLimitType(editingPlan.codes_limit_type || 'unlimited')
+      setMaxCodesLimit(Number(editingPlan.max_codes_limit) || 100)
+
       if (editingPlan.billing_options) {
         let opts = editingPlan.billing_options;
         if (typeof opts === 'string') {
@@ -223,6 +245,14 @@ export default function SubscriptionPlans() {
       setDiscountPercentage(0)
       setFinalPrice(0)
       setIsActive(true)
+
+      setBillingType('monthly')
+      setCommissionPercentage(10)
+      setDefaultStorageGb(50)
+      setAutoExpandStorage(true)
+      setCodesLimitType('unlimited')
+      setMaxCodesLimit(100)
+
       setBillingOptions({
         monthly: { enabled: false, price: 0, discount: 0 },
         three_months: { enabled: false, price: 0, discount: 0 },
@@ -348,12 +378,12 @@ export default function SubscriptionPlans() {
       name,
       slug: slug || undefined,
       description: description || null,
-      price,
+      price: billingType === 'revenue_sharing' ? 0 : price,
       currency,
       duration_in_days: durationInDays,
       max_courses: maxCourses === '' ? null : Number(maxCourses),
-      max_storage_gb: maxStorageGb,
-      included_codes: includedCodes,
+      max_storage_gb: billingType === 'revenue_sharing' ? defaultStorageGb : maxStorageGb,
+      included_codes: billingType === 'revenue_sharing' ? (codesLimitType === 'unlimited' ? 999999 : maxCodesLimit) : includedCodes,
       featured,
       active,
       sort_order: sortOrder,
@@ -361,9 +391,15 @@ export default function SubscriptionPlans() {
       color_theme: colorTheme,
       durationType,
       discountPercentage,
-      finalPrice,
+      finalPrice: billingType === 'revenue_sharing' ? 0 : finalPrice,
       isActive,
-      billing_options: billingOptions
+      billing_options: billingOptions,
+      billing_type: billingType,
+      commission_percentage: billingType === 'revenue_sharing' ? commissionPercentage : null,
+      default_storage_gb: billingType === 'revenue_sharing' ? defaultStorageGb : maxStorageGb,
+      auto_expand_storage: billingType === 'revenue_sharing' ? autoExpandStorage : false,
+      codes_limit_type: billingType === 'revenue_sharing' ? codesLimitType : 'max',
+      max_codes_limit: billingType === 'revenue_sharing' ? maxCodesLimit : includedCodes,
     }
 
     // Check if price changed for an existing plan
@@ -555,31 +591,109 @@ export default function SubscriptionPlans() {
                   <div className="space-y-4 mb-6">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
-                        السعر الأصلي:
+                        <Layers className="w-3.5 h-3.5 text-indigo-500" />
+                        نظام التسعير:
                       </span>
-                      <span className="font-black text-[var(--text-color)] text-sm">
-                        {plan.price} {plan.currency}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <Percent className="w-3.5 h-3.5 text-indigo-500" />
-                        الخصم:
-                      </span>
-                      <span className="font-black text-rose-500">
-                        {plan.discountPercentage || 0}%
+                      <span className={`font-black px-2.5 py-0.5 rounded-md text-[10px] ${
+                        plan.billing_options?.billing_type === 'revenue_sharing' || (plan as any).billing_type === 'revenue_sharing'
+                          ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                          : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                      }`}>
+                        {plan.billing_options?.billing_type === 'revenue_sharing' || (plan as any).billing_type === 'revenue_sharing'
+                          ? 'مشاركة الأرباح'
+                          : 'اشتراك شهري'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
-                        السعر النهائي:
-                      </span>
-                      <span className="font-black text-emerald-500 text-sm">
-                        {plan.finalPrice || plan.price} {plan.currency}
-                      </span>
-                    </div>
+
+                    {(plan.billing_options?.billing_type === 'revenue_sharing' || (plan as any).billing_type === 'revenue_sharing') ? (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Percent className="w-3.5 h-3.5 text-purple-500" />
+                            نسبة عمولة المنصة:
+                          </span>
+                          <span className="font-black text-purple-400 text-sm">
+                            {(plan as any).commission_percentage}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Database className="w-3.5 h-3.5 text-purple-500" />
+                            مساحة التخزين الافتراضية:
+                          </span>
+                          <span className="font-black text-[var(--text-color)]">
+                            {(plan as any).default_storage_gb || plan.max_storage_gb} جيجابايت
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Database className="w-3.5 h-3.5 text-purple-500" />
+                            التوسيع التلقائي للمساحة:
+                          </span>
+                          <span className="font-black text-[var(--text-color)]">
+                            {(plan as any).auto_expand_storage ? '✅ تفعيل التوسيع' : '❌ مساحة ثابتة'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Code className="w-3.5 h-3.5 text-purple-500" />
+                            حد الأكواد الطلابية:
+                          </span>
+                          <span className="font-black text-[var(--text-color)]">
+                            {(plan as any).codes_limit_type === 'unlimited' ? 'بدون حد أقصى' : `${(plan as any).max_codes_limit || plan.included_codes} كود`}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
+                            السعر الأصلي:
+                          </span>
+                          <span className="font-black text-[var(--text-color)] text-sm">
+                            {plan.price} {plan.currency}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Percent className="w-3.5 h-3.5 text-indigo-500" />
+                            الخصم:
+                          </span>
+                          <span className="font-black text-rose-500">
+                            {plan.discountPercentage || 0}%
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-indigo-500" />
+                            السعر النهائي:
+                          </span>
+                          <span className="font-black text-emerald-500 text-sm">
+                            {plan.finalPrice || plan.price} {plan.currency}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Database className="w-3.5 h-3.5 text-indigo-500" />
+                            مساحة التخزين:
+                          </span>
+                          <span className="font-black text-[var(--text-color)]">
+                            {plan.max_storage_gb} جيجابايت
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-bold flex items-center gap-1.5">
+                            <Code className="w-3.5 h-3.5 text-indigo-500" />
+                            أكواد الطلاب المشمولة:
+                          </span>
+                          <span className="font-black text-[var(--text-color)]">
+                            {plan.included_codes} كود
+                          </span>
+                        </div>
+                      </>
+                    )}
+
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-slate-400 font-bold flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-indigo-500" />
@@ -596,24 +710,6 @@ export default function SubscriptionPlans() {
                       </span>
                       <span className={`font-black ${isPlanActive ? 'text-emerald-500' : 'text-slate-500'}`}>
                         {isPlanActive ? 'نشط' : 'غير نشط'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <Database className="w-3.5 h-3.5 text-indigo-500" />
-                        مساحة التخزين:
-                      </span>
-                      <span className="font-black text-[var(--text-color)]">
-                        {plan.max_storage_gb} جيجابايت
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400 font-bold flex items-center gap-1.5">
-                        <Code className="w-3.5 h-3.5 text-indigo-500" />
-                        أكواد الطلاب المشمولة:
-                      </span>
-                      <span className="font-black text-[var(--text-color)]">
-                        {plan.included_codes} كود
                       </span>
                     </div>
                   </div>
@@ -809,89 +905,185 @@ export default function SubscriptionPlans() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Base Price */}
+              {/* Billing Type selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر الأصلي *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    step="0.01"
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                  />
-                </div>
-
-                {/* Discount Percentage */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">الخصم (%) *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    value={discountPercentage}
-                    onChange={(e) => setDiscountPercentage(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                  />
-                </div>
-
-                {/* Final Price */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر النهائي (محسوب)</label>
-                  <input
-                    type="number"
-                    readOnly
-                    value={finalPrice}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border-color)] rounded-xl text-sm font-semibold text-slate-400 focus:outline-none cursor-not-allowed"
-                  />
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">نوع الفوترة / التسعير *</label>
+                  <select
+                    value={billingType}
+                    onChange={(e: any) => setBillingType(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition cursor-pointer font-bold"
+                  >
+                    <option value="monthly">اشتراك شهري (سعر محدد)</option>
+                    <option value="revenue_sharing">مشاركة الأرباح (نسبة عمولة من المبيعات)</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Storage */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">مساحة التخزين (جيجابايت) *</label>
-                  <input
-                    type="number"
-                    required
-                    step="0.01"
-                    min="0"
-                    value={maxStorageGb}
-                    onChange={(e) => setMaxStorageGb(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                  />
-                </div>
+              {billingType === 'monthly' ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Base Price */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر الأصلي *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'monthly'}
+                        min="0"
+                        step="0.01"
+                        value={price}
+                        onChange={(e) => setPrice(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
 
-                {/* Codes */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">أكواد الطلاب المشمولة *</label>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    value={includedCodes}
-                    onChange={(e) => setIncludedCodes(Number(e.target.value))}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                  />
-                </div>
+                    {/* Discount Percentage */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">الخصم (%) *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'monthly'}
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={discountPercentage}
+                        onChange={(e) => setDiscountPercentage(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
 
-                {/* Max Courses */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى للكورسات</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={maxCourses}
-                    onChange={(e) => setMaxCourses(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
-                    placeholder="اتركه فارغاً لبلا حد أقصى"
-                  />
-                </div>
-              </div>
+                    {/* Final Price */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">السعر النهائي (محسوب)</label>
+                      <input
+                        type="number"
+                        readOnly
+                        value={finalPrice}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)]/50 border border-[var(--border-color)] rounded-xl text-sm font-semibold text-slate-400 focus:outline-none cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Storage */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">مساحة التخزين (جيجابايت) *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'monthly'}
+                        step="0.01"
+                        min="0"
+                        value={maxStorageGb}
+                        onChange={(e) => setMaxStorageGb(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+
+                    {/* Codes */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">أكواد الطلاب المشمولة *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'monthly'}
+                        min="0"
+                        value={includedCodes}
+                        onChange={(e) => setIncludedCodes(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+
+                    {/* Max Courses */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى للكورسات</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={maxCourses}
+                        onChange={(e) => setMaxCourses(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                        placeholder="اتركه فارغاً لبلا حد أقصى"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] p-5 rounded-2xl">
+                    {/* Commission percentage */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">نسبة عمولة المنصة (%) *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'revenue_sharing'}
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={commissionPercentage}
+                        onChange={(e) => setCommissionPercentage(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+
+                    {/* Default Storage Limit */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">مساحة التخزين الافتراضية (GB) *</label>
+                      <input
+                        type="number"
+                        required={billingType === 'revenue_sharing'}
+                        min="0"
+                        value={defaultStorageGb}
+                        onChange={(e) => setDefaultStorageGb(Number(e.target.value))}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+
+                    {/* Auto expansion toggle */}
+                    <div className="flex flex-col justify-center">
+                      <span className="text-xs font-bold text-slate-300 mb-1.5">توسيع مساحة الفيديو تلقائياً مع المبيعات</span>
+                      <label className="relative inline-flex items-center cursor-pointer select-none mt-1">
+                        <input
+                          type="checkbox"
+                          checked={autoExpandStorage}
+                          onChange={(e) => setAutoExpandStorage(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-650"></div>
+                        <span className="mr-3 text-xs font-bold text-slate-400">{autoExpandStorage ? 'نعم، يتم منح مساحة إضافية' : 'لا، مساحة ثابتة'}</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] p-5 rounded-2xl">
+                    {/* Codes Limit Type */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">حد أكواد المحاضرات والطلاب *</label>
+                      <select
+                        value={codesLimitType}
+                        onChange={(e: any) => setCodesLimitType(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition cursor-pointer font-bold"
+                      >
+                        <option value="unlimited">أكواد غير محدودة (بدون قيود)</option>
+                        <option value="max">تحديد سقف لعدد الأكواد</option>
+                      </select>
+                    </div>
+
+                    {/* Max codes input */}
+                    {codesLimitType === 'max' && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى للأكواد المسموحة *</label>
+                        <input
+                          type="number"
+                          required={codesLimitType === 'max'}
+                          min="1"
+                          value={maxCodesLimit}
+                          onChange={(e) => setMaxCodesLimit(Number(e.target.value))}
+                          className="w-full px-4 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm font-semibold text-[var(--text-color)] focus:outline-none focus:border-indigo-500 transition"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Badge text */}

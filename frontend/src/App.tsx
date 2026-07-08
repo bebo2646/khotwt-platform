@@ -65,6 +65,7 @@ const AdminNotifications = React.lazy(() => import('./pages/admin/Notifications'
 const AdminSubscriptionRequests = React.lazy(() => import('./pages/admin/SubscriptionRequests'))
 const AdminSubscriptionPlans = React.lazy(() => import('./pages/admin/SubscriptionPlans'))
 const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboard'))
+const AdminPayouts = React.lazy(() => import('./pages/admin/Payouts'))
 
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
@@ -444,6 +445,11 @@ function App() {
         <Route path="/admin/subscription-plans" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AdminLayout><AdminSubscriptionPlans /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/payouts" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminLayout><AdminPayouts /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/students" element={
