@@ -1126,6 +1126,11 @@ class SubscriptionController extends Controller
             'billing_options' => 'nullable|array',
             'most_popular' => 'nullable|boolean',
             'recommended' => 'nullable|boolean',
+            'billing_type' => 'nullable|string|in:monthly,revenue_sharing',
+            'commission_percentage' => 'nullable|numeric|between:0,100',
+            'default_storage_gb' => 'nullable|numeric|min:0',
+            'codes_limit_type' => 'nullable|string|in:unlimited,max',
+            'max_codes_limit' => 'nullable|integer|min:0',
         ]);
 
         $data = $request->all();
@@ -1193,6 +1198,11 @@ class SubscriptionController extends Controller
             'billing_options' => 'nullable|array',
             'most_popular' => 'nullable|boolean',
             'recommended' => 'nullable|boolean',
+            'billing_type' => 'nullable|string|in:monthly,revenue_sharing',
+            'commission_percentage' => 'nullable|numeric|between:0,100',
+            'default_storage_gb' => 'nullable|numeric|min:0',
+            'codes_limit_type' => 'nullable|string|in:unlimited,max',
+            'max_codes_limit' => 'nullable|integer|min:0',
         ]);
 
         $plan = SubscriptionPlan::findOrFail($id);
@@ -1252,15 +1262,35 @@ class SubscriptionController extends Controller
         $plan = SubscriptionPlan::findOrFail($id);
         $oldValues = $plan->toArray();
 
-        $plan->active = !$plan->active;
-        $plan->isActive = !$plan->isActive;
+        $field = $request->input('field', 'active');
+
+        if ($field === 'featured') {
+            $plan->featured = !$plan->featured;
+            $plan->is_popular = $plan->featured;
+            $action = 'toggle_featured';
+            $msg = $plan->featured ? 'تم تمييز الباقة بنجاح' : 'تم إلغاء تمييز الباقة بنجاح';
+        } elseif ($field === 'most_popular') {
+            $plan->most_popular = !$plan->most_popular;
+            $action = 'toggle_most_popular';
+            $msg = $plan->most_popular ? 'تم تفعيل الأكثر شعبية بنجاح' : 'تم إلغاء الأكثر شعبية بنجاح';
+        } elseif ($field === 'recommended') {
+            $plan->recommended = !$plan->recommended;
+            $action = 'toggle_recommended';
+            $msg = $plan->recommended ? 'تم تفعيل الموصى بها بنجاح' : 'تم إلغاء الموصى بها بنجاح';
+        } else {
+            $plan->active = !$plan->active;
+            $plan->isActive = !$plan->isActive;
+            $action = 'toggle_active';
+            $msg = $plan->isActive ? 'تم تفعيل خطة الاشتراك بنجاح' : 'تم إلغاء تفعيل خطة الاشتراك بنجاح';
+        }
+
         $plan->save();
 
         $newValues = $plan->toArray();
-        $this->logPlanAudit($plan->id, $request->user()->id, 'toggle_active', $oldValues, $newValues);
+        $this->logPlanAudit($plan->id, $request->user()->id, $action, $oldValues, $newValues);
 
         return response()->json([
-            'message' => $plan->isActive ? 'تم تفعيل خطة الاشتراك بنجاح' : 'تم إلغاء تفعيل خطة الاشتراك بنجاح',
+            'message' => $msg,
             'plan' => $plan
         ]);
     }
