@@ -935,16 +935,16 @@ export default function StudentsList() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد المخصص للطالب (اختياري):</label>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد المخصص للطالب (اكتب -1 لغير محدود):</label>
                     <input
                       type="number"
-                      min={1}
-                      placeholder="اتركه فارغاً ليورث حد الكورس"
+                      min={-1}
+                      placeholder="اتركه فارغاً ليورث حد الكورس، أو اكتب -1 لغير محدود"
                       className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
                       value={studentLimitMaxOverride}
                       onChange={(e) => setStudentLimitMaxOverride(e.target.value)}
                     />
-                    <p className="text-[10px] text-slate-500 mt-1">تحديد سقف مخصص للمشاهدات لهذا الطالب بالتحديد في هذا الكورس.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">تحديد سقف مخصص للمشاهدات لهذا الطالب بالتحديد في هذا الكورس (اكتب -1 لمشاهدة غير محدودة).</p>
                   </div>
 
                   <div className="flex justify-between items-center pt-4 border-t border-[var(--border-color)]">

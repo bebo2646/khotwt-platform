@@ -11,6 +11,9 @@ interface VideoStat {
   teacher_name: string
   views_count: number
   total_watch_time_minutes: number
+  unique_viewers?: number
+  completion_percentage?: number
+  average_watch_time_minutes?: number
   last_viewed: string
 }
 
@@ -156,13 +159,16 @@ export default function AdminVideoViewsStats() {
                     <th className="pb-3 text-right">الكورس</th>
                     <th className="pb-3 text-right">المعلم</th>
                     <th className="pb-3 text-center">المشاهدات</th>
+                    <th className="pb-3 text-center">الطلاب الفريدون</th>
+                    <th className="pb-3 text-center">متوسط المشاهدة</th>
+                    <th className="pb-3 text-center">نسبة الإكمال</th>
                     <th className="pb-3 text-center">إجمالي الدقائق</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
                   {data.most_watched_lessons.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
                     data.most_watched_lessons.map((stat, idx) => (
@@ -174,6 +180,9 @@ export default function AdminVideoViewsStats() {
                         <td className="py-3.5 text-slate-300">{stat.course_title}</td>
                         <td className="py-3.5 text-slate-300">{stat.teacher_name}</td>
                         <td className="py-3.5 text-center font-bold text-emerald-400">{stat.views_count}</td>
+                        <td className="py-3.5 text-center font-bold text-slate-300">{stat.unique_viewers ?? 0}</td>
+                        <td className="py-3.5 text-center font-mono text-slate-300">{stat.average_watch_time_minutes ?? 0} د</td>
+                        <td className="py-3.5 text-center font-bold text-indigo-400">{stat.completion_percentage ?? 0}%</td>
                         <td className="py-3.5 text-center font-mono">{stat.total_watch_time_minutes} د</td>
                       </tr>
                     ))
@@ -192,13 +201,16 @@ export default function AdminVideoViewsStats() {
                     <th className="pb-3 text-right">الكورس</th>
                     <th className="pb-3 text-right">المعلم</th>
                     <th className="pb-3 text-center">المشاهدات</th>
+                    <th className="pb-3 text-center">الطلاب الفريدون</th>
+                    <th className="pb-3 text-center">متوسط المشاهدة</th>
+                    <th className="pb-3 text-center">نسبة الإكمال</th>
                     <th className="pb-3 text-center">إجمالي الدقائق</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
                   {data.least_watched_lessons.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
+                      <td colSpan={8} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
                     data.least_watched_lessons.map((stat, idx) => (
@@ -210,6 +222,9 @@ export default function AdminVideoViewsStats() {
                         <td className="py-3.5 text-slate-300">{stat.course_title}</td>
                         <td className="py-3.5 text-slate-300">{stat.teacher_name}</td>
                         <td className="py-3.5 text-center font-bold text-rose-400">{stat.views_count}</td>
+                        <td className="py-3.5 text-center font-bold text-slate-300">{stat.unique_viewers ?? 0}</td>
+                        <td className="py-3.5 text-center font-mono text-slate-300">{stat.average_watch_time_minutes ?? 0} د</td>
+                        <td className="py-3.5 text-center font-bold text-indigo-400">{stat.completion_percentage ?? 0}%</td>
                         <td className="py-3.5 text-center font-mono">{stat.total_watch_time_minutes} د</td>
                       </tr>
                     ))

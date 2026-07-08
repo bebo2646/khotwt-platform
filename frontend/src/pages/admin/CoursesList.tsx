@@ -558,16 +558,16 @@ export default function CoursesList() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى لعدد المشاهدات (اختياري):</label>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى لعدد المشاهدات (اكتب -1 لغير محدود):</label>
                 <input
                   type="number"
-                  min={1}
-                  placeholder="اتركه فارغاً لاستخدام الافتراضي للمنصة"
+                  min={-1}
+                  placeholder="اتركه فارغاً للافتراضي، أو اكتب -1 لمشاهدة غير محدودة"
                   className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
                   value={limitMaxViews}
                   onChange={(e) => setLimitMaxViews(e.target.value)}
                 />
-                <p className="text-[10px] text-slate-500 mt-1">الحد الأقصى لعدد مرات مشاهدة الكورس لكل طالب مشترك.</p>
+                <p className="text-[10px] text-slate-500 mt-1">الحد الأقصى لعدد مرات مشاهدة الكورس لكل طالب مشترك (اكتب -1 لتجعل الكورس غير محدود المشاهدات).</p>
               </div>
 
               <div className="flex justify-end gap-3 pt-2 border-t border-[var(--border-color)]">

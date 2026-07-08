@@ -154,17 +154,65 @@ class StudentController extends Controller
                     ->where('course_id', $purchaseCode->course_id)
                     ->exists();
 
-                if ($alreadyEnrolled) {
-                    return response()->json(['message' => 'أنت مشترك بالفعل في هذا الكورس.'], 422);
-                }
-
                 $course = Course::findOrFail($purchaseCode->course_id);
+
+                if ($alreadyEnrolled) {
+                    // Reset views used to unlock course/renew views
+                    $viewLimit = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
+                        ->where('course_id', $purchaseCode->course_id)
+                        ->first();
+                        
+                    if ($viewLimit) {
+                        $viewLimit->views_used = 0;
+                        $viewLimit->save();
+                    } else {
+                        \App\Models\StudentCourseViewLimit::create([
+                            'student_id' => $user->id,
+                            'course_id' => $purchaseCode->course_id,
+                            'views_used' => 0,
+                            'max_views_override' => null,
+                            'extra_views' => 0,
+                        ]);
+                    }
+
+                    $purchaseCode->is_redeemed = true;
+                    $purchaseCode->redeemed_by = $user->id;
+                    $purchaseCode->redeemed_at = Carbon::now();
+                    $purchaseCode->save();
+
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $course->teacher_id,
+                        $course->final_price,
+                        $course->id,
+                        null,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
+
+                    $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+
+                    return response()->json([
+                        'type' => 'course',
+                        'message' => 'تم تفعيل كود الشحن وتجديد عدد المشاهدات للكورس بنجاح!',
+                        'course_id' => $purchaseCode->course_id,
+                        'view_limit_details' => $viewLimitDetails
+                    ]);
+                }
 
                 Enrollment::create([
                     'student_id' => $user->id,
                     'course_id' => $purchaseCode->course_id,
                     'enrolled_at' => Carbon::now(),
                 ]);
+
+                // Create or reset views used on enrollment
+                $viewLimit = \App\Models\StudentCourseViewLimit::updateOrCreate(
+                    ['student_id' => $user->id, 'course_id' => $purchaseCode->course_id],
+                    ['views_used' => 0]
+                );
 
                 $purchaseCode->is_redeemed = true;
                 $purchaseCode->redeemed_by = $user->id;
@@ -187,6 +235,7 @@ class StudentController extends Controller
                     'type' => 'course',
                     'message' => 'تم الاشتراك في الكورس بنجاح',
                     'course_id' => $purchaseCode->course_id,
+                    'view_limit_details' => $course->getStudentViewLimitDetails($user->id)
                 ]);
             }
 
@@ -964,6 +1013,7 @@ class StudentController extends Controller
         $lesson = \App\Models\Lesson::with(['unit.course'])->findOrFail($lessonId);
         $course = $lesson->unit->course;
 
+        // Check course access for student
         if ($user->role === 'student') {
             $isEnrolled = Enrollment::where('student_id', $user->id)
                 ->where('course_id', $course->id)
@@ -972,8 +1022,29 @@ class StudentController extends Controller
                 return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لمشاهدة المحتوى.'], 403);
             }
 
+            // Check if student has exceeded view limit
             if ($course->hasExceededViewLimitForStudent($user->id)) {
-                return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+                $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+                return response()->json([
+                    'is_views_exceeded' => true,
+                    'message' => 'لقد استنفدت عدد المشاهدات المسموح بها لهذا الكورس.',
+                    'lesson' => [
+                        'id' => $lesson->id,
+                        'title' => $lesson->title,
+                        'unit' => [
+                            'title' => $lesson->unit->title,
+                            'course' => [
+                                'title' => $course->title,
+                                'id' => $course->id
+                            ],
+                            'course_id' => $course->id
+                        ]
+                    ],
+                    'videos' => [],
+                    'pdfs' => [],
+                    'exams' => [],
+                    'view_limit_details' => $viewLimitDetails
+                ]);
             }
 
             if ($lesson->isLockedForStudent($user->id)) {
@@ -1051,11 +1122,17 @@ class StudentController extends Controller
             ];
         });
 
+        $viewLimitDetails = null;
+        if ($user->isStudent()) {
+            $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+        }
+
         return response()->json([
             'lesson' => $lesson,
             'videos' => $videosWithProgress,
             'pdfs' => $pdfs,
             'exams' => $examsWithAttempts,
+            'view_limit_details' => $viewLimitDetails
         ]);
     }
 
@@ -1107,14 +1184,10 @@ class StudentController extends Controller
                 $session->save();
             }
 
-            $settings = \App\Models\PlatformSetting::first();
-            $threshold = $settings ? (int)$settings->video_threshold_seconds : 300;
+            // Strictly enforce view threshold of 5 minutes (300 seconds)
+            $threshold = 300;
             
-            // Adjust threshold to be at most 85% of video duration if video is shorter than the threshold
-            $videoDur = $video->duration_seconds ?: 300;
-            $adjustedThreshold = min($threshold, (int)round($videoDur * 0.85));
-
-            if ($session->watch_time >= $adjustedThreshold && !$session->counted) {
+            if ($session->watch_time >= $threshold && !$session->counted) {
                 $session->counted = true;
                 $session->save();
 
@@ -1151,8 +1224,8 @@ class StudentController extends Controller
         // Fallback to request's watched_seconds if no segments are provided
         $finalWatchedSeconds = count($mergedSegments) > 0 ? (int)round($watchedDuration) : $request->watched_seconds;
         
-        // Calculate percentage: (finalWatchedSeconds / duration) * 100
-        $percentage = min(100.00, round(($finalWatchedSeconds / $duration) * 100, 2));
+        // Calculate percentage: (currentTime / duration) * 100
+        $percentage = min(100.00, round(($lastPosition / $duration) * 100, 2));
 
         $viewsCount = $progress ? $progress->views_count : 1;
         if ($progress) {
@@ -1179,6 +1252,12 @@ class StudentController extends Controller
                 'watched_segments' => $mergedSegments,
             ]
         );
+
+        $viewLimitDetails = null;
+        if ($user->isStudent() && $video->lesson && $video->lesson->unit) {
+            $viewLimitDetails = $video->lesson->unit->course->getStudentViewLimitDetails($user->id);
+        }
+        $progress->view_limit_details = $viewLimitDetails;
 
         return response()->json($progress);
     }
@@ -1251,6 +1330,12 @@ class StudentController extends Controller
 
         if (!$isEnrolled) {
             return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لحل الامتحان.'], 403);
+        }
+
+        // Check if student has exceeded course views
+        $course = $lesson ? $lesson->unit->course : null;
+        if ($course && $course->hasExceededViewLimitForStudent($user->id)) {
+            return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
         // Check if the exam is paid and student has purchased it

@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
+import { useModalStore } from '../store/modalStore'
 import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, Video, BookOpen } from 'lucide-react'
 import SEO from '../components/SEO'
 import PurchaseModal from '../components/PurchaseModal'
@@ -99,6 +100,9 @@ export default function CourseDetail() {
   const [availabilityMessage, setAvailabilityMessage] = React.useState<string | null>(null)
   const [viewLimitExceeded, setViewLimitExceeded] = React.useState(false)
   const [viewLimitMessage, setViewLimitMessage] = React.useState<string | null>(null)
+  const [viewLimitDetails, setViewLimitDetails] = React.useState<any>(null)
+  const [rechargeCode, setRechargeCode] = React.useState('')
+  const [redeemingCode, setRedeemingCode] = React.useState(false)
   
   const [loading, setLoading] = React.useState(true)
   const [purchasing, setPurchasing] = React.useState(false)
@@ -123,6 +127,7 @@ export default function CourseDetail() {
         setAvailabilityMessage(res.data.availability_message || null)
         setViewLimitExceeded(res.data.view_limit_exceeded || false)
         setViewLimitMessage(res.data.view_limit_message || null)
+        setViewLimitDetails(res.data.view_limit_details || null)
 
         // Expand the first unit by default
         if (res.data.units.length > 0) {
@@ -132,6 +137,26 @@ export default function CourseDetail() {
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
   }, [id])
+
+  const handleRedeemRechargeCode = async () => {
+    if (!rechargeCode.trim()) return
+    setRedeemingCode(true)
+    try {
+      const res = await API.post('/wallet/redeem', { code: rechargeCode })
+      useModalStore.getState().showToast(res.data.message || 'تم شحن الكود بنجاح!', 'success')
+      setRechargeCode('')
+      fetchDetails()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'كود غير صالح أو منتهي الصلاحية.'
+      useModalStore.getState().showAlert({
+        title: 'فشل التفعيل',
+        description: errorMsg,
+        type: 'error'
+      })
+    } finally {
+      setRedeemingCode(false)
+    }
+  }
 
   React.useEffect(() => {
     fetchDetails()
@@ -375,10 +400,45 @@ export default function CourseDetail() {
           )}
 
           {isEnrolled ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className="w-full py-3 bg-emerald-500/10 border border-emerald-500/20 text-brand-success text-center text-sm font-bold rounded-xl">
                 مشترك بالفعل في هذا الكورس
               </div>
+
+              {/* View limit details counter */}
+              {viewLimitDetails && viewLimitDetails.limit_enabled && (
+                <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-right space-y-1">
+                  <span className="text-[10px] text-slate-400 block">المشاهدات المتبقية:</span>
+                  <span className="text-sm font-black text-brand-primary">
+                    {viewLimitDetails.is_unlimited ? 'غير محدود' : `${viewLimitDetails.remaining} / ${viewLimitDetails.max_views}`}
+                  </span>
+                </div>
+              )}
+
+              {/* Locked view limit block & recharge code */}
+              {viewLimitExceeded && (
+                <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl text-center space-y-3">
+                  <span className="text-xs text-rose-400 font-bold block">لقد استنفدت جميع المشاهدات المتاحة.</span>
+                  
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={rechargeCode}
+                      onChange={(e) => setRechargeCode(e.target.value)}
+                      placeholder="أدخل كود الشحن..."
+                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-[10px] focus:outline-none focus:border-brand-primary text-center font-mono font-bold text-slate-200"
+                    />
+                    <button
+                      onClick={handleRedeemRechargeCode}
+                      disabled={redeemingCode}
+                      className="w-full py-2 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                    >
+                      {redeemingCode ? 'جاري التفعيل...' : 'تفعيل الكود'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <button
                 onClick={() => {
                   if (units.length > 0 && units[0].lessons.length > 0) {

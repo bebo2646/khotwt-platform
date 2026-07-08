@@ -402,6 +402,11 @@ class PublicController extends Controller
             ];
         });
 
+        $viewLimitDetails = null;
+        if ($user && $user->isStudent() && $isEnrolled) {
+            $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+        }
+
         return response()->json([
             'course' => $course,
             'units' => $unitsFormatted,
@@ -411,6 +416,7 @@ class PublicController extends Controller
             'availability_message' => $availabilityMessage,
             'view_limit_exceeded' => $viewLimitExceeded,
             'view_limit_message' => $viewLimitExceeded ? 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.' : null,
+            'view_limit_details' => $viewLimitDetails,
         ]);
     }
 

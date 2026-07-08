@@ -1,7 +1,7 @@
 import React from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import API from '../../services/api'
-import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet, Maximize, Minimize } from 'lucide-react'
+import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet, Maximize, Minimize, Lock } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
 import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl } from '../../utils/video'
@@ -80,6 +80,11 @@ export default function LessonViewer() {
   const { user } = useAuthStore()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const [isFullscreen, setIsFullscreen] = React.useState(false)
+
+  const [viewLimitExceeded, setViewLimitExceeded] = React.useState(false)
+  const [viewLimitDetails, setViewLimitDetails] = React.useState<any>(null)
+  const [rechargeCode, setRechargeCode] = React.useState('')
+  const [redeemingCode, setRedeemingCode] = React.useState(false)
 
   const watchSessionIdRef = React.useRef<string>('')
   const sessionWatchTimeRef = React.useRef<number>(0)
@@ -197,6 +202,20 @@ export default function LessonViewer() {
     setLoading(true)
     API.get(`/student/lessons/${id}`)
       .then((res) => {
+        if (res.data.is_views_exceeded) {
+          setViewLimitExceeded(true)
+          setViewLimitDetails(res.data.view_limit_details)
+          setLesson(res.data.lesson)
+          setVideos([])
+          setPdfs([])
+          setExams([])
+          setActiveVideo(null)
+          setVideoEmbedUrl('')
+          return
+        }
+
+        setViewLimitExceeded(false)
+        setViewLimitDetails(res.data.view_limit_details)
         setLesson(res.data.lesson)
         setVideos(res.data.videos)
         setPdfs(res.data.pdfs)
@@ -219,7 +238,7 @@ export default function LessonViewer() {
           
           const videoDuration = defaultVideo.duration_seconds || 300
           setDuration(videoDuration)
-          setProgressPercentage(videoDuration > 0 ? (watchedSecs / videoDuration) * 100 : 0)
+          setProgressPercentage(Number(defaultVideo.progress?.watched_percentage) || 0)
 
           // Set stable video embed URL once initially
           const initialEmbedUrl = getEmbedUrl(defaultVideo)
@@ -237,6 +256,26 @@ export default function LessonViewer() {
         navigate(`/courses`)
       })
       .finally(() => setLoading(false))
+  }
+
+  const handleRedeemRechargeCode = async () => {
+    if (!rechargeCode.trim()) return
+    setRedeemingCode(true)
+    try {
+      const res = await API.post('/wallet/redeem', { code: rechargeCode })
+      useModalStore.getState().showToast(res.data.message || 'تم شحن الكود بنجاح!', 'success')
+      setRechargeCode('')
+      fetchLessonData()
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'كود غير صالح أو منتهي الصلاحية.'
+      useModalStore.getState().showAlert({
+        title: 'فشل التفعيل',
+        description: errorMsg,
+        type: 'error'
+      })
+    } finally {
+      setRedeemingCode(false)
+    }
   }
 
   React.useEffect(() => {
@@ -318,11 +357,18 @@ export default function LessonViewer() {
 
       const res = await API.post(`/videos/${video.id}/progress`, payload)
       if (res.data) {
+        const progressData = res.data;
+        if (progressData.view_limit_details) {
+          setViewLimitDetails(progressData.view_limit_details);
+          if (progressData.view_limit_details.exceeded) {
+            setViewLimitExceeded(true);
+          }
+        }
         setVideos(prev => prev.map(v => {
           if (v.id === video.id) {
             return {
               ...v,
-              progress: res.data
+              progress: progressData
             };
           }
           return v;
@@ -331,7 +377,7 @@ export default function LessonViewer() {
           if (prev && prev.id === video.id) {
             return {
               ...prev,
-              progress: res.data
+              progress: progressData
             };
           }
           return prev;
@@ -353,7 +399,11 @@ export default function LessonViewer() {
     
     const merged = mergeSegments(watchedSegmentsRef.current);
     const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-    const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+    
+    // Progress must ONLY depend on: currentTime / duration
+    const currentProgress = durVal > 0 ? (current / durVal) * 100 : 0;
+    const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
+    const percentage = Math.max(savedPercentage, currentProgress);
     
     await saveLessonProgress({
       lessonId: Number(id),
@@ -593,7 +643,10 @@ export default function LessonViewer() {
     setWatchedTime(totalSecs);
     setSecondsWatched(totalSecs);
     if (durVal > 0) {
-      setProgressPercentage(Math.min(100, (totalSecs / durVal) * 100));
+      // Progress must ONLY depend on: currentTime / duration
+      const currentProgress = (t / durVal) * 100;
+      const savedPercentage = Number(activeVideo.progress?.watched_percentage) || 0;
+      setProgressPercentage(Math.min(100, Math.max(savedPercentage, currentProgress)));
     }
   }, [lastPosition, isPlaying, activeVideo?.id]);
 
@@ -818,7 +871,11 @@ export default function LessonViewer() {
       const durVal = durationRef.current || prevVideo.duration_seconds || 300;
       const merged = mergeSegments(watchedSegmentsRef.current);
       const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-      const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+      
+      const currentProgress = durVal > 0 ? (current / durVal) * 100 : 0;
+      const savedPercentage = Number(prevVideo.progress?.watched_percentage) || 0;
+      const percentage = Math.max(savedPercentage, currentProgress);
+
       await saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
@@ -845,7 +902,7 @@ export default function LessonViewer() {
     
     const videoDuration = video.duration_seconds || 300
     setDuration(videoDuration)
-    setProgressPercentage(videoDuration > 0 ? (watchedSecs / videoDuration) * 100 : 0)
+    setProgressPercentage(Number(video.progress?.watched_percentage) || 0)
     
     // Seek native video element if it's rendered
     if (videoRef.current) {
@@ -938,7 +995,53 @@ export default function LessonViewer() {
       </div>
 
       {/* Main viewer grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {viewLimitExceeded ? (
+        <div className="max-w-xl mx-auto my-12 p-8 bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-3xl text-center space-y-6 shadow-xl">
+          <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center mx-auto border border-rose-500/20 animate-pulse">
+            <Lock className="w-8 h-8" />
+          </div>
+          
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-slate-100 font-bold">انتهت عدد المشاهدات المسموح بها لهذا الكورس.</h2>
+            <p className="text-sm text-slate-400 font-light leading-relaxed">
+              لقد استنفدت جميع المشاهدات المتاحة لهذا الكورس.
+              <br />
+              للاستمرار في الدراسة يجب شحن كود جديد أو التواصل مع إدارة المنصة أو المدرس.
+            </p>
+          </div>
+
+          {/* Recharge Code Form */}
+          <div className="p-5 bg-black/20 rounded-2xl border border-slate-850 space-y-3">
+            <label className="block text-xs font-bold text-slate-300 text-right">إدخال كود شحن الكورس:</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={rechargeCode}
+                onChange={(e) => setRechargeCode(e.target.value)}
+                placeholder="أدخل كود الشحن هنا..."
+                className="flex-grow px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs focus:outline-none focus:border-brand-primary text-center font-mono font-bold text-slate-200"
+              />
+              <button
+                onClick={handleRedeemRechargeCode}
+                disabled={redeemingCode}
+                className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shrink-0"
+              >
+                {redeemingCode ? 'جاري التفعيل...' : 'تفعيل الكود'}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              to="/courses"
+              className="px-6 py-3 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-slate-300 hover:text-white text-xs font-bold rounded-xl transition-all"
+            >
+              العودة إلى الكورسات
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Playback content column */}
         <div className="lg:col-span-2 space-y-6">
@@ -948,7 +1051,11 @@ export default function LessonViewer() {
             <div className="space-y-4">
               <div 
                 ref={containerRef}
-                className="aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative"
+                className={`aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative ${
+                  isFullscreen 
+                    ? 'fixed inset-0 w-[100vw] h-[100vh] z-[99999] rounded-none border-none' 
+                    : ''
+                }`}
               >
                 
                 {/* Fullscreen Button */}
@@ -1009,7 +1116,7 @@ export default function LessonViewer() {
                       <iframe
                         id="youtube-player"
                         src={finalSrc}
-                        className="w-full h-full"
+                        className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
@@ -1033,7 +1140,7 @@ export default function LessonViewer() {
                         ref={videoRef}
                         src={url}
                         controls
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain relative z-[1]"
                         controlsList="nodownload"
                         onPlay={() => setIsPlaying(true)}
                         onPause={() => setIsPlaying(false)}
@@ -1061,7 +1168,7 @@ export default function LessonViewer() {
                     return (
                       <iframe
                         src={finalSrc}
-                        className="w-full h-full"
+                        className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}
                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
                         allowFullScreen
@@ -1248,6 +1355,16 @@ export default function LessonViewer() {
         {/* Sidebar / Tabs list column */}
         <div className="space-y-6">
           
+          {/* Remaining views card */}
+          {viewLimitDetails && viewLimitDetails.limit_enabled && (
+            <div className="bg-brand-card border border-[var(--border-color)] p-4 rounded-3xl text-right space-y-1">
+              <span className="text-[10px] text-slate-400 block">المشاهدات المتبقية:</span>
+              <span className="text-base font-black text-brand-primary">
+                {viewLimitDetails.is_unlimited ? 'غير محدود' : `${viewLimitDetails.remaining} / ${viewLimitDetails.max_views}`}
+              </span>
+            </div>
+          )}
+
           {/* Quick tab switchers */}
           <div className="bg-brand-card border border-[var(--border-color)] p-2 sm:p-4 rounded-3xl grid grid-cols-3 gap-1.5 sm:gap-2">
             <button
@@ -1365,6 +1482,7 @@ export default function LessonViewer() {
         </div>
 
       </div>
+      )}
 
       {/* Platform PDF Viewer Modal */}
       {activePdf !== null && (
@@ -1435,45 +1553,114 @@ interface VideoWatermarkProps {
 }
 
 function VideoWatermark({ name, phone }: VideoWatermarkProps) {
-  const [position, setPosition] = React.useState({ top: '25%', left: '25%' })
-  const [opacity, setOpacity] = React.useState(0.25)
-  const [visible, setVisible] = React.useState(true)
+  // We need 3 moving watermarks. We can represent their state in separate hooks.
+  // Watermark 1: Left column (5% to 30%), timing 5s, opacity 30%
+  const [pos1, setPos1] = React.useState({ top: '20%', left: '10%' })
+  const [visible1, setVisible1] = React.useState(true)
 
+  // Watermark 2: Center column (35% to 60%), timing 6.5s, opacity 35%
+  const [pos2, setPos2] = React.useState({ top: '50%', left: '45%' })
+  const [visible2, setVisible2] = React.useState(true)
+
+  // Watermark 3: Right column (65% to 85%), timing 8s, opacity 40%
+  const [pos3, setPos3] = React.useState({ top: '30%', left: '75%' })
+  const [visible3, setVisible3] = React.useState(true)
+
+  // Effect for Watermark 1 (every 5 seconds)
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setVisible(false)
-      
+      setVisible1(false)
       setTimeout(() => {
-        const randomTop = Math.floor(Math.random() * 65) + 15 // 15% to 80%
-        const randomLeft = Math.floor(Math.random() * 65) + 15 // 15% to 80%
-        const randomOpacity = (Math.random() * 0.2) + 0.15 // 0.15 to 0.35
-        
-        setPosition({ top: `${randomTop}%`, left: `${randomLeft}%` })
-        setOpacity(randomOpacity)
-        setVisible(true)
-      }, 500)
-      
-    }, 6000)
-
+        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70% (avoiding bottom controls)
+        const left = Math.floor(Math.random() * 25) + 5 // 5% to 30%
+        setPos1({ top: `${top}%`, left: `${left}%` })
+        setVisible1(true)
+      }, 400)
+    }, 5000)
     return () => clearInterval(interval)
   }, [])
 
+  // Effect for Watermark 2 (every 6.5 seconds)
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible2(false)
+      setTimeout(() => {
+        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70%
+        const left = Math.floor(Math.random() * 25) + 35 // 35% to 60%
+        setPos2({ top: `${top}%`, left: `${left}%` })
+        setVisible2(true)
+      }, 400)
+    }, 6500)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Effect for Watermark 3 (every 8 seconds)
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible3(false)
+      setTimeout(() => {
+        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70%
+        const left = Math.floor(Math.random() * 20) + 65 // 65% to 85%
+        setPos3({ top: `${top}%`, left: `${left}%` })
+        setVisible3(true)
+      }, 400)
+    }, 8000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const commonStyle = {
+    color: '#ffffff',
+    fontWeight: 900,
+    textShadow: '2px 2px 0px #000000, -2px -2px 0px #000000, 2px -2px 0px #000000, -2px 2px 0px #000000, 0 2px 4px rgba(0,0,0,0.8)',
+    fontSize: 'clamp(10px, 1.8vw, 20px)',
+    lineHeight: '1.3',
+    direction: 'rtl' as const,
+    whiteSpace: 'nowrap' as const,
+  }
+
   return (
-    <div 
-      className="absolute pointer-events-none select-none z-50 text-white font-extrabold transition-all duration-500 ease-in-out text-right font-sans"
-      style={{
-        top: position.top,
-        left: position.left,
-        opacity: visible ? opacity : 0,
-        textShadow: '1px 1px 2px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.9), 0 0 5px rgba(0,0,0,0.8)',
-        fontSize: 'clamp(10px, 1.6vw, 18px)',
-        lineHeight: '1.4',
-        direction: 'rtl',
-        whiteSpace: 'nowrap'
-      }}
-    >
-      <div>{name}</div>
-      {phone && <div className="mt-0.5 tracking-wider font-mono">{phone}</div>}
-    </div>
+    <>
+      {/* Watermark 1 */}
+      <div
+        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
+        style={{
+          ...commonStyle,
+          top: pos1.top,
+          left: pos1.left,
+          opacity: visible1 ? 0.30 : 0,
+        }}
+      >
+        <div>{name}</div>
+        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
+      </div>
+
+      {/* Watermark 2 */}
+      <div
+        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
+        style={{
+          ...commonStyle,
+          top: pos2.top,
+          left: pos2.left,
+          opacity: visible2 ? 0.35 : 0,
+        }}
+      >
+        <div>{name}</div>
+        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
+      </div>
+
+      {/* Watermark 3 */}
+      <div
+        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
+        style={{
+          ...commonStyle,
+          top: pos3.top,
+          left: pos3.left,
+          opacity: visible3 ? 0.40 : 0,
+        }}
+      >
+        <div>{name}</div>
+        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
+      </div>
+    </>
   )
 }

@@ -2059,7 +2059,7 @@ class AdminController extends Controller
         $request->validate([
             'student_id' => 'required|exists:users,id',
             'course_id' => 'required|exists:courses,id',
-            'max_views_override' => 'nullable|integer|min:0',
+            'max_views_override' => 'nullable|integer|min:-1',
             'extra_views' => 'nullable|integer',
             'views_used' => 'nullable|integer|min:0',
         ]);
@@ -2143,7 +2143,7 @@ class AdminController extends Controller
     {
         $request->validate([
             'view_limit_enabled' => 'nullable|boolean',
-            'max_views' => 'nullable|integer|min:1',
+            'max_views' => 'nullable|integer|min:-1',
         ]);
 
         $course = \App\Models\Course::findOrFail($courseId);
@@ -2187,6 +2187,19 @@ class AdminController extends Controller
 
         $formattedVideoStats = $videoStats->map(function ($stat) {
             $video = $stat->video;
+            
+            $uniqueViewers = \App\Models\VideoViewSession::where('video_id', $stat->video_id)
+                ->where('counted', true)
+                ->distinct('student_id')
+                ->count('student_id');
+                
+            $avgCompletion = \App\Models\VideoProgress::where('video_id', $stat->video_id)
+                ->avg('watched_percentage') ?? 0;
+                
+            $avgWatchTime = $stat->views_count > 0 
+                ? (int)round(($stat->total_watch_time / $stat->views_count) / 60) 
+                : 0;
+
             return [
                 'video_id' => $stat->video_id,
                 'video_title' => $video->title ?? 'فيديو محذوف',
@@ -2194,7 +2207,10 @@ class AdminController extends Controller
                 'course_title' => $video->lesson->unit->course->title ?? 'كورس محذوف',
                 'teacher_name' => $video->lesson->unit->course->teacher->name ?? 'معلم محذوف',
                 'views_count' => $stat->views_count,
+                'unique_viewers' => $uniqueViewers,
                 'total_watch_time_minutes' => (int)round($stat->total_watch_time / 60),
+                'completion_percentage' => round($avgCompletion, 2),
+                'average_watch_time_minutes' => $avgWatchTime,
                 'last_viewed' => $stat->last_viewed_at,
             ];
         });
