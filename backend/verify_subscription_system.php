@@ -270,7 +270,8 @@ try {
     // Temporarily limit the plan capacity to 1 student code
     $plan = SubscriptionPlan::find($teacherSub->plan_id);
     $originalCodes = $plan->student_codes;
-    $plan->update(['student_codes' => 1]);
+    $originalLimitType = $plan->codes_limit_type;
+    $plan->update(['student_codes' => 1, 'codes_limit_type' => 'max']);
     
     $teacherSub->refresh(); // Now remaining codes is 0
     
@@ -286,6 +287,12 @@ try {
 
     // Credit student wallet
     $wallet2 = \App\Models\Wallet::create(['student_id' => $mockStudent2->id, 'balance' => 200.00]);
+    \App\Models\WalletTransaction::create([
+        'wallet_id' => $wallet2->id,
+        'type' => 'recharge',
+        'amount' => 200.00,
+        'description' => 'Test recharge',
+    ]);
     
     // Attempt enrollment
     $studentController = new \App\Http\Controllers\StudentController();
@@ -301,7 +308,10 @@ try {
     assertTest(strpos($resData['message'], 'السعة الاستيعابية') !== false, "Error message correctly warns about student capacity limits: '{$resData['message']}'");
     
     // Restore capacity limit
-    $plan->update(['student_codes' => $originalCodes]);
+    $plan->update([
+        'student_codes' => $originalCodes,
+        'codes_limit_type' => $originalLimitType
+    ]);
 
     // Rollback transactions to keep database clean
     DB::rollBack();

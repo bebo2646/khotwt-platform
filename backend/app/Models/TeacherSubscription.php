@@ -82,28 +82,48 @@ class TeacherSubscription extends Model
             ->count('enrollments.student_id');
     }
 
+    public function getUsedStorageBytesAttribute()
+    {
+        return (int) \App\Models\Video::whereHas('lesson.unit.course', function ($q) {
+            $q->where('teacher_id', $this->teacher_id);
+        })->sum('storage_size');
+    }
+
     public function getExtraStorageGbAttribute()
     {
-        return $this->resourceOverride ? $this->resourceOverride->extra_storage_gb : 0;
+        $addonSum = (float) ($this->addons()->where('type', 'storage')->sum('amount') ?? 0);
+        $overrideStorage = $this->resourceOverride ? (float) $this->resourceOverride->extra_storage_gb : 0;
+        $salesStorage = (float) ($this->allocated_storage_from_sales ?? 0);
+        return $addonSum + $overrideStorage + $salesStorage;
     }
 
     public function getExtraCodesAttribute()
     {
-        return $this->resourceOverride ? $this->resourceOverride->extra_student_codes : 0;
+        $addonSum = (int) ($this->addons()->where('type', 'codes')->sum('amount') ?? 0);
+        $overrideCodes = $this->resourceOverride ? (int) $this->resourceOverride->extra_student_codes : 0;
+        return $addonSum + $overrideCodes;
+    }
+
+    public function getIncludedStorageGbAttribute()
+    {
+        if (!$this->plan) return 0.0;
+        return $this->plan->billing_type === 'revenue_sharing'
+            ? (float) $this->plan->default_storage_gb
+            : (float) $this->plan->video_storage_gb;
+    }
+
+    public function getIncludedCodesAttribute()
+    {
+        if (!$this->plan) return 0;
+        if ($this->plan->codes_limit_type === 'unlimited') {
+            return 999999;
+        }
+        return (int) ($this->plan->max_codes_limit ?? $this->plan->student_codes ?? 0);
     }
 
     public function getTotalStorageGbAttribute()
     {
-        $planStorage = 0;
-        if ($this->plan) {
-            if ($this->plan->billing_type === 'revenue_sharing') {
-                $planStorage = $this->plan->default_storage_gb;
-            } else {
-                $planStorage = $this->plan->video_storage_gb;
-            }
-        }
-        $salesStorage = $this->allocated_storage_from_sales ?? 0;
-        return $planStorage + $this->getExtraStorageGbAttribute() + $salesStorage;
+        return $this->getIncludedStorageGbAttribute() + $this->getExtraStorageGbAttribute();
     }
 
     public function getTotalStorageBytesAttribute()
@@ -113,11 +133,11 @@ class TeacherSubscription extends Model
 
     public function getTotalCodesAttribute()
     {
-        if ($this->plan && $this->plan->billing_type !== 'revenue_sharing' && $this->plan->codes_limit_type === 'unlimited') {
-            return 999999; // Represents Unlimited
+        $included = $this->getIncludedCodesAttribute();
+        if ($included >= 999999) {
+            return 999999;
         }
-        $planCodes = $this->plan ? ($this->plan->max_codes_limit ?? $this->plan->student_codes) : 0;
-        return $planCodes + $this->getExtraCodesAttribute();
+        return $included + $this->getExtraCodesAttribute();
     }
 
     public function getRemainingStorageBytesAttribute()
@@ -129,18 +149,23 @@ class TeacherSubscription extends Model
 
     public function getRemainingStorageGbAttribute()
     {
-        return round($this->getRemainingStorageBytesAttribute() / (1024 * 1024 * 1024), 2);
+        $usedGb = round($this->used_storage_bytes / (1024 * 1024 * 1024), 2);
+        return max(0, round($this->getTotalStorageGbAttribute() - $usedGb, 2));
     }
 
     public function getRemainingCodesAttribute()
     {
+        if ($this->getIncludedCodesAttribute() >= 999999) {
+            return 999999;
+        }
         return max(0, $this->getTotalCodesAttribute() - $this->used_codes);
     }
 
     public function getStoragePercentageAttribute()
     {
-        $totalBytes = $this->getTotalStorageBytesAttribute();
-        if ($totalBytes <= 0) return 0;
-        return min(100, round(($this->used_storage_bytes / $totalBytes) * 100, 1));
+        $totalGb = $this->getTotalStorageGbAttribute();
+        if ($totalGb <= 0) return 0;
+        $usedGb = $this->used_storage_bytes / (1024 * 1024 * 1024);
+        return min(100, round(($usedGb / $totalGb) * 100, 1));
     }
 }

@@ -219,13 +219,15 @@ class SubscriptionController extends Controller
         $details = $this->getSubscriptionPriceDetails($plan, $billingPeriod);
         
         $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
-        $baseDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) 
-            ? $currentEndDate 
-            : Carbon::now();
-        $newEndDate = $baseDate->addMonths($details['months'])->toDateString();
-        $newStartDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture())
-            ? $subscription->start_date
-            : Carbon::now()->toDateString();
+        $isRenewal = ((int)$subscription->plan_id === (int)$plan->id);
+
+        if ($isRenewal && $subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) {
+            $newStartDate = $subscription->start_date->toDateString();
+            $newEndDate = $currentEndDate->addMonths($details['months'])->toDateString();
+        } else {
+            $newStartDate = Carbon::now()->toDateString();
+            $newEndDate = Carbon::now()->addMonths($details['months'])->toDateString();
+        }
 
         $subscription->update([
             'plan_id' => $plan->id,
@@ -550,13 +552,15 @@ class SubscriptionController extends Controller
                 }
 
                 $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
-                $baseDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) 
-                    ? $currentEndDate 
-                    : Carbon::now();
-                $newEndDate = $baseDate->addMonths($months)->toDateString();
-                $newStartDate = ($subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture())
-                    ? $subscription->start_date
-                    : Carbon::now()->toDateString();
+                $isRenewal = ((int)$subscription->plan_id === (int)$plan->id);
+
+                if ($isRenewal && $subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) {
+                    $newStartDate = $subscription->start_date->toDateString();
+                    $newEndDate = $currentEndDate->addMonths($months)->toDateString();
+                } else {
+                    $newStartDate = Carbon::now()->toDateString();
+                    $newEndDate = Carbon::now()->addMonths($months)->toDateString();
+                }
 
                 $subscription->update([
                     'plan_id' => $plan->id,

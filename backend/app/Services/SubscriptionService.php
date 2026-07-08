@@ -40,14 +40,25 @@ class SubscriptionService
                 
                 if ($req->type === 'plan_upgrade') {
                     $plan = SubscriptionPlan::findOrFail($req->requested_plan_id);
+                    $subscription = TeacherSubscription::where('teacher_id', $teacher->id)->first();
                     
-                    // Update or create subscription
+                    $isRenewal = ($subscription && (int)$subscription->plan_id === (int)$plan->id);
+                    $currentEndDate = ($subscription && $subscription->end_date) ? Carbon::parse($subscription->end_date) : null;
+                    
+                    if ($isRenewal && $subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) {
+                        $newStartDate = $subscription->start_date->toDateString();
+                        $newEndDate = $currentEndDate->addDays($plan->duration_in_days)->toDateString();
+                    } else {
+                        $newStartDate = Carbon::now()->toDateString();
+                        $newEndDate = Carbon::now()->addDays($plan->duration_in_days)->toDateString();
+                    }
+
                     $subscription = TeacherSubscription::updateOrCreate(
                         ['teacher_id' => $teacher->id],
                         [
                             'plan_id' => $plan->id,
-                            'start_date' => Carbon::now()->toDateString(),
-                            'end_date' => Carbon::now()->addDays($plan->duration_in_days)->toDateString(),
+                            'start_date' => $newStartDate,
+                            'end_date' => $newEndDate,
                             'status' => 'Active',
                         ]
                     );

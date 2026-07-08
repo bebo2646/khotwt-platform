@@ -400,8 +400,8 @@ export default function LessonViewer() {
     const merged = mergeSegments(watchedSegmentsRef.current);
     const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
     
-    // Progress must ONLY depend on: currentTime / duration
-    const currentProgress = durVal > 0 ? (current / durVal) * 100 : 0;
+    // Progress must ALWAYS be calculated from the actual unique watched duration
+    const currentProgress = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
     const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
     const percentage = Math.max(savedPercentage, currentProgress);
     
@@ -643,8 +643,8 @@ export default function LessonViewer() {
     setWatchedTime(totalSecs);
     setSecondsWatched(totalSecs);
     if (durVal > 0) {
-      // Progress must ONLY depend on: currentTime / duration
-      const currentProgress = (t / durVal) * 100;
+      // Progress must ALWAYS be calculated from the actual unique watched duration
+      const currentProgress = (totalSecs / durVal) * 100;
       const savedPercentage = Number(activeVideo.progress?.watched_percentage) || 0;
       setProgressPercentage(Math.min(100, Math.max(savedPercentage, currentProgress)));
     }
@@ -787,19 +787,10 @@ export default function LessonViewer() {
                 const current = Math.floor(event.target.getCurrentTime());
                 const durVal = Math.floor(event.target.getDuration());
                 if (durVal > 0) {
-                  const percentage = (current / durVal) * 100;
                   setLastPosition(current);
-                  setProgressPercentage(percentage);
-                  setWatchedTime(current);
                   setDuration(durVal);
-                  console.log('[YouTube Player Debug] Saving progress from onStateChange. Position:', current);
-                  saveLessonProgressRef.current({
-                    lessonId: Number(id),
-                    last_position_seconds: current,
-                    watched_seconds: current,
-                    progress_percentage: percentage
-                  });
                 }
+                syncProgressToDbRef.current();
               }
             },
             onReady: (event: any) => {
@@ -811,9 +802,8 @@ export default function LessonViewer() {
               }
               const durVal = Math.floor(event.target.getDuration() || activeVideoRef.current?.duration_seconds || 300);
               setDuration(durVal);
-              if (durVal > 0) {
-                setProgressPercentage((pos / durVal) * 100);
-              }
+              const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
+              setProgressPercentage(savedPercentage);
             }
           }
         });
@@ -1553,59 +1543,44 @@ interface VideoWatermarkProps {
 }
 
 function VideoWatermark({ name, phone }: VideoWatermarkProps) {
-  // We need 3 moving watermarks. We can represent their state in separate hooks.
-  // Watermark 1: Left column (5% to 30%), timing 5s, opacity 30%
-  const [pos1, setPos1] = React.useState({ top: '20%', left: '10%' })
-  const [visible1, setVisible1] = React.useState(true)
+  const [pos, setPos] = React.useState({ top: '30%', left: '30%' })
+  const [opacity, setOpacity] = React.useState(0.40)
 
-  // Watermark 2: Center column (35% to 60%), timing 6.5s, opacity 35%
-  const [pos2, setPos2] = React.useState({ top: '50%', left: '45%' })
-  const [visible2, setVisible2] = React.useState(true)
-
-  // Watermark 3: Right column (65% to 85%), timing 8s, opacity 40%
-  const [pos3, setPos3] = React.useState({ top: '30%', left: '75%' })
-  const [visible3, setVisible3] = React.useState(true)
-
-  // Effect for Watermark 1 (every 5 seconds)
   React.useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible1(false)
-      setTimeout(() => {
-        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70% (avoiding bottom controls)
-        const left = Math.floor(Math.random() * 25) + 5 // 5% to 30%
-        setPos1({ top: `${top}%`, left: `${left}%` })
-        setVisible1(true)
-      }, 400)
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [])
+    let fadeOutTimeout: any = null
+    let fadeInTimeout: any = null
 
-  // Effect for Watermark 2 (every 6.5 seconds)
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible2(false)
-      setTimeout(() => {
-        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70%
-        const left = Math.floor(Math.random() * 25) + 35 // 35% to 60%
-        setPos2({ top: `${top}%`, left: `${left}%` })
-        setVisible2(true)
-      }, 400)
-    }, 6500)
-    return () => clearInterval(interval)
-  }, [])
+    const moveWatermark = () => {
+      // 1. Fade out
+      setOpacity(0)
 
-  // Effect for Watermark 3 (every 8 seconds)
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setVisible3(false)
-      setTimeout(() => {
-        const top = Math.floor(Math.random() * 60) + 10 // 10% to 70%
-        const left = Math.floor(Math.random() * 20) + 65 // 65% to 85%
-        setPos3({ top: `${top}%`, left: `${left}%` })
-        setVisible3(true)
-      }, 400)
-    }, 8000)
-    return () => clearInterval(interval)
+      // 2. Wait for fade out animation (500ms)
+      fadeOutTimeout = setTimeout(() => {
+        // 3. Generate safe random positions
+        // Avoid player controls (bottom 25%, top 15%, left/right margins 10% to 75%)
+        const top = Math.floor(Math.random() * 50) + 15 
+        const left = Math.floor(Math.random() * 65) + 10 
+        setPos({ top: `${top}%`, left: `${left}%` })
+
+        // 4. Fade in
+        fadeInTimeout = setTimeout(() => {
+          setOpacity(0.40)
+        }, 100)
+      }, 500)
+    }
+
+    // Set initial random position
+    const initialTop = Math.floor(Math.random() * 50) + 15
+    const initialLeft = Math.floor(Math.random() * 65) + 10
+    setPos({ top: `${initialTop}%`, left: `${initialLeft}%` })
+
+    const interval = setInterval(moveWatermark, 6000)
+
+    return () => {
+      clearInterval(interval)
+      if (fadeOutTimeout) clearTimeout(fadeOutTimeout)
+      if (fadeInTimeout) clearTimeout(fadeInTimeout)
+    }
   }, [])
 
   const commonStyle = {
@@ -1619,48 +1594,17 @@ function VideoWatermark({ name, phone }: VideoWatermarkProps) {
   }
 
   return (
-    <>
-      {/* Watermark 1 */}
-      <div
-        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
-        style={{
-          ...commonStyle,
-          top: pos1.top,
-          left: pos1.left,
-          opacity: visible1 ? 0.30 : 0,
-        }}
-      >
-        <div>{name}</div>
-        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
-      </div>
-
-      {/* Watermark 2 */}
-      <div
-        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
-        style={{
-          ...commonStyle,
-          top: pos2.top,
-          left: pos2.left,
-          opacity: visible2 ? 0.35 : 0,
-        }}
-      >
-        <div>{name}</div>
-        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
-      </div>
-
-      {/* Watermark 3 */}
-      <div
-        className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
-        style={{
-          ...commonStyle,
-          top: pos3.top,
-          left: pos3.left,
-          opacity: visible3 ? 0.40 : 0,
-        }}
-      >
-        <div>{name}</div>
-        {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
-      </div>
-    </>
+    <div
+      className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
+      style={{
+        ...commonStyle,
+        top: pos.top,
+        left: pos.left,
+        opacity: opacity,
+      }}
+    >
+      <div>{name}</div>
+      {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
+    </div>
   )
 }

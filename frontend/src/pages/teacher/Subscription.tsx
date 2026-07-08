@@ -55,6 +55,8 @@ interface Subscription {
   final_price: number | string
   discount_percentage?: number | string
   discount_amount?: number | string
+  included_storage_gb: number
+  included_codes: number
 }
 
 interface Addon {
@@ -489,54 +491,102 @@ export default function Subscription() {
 
           <div className="space-y-6">
             {/* Codes usage details (PRIMARY) */}
-            <div>
-              <div className="flex justify-between text-xs mb-2">
+            <div className="bg-[var(--bg-color)]/10 p-5 rounded-2xl border border-[var(--border-color)] space-y-4">
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-[var(--border-color)]/60">
                 <span className="text-[var(--text-color)]/95 font-bold flex items-center gap-1.5">
                   <Users className="w-4 h-4 text-indigo-400" />
-                  الطلاب النشطون (السعة الاستيعابية للطلاب)
+                  السعة الاستيعابية للطلاب (الأكواد)
                 </span>
                 <span className="font-extrabold text-[var(--text-color)]">
-                  {getStudentLimitDisplay() === 'غير محدد' 
-                    ? `${subscription.used_codes} / غير محدد طالب نشط`
-                    : getStudentLimitDisplay() === 'غير محدود'
-                    ? `${subscription.used_codes} / غير محدود طالب نشط`
-                    : `${subscription.used_codes} / ${getStudentLimitDisplay()} طالب نشط (${Math.round((subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) * 100)}%)`
+                  {subscription.included_codes >= 999999
+                    ? 'سعة غير محدودة'
+                    : `${subscription.used_codes} / ${subscription.total_codes} طالب نشط (${Math.round((subscription.used_codes / (subscription.total_codes || 1)) * 100)}%)`
                   }
                 </span>
               </div>
-              {getStudentLimitDisplay() !== 'غير محدود' && getStudentLimitDisplay() !== 'غير محدد' && (
-                <div className="w-full bg-[var(--bg-color)]/30 h-2.5 rounded-full overflow-hidden">
+              
+              {/* Detailed Breakdown list */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">السعة الأساسية للباقة:</span>
+                  <span className="font-bold text-[var(--text-color)]">
+                    {subscription.included_codes >= 999999 ? 'غير محدود' : `${subscription.included_codes} كود`}
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">الأكواد الإضافية المشتراة:</span>
+                  <span className="font-bold text-emerald-400">
+                    +{subscription.extra_codes} كود
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">الطلاب النشطون حالياً:</span>
+                  <span className="font-bold text-indigo-400">
+                    {subscription.used_codes} طالب
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">السعة المتبقية المتاحة:</span>
+                  <span className="font-bold text-brand-primary">
+                    {subscription.included_codes >= 999999 ? 'غير محدود' : `${subscription.remaining_codes} كود`}
+                  </span>
+                </div>
+              </div>
+
+              {subscription.included_codes < 999999 && (
+                <div className="w-full bg-[var(--bg-color)]/30 h-2 rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all duration-500 ${
-                      (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) >= 0.9 ? 'bg-rose-500' : 
-                      (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
+                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.9 ? 'bg-rose-500' : 
+                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
                     }`}
-                    style={{ width: `${Math.min(100, (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (subscription.used_codes / (subscription.total_codes || 1)) * 100)}%` }}
                   ></div>
                 </div>
               )}
-              <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-1">
-                <span>أكواد متبقية (سعة متاحة): {
-                  getStudentLimitDisplay() === 'غير محدد' ? 'غير محدد' :
-                  getStudentLimitDisplay() === 'غير محدود' ? 'غير محدود' :
-                  `${Math.max(0, Number(getStudentLimitDisplay()) - subscription.used_codes)} كود`
-                }</span>
-                <span>أكواد إضافية مشتراة: +{subscription.extra_codes} كود</span>
-              </div>
             </div>
 
             {/* Storage usage details (SECONDARY) */}
-            <div>
-              <div className="flex justify-between text-xs mb-2">
+            <div className="bg-[var(--bg-color)]/10 p-5 rounded-2xl border border-[var(--border-color)] space-y-4">
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-[var(--border-color)]/60">
                 <span className="text-[var(--text-color)]/95 font-bold flex items-center gap-1.5">
                   <HardDrive className="w-4 h-4 text-emerald-400" />
-                  مساحة تخزين فيديوهات المنصة (Bunny Stream)
+                  مساحة تخزين الفيديو (Bunny Stream)
                 </span>
                 <span className="font-extrabold text-[var(--text-color)]">
                   {roundSize(subscription.used_storage_bytes)} / {subscription.total_storage_gb} GB ({subscription.storage_percentage}%)
                 </span>
               </div>
-              <div className="w-full bg-[var(--bg-color)]/30 h-2.5 rounded-full overflow-hidden">
+
+              {/* Detailed Breakdown list */}
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">المساحة الأساسية للباقة:</span>
+                  <span className="font-bold text-[var(--text-color)]">
+                    {subscription.included_storage_gb} GB
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">المساحة الإضافية المشتراة:</span>
+                  <span className="font-bold text-emerald-400">
+                    +{subscription.extra_storage_gb} GB
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">المساحة المستهلكة حالياً:</span>
+                  <span className="font-bold text-indigo-400">
+                    {roundSize(subscription.used_storage_bytes)}
+                  </span>
+                </div>
+                <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">المساحة المتبقية المتاحة:</span>
+                  <span className="font-bold text-brand-primary">
+                    {subscription.remaining_storage_gb} GB
+                  </span>
+                </div>
+              </div>
+
+              <div className="w-full bg-[var(--bg-color)]/30 h-2 rounded-full overflow-hidden">
                 <div 
                   className={`h-full rounded-full transition-all duration-500 ${
                     subscription.storage_percentage >= 90 ? 'bg-rose-500' : 
@@ -544,10 +594,6 @@ export default function Subscription() {
                   }`}
                   style={{ width: `${subscription.storage_percentage}%` }}
                 ></div>
-              </div>
-              <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-1">
-                <span>المساحة المتبقية: {subscription.remaining_storage_gb} GB</span>
-                <span>مساحة إضافية مشتراة: +{subscription.extra_storage_gb} GB</span>
               </div>
             </div>
 

@@ -1162,6 +1162,9 @@ class StudentController extends Controller
             }
         }
 
+        // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
+        $duration = $video->duration_seconds ?: 300;
+
         // Track and count views based on session watch time
         $sessionId = $request->input('session_id');
         $sessionWatchTime = $request->input('session_watch_time', 0);
@@ -1184,8 +1187,8 @@ class StudentController extends Controller
                 $session->save();
             }
 
-            // Strictly enforce view threshold of 5 minutes (300 seconds)
-            $threshold = 300;
+            // Strictly enforce view threshold: 5 minutes (300 seconds) or 80% if duration < 5 mins
+            $threshold = ($duration < 300) ? (int)round(0.80 * $duration) : 300;
             
             if ($session->watch_time >= $threshold && !$session->counted) {
                 $session->counted = true;
@@ -1203,9 +1206,6 @@ class StudentController extends Controller
                 $viewLimit->increment('views_used');
             }
         }
-
-        // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
-        $duration = $video->duration_seconds ?: 300;
         
         $lastPosition = $request->last_position_seconds;
         
@@ -1224,8 +1224,8 @@ class StudentController extends Controller
         // Fallback to request's watched_seconds if no segments are provided
         $finalWatchedSeconds = count($mergedSegments) > 0 ? (int)round($watchedDuration) : $request->watched_seconds;
         
-        // Calculate percentage: (currentTime / duration) * 100
-        $percentage = min(100.00, round(($lastPosition / $duration) * 100, 2));
+        // Calculate percentage strictly from actual unique watched seconds
+        $percentage = min(100.00, round(($finalWatchedSeconds / $duration) * 100, 2));
 
         $viewsCount = $progress ? $progress->views_count : 1;
         if ($progress) {
