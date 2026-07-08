@@ -104,9 +104,6 @@ export default function Plans() {
   const filteredAndSortedPlans = React.useMemo(() => {
     return plans
       .filter(p => {
-        // Exclude trial/starter plan from main upgrade listing to look clean
-        if (p.is_trial) return false
-
         // Search text matching
         if (searchQuery.trim()) {
           const query = searchQuery.toLowerCase()

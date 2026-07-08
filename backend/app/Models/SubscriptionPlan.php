@@ -138,6 +138,6 @@ class SubscriptionPlan extends Model
 
     public function getIsTrialAttribute()
     {
-        return $this->slug === 'starter' || $this->slug === 'free' || $this->price == 0;
+        return $this->slug === 'starter' || $this->slug === 'free' || ($this->price == 0 && $this->billing_type !== 'revenue_sharing');
     }
 }

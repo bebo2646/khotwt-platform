@@ -24,6 +24,9 @@ interface Plan {
   discountPercentage?: number | string
   finalPrice?: number | string
   price?: number | string
+  featured?: boolean
+  most_popular?: boolean
+  recommended?: boolean
 }
 
 interface Subscription {
@@ -121,29 +124,16 @@ export default function Subscription() {
   const plansToShow = React.useMemo(() => {
     if (!plans || plans.length === 0) return []
     
-    // 1. Current active plan
-    const currentActivePlan = plans.find(p => p.id === subscription?.plan?.id)
+    // Filter plans that are Featured, Most Popular, or Recommended
+    let highlighted = plans.filter(p => !!p.featured || !!p.most_popular || !!p.recommended)
     
-    // 2. Other active non-trial plans
-    const otherPlans = plans.filter(p => p.id !== subscription?.plan?.id && p.active && !p.is_trial)
-    
-    // 3. Featured / Popular / Recommended Plans
-    let featuredPlans = otherPlans.filter(p => !!(p as any).featured || !!(p as any).most_popular || !!(p as any).recommended)
-    
-    // 4. Fallback if no featured plans exist
-    if (featuredPlans.length === 0) {
-      featuredPlans = [...otherPlans].sort((a, b) => b.id - a.id).slice(0, 3)
-    } else {
-      featuredPlans = featuredPlans.slice(0, 3)
+    // If no plan is marked, fall back to showing the first active plans (e.g., first 3 plans)
+    if (highlighted.length === 0) {
+      highlighted = plans.slice(0, 3)
     }
     
-    const result: Plan[] = []
-    if (currentActivePlan) {
-      result.push(currentActivePlan)
-    }
-    result.push(...featuredPlans)
-    return result
-  }, [plans, subscription])
+    return highlighted
+  }, [plans])
 
   useEffect(() => {
     loadData()
