@@ -155,4 +155,13 @@ class SubscriptionPlan extends Model
     {
         return $this->slug === 'starter' || $this->slug === 'free' || ($this->price == 0 && $this->billing_type !== 'revenue_sharing');
     }
+
+    public function getCodesLimitTypeAttribute($value)
+    {
+        $billingType = $this->billing_type ?? 'monthly';
+        if ($billingType === 'monthly') {
+            return 'max';
+        }
+        return $value ?: 'unlimited';
+    }
 }

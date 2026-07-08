@@ -30,6 +30,7 @@ interface Plan {
   billing_type?: 'monthly' | 'revenue_sharing'
   commission_percentage?: number | string
   max_students?: number | null
+  codes_limit_type?: 'unlimited' | 'max'
 }
 
 interface Subscription {
@@ -96,13 +97,13 @@ export default function Subscription() {
     if (!subscription) return ''
     if (subscription.plan?.billing_type === 'revenue_sharing') {
       const maxStudents = subscription.plan?.max_students;
-      if (maxStudents === null || maxStudents === undefined) {
+      if (maxStudents === null || maxStudents === undefined || subscription.plan?.codes_limit_type === 'unlimited') {
         return 'غير محدد'
       }
       return (Number(maxStudents) + (subscription.extra_codes || 0)).toString()
     }
     // Monthly Plan
-    if (subscription.total_codes >= 999999) {
+    if (subscription.total_codes === null || subscription.total_codes === undefined || subscription.plan?.codes_limit_type === 'unlimited') {
       return 'غير محدود'
     }
     return subscription.total_codes.toString()
@@ -498,7 +499,7 @@ export default function Subscription() {
                   السعة الاستيعابية للطلاب (الأكواد)
                 </span>
                 <span className="font-extrabold text-[var(--text-color)]">
-                  {subscription.included_codes >= 999999
+                  {subscription.included_codes === null || subscription.included_codes === undefined || subscription.plan?.codes_limit_type === 'unlimited'
                     ? 'سعة غير محدودة'
                     : `${subscription.used_codes} / ${subscription.total_codes} طالب نشط (${Math.round((subscription.used_codes / (subscription.total_codes || 1)) * 100)}%)`
                   }
@@ -510,7 +511,7 @@ export default function Subscription() {
                 <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
                   <span className="text-[9px] text-[var(--text-secondary)] block">السعة الأساسية للباقة:</span>
                   <span className="font-bold text-[var(--text-color)]">
-                    {subscription.included_codes >= 999999 ? 'غير محدود' : `${subscription.included_codes} كود`}
+                    {subscription.included_codes === null || subscription.included_codes === undefined || subscription.plan?.codes_limit_type === 'unlimited' ? 'غير محدود' : `${subscription.included_codes} كود`}
                   </span>
                 </div>
                 <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
@@ -528,12 +529,12 @@ export default function Subscription() {
                 <div className="bg-[var(--bg-color)]/20 p-2.5 rounded-xl border border-[var(--border-color)]/40 text-right">
                   <span className="text-[9px] text-[var(--text-secondary)] block">السعة المتبقية المتاحة:</span>
                   <span className="font-bold text-brand-primary">
-                    {subscription.included_codes >= 999999 ? 'غير محدود' : `${subscription.remaining_codes} كود`}
+                    {subscription.included_codes === null || subscription.included_codes === undefined || subscription.plan?.codes_limit_type === 'unlimited' ? 'غير محدود' : `${subscription.remaining_codes} كود`}
                   </span>
                 </div>
               </div>
 
-              {subscription.included_codes < 999999 && (
+              {subscription.included_codes !== null && subscription.included_codes !== undefined && subscription.plan?.codes_limit_type !== 'unlimited' && (
                 <div className="w-full bg-[var(--bg-color)]/30 h-2 rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all duration-500 ${

@@ -391,7 +391,7 @@ export default function SubscriptionPlans() {
       duration_in_days: durationInDays,
       max_courses: maxCourses === '' ? null : Number(maxCourses),
       max_storage_gb: billingType === 'revenue_sharing' ? defaultStorageGb : maxStorageGb,
-      included_codes: billingType === 'revenue_sharing' ? (codesLimitType === 'unlimited' ? 999999 : maxCodesLimit) : includedCodes,
+      included_codes: billingType === 'revenue_sharing' ? (codesLimitType === 'unlimited' ? 0 : maxCodesLimit) : includedCodes,
       featured,
       most_popular: mostPopular,
       recommended,

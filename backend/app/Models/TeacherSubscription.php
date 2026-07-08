@@ -116,7 +116,7 @@ class TeacherSubscription extends Model
     {
         if (!$this->plan) return 0;
         if ($this->plan->codes_limit_type === 'unlimited') {
-            return 999999;
+            return null;
         }
         return (int) ($this->plan->max_codes_limit ?? $this->plan->student_codes ?? 0);
     }
@@ -134,8 +134,8 @@ class TeacherSubscription extends Model
     public function getTotalCodesAttribute()
     {
         $included = $this->getIncludedCodesAttribute();
-        if ($included >= 999999) {
-            return 999999;
+        if (is_null($included)) {
+            return null;
         }
         return $included + $this->getExtraCodesAttribute();
     }
@@ -155,10 +155,11 @@ class TeacherSubscription extends Model
 
     public function getRemainingCodesAttribute()
     {
-        if ($this->getIncludedCodesAttribute() >= 999999) {
-            return 999999;
+        $total = $this->getTotalCodesAttribute();
+        if (is_null($total)) {
+            return null;
         }
-        return max(0, $this->getTotalCodesAttribute() - $this->used_codes);
+        return max(0, $total - $this->used_codes);
     }
 
     public function getStoragePercentageAttribute()

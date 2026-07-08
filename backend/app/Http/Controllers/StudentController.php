@@ -2066,7 +2066,7 @@ class StudentController extends Controller
         }
 
         // Validate capacity
-        if ($subscription->remaining_codes <= 0) {
+        if ($subscription->remaining_codes !== null && $subscription->remaining_codes <= 0) {
             return false;
         }
 
