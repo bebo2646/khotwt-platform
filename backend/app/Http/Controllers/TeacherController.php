@@ -2074,5 +2074,53 @@ class TeacherController extends Controller
             'thumbnail_path' => null,
         ]);
     }
+
+    /**
+     * Get student course view limit overrides and counters for courses owned by this teacher.
+     */
+    public function getStudentCourseLimits(Request $request)
+    {
+        $teacher = $request->user();
+        
+        $query = \App\Models\StudentCourseViewLimit::whereHas('course', function ($q) use ($teacher) {
+            $q->where('teacher_id', $teacher->id);
+        })->with(['student', 'course']);
+
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->student_id);
+        }
+        if ($request->filled('course_id')) {
+            $query->where('course_id', $request->course_id);
+        }
+
+        $limits = $query->get()->map(function ($limit) {
+            $course = $limit->course;
+            $settings = \App\Models\PlatformSetting::first();
+            $globalDefault = $settings ? (int)$settings->default_max_views : 10;
+            
+            $baseLimit = $limit->max_views_override !== null 
+                ? $limit->max_views_override 
+                : ($course->max_views !== null ? $course->max_views : $globalDefault);
+
+            $maxAllowed = $baseLimit + $limit->extra_views;
+            $remaining = max(0, $maxAllowed - $limit->views_used);
+
+            return [
+                'id' => $limit->id,
+                'student_id' => $limit->student_id,
+                'student_name' => $limit->student->name ?? 'طالب محذوف',
+                'student_phone' => $limit->student->phone ?? '',
+                'course_id' => $limit->course_id,
+                'course_title' => $course->title ?? 'كورس محذوف',
+                'views_used' => $limit->views_used,
+                'max_views_override' => $limit->max_views_override,
+                'extra_views' => $limit->extra_views,
+                'max_allowed' => $maxAllowed,
+                'remaining' => $remaining,
+            ];
+        });
+
+        return response()->json($limits);
+    }
 }
 

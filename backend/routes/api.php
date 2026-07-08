@@ -111,6 +111,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/teacher/subscription/upgrade-request', [SubscriptionController::class, 'requestUpgradeSelf']);
             Route::get('/teacher/storage', [TeacherController::class, 'getStorageStats']);
             Route::get('/teacher/videos', [TeacherController::class, 'listVideos']);
+            Route::get('/teacher/student-course-limits', [TeacherController::class, 'getStudentCourseLimits']);
 
             // Content creation / uploads protected by active subscription
             Route::middleware('subscription.active')->group(function () {
@@ -255,6 +256,23 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Admin Payouts Management
             Route::get('/admin/payouts', [AdminController::class, 'listPayouts']);
             Route::post('/admin/payouts', [AdminController::class, 'createPayout']);
+
+            // Enterprise Settings & View limit overrides
+            Route::get('/admin/enterprise-settings', [AdminController::class, 'getEnterpriseSettings']);
+            Route::post('/admin/enterprise-settings', [AdminController::class, 'updateEnterpriseSettings']);
+            Route::get('/admin/student-course-limits', [AdminController::class, 'getStudentCourseLimits']);
+            Route::post('/admin/student-course-limits', [AdminController::class, 'updateStudentCourseLimit']);
+            Route::post('/admin/student-course-limits/reset', [AdminController::class, 'resetStudentCourseLimit']);
+            Route::get('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'getCourseViewLimitsConfig']);
+            Route::post('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'updateCourseViewLimitsConfig']);
+
+            // Student Registration Approval
+            Route::get('/admin/pending-students', [AdminController::class, 'getPendingStudents']);
+            Route::post('/admin/students/{id}/approve', [AdminController::class, 'approveStudent']);
+            Route::post('/admin/students/{id}/reject', [AdminController::class, 'rejectStudent']);
+
+            // Video Views Dashboard Statistics
+            Route::get('/admin/video-views-analytics', [AdminController::class, 'getVideoViewsAnalytics']);
         });
 
     });

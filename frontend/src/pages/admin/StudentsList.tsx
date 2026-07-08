@@ -17,7 +17,8 @@ import {
   Loader2, 
   AlertTriangle,
   Award,
-  Activity
+  Activity,
+  Settings
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
@@ -63,6 +64,116 @@ export default function StudentsList() {
   const [adjustAmount, setAdjustAmount] = React.useState('')
   const [adjustDescription, setAdjustDescription] = React.useState('')
   const [submittingAdjustment, setSubmittingAdjustment] = React.useState(false)
+
+  // Course view limits per student modal state
+  const [limitModalStudent, setLimitModalStudent] = React.useState<any>(null)
+  const [coursesList, setCoursesList] = React.useState<any[]>([])
+  const [selectedCourseId, setSelectedCourseId] = React.useState<string>('')
+  const [limitRecord, setLimitRecord] = React.useState<any>(null)
+  const [studentLimitMaxOverride, setStudentLimitMaxOverride] = React.useState<string>('')
+  const [studentLimitExtra, setStudentLimitExtra] = React.useState<string>('')
+  const [studentLimitUsed, setStudentLimitUsed] = React.useState<string>('0')
+  const [loadingLimitRecord, setLoadingLimitRecord] = React.useState(false)
+  const [savingStudentLimit, setSavingStudentLimit] = React.useState(false)
+
+  const handleOpenStudentLimitModal = async (student: any) => {
+    setLimitModalStudent(student)
+    setSelectedCourseId('')
+    setLimitRecord(null)
+    setStudentLimitMaxOverride('')
+    setStudentLimitExtra('')
+    setStudentLimitUsed('0')
+    
+    try {
+      // Load courses list
+      const res = await API.get('/admin/courses')
+      setCoursesList(res.data || [])
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('فشل تحميل قائمة الكورسات.', 'error')
+    }
+  }
+
+  // Effect to load student's limit record when student or course selection changes
+  React.useEffect(() => {
+    if (!limitModalStudent || !selectedCourseId) {
+      setLimitRecord(null)
+      return
+    }
+
+    const loadRecord = async () => {
+      setLoadingLimitRecord(true)
+      try {
+        const res = await API.get(`/admin/student-course-limits?student_id=${limitModalStudent.id}&course_id=${selectedCourseId}`)
+        if (res.data && res.data.length > 0) {
+          const rec = res.data[0]
+          setLimitRecord(rec)
+          setStudentLimitMaxOverride(rec.max_views_override !== null && rec.max_views_override !== undefined ? rec.max_views_override : '')
+          setStudentLimitExtra(rec.extra_views !== null && rec.extra_views !== undefined ? rec.extra_views : '0')
+          setStudentLimitUsed(rec.views_used !== null && rec.views_used !== undefined ? rec.views_used : '0')
+        } else {
+          setLimitRecord({ empty: true })
+          setStudentLimitMaxOverride('')
+          setStudentLimitExtra('0')
+          setStudentLimitUsed('0')
+        }
+      } catch (err) {
+        console.error(err)
+        useModalStore.getState().showToast('فشل تحميل بيانات الحد الأقصى للطالب.', 'error')
+      } finally {
+        setLoadingLimitRecord(false)
+      }
+    }
+    loadRecord()
+  }, [limitModalStudent, selectedCourseId])
+
+  const handleSaveStudentLimit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!limitModalStudent || !selectedCourseId) return
+    setSavingStudentLimit(true)
+    try {
+      await API.post('/admin/student-course-limits', {
+        student_id: limitModalStudent.id,
+        course_id: parseInt(selectedCourseId),
+        max_views_override: studentLimitMaxOverride !== '' ? parseInt(studentLimitMaxOverride) : null,
+        extra_views: parseInt(studentLimitExtra) || 0,
+        views_used: parseInt(studentLimitUsed) || 0,
+      })
+      useModalStore.getState().showToast('تم حفظ قيود مشاهدة الطالب بنجاح.', 'success')
+      setLimitModalStudent(null)
+    } catch (err: any) {
+      console.error(err)
+      useModalStore.getState().showToast(err.response?.data?.message || 'فشل حفظ قيود مشاهدة الطالب.', 'error')
+    } finally {
+      setSavingStudentLimit(false)
+    }
+  }
+
+  const handleResetStudentLimit = async () => {
+    if (!limitModalStudent || !selectedCourseId) return
+    useModalStore.getState().showConfirm({
+      title: 'إعادة تعيين عداد المشاهدات',
+      description: 'هل أنت متأكد من تصفير عداد مشاهدات الطالب لهذا الكورس؟ سيتم مسح سجل الجلسات للبدء من جديد.',
+      confirmText: 'نعم، قم بالتصفير',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        try {
+          await API.post('/admin/student-course-limits/reset', {
+            student_id: limitModalStudent.id,
+            course_id: parseInt(selectedCourseId),
+          })
+          useModalStore.getState().showToast('تم تصفير العداد بنجاح.', 'success')
+          setStudentLimitUsed('0')
+          setStudentLimitExtra('0')
+          setLimitRecord((prev: any) => prev ? { ...prev, views_used: 0, extra_views: 0 } : null)
+        } catch (err: any) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل تصفير العداد.', 'error')
+        }
+      }
+    })
+  }
 
   const fetchStudents = () => {
     setLoading(true)
@@ -371,6 +482,13 @@ export default function StudentsList() {
                           title="عرض إحصائيات الطالب"
                         >
                           <Eye className="h-4.5 w-4.5" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenStudentLimitModal(st)}
+                          className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-400 cursor-pointer"
+                          title="تعديل قيود مشاهدة الكورسات"
+                        >
+                          <Settings className="h-4.5 w-4.5" />
                         </button>
                         <button
                           onClick={() => handleResetPasswordClick(st)}
@@ -754,6 +872,109 @@ export default function StudentsList() {
                   <span>تأكيد الحذف النهائي</span>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Student Limit Override Modal */}
+      {limitModalStudent && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/70 z-40" onClick={() => setLimitModalStudent(null)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right font-sans" dir="rtl">
+            <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+              <Settings className="h-5 w-5 text-indigo-400" />
+              <span>قيود مشاهدة الطالب: {limitModalStudent.name}</span>
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">اختر الكورس:</label>
+                <select
+                  className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                  value={selectedCourseId}
+                  onChange={(e) => setSelectedCourseId(e.target.value)}
+                >
+                  <option value="">-- اختر كورس لتعديل قيوده --</option>
+                  {coursesList.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedCourseId && loadingLimitRecord && (
+                <div className="text-center py-6 text-xs text-indigo-400 font-light">جاري التحميل...</div>
+              )}
+
+              {selectedCourseId && !loadingLimitRecord && limitRecord && (
+                <form onSubmit={handleSaveStudentLimit} className="space-y-4 pt-2 border-t border-[var(--border-color)]">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">المشاهدات المستهلكة:</label>
+                      <input
+                        type="number"
+                        min={0}
+                        required
+                        className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
+                        value={studentLimitUsed}
+                        onChange={(e) => setStudentLimitUsed(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1.5">مشاهدات إضافية (أكواد إضافية):</label>
+                      <input
+                        type="number"
+                        min={0}
+                        required
+                        className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
+                        value={studentLimitExtra}
+                        onChange={(e) => setStudentLimitExtra(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد المخصص للطالب (اختياري):</label>
+                    <input
+                      type="number"
+                      min={1}
+                      placeholder="اتركه فارغاً ليورث حد الكورس"
+                      className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
+                      value={studentLimitMaxOverride}
+                      onChange={(e) => setStudentLimitMaxOverride(e.target.value)}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">تحديد سقف مخصص للمشاهدات لهذا الطالب بالتحديد في هذا الكورس.</p>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 border-t border-[var(--border-color)]">
+                    <button
+                      type="button"
+                      onClick={handleResetStudentLimit}
+                      className="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      تصفير عداد المشاهدات
+                    </button>
+                    
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setLimitModalStudent(null)}
+                        className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={savingStudentLimit}
+                        className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                      >
+                        {savingStudentLimit ? 'جاري الحفظ...' : 'حفظ'}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </div>

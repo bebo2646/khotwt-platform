@@ -189,6 +189,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           visible: hasPerm('students.manage')
         },
         {
+          label: 'مراجعة التسجيلات',
+          path: '/admin/students/pending',
+          icon: <ShieldAlert className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('students.manage')
+        },
+        {
           label: 'الكورسات',
           path: '/admin/courses',
           icon: <BookOpen className="w-5 h-5 shrink-0" />,
@@ -256,6 +262,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       path: '/admin/manage',
       icon: <ShieldAlert className="w-4 h-4 shrink-0" />,
       visible: hasPerm('admins.manage')
+    },
+    {
+      label: 'إعدادات المنصة',
+      path: '/admin/settings',
+      icon: <Settings className="w-4 h-4 shrink-0" />,
+      visible: true
     }
   ]
 

@@ -23,6 +23,8 @@ class Course extends Model
         'discount_type',
         'discount_value',
         'availability',
+        'view_limit_enabled',
+        'max_views',
     ];
 
     protected static function booted()
@@ -59,6 +61,8 @@ class Course extends Model
         'is_published' => 'boolean',
         'enable_discount' => 'boolean',
         'discount_value' => 'decimal:2',
+        'view_limit_enabled' => 'boolean',
+        'max_views' => 'integer',
     ];
 
     protected $appends = ['final_price'];
@@ -122,5 +126,37 @@ class Course extends Model
     public function lessons()
     {
         return $this->hasManyThrough(Lesson::class, Unit::class);
+    }
+
+    public function hasExceededViewLimitForStudent($studentId)
+    {
+        $settings = PlatformSetting::first();
+        $globalLimitEnabled = $settings ? (bool)$settings->view_limit_enabled : false;
+        $globalDefaultLimit = $settings ? (int)$settings->default_max_views : 10;
+
+        // Resolve if limit is enabled for this course
+        $limitEnabled = $this->view_limit_enabled !== null 
+            ? (bool)$this->view_limit_enabled 
+            : $globalLimitEnabled;
+
+        if (!$limitEnabled) {
+            return false;
+        }
+
+        // Get student's view limit record
+        $limitRecord = StudentCourseViewLimit::where('student_id', $studentId)
+            ->where('course_id', $this->id)
+            ->first();
+
+        $baseLimit = ($limitRecord && $limitRecord->max_views_override !== null)
+            ? (int)$limitRecord->max_views_override
+            : ($this->max_views !== null ? (int)$this->max_views : $globalDefaultLimit);
+
+        $extraViews = $limitRecord ? (int)$limitRecord->extra_views : 0;
+        $maxAllowed = $baseLimit + $extraViews;
+
+        $viewsUsed = $limitRecord ? (int)$limitRecord->views_used : 0;
+
+        return $viewsUsed >= $maxAllowed;
     }
 }

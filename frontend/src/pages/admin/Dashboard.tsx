@@ -5,6 +5,7 @@ import { SafeResponsiveContainer } from '../../components/ui/SafeResponsiveConta
 import { Users, GraduationCap, BookOpen, Coins, BarChart3, Clock, AlertCircle, Package, Edit3, Trash2, Check, HardDrive, Settings, Shield, TrendingUp } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 import { useAuthStore } from '../../store/authStore'
+import AdminVideoViewsStats from '../../components/AdminVideoViewsStats'
 
 interface MonthlyChartItem {
   month: string
@@ -941,6 +942,11 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Video Views Analytics Widget */}
+      <div className="pt-8 border-t border-slate-800/60">
+        <AdminVideoViewsStats />
+      </div>
 
     </div>
   )

@@ -317,6 +317,7 @@ class PublicController extends Controller
         $lastWatchedVideo = null;
         $isStudent = true;
 
+        $viewLimitExceeded = false;
         if ($user) {
             if ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id)) {
                 $isEnrolled = true;
@@ -328,6 +329,10 @@ class PublicController extends Controller
                     ->exists();
 
                 if ($isEnrolled) {
+                    if ($course->hasExceededViewLimitForStudent($user->id)) {
+                        $viewLimitExceeded = true;
+                    }
+
                     // Find last watched video position for "متابعة المشاهدة"
                     $lastWatched = VideoProgress::where('student_id', $user->id)
                         ->whereHas('video.lesson.unit', function ($q) use ($courseId) {
@@ -355,14 +360,13 @@ class PublicController extends Controller
             $availabilityMessage = 'هذا الكورس مخصص لطلاب السنتر.';
         }
 
-        // Clean lesson data if NOT enrolled (hide actual video links and file paths)
-        // Keep structure so visitors can see curriculum list
-        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent) {
+        // Clean lesson data if NOT enrolled or if view limit is exceeded
+        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded) {
             return [
                 'id' => $unit->id,
                 'title' => $unit->title,
                 'order' => $unit->order,
-                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent) {
+                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded) {
                     $lessonData = [
                         'id' => $lesson->id,
                         'title' => $lesson->title,
@@ -382,7 +386,7 @@ class PublicController extends Controller
                     $lessonData['pdfs_count'] = $lesson->pdfs()->count();
                     $lessonData['exams_count'] = $lesson->exams()->count();
 
-                    if ($isEnrolled && !$isLocked) {
+                    if ($isEnrolled && !$isLocked && !$viewLimitExceeded) {
                         // Include full details - block videos if course is center-only and user is student
                         if ($course->availability === 'center' && $isStudent) {
                             $lessonData['videos'] = [];
@@ -405,6 +409,8 @@ class PublicController extends Controller
             'is_enrolled' => $isEnrolled,
             'last_watched' => $lastWatchedVideo,
             'availability_message' => $availabilityMessage,
+            'view_limit_exceeded' => $viewLimitExceeded,
+            'view_limit_message' => $viewLimitExceeded ? 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.' : null,
         ]);
     }
 

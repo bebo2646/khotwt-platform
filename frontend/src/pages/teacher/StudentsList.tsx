@@ -55,6 +55,7 @@ export default function StudentsList() {
   const [selectedStudentId, setSelectedStudentId] = React.useState<number | null>(null)
   const [analytics, setAnalytics] = React.useState<StudentAnalytics | null>(null)
   const [analyticsLoading, setAnalyticsLoading] = React.useState(false)
+  const [studentLimits, setStudentLimits] = React.useState<any[]>([])
 
   React.useEffect(() => {
     API.get('/teacher/students')
@@ -69,10 +70,17 @@ export default function StudentsList() {
     setSelectedStudentId(studentId)
     setAnalyticsLoading(true)
     setAnalytics(null)
+    setStudentLimits([])
 
     API.get(`/teacher/students/${studentId}/analytics`)
       .then((res) => {
         setAnalytics(res.data)
+      })
+      .catch((err) => console.error(err))
+
+    API.get(`/teacher/student-course-limits?student_id=${studentId}`)
+      .then((res) => {
+        setStudentLimits(res.data || [])
       })
       .catch((err) => console.error(err))
       .finally(() => setAnalyticsLoading(false))
@@ -204,6 +212,30 @@ export default function StudentsList() {
                       <div className="text-lg font-black text-brand-primary">{analytics.progress.watch_time_minutes}</div>
                       <div className="text-[9px] text-slate-500 font-light">دقيقة دراسية كاملة</div>
                     </div>
+                  </div>
+
+                  {/* Remaining Course Views (Teacher View Only) */}
+                  <div className="space-y-3">
+                    <h4 className="font-bold text-xs">حدود مشاهدات الكورسات المتبقية:</h4>
+                    {studentLimits.length === 0 ? (
+                      <div className="text-[10px] text-slate-500 font-light mr-2">لا توجد قيود مفروضة على المشاهدة حالياً أو لم يتم استهلاك أي مشاهدات.</div>
+                    ) : (
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {studentLimits.map((lim: any) => (
+                          <div key={lim.id} className="flex justify-between items-center p-3 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl text-xs">
+                            <div className="space-y-0.5 text-right">
+                              <div className="font-bold text-[var(--text-color)]">{lim.course_title}</div>
+                              <div className="text-[9px] text-slate-500">تم استهلاك {lim.views_used} مشاهدة</div>
+                            </div>
+                            <div className="text-left shrink-0">
+                              <span className="px-2 py-0.5 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-full text-[9px] font-bold">
+                                المتبقي: {lim.remaining} / {lim.max_allowed}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Exam scores */}

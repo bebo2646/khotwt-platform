@@ -97,6 +97,8 @@ export default function CourseDetail() {
   const [isEnrolled, setIsEnrolled] = React.useState(false)
   const [lastWatched, setLastWatched] = React.useState<LastWatched | null>(null)
   const [availabilityMessage, setAvailabilityMessage] = React.useState<string | null>(null)
+  const [viewLimitExceeded, setViewLimitExceeded] = React.useState(false)
+  const [viewLimitMessage, setViewLimitMessage] = React.useState<string | null>(null)
   
   const [loading, setLoading] = React.useState(true)
   const [purchasing, setPurchasing] = React.useState(false)
@@ -119,6 +121,8 @@ export default function CourseDetail() {
         setIsEnrolled(res.data.is_enrolled || false)
         setLastWatched(res.data.last_watched || null)
         setAvailabilityMessage(res.data.availability_message || null)
+        setViewLimitExceeded(res.data.view_limit_exceeded || false)
+        setViewLimitMessage(res.data.view_limit_message || null)
 
         // Expand the first unit by default
         if (res.data.units.length > 0) {
@@ -381,7 +385,8 @@ export default function CourseDetail() {
                     navigate(`/student/lessons/${units[0].lessons[0].id}`)
                   }
                 }}
-                className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white text-center text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer"
+                disabled={viewLimitExceeded}
+                className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white text-center text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <span>دخول الكورس</span>
               </button>
@@ -400,7 +405,7 @@ export default function CourseDetail() {
       </div>
 
       {/* 2. Resume Watching Panel (آخر مشاهدة) */}
-      {isEnrolled && lastWatched && (
+      {isEnrolled && lastWatched && !viewLimitExceeded && (
         <div className="p-6 bg-brand-primary/5 border border-brand-primary/20 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1.5 text-center sm:text-right">
             <span className="px-2.5 py-0.5 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-[10px] font-bold text-brand-primary">
@@ -509,7 +514,15 @@ export default function CourseDetail() {
       <div className="space-y-4">
         <h2 className="text-xl font-bold">منهج ومحتوى الكورس:</h2>
 
-        {availabilityMessage ? (
+        {viewLimitExceeded ? (
+          <div className="bg-rose-500/10 border border-rose-500/30 p-8 rounded-3xl flex flex-col items-center text-center gap-3 max-w-xl mx-auto shadow-md">
+            <span className="text-3xl">⚠️</span>
+            <h3 className="font-black text-sm sm:text-base text-rose-500">تم نفاد مشاهدات الكورس</h3>
+            <p className="text-xs text-slate-300 font-light leading-relaxed">
+              {viewLimitMessage || 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'}
+            </p>
+          </div>
+        ) : availabilityMessage ? (
           <div className="bg-amber-500/10 border border-amber-500/30 p-8 rounded-3xl flex flex-col items-center text-center gap-3 max-w-xl mx-auto shadow-md">
             <span className="text-3xl">🏫</span>
             <h3 className="font-black text-sm sm:text-base text-amber-500">هذا الكورس مخصص لطلاب السنتر</h3>

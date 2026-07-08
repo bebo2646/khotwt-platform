@@ -9,6 +9,11 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
     'maintenance_mode',
     'maintenance_message',
     'maintenance_eta',
+    'require_student_approval',
+    'auto_delete_rejected_accounts',
+    'view_limit_enabled',
+    'default_max_views',
+    'video_threshold_seconds',
 ])]
 class PlatformSetting extends Model
 {
@@ -16,5 +21,10 @@ class PlatformSetting extends Model
 
     protected $casts = [
         'maintenance_mode' => 'boolean',
+        'require_student_approval' => 'boolean',
+        'auto_delete_rejected_accounts' => 'boolean',
+        'view_limit_enabled' => 'boolean',
+        'default_max_views' => 'integer',
+        'video_threshold_seconds' => 'integer',
     ];
 }

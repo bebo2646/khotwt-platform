@@ -5,7 +5,7 @@ import { useAuthStore } from '../../store/authStore'
 import { 
   Award, HardDrive, Users, Calendar, Clock, DollarSign, 
   PlusCircle, CheckCircle, AlertCircle, RefreshCw, ChevronDown, 
-  HelpCircle, ChevronUp, AlertTriangle, Shield, Check
+  HelpCircle, ChevronUp, AlertTriangle, Shield, Check, BookOpen
 } from 'lucide-react'
 import { SubscriptionPlanCard } from '../../components/ui/SubscriptionPlanCard'
 
@@ -27,6 +27,8 @@ interface Plan {
   featured?: boolean
   most_popular?: boolean
   recommended?: boolean
+  billing_type?: 'monthly' | 'revenue_sharing'
+  commission_percentage?: number | string
 }
 
 interface Subscription {
@@ -46,7 +48,12 @@ interface Subscription {
   storage_percentage: number
   remaining_days: number
   students_count: number
+  courses_count: number
   billing_period: string
+  billing_cycle: string
+  final_price: number | string
+  discount_percentage?: number | string
+  discount_amount?: number | string
 }
 
 interface Addon {
@@ -418,7 +425,10 @@ export default function Subscription() {
           <span className="text-[10px] text-[var(--text-secondary)] block mb-1">الطلاب النشطون</span>
           <span className="text-xs font-extrabold text-[var(--text-color)] flex items-center gap-1.5">
             <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            {subscription.used_codes} / {subscription.total_codes}
+            {subscription.total_codes >= 999999 
+              ? `${subscription.used_codes} / غير محدود` 
+              : `${subscription.used_codes} / ${subscription.total_codes}`
+            }
           </span>
         </div>
       </div>
@@ -438,8 +448,17 @@ export default function Subscription() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             <div className="bg-[var(--bg-color)]/25 p-4 rounded-xl border border-[var(--border-color)]">
-              <span className="text-[10px] text-[var(--text-secondary)] block mb-1">سعر الباقة الأساسية</span>
-              <span className="text-sm font-black text-[var(--text-color)]">{subscription.plan?.price_egp} ج.م / شهرياً</span>
+              <span className="text-[10px] text-[var(--text-secondary)] block mb-1">سعر وقيمة الاشتراك الحالي</span>
+              <span className="text-xs font-black text-[var(--text-color)]">
+                {subscription.plan?.billing_type === 'revenue_sharing' 
+                  ? `نظام النسبة (عمولة ${subscription.plan?.commission_percentage}%)` 
+                  : `${Number(subscription.final_price).toFixed(2)} ج.م / ${
+                      subscription.billing_period === 'annual' ? 'سنوي' : 
+                      subscription.billing_period === 'semi_annual' ? '6 أشهر' : 
+                      subscription.billing_period === 'quarterly' ? '3 أشهر' : 'شهرياً'
+                    }`
+                }
+              </span>
             </div>
             <div className="bg-[var(--bg-color)]/25 p-4 rounded-xl border border-[var(--border-color)]">
               <span className="text-[10px] text-[var(--text-secondary)] block mb-1">تاريخ بداية الباقة</span>
@@ -463,20 +482,25 @@ export default function Subscription() {
                   الطلاب النشطون (السعة الاستيعابية للطلاب)
                 </span>
                 <span className="font-extrabold text-[var(--text-color)]">
-                  {subscription.used_codes} / {subscription.total_codes} طالب نشط ({Math.round((subscription.used_codes / (subscription.total_codes || 1)) * 100)}%)
+                  {subscription.total_codes >= 999999 
+                    ? `${subscription.used_codes} / غير محدود طالب نشط` 
+                    : `${subscription.used_codes} / ${subscription.total_codes} طالب نشط (${Math.round((subscription.used_codes / (subscription.total_codes || 1)) * 100)}%)`
+                  }
                 </span>
               </div>
-              <div className="w-full bg-[var(--bg-color)]/30 h-2.5 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    (subscription.used_codes / (subscription.total_codes || 1)) >= 0.9 ? 'bg-rose-500' : 
-                    (subscription.used_codes / (subscription.total_codes || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
-                  }`}
-                  style={{ width: `${Math.min(100, (subscription.used_codes / (subscription.total_codes || 1)) * 100)}%` }}
-                ></div>
-              </div>
+              {subscription.total_codes < 999999 && (
+                <div className="w-full bg-[var(--bg-color)]/30 h-2.5 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.9 ? 'bg-rose-500' : 
+                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
+                    }`}
+                    style={{ width: `${Math.min(100, (subscription.used_codes / (subscription.total_codes || 1)) * 100)}%` }}
+                  ></div>
+                </div>
+              )}
               <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-1">
-                <span>أكواد متبقية (سعة متاحة): {subscription.remaining_codes} كود</span>
+                <span>أكواد متبقية (سعة متاحة): {subscription.total_codes >= 999999 ? 'غير محدود' : `${subscription.remaining_codes} كود`}</span>
                 <span>أكواد إضافية مشتراة: +{subscription.extra_codes} كود</span>
               </div>
             </div>
@@ -504,6 +528,24 @@ export default function Subscription() {
               <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-1">
                 <span>المساحة المتبقية: {subscription.remaining_storage_gb} GB</span>
                 <span>مساحة إضافية مشتراة: +{subscription.extra_storage_gb} GB</span>
+              </div>
+            </div>
+
+            {/* Active Resources Summary */}
+            <div className="pt-4 border-t border-[var(--border-color)] grid grid-cols-2 gap-4">
+              <div className="bg-[var(--bg-color)]/10 p-3.5 rounded-xl border border-[var(--border-color)]/40 flex items-center gap-3">
+                <Users className="w-4 h-4 text-sky-400 shrink-0" />
+                <div className="text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">إجمالي الطلاب المشتركين</span>
+                  <span className="text-xs font-black text-[var(--text-color)]">{subscription.students_count || 0} طالب</span>
+                </div>
+              </div>
+              <div className="bg-[var(--bg-color)]/10 p-3.5 rounded-xl border border-[var(--border-color)]/40 flex items-center gap-3">
+                <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
+                <div className="text-right">
+                  <span className="text-[9px] text-[var(--text-secondary)] block">إجمالي الكورسات المنشورة</span>
+                  <span className="text-xs font-black text-[var(--text-color)]">{subscription.courses_count || 0} كورس</span>
+                </div>
               </div>
             </div>
           </div>

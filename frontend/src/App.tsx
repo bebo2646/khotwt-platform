@@ -66,6 +66,8 @@ const AdminSubscriptionRequests = React.lazy(() => import('./pages/admin/Subscri
 const AdminSubscriptionPlans = React.lazy(() => import('./pages/admin/SubscriptionPlans'))
 const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboard'))
 const AdminPayouts = React.lazy(() => import('./pages/admin/Payouts'))
+const PendingStudents = React.lazy(() => import('./pages/admin/PendingStudents'))
+const PlatformSettings = React.lazy(() => import('./pages/admin/PlatformSettings'))
 
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
@@ -480,6 +482,16 @@ function App() {
         <Route path="/admin/manage" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="admins.manage">
             <AdminLayout><AdminManagement /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/students/pending" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
+            <AdminLayout><PendingStudents /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/settings" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <AdminLayout><PlatformSettings /></AdminLayout>
           </ProtectedRoute>
         } />
 

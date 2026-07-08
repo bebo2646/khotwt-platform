@@ -1,10 +1,11 @@
 import React from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import API from '../../services/api'
-import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet } from 'lucide-react'
+import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet, Maximize, Minimize } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
 import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl } from '../../utils/video'
+import { useAuthStore } from '../../store/authStore'
 
 declare global {
   interface Window {
@@ -75,6 +76,32 @@ export default function LessonViewer() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const preSelectedVideoId = searchParams.get('play')
+
+  const { user } = useAuthStore()
+  const containerRef = React.useRef<HTMLDivElement | null>(null)
+  const [isFullscreen, setIsFullscreen] = React.useState(false)
+
+  const watchSessionIdRef = React.useRef<string>('')
+  const sessionWatchTimeRef = React.useRef<number>(0)
+
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err => {
+        console.error('Error entering fullscreen:', err)
+      })
+    } else {
+      document.exitFullscreen()
+    }
+  }
 
   // States
   const [lesson, setLesson] = React.useState<LessonItem | null>(null)
@@ -283,6 +310,8 @@ export default function LessonViewer() {
         watched_seconds: watched,
         last_position_seconds: currentPos,
         watched_segments: segments,
+        session_id: watchSessionIdRef.current,
+        session_watch_time: Math.floor(sessionWatchTimeRef.current),
       };
 
       console.log('Saving progress', payload);
@@ -505,6 +534,8 @@ export default function LessonViewer() {
         setProgressPercentage(Math.min(100, (totalSecs / durVal) * 100));
       }
       currentSegmentRef.current = null;
+      watchSessionIdRef.current = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      sessionWatchTimeRef.current = 0;
     }
   }, [activeVideo?.id]);
 
@@ -546,6 +577,9 @@ export default function LessonViewer() {
       if (elapsed >= 0 && elapsed <= 2.5) {
         // Continuous playing forward
         active.end = t;
+        if (elapsed > 0) {
+          sessionWatchTimeRef.current += elapsed;
+        }
       } else {
         // Seeking/jumping/reversing
         pushAndMergeCurrentSegment();
@@ -912,7 +946,26 @@ export default function LessonViewer() {
           {/* Video Player Display */}
           {activeTab === 'videos' && activeVideo && (
             <div className="space-y-4">
-              <div className="aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative">
+              <div 
+                ref={containerRef}
+                className="aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative"
+              >
+                
+                {/* Fullscreen Button */}
+                {activeVideo && (
+                  <button
+                    onClick={toggleFullscreen}
+                    className="absolute top-4 left-4 p-2 bg-black/60 hover:bg-black/80 border border-slate-700/50 rounded-xl text-slate-300 hover:text-white transition-all cursor-pointer z-40"
+                    title={isFullscreen ? "خروج من ملء الشاشة" : "ملء الشاشة"}
+                  >
+                    {isFullscreen ? <Minimize className="h-4.5 w-4.5" /> : <Maximize className="h-4.5 w-4.5" />}
+                  </button>
+                )}
+
+                {/* Watermark Overlay */}
+                {user && user.role === 'student' && (
+                  <VideoWatermark name={user.name} phone={user.phone} />
+                )}
                 
                 {(() => {
                   let url = activeVideo.bunny_embed_url || '';
@@ -1375,3 +1428,52 @@ const mergeSegments = (segments: Array<{ start: number; end: number }>) => {
   }
   return merged;
 };
+
+interface VideoWatermarkProps {
+  name: string
+  phone?: string
+}
+
+function VideoWatermark({ name, phone }: VideoWatermarkProps) {
+  const [position, setPosition] = React.useState({ top: '25%', left: '25%' })
+  const [opacity, setOpacity] = React.useState(0.25)
+  const [visible, setVisible] = React.useState(true)
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false)
+      
+      setTimeout(() => {
+        const randomTop = Math.floor(Math.random() * 65) + 15 // 15% to 80%
+        const randomLeft = Math.floor(Math.random() * 65) + 15 // 15% to 80%
+        const randomOpacity = (Math.random() * 0.2) + 0.15 // 0.15 to 0.35
+        
+        setPosition({ top: `${randomTop}%`, left: `${randomLeft}%` })
+        setOpacity(randomOpacity)
+        setVisible(true)
+      }, 500)
+      
+    }, 6000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <div 
+      className="absolute pointer-events-none select-none z-50 text-white font-extrabold transition-all duration-500 ease-in-out text-right font-sans"
+      style={{
+        top: position.top,
+        left: position.left,
+        opacity: visible ? opacity : 0,
+        textShadow: '1px 1px 2px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.9), 0 0 5px rgba(0,0,0,0.8)',
+        fontSize: 'clamp(10px, 1.6vw, 18px)',
+        lineHeight: '1.4',
+        direction: 'rtl',
+        whiteSpace: 'nowrap'
+      }}
+    >
+      <div>{name}</div>
+      {phone && <div className="mt-0.5 tracking-wider font-mono">{phone}</div>}
+    </div>
+  )
+}

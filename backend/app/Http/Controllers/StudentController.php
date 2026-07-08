@@ -972,6 +972,10 @@ class StudentController extends Controller
                 return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لمشاهدة المحتوى.'], 403);
             }
 
+            if ($course->hasExceededViewLimitForStudent($user->id)) {
+                return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+            }
+
             if ($lesson->isLockedForStudent($user->id)) {
                 return response()->json([
                     'message' => 'يجب إكمال متطلبات الدرس السابق أولاً (مشاهدة المحاضرات وحل الواجب).',
@@ -1066,10 +1070,66 @@ class StudentController extends Controller
             'watched_seconds' => 'required|integer|min:0',
             'last_position_seconds' => 'required|integer|min:0',
             'watched_segments' => 'nullable|array',
+            'session_id' => 'nullable|string',
+            'session_watch_time' => 'nullable|integer|min:0',
         ]);
 
         $user = $request->user();
         $video = Video::findOrFail($videoId);
+
+        // Check if student has exceeded view limit
+        if ($user->isStudent() && $video->lesson && $video->lesson->unit) {
+            $course = $video->lesson->unit->course;
+            if ($course && $course->hasExceededViewLimitForStudent($user->id)) {
+                return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+            }
+        }
+
+        // Track and count views based on session watch time
+        $sessionId = $request->input('session_id');
+        $sessionWatchTime = $request->input('session_watch_time', 0);
+        
+        if ($sessionId && $user->isStudent() && $video->lesson && $video->lesson->unit) {
+            $courseId = $video->lesson->unit->course_id;
+            
+            $session = \App\Models\VideoViewSession::firstOrCreate([
+                'session_id' => $sessionId,
+            ], [
+                'student_id' => $user->id,
+                'video_id' => $video->id,
+                'course_id' => $courseId,
+                'watch_time' => 0,
+                'counted' => false,
+            ]);
+
+            if ($sessionWatchTime > $session->watch_time) {
+                $session->watch_time = $sessionWatchTime;
+                $session->save();
+            }
+
+            $settings = \App\Models\PlatformSetting::first();
+            $threshold = $settings ? (int)$settings->video_threshold_seconds : 300;
+            
+            // Adjust threshold to be at most 85% of video duration if video is shorter than the threshold
+            $videoDur = $video->duration_seconds ?: 300;
+            $adjustedThreshold = min($threshold, (int)round($videoDur * 0.85));
+
+            if ($session->watch_time >= $adjustedThreshold && !$session->counted) {
+                $session->counted = true;
+                $session->save();
+
+                $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
+                    'student_id' => $user->id,
+                    'course_id' => $courseId,
+                ], [
+                    'views_used' => 0,
+                    'max_views_override' => null,
+                    'extra_views' => 0,
+                ]);
+
+                $viewLimit->increment('views_used');
+            }
+        }
 
         // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
         $duration = $video->duration_seconds ?: 300;

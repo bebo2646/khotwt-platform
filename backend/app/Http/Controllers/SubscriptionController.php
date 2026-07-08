@@ -144,6 +144,10 @@ class SubscriptionController extends Controller
                 'end_date' => $subscription->end_date->toDateString(),
                 'status' => $subscription->status,
                 'billing_cycle' => $subscription->billing_cycle,
+                'billing_period' => $subscription->billing_period,
+                'final_price' => $subscription->final_price,
+                'discount_percentage' => $subscription->discount_percentage,
+                'discount_amount' => $subscription->discount_amount,
                 'used_storage_bytes' => $subscription->used_storage_bytes,
                 'used_codes' => $subscription->used_codes,
                 'extra_storage_gb' => $subscription->extra_storage_gb,
@@ -792,6 +796,7 @@ class SubscriptionController extends Controller
         // Count students
         $courseIds = Course::where('teacher_id', $teacher->id)->pluck('id');
         $studentsCount = Enrollment::whereIn('course_id', $courseIds)->distinct('student_id')->count('student_id');
+        $coursesCount = Course::where('teacher_id', $teacher->id)->count();
 
         // Expiration warnings
         $today = Carbon::today();
@@ -837,6 +842,10 @@ class SubscriptionController extends Controller
                 'end_date' => $subscription->end_date->toDateString(),
                 'status' => $subscription->status,
                 'billing_cycle' => $subscription->billing_cycle,
+                'billing_period' => $subscription->billing_period,
+                'final_price' => $subscription->final_price,
+                'discount_percentage' => $subscription->discount_percentage,
+                'discount_amount' => $subscription->discount_amount,
                 'used_storage_bytes' => $subscription->used_storage_bytes,
                 'used_codes' => $subscription->used_codes,
                 'extra_storage_gb' => $subscription->extra_storage_gb,
@@ -848,6 +857,7 @@ class SubscriptionController extends Controller
                 'storage_percentage' => $subscription->storage_percentage,
                 'remaining_days' => max(0, $remainingDays),
                 'students_count' => $studentsCount,
+                'courses_count' => $coursesCount,
             ],
             'addons' => $subscription->addons()->orderBy('created_at', 'desc')->get(),
             'plans' => SubscriptionPlan::where('isActive', true)->orderBy('sort_order', 'asc')->get(),

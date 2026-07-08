@@ -24,6 +24,9 @@ class AuthController extends Controller
             'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
         ]);
 
+        $settings = \App\Models\PlatformSetting::first();
+        $requireApproval = $settings ? (bool)$settings->require_student_approval : false;
+
         $student = User::create([
             'name' => $request->name,
             'email' => $request->email,
@@ -31,7 +34,7 @@ class AuthController extends Controller
             'role' => 'student',
             'phone' => $request->phone,
             'parent_phone' => $request->parent_phone,
-            'status' => 'active',
+            'status' => $requireApproval ? 'pending' : 'active',
             'grades' => [$request->grade],
         ]);
 
@@ -40,6 +43,13 @@ class AuthController extends Controller
             'student_id' => $student->id,
             'balance' => 0.00,
         ]);
+
+        if ($student->status === 'pending') {
+            return response()->json([
+                'message' => 'سيتم مراجعة بياناتك خلال 24 ساعة للتحقق من صحتها.',
+                'user' => $student,
+            ], 201);
+        }
 
         $sessionToken = \Illuminate\Support\Str::random(40);
         $currentSessionToken = (string) \Illuminate\Support\Str::uuid();
@@ -80,6 +90,14 @@ class AuthController extends Controller
 
         if ($user->status === 'disabled') {
             return response()->json(['message' => 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.'], 403);
+        }
+
+        if ($user->status === 'pending') {
+            return response()->json(['message' => 'حسابك قيد المراجعة.'], 403);
+        }
+
+        if ($user->status === 'rejected') {
+            return response()->json(['message' => 'تم رفض الحساب. سبب الرفض: ' . ($user->rejection_reason ?? 'لا يوجد سبب محدد')], 403);
         }
 
         // Deactivate previous sessions: delete existing Sanctum tokens

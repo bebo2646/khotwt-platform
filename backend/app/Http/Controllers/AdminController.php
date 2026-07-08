@@ -1884,5 +1884,370 @@ class AdminController extends Controller
             ]);
         });
     }
+
+    /**
+     * Get list of pending students.
+     */
+    public function getPendingStudents(Request $request)
+    {
+        $students = \App\Models\User::where('role', 'student')
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->get();
+        return response()->json($students);
+    }
+
+    /**
+     * Approve a student.
+     */
+    public function approveStudent(Request $request, $id)
+    {
+        $student = \App\Models\User::findOrFail($id);
+        $student->status = 'active';
+        $student->rejection_reason = null;
+        $student->save();
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تفعيل حساب الطالب: {$student->name} ({$student->phone})",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم تفعيل حساب الطالب بنجاح.',
+            'user' => $student,
+        ]);
+    }
+
+    /**
+     * Reject a student.
+     */
+    public function rejectStudent(Request $request, $id)
+    {
+        $request->validate([
+            'reason' => 'required|string',
+        ]);
+
+        $student = \App\Models\User::findOrFail($id);
+        $settings = \App\Models\PlatformSetting::first();
+        $autoDelete = $settings ? (bool)$settings->auto_delete_rejected_accounts : false;
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "رفض حساب الطالب: {$student->name} ({$student->phone}). السبب: {$request->reason}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        if ($autoDelete) {
+            if ($student->wallet) {
+                $student->wallet->delete();
+            }
+            $student->delete();
+            return response()->json([
+                'message' => 'تم رفض حساب الطالب وحذفه تلقائياً بناءً على إعدادات المنصة.',
+                'deleted' => true,
+            ]);
+        } else {
+            $student->status = 'rejected';
+            $student->rejection_reason = $request->reason;
+            $student->save();
+
+            $student->tokens()->delete();
+
+            return response()->json([
+                'message' => 'تم رفض حساب الطالب بنجاح وتسجيل السبب.',
+                'user' => $student,
+            ]);
+        }
+    }
+
+    /**
+     * Get enterprise and view limit settings.
+     */
+    public function getEnterpriseSettings(Request $request)
+    {
+        $settings = \App\Models\PlatformSetting::first();
+        return response()->json($settings);
+    }
+
+    /**
+     * Update enterprise settings.
+     */
+    public function updateEnterpriseSettings(Request $request)
+    {
+        $request->validate([
+            'require_student_approval' => 'required|boolean',
+            'auto_delete_rejected_accounts' => 'required|boolean',
+            'view_limit_enabled' => 'required|boolean',
+            'default_max_views' => 'required|integer|min:1',
+            'video_threshold_seconds' => 'required|integer|min:5',
+        ]);
+
+        $settings = \App\Models\PlatformSetting::first();
+        if (!$settings) {
+            $settings = new \App\Models\PlatformSetting();
+        }
+
+        $settings->require_student_approval = $request->require_student_approval;
+        $settings->auto_delete_rejected_accounts = $request->auto_delete_rejected_accounts;
+        $settings->view_limit_enabled = $request->view_limit_enabled;
+        $settings->default_max_views = $request->default_max_views;
+        $settings->video_threshold_seconds = $request->video_threshold_seconds;
+        $settings->save();
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تحديث الإعدادات العامة وإعدادات المشاهدة والمراجعة للمنصة",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم حفظ الإعدادات بنجاح.',
+            'settings' => $settings,
+        ]);
+    }
+
+    /**
+     * Get student course view limit overrides and counters.
+     */
+    public function getStudentCourseLimits(Request $request)
+    {
+        $query = \App\Models\StudentCourseViewLimit::with(['student', 'course']);
+
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->student_id);
+        }
+        if ($request->filled('course_id')) {
+            $query->where('course_id', $request->course_id);
+        }
+
+        $limits = $query->get()->map(function ($limit) {
+            $course = $limit->course;
+            $settings = \App\Models\PlatformSetting::first();
+            $globalDefault = $settings ? (int)$settings->default_max_views : 10;
+            
+            $baseLimit = $limit->max_views_override !== null 
+                ? $limit->max_views_override 
+                : ($course->max_views !== null ? $course->max_views : $globalDefault);
+
+            $maxAllowed = $baseLimit + $limit->extra_views;
+            $remaining = max(0, $maxAllowed - $limit->views_used);
+
+            return [
+                'id' => $limit->id,
+                'student_id' => $limit->student_id,
+                'student_name' => $limit->student->name ?? 'طالب محذوف',
+                'student_phone' => $limit->student->phone ?? '',
+                'course_id' => $limit->course_id,
+                'course_title' => $course->title ?? 'كورس محذوف',
+                'views_used' => $limit->views_used,
+                'max_views_override' => $limit->max_views_override,
+                'extra_views' => $limit->extra_views,
+                'max_allowed' => $maxAllowed,
+                'remaining' => $remaining,
+            ];
+        });
+
+        return response()->json($limits);
+    }
+
+    /**
+     * Create or update student course view limit (Override / Add Extra / Remove views).
+     */
+    public function updateStudentCourseLimit(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:users,id',
+            'course_id' => 'required|exists:courses,id',
+            'max_views_override' => 'nullable|integer|min:0',
+            'extra_views' => 'nullable|integer',
+            'views_used' => 'nullable|integer|min:0',
+        ]);
+
+        $limit = \App\Models\StudentCourseViewLimit::updateOrCreate([
+            'student_id' => $request->student_id,
+            'course_id' => $request->course_id,
+        ], [
+            'max_views_override' => $request->max_views_override,
+            'extra_views' => $request->input('extra_views', 0),
+        ]);
+
+        if ($request->has('views_used')) {
+            $limit->views_used = $request->views_used;
+            $limit->save();
+        }
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تحديث قيود مشاهدة الكورس ID: {$request->course_id} للطالب ID: {$request->student_id}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم حفظ قيود المشاهدة للطالب بنجاح.',
+            'limit' => $limit,
+        ]);
+    }
+
+    /**
+     * Reset views counter for a student in a course.
+     */
+    public function resetStudentCourseLimit(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:users,id',
+            'course_id' => 'required|exists:courses,id',
+        ]);
+
+        $limit = \App\Models\StudentCourseViewLimit::where('student_id', $request->student_id)
+            ->where('course_id', $request->course_id)
+            ->first();
+
+        if ($limit) {
+            $limit->views_used = 0;
+            $limit->save();
+        }
+
+        // Also clean up their session history for this course to make it a true reset
+        \App\Models\VideoViewSession::where('student_id', $request->student_id)
+            ->where('course_id', $request->course_id)
+            ->delete();
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "إعادة تعيين عداد المشاهدات للكورس ID: {$request->course_id} للطالب ID: {$request->student_id}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم إعادة تعيين عداد مشاهدات الطالب بنجاح.',
+        ]);
+    }
+
+    /**
+     * Get course-specific view limits configuration.
+     */
+    public function getCourseViewLimitsConfig($courseId)
+    {
+        $course = \App\Models\Course::findOrFail($courseId);
+        return response()->json([
+            'view_limit_enabled' => $course->view_limit_enabled,
+            'max_views' => $course->max_views,
+        ]);
+    }
+
+    /**
+     * Update course-specific view limits configuration.
+     */
+    public function updateCourseViewLimitsConfig(Request $request, $courseId)
+    {
+        $request->validate([
+            'view_limit_enabled' => 'nullable|boolean',
+            'max_views' => 'nullable|integer|min:1',
+        ]);
+
+        $course = \App\Models\Course::findOrFail($courseId);
+        $course->view_limit_enabled = $request->view_limit_enabled;
+        $course->max_views = $request->max_views;
+        $course->save();
+
+        \App\Models\AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تحديث قيود المشاهدة لكورس: {$course->title}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return response()->json([
+            'message' => 'تم حفظ قيود مشاهدة الكورس بنجاح.',
+            'course' => $course,
+        ]);
+    }
+
+    /**
+     * Get comprehensive video view statistics for the Admin dashboard.
+     */
+    public function getVideoViewsAnalytics(Request $request)
+    {
+        // 1. Total Lesson/Video Views (counted sessions)
+        $totalViews = \App\Models\VideoViewSession::where('counted', true)->count();
+
+        // 2. Unique Student Views (unique student_id in counted sessions)
+        $uniqueStudentViews = \App\Models\VideoViewSession::where('counted', true)
+            ->distinct('student_id')
+            ->count('student_id');
+
+        // 3. Most and Least Watched Lessons
+        $videoStats = \App\Models\VideoViewSession::where('counted', true)
+            ->select('video_id', \DB::raw('count(*) as views_count'), \DB::raw('sum(watch_time) as total_watch_time'), \DB::raw('max(updated_at) as last_viewed_at'))
+            ->groupBy('video_id')
+            ->orderBy('views_count', 'desc')
+            ->get();
+
+        $videoStats->load('video.lesson.unit.course.teacher');
+
+        $formattedVideoStats = $videoStats->map(function ($stat) {
+            $video = $stat->video;
+            return [
+                'video_id' => $stat->video_id,
+                'video_title' => $video->title ?? 'فيديو محذوف',
+                'lesson_title' => $video->lesson->title ?? 'درس محذوف',
+                'course_title' => $video->lesson->unit->course->title ?? 'كورس محذوف',
+                'teacher_name' => $video->lesson->unit->course->teacher->name ?? 'معلم محذوف',
+                'views_count' => $stat->views_count,
+                'total_watch_time_minutes' => (int)round($stat->total_watch_time / 60),
+                'last_viewed' => $stat->last_viewed_at,
+            ];
+        });
+
+        $mostWatched = $formattedVideoStats->take(10)->values()->all();
+        $leastWatched = $formattedVideoStats->reverse()->take(10)->values()->all();
+
+        // 4. Per-Course Statistics
+        $courseStats = \App\Models\VideoViewSession::where('counted', true)
+            ->select('course_id', \DB::raw('count(*) as views_count'), \DB::raw('sum(watch_time) as total_watch_time'))
+            ->groupBy('course_id')
+            ->orderBy('views_count', 'desc')
+            ->get();
+
+        $courseStats->load('course.teacher');
+
+        $formattedCourseStats = $courseStats->map(function ($stat) {
+            $course = $stat->course;
+            return [
+                'course_id' => $stat->course_id,
+                'course_title' => $course->title ?? 'كورس محذوف',
+                'teacher_name' => $course->teacher->name ?? 'معلم محذوف',
+                'views_count' => $stat->views_count,
+                'total_watch_time_minutes' => (int)round($stat->total_watch_time / 60),
+            ];
+        });
+
+        // 5. Per-Teacher Statistics
+        $teacherStats = \App\Models\VideoViewSession::where('counted', true)
+            ->join('courses', 'video_view_sessions.course_id', '=', 'courses.id')
+            ->join('users', 'courses.teacher_id', '=', 'users.id')
+            ->select('users.id as teacher_id', 'users.name as teacher_name', \DB::raw('count(*) as views_count'), \DB::raw('sum(watch_time) as total_watch_time'))
+            ->groupBy('users.id', 'users.name')
+            ->orderBy('views_count', 'desc')
+            ->get();
+
+        $formattedTeacherStats = $teacherStats->map(function ($stat) {
+            return [
+                'teacher_id' => $stat->teacher_id,
+                'teacher_name' => $stat->teacher_name,
+                'views_count' => $stat->views_count,
+                'total_watch_time_minutes' => (int)round($stat->total_watch_time / 60),
+            ];
+        });
+
+        return response()->json([
+            'total_views' => $totalViews,
+            'unique_student_views' => $uniqueStudentViews,
+            'most_watched_lessons' => $mostWatched,
+            'least_watched_lessons' => $leastWatched,
+            'course_statistics' => $formattedCourseStats,
+            'teacher_statistics' => $formattedTeacherStats,
+        ]);
+    }
 }
 

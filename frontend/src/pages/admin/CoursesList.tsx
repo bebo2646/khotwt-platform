@@ -14,7 +14,8 @@ import {
   User, 
   GraduationCap, 
   CheckCircle2, 
-  AlertTriangle 
+  AlertTriangle,
+  Settings
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
@@ -69,6 +70,56 @@ export default function CoursesList() {
   // Course deletion
   const [deleteCourseItem, setDeleteCourseItem] = React.useState<CourseItem | null>(null)
   const [deleting, setDeleting] = React.useState(false)
+
+  // Course view limits
+  const [limitModalCourse, setLimitModalCourse] = React.useState<any>(null)
+  const [limitEnabledOverride, setLimitEnabledOverride] = React.useState<string>('inherit')
+  const [limitMaxViews, setLimitMaxViews] = React.useState<number | string>('')
+  const [savingLimit, setSavingLimit] = React.useState(false)
+
+  const handleOpenLimitModal = async (course: any) => {
+    setLimitModalCourse(course)
+    try {
+      const res = await API.get(`/admin/course-view-limits-config/${course.id}`)
+      const { view_limit_enabled, max_views } = res.data
+      
+      if (view_limit_enabled === null || view_limit_enabled === undefined) {
+        setLimitEnabledOverride('inherit')
+      } else if (view_limit_enabled) {
+        setLimitEnabledOverride('enable')
+      } else {
+        setLimitEnabledOverride('disable')
+      }
+      
+      setLimitMaxViews(max_views !== null && max_views !== undefined ? max_views : '')
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('فشل تحميل إعدادات قيود المشاهدة.', 'error')
+    }
+  }
+
+  const handleSaveLimitConfig = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!limitModalCourse) return
+    setSavingLimit(true)
+    try {
+      let val: boolean | null = null
+      if (limitEnabledOverride === 'enable') val = true
+      if (limitEnabledOverride === 'disable') val = false
+
+      await API.post(`/admin/course-view-limits-config/${limitModalCourse.id}`, {
+        view_limit_enabled: val,
+        max_views: limitMaxViews !== '' ? parseInt(limitMaxViews as string) : null,
+      })
+      useModalStore.getState().showToast('تم حفظ قيود مشاهدة الكورس بنجاح.', 'success')
+      setLimitModalCourse(null)
+    } catch (err: any) {
+      console.error(err)
+      useModalStore.getState().showToast(err.response?.data?.message || 'فشل حفظ قيود المشاهدة.', 'error')
+    } finally {
+      setSavingLimit(false)
+    }
+  }
 
   const fetchCourses = () => {
     setLoading(true)
@@ -265,6 +316,13 @@ export default function CoursesList() {
                           <Eye className="h-4.5 w-4.5" />
                         </button>
                         <button
+                          onClick={() => handleOpenLimitModal(c)}
+                          className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-400 cursor-pointer"
+                          title="حدود مشاهدة الكورس"
+                        >
+                          <Settings className="h-4.5 w-4.5" />
+                        </button>
+                        <button
                           onClick={() => setDeleteCourseItem(c)}
                           className="p-1.5 hover:bg-rose-500/10 rounded text-slate-400 hover:text-rose-500 cursor-pointer"
                           title="حذف الكورس"
@@ -424,35 +482,18 @@ export default function CoursesList() {
                                         </div>
                                       ))}
                                     </div>
-
                                   </div>
-
                                 </div>
                               ))}
                             </div>
                           )}
-
                         </div>
                       ))}
                     </div>
                   )}
-
                 </div>
-
               </div>
-            ) : (
-              <div className="text-center py-6 text-xs text-rose-400 font-light">فشل تحميل تفاصيل الكورس.</div>
-            )}
-
-            <div className="flex justify-end pt-3">
-              <button
-                onClick={() => setViewCourse(null)}
-                className="px-6 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer"
-              >
-                إغلاق تفاصيل الكورس
-              </button>
-            </div>
-
+            ) : null}
           </div>
         </div>
       )}
@@ -469,7 +510,7 @@ export default function CoursesList() {
             
             <p className="text-xs text-slate-300 font-light leading-relaxed">
               هل أنت متأكد من رغبتك في حذف الكورس <span className="font-bold text-rose-500">"{deleteCourseItem.title}"</span> بشكل نهائي؟ 
-              هذا الإجراء سيحذف كافة المحاضرات، الملفات، الامتحانات، واشتраكات الطلاب التابعة له ولا يمكن استرجاعها.
+              هذا الإجراء سيحذف كافة المحاضرات، الملفات، الامتحانات، واشتراكات الطلاب التابعة له ولا يمكن استرجاعها.
             </p>
 
             <div className="flex justify-end gap-3 pt-2">
@@ -488,6 +529,64 @@ export default function CoursesList() {
                 {deleting ? 'جاري الحذف...' : 'تأكيد الحذف النهائي'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Course Limit Override Modal */}
+      {limitModalCourse && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/70 z-40" onClick={() => setLimitModalCourse(null)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right font-sans" dir="rtl">
+            <h3 className="text-lg font-black text-slate-200 flex items-center gap-2 border-b border-[var(--border-color)] pb-3">
+              <Settings className="h-5 w-5 text-indigo-400" />
+              <span>قيود مشاهدة الكورس: {limitModalCourse.title}</span>
+            </h3>
+            
+            <form onSubmit={handleSaveLimitConfig} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">حالة قيود المشاهدة للكورس:</label>
+                <select
+                  className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                  value={limitEnabledOverride}
+                  onChange={(e) => setLimitEnabledOverride(e.target.value)}
+                >
+                  <option value="inherit">يرث الإعداد العام للمنصة (افتراضي)</option>
+                  <option value="enable">تفعيل قيود المشاهدة دائماً لهذا الكورس</option>
+                  <option value="disable">إلغاء قيود المشاهدة دائماً (مشاهدة غير محدودة)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">الحد الأقصى لعدد المشاهدات (اختياري):</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="اتركه فارغاً لاستخدام الافتراضي للمنصة"
+                  className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-xs text-slate-200 focus:outline-none focus:border-brand-primary font-mono text-left"
+                  value={limitMaxViews}
+                  onChange={(e) => setLimitMaxViews(e.target.value)}
+                />
+                <p className="text-[10px] text-slate-500 mt-1">الحد الأقصى لعدد مرات مشاهدة الكورس لكل طالب مشترك.</p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2 border-t border-[var(--border-color)]">
+                <button
+                  type="button"
+                  onClick={() => setLimitModalCourse(null)}
+                  className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingLimit}
+                  className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                >
+                  {savingLimit ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
