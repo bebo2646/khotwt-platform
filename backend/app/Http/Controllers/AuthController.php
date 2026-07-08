@@ -46,6 +46,7 @@ class AuthController extends Controller
 
         if ($student->status === 'pending') {
             return response()->json([
+                'status' => 'pending',
                 'message' => 'سيتم مراجعة بياناتك خلال 24 ساعة للتحقق من صحتها.',
                 'user' => $student,
             ], 201);
@@ -92,12 +93,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.'], 403);
         }
 
-        if ($user->status === 'pending') {
-            return response()->json(['message' => 'حسابك قيد المراجعة.'], 403);
-        }
+        if ($user->role === 'student') {
+            if ($user->status === 'pending') {
+                return response()->json([
+                    'status' => 'pending',
+                    'message' => 'حسابك قيد المراجعة.',
+                ], 403);
+            }
 
-        if ($user->status === 'rejected') {
-            return response()->json(['message' => 'تم رفض الحساب. سبب الرفض: ' . ($user->rejection_reason ?? 'لا يوجد سبب محدد')], 403);
+            if ($user->status === 'rejected') {
+                return response()->json([
+                    'status' => 'rejected',
+                    'message' => 'تم رفض الحساب.',
+                    'rejection_reason' => $user->rejection_reason ?? 'لا يوجد سبب محدد',
+                ], 403);
+            }
         }
 
         // Deactivate previous sessions: delete existing Sanctum tokens
@@ -198,5 +208,32 @@ class AuthController extends Controller
         return response()->json([
             'valid' => (bool)$valid
         ]);
+    }
+
+    /**
+     * Delete a rejected student account.
+     */
+    public function deleteRejectedAccount(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|string|email',
+        ]);
+        
+        $user = User::where('email', $request->email)->where('status', 'rejected')->first();
+        if ($user) {
+            // Delete Sanctum tokens
+            $user->tokens()->delete();
+            // Delete wallet
+            Wallet::where('student_id', $user->id)->delete();
+            // Delete view limits
+            \App\Models\StudentCourseViewLimit::where('student_id', $user->id)->delete();
+            // Delete view sessions
+            \App\Models\VideoViewSession::where('student_id', $user->id)->delete();
+            // Delete user itself
+            $user->delete();
+            
+            return response()->json(['message' => 'Account deleted successfully']);
+        }
+        return response()->json(['message' => 'No rejected account found'], 404);
     }
 }

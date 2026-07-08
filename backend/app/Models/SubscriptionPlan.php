@@ -136,6 +136,21 @@ class SubscriptionPlan extends Model
         $this->attributes['is_popular'] = (bool)$value;
     }
 
+    protected $appends = [
+        'price_egp',
+        'video_storage_gb',
+        'student_codes',
+        'duration_days',
+        'is_popular',
+        'is_trial',
+        'max_students',
+    ];
+
+    public function getMaxStudentsAttribute()
+    {
+        return $this->max_codes_limit;
+    }
+
     public function getIsTrialAttribute()
     {
         return $this->slug === 'starter' || $this->slug === 'free' || ($this->price == 0 && $this->billing_type !== 'revenue_sharing');

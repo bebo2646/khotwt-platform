@@ -5,6 +5,7 @@ import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { Mail, Lock, User, Phone, ShieldCheck, AlertCircle, Loader2, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
+import { useModalStore } from '../store/modalStore'
 
 type RegisterFormInputs = {
   name: string
@@ -73,8 +74,14 @@ export default function Register() {
         grade: data.grade,
         password: data.password,
       })
-      const { user: registeredUser, token, session_token } = res.data
+      const { user: registeredUser, token, session_token, status } = res.data
       
+      if (status === 'pending') {
+        useModalStore.getState().showToast('تم تسجيل حسابك بنجاح. حسابك قيد المراجعة حالياً.', 'success')
+        navigate('/login', { replace: true })
+        return
+      }
+
       // Check maintenance status after successful registration
       const configRes = await API.get('/config')
       if (configRes.data && configRes.data.maintenance) {

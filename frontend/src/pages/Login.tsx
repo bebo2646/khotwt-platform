@@ -113,6 +113,16 @@ export default function Login() {
       }
     } catch (err: any) {
       console.error(err)
+      if (err.response && err.response.data && err.response.data.status === 'pending') {
+        navigate('/pending-approval', { replace: true })
+        return
+      }
+      if (err.response && err.response.data && err.response.data.status === 'rejected') {
+        const reason = err.response.data.rejection_reason || 'لا يوجد سبب محدد'
+        const email = data.email
+        navigate(`/rejected-account?reason=${encodeURIComponent(reason)}&email=${encodeURIComponent(email)}`, { replace: true })
+        return
+      }
       if (err.response && err.response.data && err.response.data.message) {
         setApiError(err.response.data.message)
       } else if (err.response && err.response.data && err.response.data.errors) {

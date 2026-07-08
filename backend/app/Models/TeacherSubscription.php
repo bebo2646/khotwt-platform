@@ -113,7 +113,7 @@ class TeacherSubscription extends Model
 
     public function getTotalCodesAttribute()
     {
-        if ($this->plan && $this->plan->codes_limit_type === 'unlimited') {
+        if ($this->plan && $this->plan->billing_type !== 'revenue_sharing' && $this->plan->codes_limit_type === 'unlimited') {
             return 999999; // Represents Unlimited
         }
         $planCodes = $this->plan ? ($this->plan->max_codes_limit ?? $this->plan->student_codes) : 0;

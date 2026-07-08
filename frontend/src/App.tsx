@@ -30,6 +30,8 @@ const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
 const NotFound = React.lazy(() => import('./pages/NotFound'))
 const ServerError = React.lazy(() => import('./pages/ServerError'))
 const Maintenance = React.lazy(() => import('./pages/Maintenance'))
+const PendingApproval = React.lazy(() => import('./pages/PendingApproval'))
+const RejectedAccount = React.lazy(() => import('./pages/RejectedAccount'))
 
 // Student Pages (Lazy Loaded)
 const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'))
@@ -278,6 +280,8 @@ function App() {
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/login" element={<Layout><Login /></Layout>} />
         <Route path="/register" element={<Layout><Register /></Layout>} />
+        <Route path="/pending-approval" element={<PendingApproval />} />
+        <Route path="/rejected-account" element={<RejectedAccount />} />
         <Route path="/courses" element={<Layout><Courses /></Layout>} />
         <Route path="/course/:id" element={<Layout><CourseDetail /></Layout>} />
         <Route path="/courses/:id" element={<Layout><CourseDetail /></Layout>} />

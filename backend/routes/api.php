@@ -41,6 +41,7 @@ Route::get('/debug/bunny-config', function () {
 // Authentication
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/auth/delete-rejected-account', [AuthController::class, 'deleteRejectedAccount']);
 
 // Bunny Webhook
 Route::post('/bunny/webhook', [\App\Http\Controllers\BunnyWebhookController::class, 'handle']);

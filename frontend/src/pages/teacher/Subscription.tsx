@@ -29,6 +29,7 @@ interface Plan {
   recommended?: boolean
   billing_type?: 'monthly' | 'revenue_sharing'
   commission_percentage?: number | string
+  max_students?: number | null
 }
 
 interface Subscription {
@@ -88,6 +89,22 @@ export default function Subscription() {
 
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
+
+  const getStudentLimitDisplay = () => {
+    if (!subscription) return ''
+    if (subscription.plan?.billing_type === 'revenue_sharing') {
+      const maxStudents = subscription.plan?.max_students;
+      if (maxStudents === null || maxStudents === undefined) {
+        return 'غير محدد'
+      }
+      return (Number(maxStudents) + (subscription.extra_codes || 0)).toString()
+    }
+    // Monthly Plan
+    if (subscription.total_codes >= 999999) {
+      return 'غير محدود'
+    }
+    return subscription.total_codes.toString()
+  }
 
   console.log("Subscription Page Render");
   console.log("Packages Response:", plans);
@@ -425,10 +442,7 @@ export default function Subscription() {
           <span className="text-[10px] text-[var(--text-secondary)] block mb-1">الطلاب النشطون</span>
           <span className="text-xs font-extrabold text-[var(--text-color)] flex items-center gap-1.5">
             <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            {subscription.total_codes >= 999999 
-              ? `${subscription.used_codes} / غير محدود` 
-              : `${subscription.used_codes} / ${subscription.total_codes}`
-            }
+            {subscription.used_codes} / {getStudentLimitDisplay()}
           </span>
         </div>
       </div>
@@ -482,25 +496,31 @@ export default function Subscription() {
                   الطلاب النشطون (السعة الاستيعابية للطلاب)
                 </span>
                 <span className="font-extrabold text-[var(--text-color)]">
-                  {subscription.total_codes >= 999999 
-                    ? `${subscription.used_codes} / غير محدود طالب نشط` 
-                    : `${subscription.used_codes} / ${subscription.total_codes} طالب نشط (${Math.round((subscription.used_codes / (subscription.total_codes || 1)) * 100)}%)`
+                  {getStudentLimitDisplay() === 'غير محدد' 
+                    ? `${subscription.used_codes} / غير محدد طالب نشط`
+                    : getStudentLimitDisplay() === 'غير محدود'
+                    ? `${subscription.used_codes} / غير محدود طالب نشط`
+                    : `${subscription.used_codes} / ${getStudentLimitDisplay()} طالب نشط (${Math.round((subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) * 100)}%)`
                   }
                 </span>
               </div>
-              {subscription.total_codes < 999999 && (
+              {getStudentLimitDisplay() !== 'غير محدود' && getStudentLimitDisplay() !== 'غير محدد' && (
                 <div className="w-full bg-[var(--bg-color)]/30 h-2.5 rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all duration-500 ${
-                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.9 ? 'bg-rose-500' : 
-                      (subscription.used_codes / (subscription.total_codes || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
+                      (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) >= 0.9 ? 'bg-rose-500' : 
+                      (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) >= 0.7 ? 'bg-amber-500' : 'bg-indigo-500'
                     }`}
-                    style={{ width: `${Math.min(100, (subscription.used_codes / (subscription.total_codes || 1)) * 100)}%` }}
+                    style={{ width: `${Math.min(100, (subscription.used_codes / (Number(getStudentLimitDisplay()) || 1)) * 100)}%` }}
                   ></div>
                 </div>
               )}
               <div className="flex justify-between text-[10px] text-[var(--text-secondary)] mt-1">
-                <span>أكواد متبقية (سعة متاحة): {subscription.total_codes >= 999999 ? 'غير محدود' : `${subscription.remaining_codes} كود`}</span>
+                <span>أكواد متبقية (سعة متاحة): {
+                  getStudentLimitDisplay() === 'غير محدد' ? 'غير محدد' :
+                  getStudentLimitDisplay() === 'غير محدود' ? 'غير محدود' :
+                  `${Math.max(0, Number(getStudentLimitDisplay()) - subscription.used_codes)} كود`
+                }</span>
                 <span>أكواد إضافية مشتراة: +{subscription.extra_codes} كود</span>
               </div>
             </div>
