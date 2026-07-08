@@ -1124,6 +1124,8 @@ class SubscriptionController extends Controller
             'finalPrice' => 'required|numeric|min:0',
             'isActive' => 'required|boolean',
             'billing_options' => 'nullable|array',
+            'most_popular' => 'nullable|boolean',
+            'recommended' => 'nullable|boolean',
         ]);
 
         $data = $request->all();
@@ -1189,6 +1191,8 @@ class SubscriptionController extends Controller
             'finalPrice' => 'required|numeric|min:0',
             'isActive' => 'required|boolean',
             'billing_options' => 'nullable|array',
+            'most_popular' => 'nullable|boolean',
+            'recommended' => 'nullable|boolean',
         ]);
 
         $plan = SubscriptionPlan::findOrFail($id);

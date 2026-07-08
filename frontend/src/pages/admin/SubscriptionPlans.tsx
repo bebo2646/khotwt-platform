@@ -37,6 +37,8 @@ interface Plan {
   auto_expand_storage?: boolean
   codes_limit_type?: 'unlimited' | 'max'
   max_codes_limit?: number
+  most_popular?: boolean
+  recommended?: boolean
 }
 
 interface PriceHistory {
@@ -93,6 +95,8 @@ export default function SubscriptionPlans() {
   const [maxStorageGb, setMaxStorageGb] = useState<number>(10)
   const [includedCodes, setIncludedCodes] = useState<number>(50)
   const [featured, setFeatured] = useState(false)
+  const [mostPopular, setMostPopular] = useState(false)
+  const [recommended, setRecommended] = useState(false)
   const [active, setActive] = useState(true)
   const [sortOrder, setSortOrder] = useState<number>(0)
   const [badgeText, setBadgeText] = useState('')
@@ -189,6 +193,8 @@ export default function SubscriptionPlans() {
       setAutoExpandStorage(editingPlan.auto_expand_storage !== false)
       setCodesLimitType(editingPlan.codes_limit_type || 'unlimited')
       setMaxCodesLimit(Number(editingPlan.max_codes_limit) || 100)
+      setMostPopular(!!editingPlan.most_popular)
+      setRecommended(!!editingPlan.recommended)
 
       if (editingPlan.billing_options) {
         let opts = editingPlan.billing_options;
@@ -252,6 +258,8 @@ export default function SubscriptionPlans() {
       setAutoExpandStorage(true)
       setCodesLimitType('unlimited')
       setMaxCodesLimit(100)
+      setMostPopular(false)
+      setRecommended(false)
 
       setBillingOptions({
         monthly: { enabled: false, price: 0, discount: 0 },
@@ -385,6 +393,8 @@ export default function SubscriptionPlans() {
       max_storage_gb: billingType === 'revenue_sharing' ? defaultStorageGb : maxStorageGb,
       included_codes: billingType === 'revenue_sharing' ? (codesLimitType === 'unlimited' ? 999999 : maxCodesLimit) : includedCodes,
       featured,
+      most_popular: mostPopular,
+      recommended,
       active,
       sort_order: sortOrder,
       badge_text: badgeText || null,
@@ -1334,7 +1344,25 @@ export default function SubscriptionPlans() {
                     onChange={(e) => setFeatured(e.target.checked)}
                     className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
                   />
-                  <span>تمييز الباقة في واجهة العرض (الأكثر شعبية)</span>
+                  <span>باقة مميزة (Featured Plan)</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer text-xs font-bold select-none">
+                  <input
+                    type="checkbox"
+                    checked={mostPopular}
+                    onChange={(e) => setMostPopular(e.target.checked)}
+                    className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                  />
+                  <span>الأكثر شعبية (Most Popular)</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer text-xs font-bold select-none">
+                  <input
+                    type="checkbox"
+                    checked={recommended}
+                    onChange={(e) => setRecommended(e.target.checked)}
+                    className="w-4 h-4 border-[var(--border-color)] rounded bg-[var(--bg-color)] accent-indigo-500"
+                  />
+                  <span>موصى بها (Recommended)</span>
                 </label>
               </div>
 

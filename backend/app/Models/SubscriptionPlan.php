@@ -38,6 +38,8 @@ class SubscriptionPlan extends Model
         'default_storage_gb',
         'codes_limit_type',
         'max_codes_limit',
+        'most_popular',
+        'recommended',
     ];
 
     protected $casts = [
@@ -57,6 +59,8 @@ class SubscriptionPlan extends Model
         'commission_percentage' => 'decimal:2',
         'default_storage_gb' => 'float',
         'max_codes_limit' => 'integer',
+        'most_popular' => 'boolean',
+        'recommended' => 'boolean',
     ];
 
     public function subscriptions()

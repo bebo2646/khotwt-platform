@@ -118,6 +118,33 @@ export default function Subscription() {
     }
   }
 
+  const plansToShow = React.useMemo(() => {
+    if (!plans || plans.length === 0) return []
+    
+    // 1. Current active plan
+    const currentActivePlan = plans.find(p => p.id === subscription?.plan?.id)
+    
+    // 2. Other active non-trial plans
+    const otherPlans = plans.filter(p => p.id !== subscription?.plan?.id && p.active && !p.is_trial)
+    
+    // 3. Featured / Popular / Recommended Plans
+    let featuredPlans = otherPlans.filter(p => !!(p as any).featured || !!(p as any).most_popular || !!(p as any).recommended)
+    
+    // 4. Fallback if no featured plans exist
+    if (featuredPlans.length === 0) {
+      featuredPlans = [...otherPlans].sort((a, b) => b.id - a.id).slice(0, 3)
+    } else {
+      featuredPlans = featuredPlans.slice(0, 3)
+    }
+    
+    const result: Plan[] = []
+    if (currentActivePlan) {
+      result.push(currentActivePlan)
+    }
+    result.push(...featuredPlans)
+    return result
+  }, [plans, subscription])
+
   useEffect(() => {
     loadData()
   }, [])
@@ -666,27 +693,19 @@ export default function Subscription() {
       )}
 
       {/* Available Plans Premium Cards Showcase */}
-      <div>
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-lg font-bold text-[var(--text-color)] flex items-center gap-2 mb-1">
-              <Award className="w-5 h-5 text-indigo-400" />
-              الباقات والاشتراكات المتاحة على المنصة
-            </h2>
-            <p className="text-[var(--text-secondary)] text-xs">
-              استعرض الباقات المتوفرة لترقية اشتراكك والاستفادة بموارد سحابية وعدد أكواد طلاب أعلى.
-            </p>
-          </div>
-          <button 
-            onClick={() => navigate('/teacher/plans')}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg transition active:scale-95 cursor-pointer"
-          >
-            عرض جدول الأسعار التفصيلي
-          </button>
+      <div className="border-t border-[var(--border-color)] pt-8 mt-12 space-y-8 text-right" dir="rtl">
+        <div>
+          <h2 className="text-xl font-black text-[var(--text-color)] flex items-center gap-2 mb-1">
+            <Award className="w-5.5 h-5.5 text-indigo-400" />
+            باقات الاشتراك المقترحة لك
+          </h2>
+          <p className="text-[var(--text-secondary)] text-xs font-light">
+            استعرض باقة اشتراكك الحالية وأبرز خطط الترقية المتاحة لتوفير مساحة سحابية وسعة طلاب أعلى.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {plans.filter(p => p.active && !p.is_trial).map(p => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {plansToShow.map(p => {
             const isCurrent = subscription?.plan?.id === p.id
             return (
               <SubscriptionPlanCard
@@ -701,6 +720,16 @@ export default function Subscription() {
               />
             )
           })}
+        </div>
+
+        <div className="flex justify-center pt-4">
+          <button 
+            onClick={() => navigate('/teacher/plans')}
+            className="px-8 py-3 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] text-[var(--text-color)] font-bold text-xs rounded-2xl border border-[var(--border-color)] hover:border-indigo-500/50 shadow-md transition active:scale-95 cursor-pointer flex items-center gap-2"
+          >
+            <span>عرض جميع الخطط والباقات</span>
+            <span>←</span>
+          </button>
         </div>
       </div>
     </div>
