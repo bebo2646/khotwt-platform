@@ -1210,9 +1210,19 @@ class StudentController extends Controller
                 $session->save();
             }
 
-            // Strictly enforce view threshold: 5 minutes (300 seconds) or 80% if duration < 5 mins
-            $threshold = ($duration < 300) ? (int)round(0.80 * $duration) : 300;
+            // Load settings dynamically instead of using hardcoded defaults
+            $settings = \App\Models\PlatformSetting::first();
+            $configuredThreshold = $settings ? (int)$settings->video_threshold_seconds : 300;
+
+            // Strictly enforce view threshold based on settings: $configuredThreshold seconds or 80% if duration < $configuredThreshold
+            $threshold = ($duration < $configuredThreshold) ? (int)round(0.80 * $duration) : $configuredThreshold;
             
+            // Get views count before update
+            $viewLimitRecord = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
+                ->where('course_id', $courseId)
+                ->first();
+            $viewsUsedBefore = $viewLimitRecord ? $viewLimitRecord->views_used : 0;
+
             if ($session->watch_time >= $threshold && !$session->counted) {
                 $session->counted = true;
                 $session->save();
@@ -1228,6 +1238,29 @@ class StudentController extends Controller
 
                 $viewLimit->increment('views_used');
             }
+
+            // Get views count after update
+            $viewLimitRecordAfter = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
+                ->where('course_id', $courseId)
+                ->first();
+            $viewsUsedAfter = $viewLimitRecordAfter ? $viewLimitRecordAfter->views_used : 0;
+
+            // Recalculate remaining views
+            $limitDetails = $video->lesson->unit->course->getStudentViewLimitDetails($user->id);
+            $remainingViews = $limitDetails ? $limitDetails['remaining'] : null;
+
+            // Temporary logging for audit and debugging
+            \Log::info('Watch Limit Tracking Log:', [
+                'loaded_settings' => [
+                    'view_limit_enabled' => $settings ? (bool)$settings->view_limit_enabled : false,
+                    'default_max_views' => $settings ? (int)$settings->default_max_views : 10,
+                    'video_threshold_seconds' => $configuredThreshold,
+                ],
+                'current_watch_duration' => $session->watch_time,
+                'watch_count_before_update' => $viewsUsedBefore,
+                'watch_count_after_update' => $viewsUsedAfter,
+                'remaining_views' => $remainingViews,
+            ]);
         }
         
         $lastPosition = $request->last_position_seconds;

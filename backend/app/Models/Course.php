@@ -149,9 +149,14 @@ class Course extends Model
             ];
         }
 
-        $limitRecord = StudentCourseViewLimit::where('student_id', $studentId)
-            ->where('course_id', $this->id)
-            ->first();
+        $limitRecord = StudentCourseViewLimit::firstOrCreate([
+            'student_id' => $studentId,
+            'course_id' => $this->id,
+        ], [
+            'views_used' => 0,
+            'max_views_override' => null,
+            'extra_views' => 0,
+        ]);
 
         if (($limitRecord && $limitRecord->max_views_override === -1) || $this->max_views === -1) {
             return [
