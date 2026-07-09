@@ -184,7 +184,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $course->teacher_id,
-                        $course->final_price,
+                        $purchaseCode->amount,
                         $course->id,
                         null,
                         null,
@@ -223,7 +223,7 @@ class StudentController extends Controller
                 \App\Services\RevenueSharingService::handlePurchase(
                     $user->id,
                     $course->teacher_id,
-                    $course->final_price,
+                    $purchaseCode->amount,
                     $course->id,
                     null,
                     null,
@@ -300,7 +300,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'recharge',
-                        'amount' => $course->final_price,
+                        'amount' => $purchaseCode->amount,
                         'description' => 'شحن تلقائي لتفعيل كود الكورس: ' . $purchaseCode->code,
                         'reference_id' => $purchaseCode->id,
                     ]);
@@ -308,7 +308,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'purchase',
-                        'amount' => $course->final_price,
+                        'amount' => $purchaseCode->amount,
                         'description' => 'شراء كورس باستخدام كود: ' . $purchaseCode->code,
                         'reference_id' => $course->id,
                     ]);
@@ -328,7 +328,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $course->teacher_id,
-                        $course->final_price,
+                        $purchaseCode->amount,
                         $course->id,
                         null,
                         null,
@@ -595,7 +595,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'recharge',
-                        'amount' => $package->price,
+                        'amount' => $purchaseCode->amount,
                         'description' => 'شحن تلقائي لتفعيل كود الباقة: ' . $purchaseCode->code,
                         'reference_id' => $purchaseCode->id,
                     ]);
@@ -603,7 +603,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'purchase',
-                        'amount' => $package->price,
+                        'amount' => $purchaseCode->amount,
                         'description' => 'شراء باقة شهرية باستخدام كود: ' . $purchaseCode->code,
                         'reference_id' => $package->id,
                     ]);
@@ -624,7 +624,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $package->course->teacher_id,
-                        $package->price,
+                        $purchaseCode->amount,
                         $package->course_id,
                         $package->id,
                         null,

@@ -44,6 +44,9 @@ interface PackageItem {
   title: string
 }
 
+const MIN_QUANTITY = 1
+const MAX_QUANTITY = 10000
+
 export default function PurchaseCodes() {
   const { user } = useAuthStore()
   const [codes, setCodes] = React.useState<PurchaseCodeItem[]>([])
@@ -66,7 +69,8 @@ export default function PurchaseCodes() {
   // Generation Form Inputs
   const [showGenForm, setShowGenForm] = React.useState(false)
   const [type, setType] = React.useState<'wallet' | 'course' | 'teacher'>('wallet')
-  const [quantity, setQuantity] = React.useState<number>(10)
+  const [quantity, setQuantity] = React.useState('10')
+  const [quantityError, setQuantityError] = React.useState('')
   const [amount, setAmount] = React.useState('')
   const [targetType, setTargetType] = React.useState<'course' | 'package'>('course')
   const [courseId, setCourseId] = React.useState('')
@@ -98,14 +102,44 @@ export default function PurchaseCodes() {
     API.get('/admin/packages').then((res) => setPackages(res.data))
   }, [])
 
+  const handleQuantityChange = (val: string) => {
+    setQuantity(val)
+    if (val === '') {
+      setQuantityError('الكمية مطلوبة / Quantity is required')
+      return
+    }
+    const qNum = Number(val)
+    if (isNaN(qNum) || !Number.isInteger(qNum)) {
+      setQuantityError('يجب إدخال عدد صحيح فقط / Must be a whole integer')
+      return
+    }
+    if (qNum < MIN_QUANTITY) {
+      setQuantityError(`الحد الأدنى هو ${MIN_QUANTITY} / Minimum is ${MIN_QUANTITY}`)
+      return
+    }
+    if (qNum > MAX_QUANTITY) {
+      setQuantityError(`الحد الأقصى هو ${MAX_QUANTITY} / Maximum is ${MAX_QUANTITY}`)
+      return
+    }
+    setQuantityError('')
+  }
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const qNum = Number(quantity)
+    if (!quantity || isNaN(qNum) || !Number.isInteger(qNum) || qNum < MIN_QUANTITY || qNum > MAX_QUANTITY) {
+      setQuantityError(`يرجى إدخال عدد صحيح بين ${MIN_QUANTITY} و ${MAX_QUANTITY}.`)
+      return
+    }
+    setQuantityError('')
+
     setSaving(true)
     setNewCodes([])
 
     const payload = {
       type,
-      quantity,
+      quantity: qNum,
       amount: (type === 'wallet' || type === 'teacher') && amount ? Number(amount) : null,
       course_id: type === 'course' && courseId ? Number(courseId) : null,
       package_id: type === 'course' && packageId ? Number(packageId) : null,
@@ -187,6 +221,8 @@ export default function PurchaseCodes() {
         <button
           onClick={() => {
             setNewCodes([])
+            setQuantity('10')
+            setQuantityError('')
             setShowGenForm(true)
           }}
           className="px-6 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer shadow-lg shadow-brand-primary/20 glow-btn w-fit"
@@ -376,16 +412,25 @@ export default function PurchaseCodes() {
               {/* Quantity */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold">الكمية المطلوبة</label>
-                <select
+                <input
+                  type="number"
+                  required
+                  min={MIN_QUANTITY}
+                  max={MAX_QUANTITY}
+                  step="1"
                   value={quantity}
-                  onChange={(e: any) => setQuantity(Number(e.target.value))}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                >
-                  <option value={10}>10 أكواد</option>
-                  <option value={50}>50 كود</option>
-                  <option value={100}>100 كود</option>
-                  <option value={500}>500 كود</option>
-                </select>
+                  onChange={(e) => handleQuantityChange(e.target.value)}
+                  placeholder="Enter number of codes"
+                  className={`w-full bg-[rgba(255,255,255,0.02)] border rounded-xl px-4 py-2.5 text-xs focus:outline-none transition-colors text-right ${
+                    quantityError ? 'border-rose-500 focus:border-rose-500' : 'border-[var(--border-color)] focus:border-brand-primary'
+                  }`}
+                />
+                <span className="text-[10px] text-slate-400 block mt-1 leading-normal text-right">
+                  Generate exactly the number of recharge codes you need.
+                </span>
+                {quantityError && (
+                  <span className="text-[10px] text-rose-500 block mt-1 font-medium text-right">{quantityError}</span>
+                )}
               </div>
 
               {/* Amount (Wallet/Teacher specific) */}

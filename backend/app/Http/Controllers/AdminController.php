@@ -460,7 +460,7 @@ class AdminController extends Controller
     {
         $request->validate([
             'type' => 'required|string|in:wallet,course,teacher',
-            'quantity' => 'required|integer|in:10,50,100,500',
+            'quantity' => 'required|integer|min:1|max:10000',
             'amount' => 'nullable|numeric|min:0', // required if type is wallet or teacher
             'course_id' => 'nullable|exists:courses,id', // optional course link
             'package_id' => 'nullable|exists:packages,id', // optional package link
@@ -485,38 +485,95 @@ class AdminController extends Controller
             return response()->json(['message' => 'يجب تحديد الكورس أو الباقة لإنشاء كود الاشتراك.'], 422);
         }
 
-        $generatedCodes = [];
         $expires = $request->expires_at ? Carbon::parse($request->expires_at) : null;
+        $quantity = (int) $request->quantity;
 
-        DB::transaction(function () use ($request, $expires, &$generatedCodes) {
-            for ($i = 0; $i < $request->quantity; $i++) {
-                // Generate a unique 12-char code
+        // Fetch course or package selling price if type is course
+        $amount = 0.00;
+        if ($request->type === 'wallet' || $request->type === 'teacher') {
+            $amount = (float) $request->amount;
+        } elseif ($request->type === 'course') {
+            if ($request->course_id) {
+                $course = Course::findOrFail($request->course_id);
+                $amount = (float) $course->final_price;
+            } elseif ($request->package_id) {
+                $package = Package::findOrFail($request->package_id);
+                $amount = (float) $package->price;
+            }
+        }
+
+        // Generate unique codes in memory
+        $codes = [];
+        while (count($codes) < $quantity) {
+            $codeStr = 'ELM-' . strtoupper(Str::random(8));
+            $codes[$codeStr] = true;
+        }
+        $codeList = array_keys($codes);
+
+        // Check if any of these codes already exist in the database
+        $existingCodes = PurchaseCode::whereIn('code', $codeList)->pluck('code')->toArray();
+        
+        while (!empty($existingCodes)) {
+            $newCodesNeeded = count($existingCodes);
+            $newCodes = [];
+            while (count($newCodes) < $newCodesNeeded) {
                 $codeStr = 'ELM-' . strtoupper(Str::random(8));
-                
-                while (PurchaseCode::where('code', $codeStr)->exists()) {
-                    $codeStr = 'ELM-' . strtoupper(Str::random(8));
+                if (!isset($codes[$codeStr])) {
+                    $newCodes[$codeStr] = true;
                 }
+            }
+            // Remove colliding codes from our main list
+            foreach ($existingCodes as $collideCode) {
+                unset($codes[$collideCode]);
+            }
+            // Add new codes
+            foreach (array_keys($newCodes) as $newCodeStr) {
+                $codes[$newCodeStr] = true;
+            }
+            $codeList = array_keys($codes);
+            // Re-check only the newly added codes
+            $existingCodes = PurchaseCode::whereIn('code', array_keys($newCodes))->pluck('code')->toArray();
+        }
 
-                $purchaseCode = PurchaseCode::create([
-                    'code' => $codeStr,
-                    'type' => $request->type,
-                    'code_type' => $request->type,
-                    'amount' => ($request->type === 'wallet' || $request->type === 'teacher') ? $request->amount : 0.00,
-                    'credit_amount' => $request->type === 'teacher' ? $request->amount : 0.00,
-                    'course_id' => $request->type === 'course' ? $request->course_id : null,
-                    'package_id' => $request->type === 'course' ? $request->package_id : null,
-                    'teacher_id' => ($request->type === 'teacher' || $request->teacher_id) ? $request->teacher_id : null,
-                    'is_redeemed' => false,
-                    'expires_at' => $expires,
-                ]);
+        // Prepare records for insertion
+        $now = now();
+        $records = [];
+        foreach ($codeList as $codeStr) {
+            $records[] = [
+                'code' => $codeStr,
+                'type' => $request->type,
+                'code_type' => $request->type,
+                'amount' => $amount,
+                'credit_amount' => $request->type === 'teacher' ? $amount : 0.00,
+                'course_id' => $request->type === 'course' ? $request->course_id : null,
+                'package_id' => $request->type === 'course' ? $request->package_id : null,
+                'teacher_id' => ($request->type === 'teacher' || $request->teacher_id) ? $request->teacher_id : null,
+                'is_redeemed' => false,
+                'expires_at' => $expires,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
 
-                $generatedCodes[] = $purchaseCode;
+        // Write generation inside a database transaction
+        DB::transaction(function () use ($records) {
+            foreach (array_chunk($records, 1000) as $chunk) {
+                PurchaseCode::insert($chunk);
             }
         });
 
+        // Retrieve the generated codes to return them to the client
+        $generatedCodes = [];
+        foreach (array_chunk($codeList, 1000) as $chunk) {
+            $chunkCodes = PurchaseCode::whereIn('code', $chunk)->get();
+            foreach ($chunkCodes as $c) {
+                $generatedCodes[] = $c;
+            }
+        }
+
         return response()->json([
             'codes' => $generatedCodes,
-            'message' => 'تم إنشاء ' . $request->quantity . ' كود بنجاح.',
+            'message' => 'تم إنشاء ' . $quantity . ' كود بنجاح.',
         ], 201);
     }
 
