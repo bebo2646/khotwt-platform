@@ -987,19 +987,63 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
 }
 
 /* ==========================================================================
-   SOLID DARK SURFACES FOR NOTIFICATIONS (DARK MODE ONLY)
+   SOLID DARK SURFACES FOR NOTIFICATIONS, MODALS, OVERLAYS, DRAWERS, DIALOGS (DARK MODE ONLY)
    ========================================================================== */
+
+/* Shared Dark Modal surface token class - applies to any custom modal/popup component */
+.dark-modal-surface {
+  background-color: var(--card-bg);
+}
+
+/* Redefine card and surface background tokens for all overlays, dialogs, drawers, and modal windows in Dark Mode */
+html:not(.light-theme) .fixed.inset-0,
+html:not(.light-theme) .fixed.inset-y-0,
+html:not(.light-theme) .fixed.inset-x-0,
+html:not(.light-theme) .fixed.top-0,
+html:not(.light-theme) .fixed.bottom-0,
+html:not(.light-theme) [role="dialog"],
+html:not(.light-theme) .modal-content,
+html:not(.light-theme) .modal-card,
+html:not(.light-theme) .dark-modal-surface,
+html:not(.light-theme) [class*="modal-"],
+html:not(.light-theme) [class*="dialog-"],
+html:not(.light-theme) .toast-notification-item {
+  --card-bg: #0F172A !important;
+  --surface-bg: #0F172A !important;
+  --bg-color: #0F172A !important;
+  --border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Force solid styling and disable glassmorphism backdrop blur on all popup/modal surfaces in Dark Mode */
 html:not(.light-theme) .fixed.top-5.left-5,
 html:not(.light-theme) .toast-notification-item,
 html:not(.light-theme) .notification-list-scroll,
-html:not(.light-theme) .important-notification-toast {
+html:not(.light-theme) .important-notification-toast,
+html:not(.light-theme) .dark-modal-surface,
+html:not(.light-theme) .modal-content,
+html:not(.light-theme) .modal-card,
+html:not(.light-theme) [role="dialog"],
+html:not(.light-theme) .fixed.inset-0 .bg-brand-card,
+html:not(.light-theme) .fixed.inset-0 .bg-\[var\(--card-bg\)\],
+html:not(.light-theme) .fixed.inset-0 .bg-\[var\(--surface-bg\)\],
+html:not(.light-theme) .fixed.inset-0 [class*="bg-slate-900"],
+html:not(.light-theme) .fixed.inset-0 [class*="bg-slate-950"],
+html:not(.light-theme) .fixed.inset-y-0 .bg-brand-card,
+html:not(.light-theme) .fixed.inset-x-0 .bg-brand-card,
+html:not(.light-theme) .fixed.top-0 .bg-brand-card,
+html:not(.light-theme) .fixed.bottom-0 .bg-brand-card,
+html:not(.light-theme) .fixed.top-0.right-0.w-80,
+html:not(.light-theme) .fixed.top-0.right-0.h-full,
+html:not(.light-theme) .fixed.top-0.left-0.h-screen,
+html:not(.light-theme) .fixed.top-0.right-0.w-\[280px\],
+html:not(.light-theme) aside.fixed {
   background-color: #0F172A !important;
   background-image: none !important;
   opacity: 1 !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.7) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85) !important;
   isolation: isolate !important;
 }
 
