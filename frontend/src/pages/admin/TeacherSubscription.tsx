@@ -97,11 +97,16 @@ export default function TeacherSubscription() {
   // Override admin states
   const [resourceOverrides, setResourceOverrides] = useState<{
     base_storage_gb: number
-    base_student_codes: number
+    base_student_codes: number | null
+    addon_storage_gb: number
+    addon_student_codes: number
+    manual_override_storage_gb: number
+    manual_override_student_codes: number
+    sales_storage_gb: number
     extra_storage_gb: number
     extra_student_codes: number
     storage_limit_gb: number
-    student_codes_limit: number
+    student_codes_limit: number | null
     plan_name: string
   } | null>(null)
   
@@ -139,8 +144,8 @@ export default function TeacherSubscription() {
       try {
         const overridesRes = await API.get(`/admin/teachers/${id}/resources`)
         setResourceOverrides(overridesRes.data)
-        setExtraStorageInput(overridesRes.data.extra_storage_gb)
-        setExtraCodesInput(overridesRes.data.extra_student_codes)
+        setExtraStorageInput(overridesRes.data.manual_override_storage_gb)
+        setExtraCodesInput(overridesRes.data.manual_override_student_codes)
       } catch (errOverrides) {
         console.error("Failed to load resources overrides:", errOverrides)
       }
@@ -720,9 +725,34 @@ export default function TeacherSubscription() {
                   <span className="font-bold text-[var(--text-color)]">{resourceOverrides.base_storage_gb} GB</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--text-secondary)]">المساحة الإضافية يدوياً (Extra):</span>
+                  <span className="text-[var(--text-secondary)]">المساحة الإضافية (Extra):</span>
                   <span className="font-bold text-amber-500">+{resourceOverrides.extra_storage_gb} GB</span>
                 </div>
+                
+                {/* Breakdown detail list */}
+                {(resourceOverrides.addon_storage_gb > 0 || resourceOverrides.manual_override_storage_gb > 0 || resourceOverrides.sales_storage_gb > 0) && (
+                  <div className="px-3 py-2 bg-[var(--bg-color)]/30 rounded-xl space-y-1.5 text-[10px] text-[var(--text-secondary)] border border-[var(--border-color)]/30">
+                    {resourceOverrides.addon_storage_gb > 0 && (
+                      <div className="flex justify-between">
+                        <span>إضافات مشحونة (Addons):</span>
+                        <span className="font-semibold">+{resourceOverrides.addon_storage_gb} GB</span>
+                      </div>
+                    )}
+                    {resourceOverrides.manual_override_storage_gb > 0 && (
+                      <div className="flex justify-between">
+                        <span>تعديل يدوي من الإدارة:</span>
+                        <span className="font-semibold">+{resourceOverrides.manual_override_storage_gb} GB</span>
+                      </div>
+                    )}
+                    {resourceOverrides.sales_storage_gb > 0 && (
+                      <div className="flex justify-between">
+                        <span>مكافآت مبيعات الكورسات:</span>
+                        <span className="font-semibold">+{resourceOverrides.sales_storage_gb} GB</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between pt-2 border-t border-dashed border-[var(--border-color)] text-sm">
                   <span className="font-extrabold text-[var(--text-color)]">الحد النهائي للمساحة (Final):</span>
                   <span className="font-black text-emerald-400">{resourceOverrides.storage_limit_gb} GB</span>
@@ -736,15 +766,44 @@ export default function TeacherSubscription() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-[var(--text-secondary)]">أكواد الطلاب الأساسية بالباقة (Base):</span>
-                  <span className="font-bold text-[var(--text-color)]">{resourceOverrides.base_student_codes} كود</span>
+                  <span className="font-bold text-[var(--text-color)]">
+                    {resourceOverrides.base_student_codes === null || resourceOverrides.base_student_codes === undefined 
+                      ? 'غير محدود' 
+                      : `${resourceOverrides.base_student_codes} كود`
+                    }
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[var(--text-secondary)]">أكواد إضافية يدوياً (Extra):</span>
+                  <span className="text-[var(--text-secondary)]">أكواد إضافية (Extra):</span>
                   <span className="font-bold text-amber-500">+{resourceOverrides.extra_student_codes} كود</span>
                 </div>
+
+                {/* Breakdown detail list */}
+                {(resourceOverrides.addon_student_codes > 0 || resourceOverrides.manual_override_student_codes > 0) && (
+                  <div className="px-3 py-2 bg-[var(--bg-color)]/30 rounded-xl space-y-1.5 text-[10px] text-[var(--text-secondary)] border border-[var(--border-color)]/30">
+                    {resourceOverrides.addon_student_codes > 0 && (
+                      <div className="flex justify-between">
+                        <span>إضافات مشحونة (Addons):</span>
+                        <span className="font-semibold">+{resourceOverrides.addon_student_codes} كود</span>
+                      </div>
+                    )}
+                    {resourceOverrides.manual_override_student_codes > 0 && (
+                      <div className="flex justify-between">
+                        <span>تعديل يدوي من الإدارة:</span>
+                        <span className="font-semibold">+{resourceOverrides.manual_override_student_codes} كود</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between pt-2 border-t border-dashed border-[var(--border-color)] text-sm">
                   <span className="font-extrabold text-[var(--text-color)]">الحد النهائي للأكواد (Final):</span>
-                  <span className="font-black text-emerald-400">{resourceOverrides.student_codes_limit} كود</span>
+                  <span className="font-black text-emerald-400">
+                    {resourceOverrides.student_codes_limit === null || resourceOverrides.student_codes_limit === undefined 
+                      ? 'غير محدود' 
+                      : `${resourceOverrides.student_codes_limit} كود`
+                    }
+                  </span>
                 </div>
               </div>
             </div>

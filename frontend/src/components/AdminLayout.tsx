@@ -461,12 +461,14 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         
         {/* Top Header: Fixed height 72px */}
         <header 
-          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 backdrop-blur-md ${
-            theme === 'light'
-              ? 'bg-white/80 border-b-slate-200 text-slate-900 shadow-sm'
-              : 'bg-slate-950/80 border-b-slate-800/80 text-slate-100'
+          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
+            theme === 'light' ? 'border-b-slate-200 text-slate-900' : 'border-b-slate-800/80 text-slate-100'
           }`}
         >
+          {/* Background layer for glassmorphism to avoid stacking context bugs on fixed children */}
+          <div className={`absolute inset-0 backdrop-blur-md -z-10 ${
+            theme === 'light' ? 'bg-white/80 shadow-sm' : 'bg-slate-950/80'
+          }`}></div>
           {/* Right Side: Mobile Menu Button (Hamburger) & Page Title */}
           <div className="flex items-center gap-4">
             <button

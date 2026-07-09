@@ -96,7 +96,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ onCl
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
         transition={{ duration: 0.2 }}
-        className="fixed top-[70px] right-4 left-4 w-auto max-h-[70vh] rounded-[20px] z-[2000] overflow-y-auto bg-[var(--card-bg)] border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right transition-all duration-200 overflow-x-hidden md:absolute md:top-[calc(100%+12px)] md:left-0 md:right-auto md:w-[360px] md:max-w-[calc(100vw-32px)] md:max-h-[70vh] notification-list-scroll"
+        className="fixed top-[70px] right-4 left-4 w-auto max-h-[70vh] rounded-[20px] z-[2000] overflow-y-auto bg-[var(--card-bg)] backdrop-blur-xl border border-[var(--border-color)] p-4 shadow-[0_15px_50px_rgba(0,0,0,0.5)] text-right transition-all duration-200 overflow-x-hidden md:absolute md:top-[calc(100%+12px)] md:left-0 md:right-auto md:w-[360px] md:max-w-[calc(100vw-32px)] md:max-h-[70vh] notification-list-scroll"
         style={{
           wordBreak: 'break-word',
           ...styleOverride

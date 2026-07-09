@@ -1725,26 +1725,49 @@ class SubscriptionController extends Controller
     public function getTeacherResourceOverrides(Request $request, $id)
     {
         $teacher = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
-        
         $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
-        $plan = $subscription ? $subscription->plan : null;
-        
-        $baseStorage = $plan ? $plan->video_storage_gb : 10;
-        $baseCodes = $plan ? $plan->student_codes : 0;
         
         $override = TeacherResourceOverride::where('teacher_id', $id)->first();
-        $extraStorage = $override ? $override->extra_storage_gb : 0;
-        $extraCodes = $override ? $override->extra_student_codes : 0;
+        $manualStorage = $override ? (float) $override->extra_storage_gb : 0.0;
+        $manualCodes = $override ? (int) $override->extra_student_codes : 0;
         
-        $finalStorage = $baseStorage + $extraStorage;
-        $finalCodes = $baseCodes + $extraCodes;
+        if ($subscription) {
+            $baseStorage = (float) $subscription->included_storage_gb;
+            $baseCodes = $subscription->included_codes;
+            
+            $addonStorage = (float) ($subscription->addons()->where('type', 'storage')->sum('amount') ?? 0);
+            $addonCodes = (int) ($subscription->addons()->where('type', 'codes')->sum('amount') ?? 0);
+            
+            $salesStorage = (float) ($subscription->allocated_storage_from_sales ?? 0);
+            
+            $extraStorage = (float) $subscription->extra_storage_gb;
+            $extraCodes = (int) $subscription->extra_codes;
+            
+            $finalStorage = (float) $subscription->total_storage_gb;
+            $finalCodes = $subscription->total_codes;
+        } else {
+            $baseStorage = 10.0;
+            $baseCodes = 0;
+            $addonStorage = 0.0;
+            $addonCodes = 0;
+            $salesStorage = 0.0;
+            $extraStorage = $manualStorage;
+            $extraCodes = $manualCodes;
+            $finalStorage = $baseStorage + $extraStorage;
+            $finalCodes = $baseCodes + $extraCodes;
+        }
         
         return response()->json([
             'success' => true,
             'teacher_name' => $teacher->name,
-            'plan_name' => $plan ? $plan->name : 'لا يوجد',
+            'plan_name' => ($subscription && $subscription->plan) ? $subscription->plan->name : 'لا يوجد',
             'base_storage_gb' => $baseStorage,
             'base_student_codes' => $baseCodes,
+            'addon_storage_gb' => $addonStorage,
+            'addon_student_codes' => $addonCodes,
+            'manual_override_storage_gb' => $manualStorage,
+            'manual_override_student_codes' => $manualCodes,
+            'sales_storage_gb' => $salesStorage,
             'extra_storage_gb' => $extraStorage,
             'extra_student_codes' => $extraCodes,
             'storage_limit_gb' => $finalStorage,
