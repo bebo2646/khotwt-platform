@@ -175,6 +175,12 @@ export default function Home() {
     }
   }
 
+  const safeFeaturedCourses = Array.isArray(featuredCourses) ? featuredCourses : []
+  const safePopularTeachers = Array.isArray(popularTeachers) ? popularTeachers : []
+  const safeSubjects = Array.isArray(subjects) ? subjects : []
+  const safeFilteredTeachers = Array.isArray(filteredTeachers) ? filteredTeachers : []
+  const safeFilterResults = Array.isArray(filterResults) ? filterResults : []
+
   return (
     <div className="bg-background text-foreground space-y-28 pb-24 overflow-x-hidden font-sans">
       <SEO 
@@ -384,11 +390,11 @@ export default function Home() {
                 <select
                   value={selectedSubject}
                   onChange={handleSubjectChange}
-                  disabled={!selectedGrade || subjects.length === 0}
+                  disabled={!selectedGrade || safeSubjects.length === 0}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 appearance-none focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/30 transition-all text-xs font-semibold text-slate-200 cursor-pointer disabled:opacity-40"
                 >
-                  <option value="">{subjects.length === 0 ? 'حدد الصف الدراسي أولاً...' : 'اختر المادة العلمية...'}</option>
-                  {subjects.map((sub) => (
+                  <option value="">{safeSubjects.length === 0 ? 'حدد الصف الدراسي أولاً...' : 'اختر المادة العلمية...'}</option>
+                  {safeSubjects.map((sub) => (
                     <option key={sub} value={sub}>{SUBJECTS_TRANSLATION[sub] || sub}</option>
                   ))}
                 </select>
@@ -403,11 +409,11 @@ export default function Home() {
                 <select
                   value={selectedTeacherId}
                   onChange={handleTeacherChange}
-                  disabled={!selectedSubject || filteredTeachers.length === 0}
+                  disabled={!selectedSubject || safeFilteredTeachers.length === 0}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 appearance-none focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/30 transition-all text-xs font-semibold text-slate-200 cursor-pointer disabled:opacity-40"
                 >
-                  <option value="">{filteredTeachers.length === 0 ? 'حدد المادة العلمية أولاً...' : 'اختر اسم المدرس...'}</option>
-                  {filteredTeachers.map((t) => (
+                  <option value="">{safeFilteredTeachers.length === 0 ? 'حدد المادة العلمية أولاً...' : 'اختر اسم المدرس...'}</option>
+                  {safeFilteredTeachers.map((t) => (
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
@@ -424,7 +430,7 @@ export default function Home() {
             </div>
           )}
 
-          {!filterLoading && filterResults.length > 0 && (
+          {!filterLoading && safeFilterResults.length > 0 && (
             <div className="mt-12 space-y-6 text-right">
               <h3 className="text-lg font-bold border-b border-slate-800 pb-3 flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-[var(--primary-color)]" />
@@ -432,7 +438,7 @@ export default function Home() {
               </h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                {filterResults.map((course) => (
+                {safeFilterResults.map((course) => (
                   <CourseCard
                     key={course.id}
                     id={course.id}
@@ -476,11 +482,11 @@ export default function Home() {
           </Link>
         </div>
 
-        {featuredCourses.length === 0 ? (
+        {safeFeaturedCourses.length === 0 ? (
           <EmptyState type="courses" title="لا توجد كورسات معروضة" description="لم يتم نشر أي كورسات في المنصة حتى الآن." />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {featuredCourses.map((course) => (
+            {safeFeaturedCourses.map((course) => (
               <CourseCard
                 key={course.id}
                 id={course.id}
@@ -510,11 +516,11 @@ export default function Home() {
           <p className="text-sm text-slate-400 font-light max-w-lg mx-auto">معلمون متميزون ذوو خبرة طويلة لتبسيط المناهج وشرح كافة التفاصيل</p>
         </div>
 
-        {popularTeachers.length === 0 ? (
+        {safePopularTeachers.length === 0 ? (
           <EmptyState type="teachers" title="لا يوجد معلمون مسجلون" description="يرجى مراجعة لوحة تحكم الأدمن لإضافة معلمين جدد للمنصة." />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {popularTeachers.map((teacher) => (
+            {safePopularTeachers.map((teacher) => (
               <TeacherCard
                 key={teacher.id}
                 id={teacher.id}

@@ -73,6 +73,11 @@ export default function AdminVideoViewsStats() {
 
   if (!data) return null
 
+  const safeMostWatched = Array.isArray(data.most_watched_lessons) ? data.most_watched_lessons : []
+  const safeLeastWatched = Array.isArray(data.least_watched_lessons) ? data.least_watched_lessons : []
+  const safeCourseStats = Array.isArray(data.course_statistics) ? data.course_statistics : []
+  const safeTeacherStats = Array.isArray(data.teacher_statistics) ? data.teacher_statistics : []
+
   return (
     <div className="space-y-6 text-right" dir="rtl">
       {/* Header */}
@@ -166,12 +171,12 @@ export default function AdminVideoViewsStats() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
-                  {data.most_watched_lessons.length === 0 ? (
+                  {safeMostWatched.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
-                    data.most_watched_lessons.map((stat, idx) => (
+                    safeMostWatched.map((stat, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/10">
                         <td className="py-3.5">
                           <div className="font-extrabold text-[var(--text-color)]">{stat.video_title}</div>
@@ -208,12 +213,12 @@ export default function AdminVideoViewsStats() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
-                  {data.least_watched_lessons.length === 0 ? (
+                  {safeLeastWatched.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
-                    data.least_watched_lessons.map((stat, idx) => (
+                    safeLeastWatched.map((stat, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/10">
                         <td className="py-3.5">
                           <div className="font-extrabold text-[var(--text-color)]">{stat.video_title}</div>
@@ -246,12 +251,12 @@ export default function AdminVideoViewsStats() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
-                  {data.course_statistics.length === 0 ? (
+                  {safeCourseStats.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
-                    data.course_statistics.map((stat, idx) => (
+                    safeCourseStats.map((stat, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/10">
                         <td className="py-3.5 font-extrabold text-[var(--text-color)]">{stat.course_title}</td>
                         <td className="py-3.5 text-slate-300">{stat.teacher_name}</td>
@@ -276,12 +281,12 @@ export default function AdminVideoViewsStats() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50 text-xs">
-                  {data.teacher_statistics.length === 0 ? (
+                  {safeTeacherStats.length === 0 ? (
                     <tr>
                       <td colSpan={3} className="py-8 text-center text-slate-500">لا توجد إحصائيات متوفرة حالياً.</td>
                     </tr>
                   ) : (
-                    data.teacher_statistics.map((stat, idx) => (
+                    safeTeacherStats.map((stat, idx) => (
                       <tr key={idx} className="hover:bg-slate-800/10">
                         <td className="py-3.5 font-extrabold text-[var(--text-color)]">{stat.teacher_name}</td>
                         <td className="py-3.5 text-center font-bold text-sky-400">{stat.views_count}</td>

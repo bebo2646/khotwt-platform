@@ -77,7 +77,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         API.get('/notifications')
       ])
       setUnreadCount(countRes.data.unread_count || 0)
-      const fetchedNotifs = notifRes.data || []
+      const fetchedNotifs = Array.isArray(notifRes.data) ? notifRes.data : []
       
       // Filter out duplicate IDs
       const uniqueFetched = fetchedNotifs.filter(

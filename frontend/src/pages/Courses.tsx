@@ -217,6 +217,10 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
     }
   }
 
+  const safeCourses = Array.isArray(courses) ? courses : []
+  const safePackages = Array.isArray(packages) ? packages : []
+  const safeRecommendedCourses = Array.isArray(recommendedCourses) ? recommendedCourses : []
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
@@ -300,7 +304,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
               </Link>
             </div>
           ) : (
-            recommendedCourses.length > 0 && (
+            safeRecommendedCourses.length > 0 && (
               <div className="space-y-6">
                 {/* Banner Section */}
                 <div className="p-6 sm:p-8 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative overflow-hidden"
@@ -321,7 +325,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
 
                 {/* Grid */}
                 <div className="bastahalak-grid">
-                  {recommendedCourses.map((course) => (
+                  {safeRecommendedCourses.map((course) => (
                     <CourseCard
                       key={course.id}
                       id={course.id}
@@ -351,7 +355,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
         </div>
-      ) : courses.length === 0 && packages.length === 0 ? (
+      ) : safeCourses.length === 0 && safePackages.length === 0 ? (
         <EmptyState
           type="courses"
           title="لا توجد نتائج بحث مطابقة"
@@ -361,11 +365,11 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
         <div className="space-y-12">
           
           {/* Courses Section */}
-          {courses.length > 0 && (
+          {safeCourses.length > 0 && (
             <div className="space-y-6">
               <h2 className="text-xl font-black border-r-4 border-brand-primary pr-3 text-foreground">جميع الكورسات</h2>
               <div className="bastahalak-grid">
-                {courses.map((course) => (
+                {safeCourses.map((course) => (
                   <CourseCard
                     key={course.id}
                     id={course.id}
@@ -388,11 +392,11 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
           )}
 
           {/* Monthly Packages Section */}
-          {packages.length > 0 && (
+          {safePackages.length > 0 && (
             <div className="space-y-6 pt-8 border-t border-border-color">
               <h2 className="text-xl font-black border-r-4 border-amber-500 pr-3 text-foreground">باقات مجمعة</h2>
               <div className="bastahalak-grid">
-                {packages.map((pkg) => (
+                {safePackages.map((pkg) => (
                   <PackageCard
                     key={pkg.id}
                     id={pkg.id}

@@ -25,7 +25,8 @@ export default function WalletPage() {
   const [success, setSuccess] = React.useState<string | null>(null)
 
   const transactionsWithRollingBalance = React.useMemo(() => {
-    const sorted = [...transactions].reverse();
+    const safeTx = Array.isArray(transactions) ? transactions : [];
+    const sorted = [...safeTx].reverse();
     let currentBalance = 0;
     const calculated = sorted.map((tx) => {
       const amount = parseFloat(tx.amount) || 0;
@@ -194,7 +195,7 @@ export default function WalletPage() {
             <div className="flex justify-center py-20">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary"></div>
             </div>
-          ) : transactions.length === 0 ? (
+          ) : (Array.isArray(transactions) ? transactions : []).length === 0 ? (
             <div className="text-center py-16 text-slate-500 font-light text-sm">
               لا توجد أي عمليات شحن أو دفع مسجلة حالياً.
             </div>

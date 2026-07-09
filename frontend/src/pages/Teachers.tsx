@@ -33,6 +33,8 @@ export default function Teachers() {
       .finally(() => setLoading(false))
   }, [filterMode])
 
+  const safeTeachers = Array.isArray(teachers) ? teachers : []
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12" dir="rtl">
       <SEO 
@@ -75,7 +77,7 @@ export default function Teachers() {
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
         </div>
-      ) : teachers.length === 0 ? (
+      ) : safeTeachers.length === 0 ? (
         <EmptyState
           type="teachers"
           title="لا يوجد مدرسون مسجلون"
@@ -84,7 +86,7 @@ export default function Teachers() {
       ) : (
         /* Teachers Grid */
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {teachers.map((teacher) => (
+          {safeTeachers.map((teacher) => (
             <TeacherCard
               key={teacher.id}
               id={teacher.id}

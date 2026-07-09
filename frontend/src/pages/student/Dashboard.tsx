@@ -214,23 +214,47 @@ export default function StudentDashboard() {
     return <DashboardSkeleton />
   }
 
-  // Filter logic
-  const filteredTeachers = teachers.filter(t => {
+  // Temporary logging before filters (as requested by User Request)
+  console.log("teachers state value:", teachers);
+  console.log("Array.isArray(teachers):", Array.isArray(teachers));
+  console.log("typeof teachers:", typeof teachers);
+
+  console.log("availableCourses state value:", availableCourses);
+  console.log("Array.isArray(availableCourses):", Array.isArray(availableCourses));
+  console.log("typeof availableCourses:", typeof availableCourses);
+
+  console.log("dbData state value:", dbData);
+  console.log("typeof dbData:", typeof dbData);
+
+  // Safe array guards
+  const safeTeachers = Array.isArray(teachers) ? teachers : []
+  const safeAvailableCourses = Array.isArray(availableCourses) ? availableCourses : []
+  const safeCourses = Array.isArray(dbData?.courses) ? dbData.courses : []
+  const safeWatchHistory = Array.isArray(dbData?.watch_history) ? dbData.watch_history : []
+  const safeUpcomingExams = Array.isArray(dbData?.upcoming_exams) ? dbData.upcoming_exams : []
+  const safeExamHistory = Array.isArray(dbData?.exam_history) ? dbData.exam_history : []
+  const safeHomeworkHistory = Array.isArray(dbData?.homework_history) ? dbData.homework_history : []
+
+  const safeRecommended = Array.isArray(recommendedData?.recommended) ? recommendedData.recommended : []
+  const safeLatest = Array.isArray(recommendedData?.latest) ? recommendedData.latest : []
+
+  // Filter logic using safe arrays
+  const filteredTeachers = safeTeachers.filter(t => {
     const matchesSubject = selectedSubject === 'all' || t.subject === selectedSubject
     const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSubject && matchesSearch
   })
 
-  const filteredCourses = availableCourses.filter(c => {
+  const filteredCourses = safeAvailableCourses.filter(c => {
     const matchesSubject = selectedSubject === 'all' || c.subject === selectedSubject
     const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           c.teacher.name.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSubject && matchesSearch
   })
 
-  // Recommended & Latest
-  const enrolledCourseIds = new Set((dbData?.courses || []).map(c => c.id))
-  const recommendedCourses = availableCourses
+  // Recommended & Latest using safe arrays
+  const enrolledCourseIds = new Set(safeCourses.map(c => c.id))
+  const recommendedCourses = safeAvailableCourses
     .filter(c => !enrolledCourseIds.has(c.id))
     .slice(0, 3)
 
@@ -412,12 +436,12 @@ export default function StudentDashboard() {
         {/* ====================================
             3. CONTINUE LEARNING (My Current Enrolled Courses)
             ==================================== */}
-        {dbData && dbData.courses.length > 0 && (
+        {safeCourses.length > 0 && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
                 <span>استكمال التعليم</span>
-                <span className="text-[10px] text-slate-400 font-light mt-1">تابع فصولك ومحاضراتك الحالية</span>
+                <span className="text-[10px] text-slate-450 font-light mt-1">تابع فصولك ومحاضراتك الحالية</span>
               </h2>
             </div>
 
@@ -427,7 +451,7 @@ export default function StudentDashboard() {
               animate="visible"
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
-              {dbData.courses.map((course: any) => {
+              {safeCourses.map((course: any) => {
                 const percentage = course.progress_percentage || 0
                 const watchedMin = Math.floor((course.watched_seconds || 0) / 60)
                 const durationMin = Math.floor((course.total_duration_seconds || 0) / 60) || 5
@@ -607,13 +631,14 @@ export default function StudentDashboard() {
             </div>
 
             {/* Recommended grid */}
-            {recommendedData.recommended.length === 0 ? (
+            {/* Recommended grid */}
+            {safeRecommended.length === 0 ? (
               <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
                 لا توجد كورسات مقترحة متوفرة حالياً لهذه المرحلة الدراسية.
               </div>
             ) : (
               <div className="bastahalak-grid">
-                {recommendedData.recommended.map((course) => (
+                {safeRecommended.map((course) => (
                   <CourseCard
                     key={course.id}
                     id={course.id}
@@ -646,13 +671,13 @@ export default function StudentDashboard() {
             <span> أحدث الكورسات</span>
           </h2>
           
-          {recommendedData.latest.length === 0 ? (
+          {safeLatest.length === 0 ? (
             <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
               لا توجد كورسات مضافة حديثاً.
             </div>
           ) : (
             <div className="bastahalak-grid">
-              {recommendedData.latest.map((course) => (
+              {safeLatest.map((course) => (
                 <CourseCard
                   key={course.id}
                   id={course.id}
@@ -764,11 +789,11 @@ export default function StudentDashboard() {
                 {/* Courses Tab inside Log */}
                 {activeTab === 'courses' && (
                   <div>
-                    {dbData && dbData.courses.length === 0 ? (
+                    {safeCourses.length === 0 ? (
                       <div className="text-center py-12 text-slate-500 text-xs font-light">أنت غير مشترك في أي كورسات حالياً.</div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {dbData?.courses.map((course) => (
+                        {safeCourses.map((course) => (
                           <div key={course.id} className="bg-background border border-border-color p-5 rounded-2xl flex items-center justify-between group hover:border-brand-primary/25 transition-all">
                             <div className="space-y-1">
                               <h4 className="font-black text-xs text-slate-200 group-hover:text-brand-primary transition-colors">{course.title}</h4>
@@ -787,7 +812,7 @@ export default function StudentDashboard() {
                 {/* Recently Watched Tab */}
                 {activeTab === 'recent_watched' && (
                   <div>
-                    {!dbData || !dbData.watch_history || dbData.watch_history.length === 0 ? (
+                    {safeWatchHistory.length === 0 ? (
                       <div className="text-center py-12 text-slate-500 text-xs font-light">لا يوجد محاضرات تمت مشاهدتها بعد.</div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-border-color bg-background/30">
@@ -802,7 +827,7 @@ export default function StudentDashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-color/50 text-xs">
-                            {dbData.watch_history.map((progress) => (
+                            {safeWatchHistory.map((progress) => (
                               <tr key={progress.id} className="hover:bg-background/80 transition-colors">
                                 <td className="p-4 font-black text-slate-200">{progress.video_title}</td>
                                 <td className="p-4 text-slate-400 font-semibold">{progress.course_title}</td>
@@ -825,11 +850,11 @@ export default function StudentDashboard() {
                 {/* Upcoming Exams Tab */}
                 {activeTab === 'upcoming_exams' && (
                   <div>
-                    {!dbData || !dbData.upcoming_exams || dbData.upcoming_exams.length === 0 ? (
+                    {safeUpcomingExams.length === 0 ? (
                       <div className="text-center py-12 text-slate-500 text-xs font-light">رائع! لا يوجد امتحانات معلقة حالياً.</div>
                     ) : (
                       <div className="space-y-4">
-                        {dbData.upcoming_exams.map((exam) => (
+                        {safeUpcomingExams.map((exam) => (
                           <div key={exam.id} className="bg-background/50 border border-border-color p-5 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 hover:border-brand-primary/20 transition-all">
                             <div className="space-y-2">
                               <div className="flex items-center gap-2">
@@ -856,7 +881,7 @@ export default function StudentDashboard() {
                 {/* Exam History Tab */}
                 {activeTab === 'exam_history' && (
                   <div>
-                    {!dbData || !dbData.exam_history || dbData.exam_history.length === 0 ? (
+                    {safeExamHistory.length === 0 ? (
                       <div className="text-center py-12 text-slate-500 text-xs font-light">لا يوجد سجل امتحانات محلولة حتى الآن.</div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-border-color bg-background/30">
@@ -871,7 +896,7 @@ export default function StudentDashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-color/50 text-xs">
-                            {dbData.exam_history.map((attempt) => (
+                            {safeExamHistory.map((attempt) => (
                               <tr key={attempt.id} className="hover:bg-background/80 transition-colors">
                                 <td className="p-4 font-black text-slate-200">{attempt.exam_title}</td>
                                 <td className="p-4 text-slate-400 font-semibold">{attempt.course_title}</td>
@@ -906,7 +931,7 @@ export default function StudentDashboard() {
                 {/* Homework History Tab */}
                 {activeTab === 'homework_history' && (
                   <div>
-                    {!dbData || !dbData.homework_history || dbData.homework_history.length === 0 ? (
+                    {safeHomeworkHistory.length === 0 ? (
                       <div className="text-center py-12 text-slate-500 text-xs font-light">لا يوجد واجبات تم تسليمها حتى الآن.</div>
                     ) : (
                       <div className="overflow-x-auto rounded-2xl border border-border-color bg-background/30">
@@ -921,7 +946,7 @@ export default function StudentDashboard() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border-color/50 text-xs">
-                            {dbData.homework_history.map((attempt) => (
+                            {safeHomeworkHistory.map((attempt) => (
                               <tr key={attempt.id} className="hover:bg-background/80 transition-colors">
                                 <td className="p-4 font-black text-slate-200">{attempt.exam_title}</td>
                                 <td className="p-4 text-slate-400 font-semibold">{attempt.course_title}</td>

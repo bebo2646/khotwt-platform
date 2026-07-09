@@ -42,6 +42,8 @@ export default function EnrolledCourses() {
       .finally(() => setLoading(false))
   }, [])
 
+  const safeEnrollments = Array.isArray(enrollments) ? enrollments : []
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       
@@ -54,7 +56,7 @@ export default function EnrolledCourses() {
         <div className="flex justify-center py-20">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
         </div>
-      ) : enrollments.length === 0 ? (
+      ) : safeEnrollments.length === 0 ? (
         <EmptyState
           type="courses"
           title="لم تشترك في أي كورسات بعد"
@@ -68,7 +70,7 @@ export default function EnrolledCourses() {
       ) : (
         /* Enrolled Grid */
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {enrollments.map((enr) => (
+          {safeEnrollments.map((enr) => (
             <div key={enr.id} className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden hover:border-brand-primary/30 transition-all group">
               <div className="aspect-video bg-slate-800 relative overflow-hidden">
                 <img src={enr.course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} alt={enr.course.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
