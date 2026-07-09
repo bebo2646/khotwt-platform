@@ -1015,6 +1015,29 @@ class StudentController extends Controller
 
         // Check course access for student
         if ($user->role === 'student') {
+            $teacherSubscription = \App\Models\TeacherSubscription::where('teacher_id', $course->teacher_id)->first();
+            if ($teacherSubscription) {
+                $statusDetails = $teacherSubscription->calculateStatusDetails();
+                if ($statusDetails['status'] === 'Expired') {
+                    return response()->json([
+                        'subscription_expired' => true,
+                        'message' => 'This course is temporarily unavailable because the teacher subscription has expired. Access will automatically resume after renewal.',
+                        'lesson' => [
+                            'id' => $lesson->id,
+                            'title' => $lesson->title,
+                            'unit' => [
+                                'title' => $lesson->unit->title,
+                                'course' => [
+                                    'title' => $course->title,
+                                    'id' => $course->id
+                                ],
+                                'course_id' => $course->id
+                            ]
+                        ]
+                    ], 403);
+                }
+            }
+
             $isEnrolled = Enrollment::where('student_id', $user->id)
                 ->where('course_id', $course->id)
                 ->exists();

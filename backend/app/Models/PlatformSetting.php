@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
     'view_limit_enabled',
     'default_max_views',
     'video_threshold_seconds',
+    'grace_period_days',
 ])]
 class PlatformSetting extends Model
 {
@@ -26,5 +27,6 @@ class PlatformSetting extends Model
         'view_limit_enabled' => 'boolean',
         'default_max_views' => 'integer',
         'video_threshold_seconds' => 'integer',
+        'grace_period_days' => 'integer',
     ];
 }

@@ -20,7 +20,7 @@ class CheckSubscriptionActive
         if ($user && $user->isTeacher()) {
             $subscription = TeacherSubscription::where('teacher_id', $user->id)->first();
 
-            // If no subscription, create a default Starter subscription (1 month)
+            // If no subscription, create a default Starter subscription (30 days)
             if (!$subscription) {
                 $starter = \App\Models\SubscriptionPlan::where('name', 'Starter')->first();
                 $subscription = TeacherSubscription::create([
@@ -35,21 +35,31 @@ class CheckSubscriptionActive
                 ]);
             }
 
-            // Sync quotas
-            $today = Carbon::today();
-            $endDate = Carbon::parse($subscription->end_date);
-            $isExpired = $today->gt($endDate) || $subscription->status === 'Expired';
+            // Sync quotas/calculate status
+            $statusDetails = $subscription->calculateStatusDetails();
+            $status = $statusDetails['status'];
 
-            if ($isExpired || $subscription->status === 'Suspended') {
-                // Update status in DB if expired
-                if ($subscription->status !== 'Expired' && $subscription->status !== 'Suspended') {
-                    $subscription->update(['status' => 'Expired']);
-                }
-
+            if ($status === 'Expired' || $subscription->status === 'Suspended') {
                 return response()->json([
-                    'message' => 'عذراً، انتهت صلاحية باقة اشتراكك أو تم تعليقها. يرجى تجديد الاشتراك أو اختيار باقة مدفوعة للمتابعة.',
+                    'message' => 'عذراً، انتهت صلاحية باقة اشتراكك. يرجى تجديد الاشتراك للمتابعة.',
                     'subscription_expired' => true,
                 ], 403);
+            }
+
+            if ($status === 'Grace Period') {
+                $routeAction = $request->route() ? $request->route()->getActionMethod() : '';
+                $routePath = $request->path();
+
+                $blockedActions = ['createCourse', 'addLesson', 'addVideo', 'replaceVideo', 'generateSignedUpload'];
+                if (in_array($routeAction, $blockedActions) || 
+                    str_contains($routePath, 'signed-upload') || 
+                    (str_contains($routePath, 'lessons') && str_contains($routePath, 'video'))) {
+                    
+                    return response()->json([
+                        'message' => 'عذراً، لا يمكنك تنفيذ هذا الإجراء (إنشاء كورس، نشر درس، أو رفع فيديو) خلال فترة السماح. يرجى تجديد اشتراكك لتفعيل كامل الميزات.',
+                        'subscription_grace_blocked' => true,
+                    ], 403);
+                }
             }
         }
 

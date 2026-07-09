@@ -222,6 +222,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Subscription & Notifications Management
             Route::get('/admin/teachers/{id}/subscription', [SubscriptionController::class, 'getTeacherSubscription']);
             Route::post('/admin/teachers/{id}/subscription/plan', [SubscriptionController::class, 'updateTeacherPlan']);
+            Route::post('/admin/teachers/{id}/subscription/renew', [SubscriptionController::class, 'renewSubscription']);
             Route::post('/admin/teachers/{id}/subscription/addons', [SubscriptionController::class, 'addSubscriptionAddon']);
             Route::post('/admin/teachers/{id}/subscription/payments', [SubscriptionController::class, 'confirmSubscriptionPayment']);
             Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);

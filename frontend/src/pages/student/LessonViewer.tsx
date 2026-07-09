@@ -85,6 +85,8 @@ export default function LessonViewer() {
   const [viewLimitDetails, setViewLimitDetails] = React.useState<any>(null)
   const [rechargeCode, setRechargeCode] = React.useState('')
   const [redeemingCode, setRedeemingCode] = React.useState(false)
+  const [subscriptionExpired, setSubscriptionExpired] = React.useState(false)
+  const [expirationMessage, setExpirationMessage] = React.useState('')
 
   const watchSessionIdRef = React.useRef<string>('')
   const sessionWatchTimeRef = React.useRef<number>(0)
@@ -252,8 +254,14 @@ export default function LessonViewer() {
       })
       .catch((err) => {
         console.error(err)
-        // Redirect back on permission block
-        navigate(`/courses`)
+        if (err.response?.data?.subscription_expired) {
+          setSubscriptionExpired(true)
+          setExpirationMessage(err.response.data.message)
+          setLesson(err.response.data.lesson)
+        } else {
+          // Redirect back on permission block
+          navigate(`/courses`)
+        }
       })
       .finally(() => setLoading(false))
   }
@@ -950,6 +958,30 @@ export default function LessonViewer() {
     return (
       <div className="flex justify-center py-32">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-primary"></div>
+      </div>
+    )
+  }
+
+  if (subscriptionExpired) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center font-sans" dir="rtl">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-8 md:p-12 shadow-2xl flex flex-col items-center space-y-6">
+          <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-full flex items-center justify-center animate-bounce">
+            <Lock className="w-10 h-10" />
+          </div>
+          <h2 className="text-xl md:text-2xl font-black text-[var(--text-color)]">المحتوى غير متاح حالياً</h2>
+          <p className="text-sm md:text-base text-slate-400 max-w-lg leading-relaxed text-center font-mono" dir="ltr">
+            {expirationMessage || 'This course is temporarily unavailable because the teacher subscription has expired. Access will automatically resume after renewal.'}
+          </p>
+          <div className="pt-4 w-full flex justify-center">
+            <button
+              onClick={() => navigate(-1)}
+              className="px-6 py-3 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] hover:bg-[rgba(255,255,255,0.06)] text-xs rounded-xl flex items-center gap-2 text-[var(--text-color)] cursor-pointer"
+            >
+              <ArrowRight className="w-4 h-4 text-indigo-400" /> الرجوع للخلف
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

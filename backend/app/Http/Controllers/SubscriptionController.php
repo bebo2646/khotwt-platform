@@ -218,16 +218,8 @@ class SubscriptionController extends Controller
 
         $details = $this->getSubscriptionPriceDetails($plan, $billingPeriod);
         
-        $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
-        $isRenewal = ((int)$subscription->plan_id === (int)$plan->id);
-
-        if ($isRenewal && $subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) {
-            $newStartDate = $subscription->start_date->toDateString();
-            $newEndDate = $currentEndDate->addMonths($details['months'])->toDateString();
-        } else {
-            $newStartDate = Carbon::now()->toDateString();
-            $newEndDate = Carbon::now()->addMonths($details['months'])->toDateString();
-        }
+        $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $billingPeriod, 'upgrade');
+        $details = $calc['details'];
 
         $subscription->update([
             'plan_id' => $plan->id,
@@ -236,8 +228,8 @@ class SubscriptionController extends Controller
             'discount_percentage' => $details['discount_percentage'],
             'discount_amount' => $details['discount_amount'],
             'final_price' => $details['final_price'],
-            'start_date' => $newStartDate,
-            'end_date' => $newEndDate,
+            'start_date' => $calc['start_date'],
+            'end_date' => $calc['end_date'],
             'status' => 'Active',
         ]);
 
@@ -272,6 +264,121 @@ class SubscriptionController extends Controller
 
         return response()->json([
             'message' => 'تم تحديث باقة المعلم بنجاح',
+            'subscription' => $subscription,
+        ]);
+    }
+
+    /**
+     * Helper to calculate start and end dates based on active/grace/expired state and plan.
+     */
+    private function calculateNewSubscriptionDates($subscription, $newPlan, $billingCycle, $actionType)
+    {
+        $details = $this->getSubscriptionPriceDetails($newPlan, $billingCycle);
+        $months = $details['months'];
+        
+        $today = Carbon::today();
+        
+        // Check if it's renewal of the SAME plan
+        $isSamePlan = $subscription && ((int)$subscription->plan_id === (int)$newPlan->id);
+        $isRenewal = ($actionType === 'renew') || $isSamePlan;
+
+        if ($subscription) {
+            $statusDetails = $subscription->calculateStatusDetails();
+            $currentStatus = $statusDetails['status'];
+            
+            if ($isRenewal) {
+                if ($currentStatus === 'Active') {
+                    // Renewing while Active: extend old end date
+                    $currentEndDate = Carbon::parse($subscription->end_date);
+                    $newStartDate = $subscription->start_date->toDateString();
+                    $newEndDate = $currentEndDate->addMonths($months)->toDateString();
+                } else {
+                    // Renewing while Grace or Expired: starts from today
+                    $newStartDate = $today->toDateString();
+                    $newEndDate = $today->copy()->addMonths($months)->toDateString();
+                }
+            } else {
+                // Changing plan (Upgrade/Downgrade): start from today
+                $newStartDate = $today->toDateString();
+                $newEndDate = $today->copy()->addMonths($months)->toDateString();
+            }
+        } else {
+            // No previous subscription: starts from today
+            $newStartDate = $today->toDateString();
+            $newEndDate = $today->copy()->addMonths($months)->toDateString();
+        }
+
+        return [
+            'start_date' => $newStartDate,
+            'end_date' => $newEndDate,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * Renew Current Plan.
+     */
+    public function renewSubscription(Request $request, $id)
+    {
+        $request->validate([
+            'billing_period' => 'required|string|in:monthly,quarterly,semi_annual,annual,yearly',
+        ]);
+
+        $teacher = User::where('role', 'teacher')->findOrFail($id);
+        $subscription = TeacherSubscription::where('teacher_id', $teacher->id)->firstOrFail();
+        $plan = $subscription->plan;
+
+        if (!$plan) {
+            return response()->json(['message' => 'المعلم ليس لديه باقة حالية لتجديدها.'], 400);
+        }
+
+        $billingPeriod = $request->billing_period;
+        if ($billingPeriod === 'yearly') {
+            $billingPeriod = 'annual';
+        }
+
+        $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $billingPeriod, 'renew');
+        $details = $calc['details'];
+
+        $subscription->update([
+            'start_date' => $calc['start_date'],
+            'end_date' => $calc['end_date'],
+            'status' => 'Active',
+            'billing_period' => $details['billing_cycle'],
+            'billing_cycle' => $details['billing_cycle'],
+            'discount_percentage' => $details['discount_percentage'],
+            'discount_amount' => $details['discount_amount'],
+            'final_price' => $details['final_price'],
+        ]);
+
+        $price = $details['final_price'];
+        SubscriptionPayment::create([
+            'teacher_subscription_id' => $subscription->id,
+            'amount' => $price,
+            'payment_status' => 'Paid',
+            'notes' => "تجديد الباقة الحالية ({$plan->name}) - دورة {$details['billing_cycle']}",
+            'payment_date' => Carbon::now(),
+            'admin_name' => $request->user()->name,
+            'admin_id' => $request->user()->id ?? null,
+        ]);
+
+        $this->notificationService->sendNotification(
+            'تجديد الاشتراك',
+            "تم تجديد اشتراك باقتك الحالية ({$plan->name}) بنجاح بدورة دفع ({$billingPeriod}) بقيمة {$price} ج.م.",
+            'specific_teacher',
+            $teacher->id
+        );
+
+        AdminActivityLog::create([
+            'admin_name' => $request->user()->name,
+            'action_type' => "تجديد باقة المعلم {$teacher->name} الحالية ({$plan->name}) بدورة دفع {$billingPeriod}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        $this->syncService->syncStorageAndCodes($teacher->id);
+
+        return response()->json([
+            'message' => 'تم تجديد الاشتراك بنجاح',
             'subscription' => $subscription,
         ]);
     }
@@ -551,21 +658,16 @@ class SubscriptionController extends Controller
                     }
                 }
 
-                $currentEndDate = $subscription->end_date ? Carbon::parse($subscription->end_date) : null;
-                $isRenewal = ((int)$subscription->plan_id === (int)$plan->id);
-
-                if ($isRenewal && $subscription->status === 'Active' && $currentEndDate && $currentEndDate->isFuture()) {
-                    $newStartDate = $subscription->start_date->toDateString();
-                    $newEndDate = $currentEndDate->addMonths($months)->toDateString();
-                } else {
-                    $newStartDate = Carbon::now()->toDateString();
-                    $newEndDate = Carbon::now()->addMonths($months)->toDateString();
-                }
+                $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $period, 'upgrade');
+                
+                $discountPercentage = $calc['details']['discount_percentage'];
+                $discountAmount = $calc['details']['discount_amount'];
+                $price = $calc['details']['final_price'];
 
                 $subscription->update([
                     'plan_id' => $plan->id,
-                    'start_date' => $newStartDate,
-                    'end_date' => $newEndDate,
+                    'start_date' => $calc['start_date'],
+                    'end_date' => $calc['end_date'],
                     'status' => 'Active',
                     'billing_period' => $period,
                     'billing_cycle' => $period,
@@ -928,6 +1030,17 @@ class SubscriptionController extends Controller
                     $teacher = $firstTeacher;
                 } else {
                     return response()->json(['message' => 'لا يوجد معلم في النظام لتنفيذ الطلب عليه.'], 400);
+                }
+            }
+
+            // Check subscription status for addons
+            $subscription = TeacherSubscription::where('teacher_id', $teacher->id)->first();
+            if ($subscription) {
+                $statusDetails = $subscription->calculateStatusDetails();
+                if ($statusDetails['status'] !== 'Active' && $request->type !== 'plan_upgrade') {
+                    return response()->json([
+                        'message' => 'عذراً، لا يمكنك شراء إضافات (مساحة أو أكواد) أثناء فترة السماح أو بعد انتهاء الاشتراك. يرجى تجديد الباقة الأساسية أولاً.'
+                    ], 403);
                 }
             }
 

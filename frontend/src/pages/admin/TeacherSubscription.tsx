@@ -78,6 +78,51 @@ export default function TeacherSubscription() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'quarterly' | 'semi_annual' | 'annual'>('monthly')
   const [updatingPlan, setUpdatingPlan] = useState(false)
 
+  // Renewing State
+  const [showRenewModal, setShowRenewModal] = useState(false)
+  const [renewBillingPeriod, setRenewBillingPeriod] = useState<'monthly' | 'quarterly' | 'semi_annual' | 'annual'>('monthly')
+  const [renewing, setRenewing] = useState(false)
+
+  const handleRenewSubscription = async () => {
+    try {
+      setRenewing(true)
+      await API.post(`/admin/teachers/${id}/subscription/renew`, {
+        billing_period: renewBillingPeriod
+      })
+      showToast('تم تجديد الباقة الحالية للمعلم بنجاح وسجل الدفع التلقائي.', 'success')
+      setShowRenewModal(false)
+      loadData()
+    } catch (err: any) {
+      console.error(err)
+      showToast(err.response?.data?.message || 'فشل تجديد الاشتراك.', 'error')
+    } finally {
+      setRenewing(false)
+    }
+  }
+
+  const getRenewEndDatePreview = (period: 'monthly' | 'quarterly' | 'semi_annual' | 'annual') => {
+    if (!subscription || !subscription.plan) return ''
+    const details = getBillingCycleDetails(subscription.plan, period)
+    const months = details.months
+    const isActive = subscription.status === 'Active'
+    
+    let baseDate: Date
+    if (isActive) {
+      baseDate = new Date(subscription.end_date)
+    } else {
+      baseDate = new Date()
+    }
+    
+    const newDate = new Date(baseDate)
+    newDate.setMonth(newDate.getMonth() + months)
+    
+    return newDate.toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
+  }
+
   // Addons states
   const [addonType, setAddonType] = useState<'storage' | 'codes'>('storage')
   const [addonAmount, setAddonAmount] = useState<number>(0)
@@ -489,7 +534,16 @@ export default function TeacherSubscription() {
               <Award className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               بيانات الاشتراك الحالي
             </h2>
-            {getStatusBadge(subscription.status)}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRenewModal(true)}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-[11px] font-black rounded-xl hover:shadow-emerald-500/10 active:scale-95 transition cursor-pointer"
+              >
+                تجديد الاشتراك الحالي
+              </button>
+              {getStatusBadge(subscription.status)}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -1182,6 +1236,99 @@ export default function TeacherSubscription() {
           </div>
         </div>
       </div>
+
+      {/* Renew Modal */}
+      {showRenewModal && subscription && subscription.plan && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="absolute inset-0 bg-black/60 z-40" onClick={() => setShowRenewModal(false)} />
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-md w-full space-y-6 shadow-2xl z-50 text-right font-sans" dir="rtl">
+            <div>
+              <h3 className="text-base font-black text-[var(--text-color)] flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-emerald-400" />
+                تجديد الاشتراك الحالي للمعلم
+              </h3>
+              <p className="text-[10px] text-slate-400 mt-1">تجديد الباقة الحالية: <strong className="text-white">{subscription.plan.name}</strong></p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold block text-slate-300 mb-1.5">اختر دورة الدفع والتجديد:</label>
+                <select
+                  value={renewBillingPeriod}
+                  onChange={(e) => setRenewBillingPeriod(e.target.value as any)}
+                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2 text-xs focus:outline-none font-bold"
+                >
+                  <option value="monthly">شهري (بدون خصم)</option>
+                  <option value="quarterly">3 أشهر (بدون خصم)</option>
+                  <option value="semi_annual">نصف سنوي (خصم 10%)</option>
+                  <option value="annual">سنوي (خصم 20%)</option>
+                </select>
+              </div>
+
+              {/* Renewal Preview Details */}
+              {(() => {
+                const details = getBillingCycleDetails(subscription.plan, renewBillingPeriod);
+                const isGraceOrExpired = subscription.status === 'Grace Period' || subscription.status === 'Expired';
+                return (
+                  <div className="bg-[var(--bg-color)]/70 p-4 rounded-xl border border-[var(--border-color)] space-y-2 text-xs">
+                    <h4 className="font-bold text-[var(--text-color)] mb-2 border-b border-[var(--border-color)] pb-2 flex justify-between">
+                      <span>معاينة التجديد:</span>
+                      <span className="text-[10px] text-amber-500 font-semibold">
+                        {isGraceOrExpired ? 'يبدأ التجديد من اليوم' : 'يمتد التجديد بعد نهاية الاشتراك الحالي'}
+                      </span>
+                    </h4>
+                    <div className="flex justify-between text-[var(--text-secondary)]">
+                      <span>تاريخ الانتهاء الحالي:</span>
+                      <span className="font-mono text-left">{subscription.end_date}</span>
+                    </div>
+                    <div className="flex justify-between text-[var(--text-secondary)]">
+                      <span>تاريخ الانتهاء الجديد:</span>
+                      <span className="font-bold text-indigo-400 font-mono text-left">{getRenewEndDatePreview(renewBillingPeriod)}</span>
+                    </div>
+                    <div className="flex justify-between text-[var(--text-secondary)]">
+                      <span>السعر الأساسي:</span>
+                      <span className="font-mono text-left">{details.basePrice.toFixed(2)} EGP</span>
+                    </div>
+                    {details.discountPercent > 0 && (
+                      <div className="flex justify-between text-rose-500 font-bold">
+                        <span>خصم التجديد ({details.discountPercent}%):</span>
+                        <span className="font-mono text-left">-{details.discountAmount.toFixed(2)} EGP</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-sm font-black text-[var(--text-color)] pt-2 border-t border-dashed border-[var(--border-color)]">
+                      <span>القيمة المطلوبة للدفع:</span>
+                      <span className="text-emerald-500 font-black">{details.finalPrice.toFixed(2)} EGP</span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+              <button
+                type="button"
+                onClick={() => setShowRenewModal(false)}
+                className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleRenewSubscription}
+                disabled={renewing}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {renewing ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    جاري التجديد...
+                  </>
+                ) : 'تأكيد التجديد الآن'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

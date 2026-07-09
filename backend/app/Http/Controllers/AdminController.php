@@ -1981,6 +1981,7 @@ class AdminController extends Controller
             'view_limit_enabled' => 'required|boolean',
             'default_max_views' => 'required|integer|min:1',
             'video_threshold_seconds' => 'required|integer|min:5',
+            'grace_period_days' => 'required|integer|min:0',
         ]);
 
         $settings = \App\Models\PlatformSetting::first();
@@ -1993,11 +1994,12 @@ class AdminController extends Controller
         $settings->view_limit_enabled = $request->view_limit_enabled;
         $settings->default_max_views = $request->default_max_views;
         $settings->video_threshold_seconds = $request->video_threshold_seconds;
+        $settings->grace_period_days = $request->grace_period_days;
         $settings->save();
 
         \App\Models\AdminActivityLog::create([
             'admin_name' => $request->user()->name,
-            'action_type' => "تحديث الإعدادات العامة وإعدادات المشاهدة والمراجعة للمنصة",
+            'action_type' => "تحديث الإعدادات العامة وإعدادات المشاهدة والمراجعة وفترة السماح للمنصة",
             'ip_address' => $request->ip(),
         ]);
 

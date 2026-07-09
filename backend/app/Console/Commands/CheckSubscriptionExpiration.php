@@ -31,11 +31,14 @@ class CheckSubscriptionExpiration extends Command
         $this->info('Checking teacher subscriptions expiration dates...');
 
         $today = Carbon::today();
-        $subscriptions = TeacherSubscription::whereIn('status', ['Active', 'Expiring Soon'])->get();
+        $subscriptions = TeacherSubscription::all();
 
         foreach ($subscriptions as $sub) {
+            $statusDetails = $sub->calculateStatusDetails();
+            $graceDays = $statusDetails['grace_period_days'];
+            
             $endDate = Carbon::parse($sub->end_date);
-            $diffInDays = $today->diffInDays($endDate, false); // false to allow negative numbers
+            $diffInDays = $today->diffInDays($endDate, false); // positive if in future, negative if in past
 
             if ($diffInDays === 7) {
                 $notificationService->sendNotification(
@@ -44,7 +47,6 @@ class CheckSubscriptionExpiration extends Command
                     'specific_teacher',
                     $sub->teacher_id
                 );
-                $sub->update(['status' => 'Expiring Soon']);
                 $this->info("Notified teacher {$sub->teacher_id} (7 days left).");
             } elseif ($diffInDays === 3) {
                 $notificationService->sendNotification(
@@ -53,20 +55,40 @@ class CheckSubscriptionExpiration extends Command
                     'specific_teacher',
                     $sub->teacher_id
                 );
-                $sub->update(['status' => 'Expiring Soon']);
                 $this->info("Notified teacher {$sub->teacher_id} (3 days left).");
-            } elseif ($diffInDays === 0) {
+            } elseif ($diffInDays === 1) {
                 $notificationService->sendNotification(
-                    'انتهى اشتراكك اليوم',
-                    'لقد انتهت باقة اشتراكك الحالية اليوم. يرجى تجديد الاشتراك لتفعيل الميزات وتفادي حظر الطلاب.',
+                    'تنبيه انتهاء الاشتراك (يوم واحد)',
+                    'متبقي يوم واحد فقط على انتهاء باقة اشتراكك الحالية. يرجى التجديد لتفادي توقف الخدمة.',
                     'specific_teacher',
                     $sub->teacher_id
                 );
-                $sub->update(['status' => 'Expired']);
-                $this->info("Notified teacher {$sub->teacher_id} (Expired today).");
-            } elseif ($diffInDays < 0 && $sub->status !== 'Expired') {
-                $sub->update(['status' => 'Expired']);
-                $this->info("Updated teacher {$sub->teacher_id} subscription status to Expired.");
+                $this->info("Notified teacher {$sub->teacher_id} (1 day left).");
+            } elseif ($diffInDays === -1) {
+                $notificationService->sendNotification(
+                    'بدء فترة السماح للاشتراك',
+                    "انتهت صلاحية باقتك بالأمس وبدأت فترة السماح المحددة بـ {$graceDays} أيام. يرجى التجديد الآن لتجنب إيقاف الخدمات.",
+                    'specific_teacher',
+                    $sub->teacher_id
+                );
+                $this->info("Notified teacher {$sub->teacher_id} (First day of Grace Period).");
+            } elseif ($diffInDays === -$graceDays - 1) {
+                $notificationService->sendNotification(
+                    'انتهاء صلاحية الاشتراك بالكامل',
+                    'انتهت فترة السماح الخاصة باشتراكك وتم إيقاف الخدمات مؤقتاً. يرجى تجديد الاشتراك لاستعادة الوصول.',
+                    'specific_teacher',
+                    $sub->teacher_id
+                );
+
+                // Admin notification
+                $teacherName = $sub->teacher ? $sub->teacher->name : 'معلم';
+                $notificationService->sendNotification(
+                    'انتهاء اشتراك معلم',
+                    "انتهت فترة السماح واشتراك المعلم {$teacherName} (ID: {$sub->teacher_id}) بالكامل وتم إيقاف خدماته.",
+                    'admin'
+                );
+
+                $this->info("Notified teacher {$sub->teacher_id} and admin (Subscription Expired).");
             }
         }
 

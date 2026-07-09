@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import API from '../../services/api'
-import { Settings, Shield, Play, Save, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Settings, Shield, Play, Save, ToggleLeft, ToggleRight, Clock } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 
 interface PlatformSettingsData {
@@ -9,6 +9,7 @@ interface PlatformSettingsData {
   view_limit_enabled: boolean
   default_max_views: number
   video_threshold_seconds: number
+  grace_period_days: number
 }
 
 export default function PlatformSettings() {
@@ -18,6 +19,7 @@ export default function PlatformSettings() {
     view_limit_enabled: false,
     default_max_views: 10,
     video_threshold_seconds: 300,
+    grace_period_days: 7,
   })
   
   const [loading, setLoading] = useState(true)
@@ -34,6 +36,7 @@ export default function PlatformSettings() {
           view_limit_enabled: !!res.data.view_limit_enabled,
           default_max_views: parseInt(res.data.default_max_views) || 10,
           video_threshold_seconds: parseInt(res.data.video_threshold_seconds) || 300,
+          grace_period_days: res.data.grace_period_days !== undefined && res.data.grace_period_days !== null ? parseInt(res.data.grace_period_days) : 7,
         })
       }
     } catch (err) {
@@ -193,6 +196,27 @@ export default function PlatformSettings() {
               />
               <p className="text-[var(--text-secondary)] text-[10px] mt-1">الزمن الفعلي بالثواني الذي يجب على الطالب مشاهدته ليُسجل الدرس كمشاهدة واحدة (الافتراضي 300 ثانية = 5 دقائق).</p>
             </div>
+          </div>
+        </div>
+
+        {/* Group 3: Subscription & Grace Period */}
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl p-6 shadow-xl space-y-6">
+          <h2 className="text-base font-extrabold text-[var(--text-color)] border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-emerald-400" />
+            نظام الاشتراكات وفترة السماح (Grace Period)
+          </h2>
+          
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-[var(--text-color)]">مدة فترة السماح للمعلمين بعد انتهاء الاشتراك (بالأيام):</label>
+            <input
+              type="number"
+              min={0}
+              required
+              className="w-full px-4 py-3 bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl text-sm focus:outline-none focus:border-brand-primary font-mono text-left"
+              value={settings.grace_period_days}
+              onChange={(e) => handleNumberChange('grace_period_days', e.target.value)}
+            />
+            <p className="text-[var(--text-secondary)] text-[10px] mt-1">عدد الأيام التي يمكن للمعلم خلالها الاستمرار في استخدام ميزات العرض فقط بعد انتهاء اشتراكه الفعلي قبل حظر خدماته تماماً.</p>
           </div>
         </div>
 

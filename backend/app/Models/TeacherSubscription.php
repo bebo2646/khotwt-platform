@@ -169,4 +169,50 @@ class TeacherSubscription extends Model
         $usedGb = $this->used_storage_bytes / (1024 * 1024 * 1024);
         return min(100, round(($usedGb / $totalGb) * 100, 1));
     }
+
+    public function getGracePeriodDays()
+    {
+        $settings = \App\Models\PlatformSetting::first();
+        return $settings ? (int)$settings->grace_period_days : 7;
+    }
+
+    public function calculateStatusDetails()
+    {
+        $today = \Carbon\Carbon::today();
+        $endDate = \Carbon\Carbon::parse($this->end_date);
+        
+        $graceDays = $this->getGracePeriodDays();
+        $graceEndDate = $endDate->copy()->addDays($graceDays);
+        
+        $status = 'Active';
+        if ($today->gt($endDate)) {
+            if ($today->lte($graceEndDate)) {
+                $status = 'Grace Period';
+            } else {
+                $status = 'Expired';
+            }
+        }
+        
+        // Persist status if necessary
+        if ($this->status !== $status && $this->exists) {
+            $this->status = $status;
+            $this->save();
+        }
+        
+        $remainingActiveDays = max(0, $today->diffInDays($endDate, false));
+        $remainingGraceDays = 0;
+        if ($today->gt($endDate) && $today->lte($graceEndDate)) {
+            $remainingGraceDays = max(0, $today->diffInDays($graceEndDate, false));
+        }
+
+        return [
+            'status' => $status,
+            'remaining_days' => $remainingActiveDays,
+            'grace_period_days' => $graceDays,
+            'remaining_grace_days' => $remainingGraceDays,
+            'is_active' => ($status === 'Active'),
+            'is_grace' => ($status === 'Grace Period'),
+            'is_expired' => ($status === 'Expired'),
+        ];
+    }
 }
