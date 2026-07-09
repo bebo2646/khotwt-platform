@@ -986,6 +986,56 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
   pointer-events: auto !important;
 }
 
+/* ==========================================================================
+   SOLID DARK SURFACES FOR NOTIFICATIONS (DARK MODE ONLY)
+   ========================================================================== */
+html:not(.light-theme) .fixed.top-5.left-5,
+html:not(.light-theme) .toast-notification-item,
+html:not(.light-theme) .notification-list-scroll,
+html:not(.light-theme) .important-notification-toast {
+  background-color: #0F172A !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7), 0 10px 10px -5px rgba(0, 0, 0, 0.7) !important;
+  isolation: isolate !important;
+}
+
+/* Success toast solid dark styling in Dark Mode */
+html:not(.light-theme) .toast-notification-item.toast-success,
+html:not(.light-theme) .fixed.top-5.left-5.bg-emerald-950\/90 {
+  background-color: #062F22 !important; /* solid deep emerald/slate mix */
+  color: #34D399 !important;
+  border-color: #059669 !important;
+}
+
+/* Error toast solid dark styling in Dark Mode */
+html:not(.light-theme) .toast-notification-item.toast-error,
+html:not(.light-theme) .fixed.top-5.left-5.bg-rose-950\/90 {
+  background-color: #4C0519 !important; /* solid deep rose */
+  color: #F87171 !important;
+  border-color: #DC2626 !important;
+}
+
+/* Warning toast solid dark styling in Dark Mode */
+html:not(.light-theme) .toast-notification-item.toast-warning,
+html:not(.light-theme) .fixed.top-5.left-5.bg-amber-950\/90 {
+  background-color: #451A03 !important; /* solid deep amber */
+  color: #FBBF24 !important;
+  border-color: #D97706 !important;
+}
+
+/* Info/Blue/Indigo toast solid dark styling in Dark Mode */
+html:not(.light-theme) .toast-notification-item.toast-info,
+html:not(.light-theme) .toast-notification-item.toast-indigo {
+  background-color: #1E1B4B !important; /* solid deep indigo */
+  color: #818CF8 !important;
+  border-color: #4F46E5 !important;
+}
+
+
 
 
 

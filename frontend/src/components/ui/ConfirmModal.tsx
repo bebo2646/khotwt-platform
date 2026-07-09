@@ -244,14 +244,14 @@ export function ToastContainer() {
             initial={{ opacity: 0, y: -20, scale: 0.9, x: -50 }}
             animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.95, x: -100 }}
-            className={`p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto bg-[var(--card-bg)] ${
+            className={`toast-notification-item toast-${toast.type} p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto bg-[var(--card-bg)] ${
               toast.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
                 : toast.type === 'error'
                 ? 'bg-rose-500/10 border-rose-500/25 text-rose-500'
                 : toast.type === 'warning'
                 ? 'bg-amber-500/10 border-amber-500/25 text-amber-500'
-                : 'bg-blue-500/10 border-blue-500/25 text-blue-400'
+                : 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400'
             }`}
           >
             <div className="flex items-center gap-2.5 text-xs font-semibold leading-relaxed">
