@@ -256,8 +256,8 @@ export default function Plans() {
           <span className="px-3 py-1 bg-indigo-600/10 text-indigo-400 rounded-lg">
             {billingPeriod === 'monthly' && 'شهري'}
             {billingPeriod === 'quarterly' && '3 أشهر'}
-            {billingPeriod === 'semi_annual' && `نصف سنوي (خصم ${settings.discount_semi_annually || '10'}%)`}
-            {billingPeriod === 'annual' && `سنوي (خصم ${settings.discount_annually || '20'}%)`}
+            {billingPeriod === 'semi_annual' && (Number(settings.discount_semi_annually || 10) > 0 ? `نصف سنوي (خصم ${settings.discount_semi_annually || '10'}%)` : 'نصف سنوي (بدون خصم)')}
+            {billingPeriod === 'annual' && (Number(settings.discount_annually || 20) > 0 ? `سنوي (خصم ${settings.discount_annually || '20'}%)` : 'سنوي (بدون خصم)')}
           </span>
         </div>
       </div>

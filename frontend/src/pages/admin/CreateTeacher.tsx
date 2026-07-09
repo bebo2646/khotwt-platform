@@ -92,7 +92,8 @@ export default function CreateTeacher() {
             name: p.name,
             storage: p.video_storage_gb,
             codes: p.student_codes,
-            price: Math.round(p.price_egp)
+            price: Math.round(p.price_egp),
+            billing_options: p.billing_options
           }))
           setPlans(mapped)
           // Set to the first plan in list
@@ -110,6 +111,30 @@ export default function CreateTeacher() {
   // Calculations
   const selectedPlan = plans.find(p => Number(p.id) === Number(selectedPlanId)) || plans[0] || PLANS[0]
   
+  const getPlanDiscount = React.useCallback((plan: any, cycle: string) => {
+    if (!plan) return 0
+    let opts = plan.billing_options
+    if (opts) {
+      if (typeof opts === 'string') {
+        try {
+          opts = JSON.parse(opts)
+        } catch (e) {
+          opts = null
+        }
+      }
+      if (opts) {
+        if (cycle === 'monthly') return Number(opts.monthly?.discount ?? 0)
+        if (cycle === 'quarterly') return Number(opts.three_months?.discount ?? 0)
+        if (cycle === 'semi_annual' && opts.six_months?.enabled) return Number(opts.six_months.discount)
+        if (cycle === 'annual' && opts.yearly?.enabled) return Number(opts.yearly.discount)
+      }
+    }
+    // Fallback to settings
+    if (cycle === 'semi_annual') return parseFloat(settings.discount_semi_annually || '10')
+    if (cycle === 'annual') return parseFloat(settings.discount_annually || '20')
+    return 0
+  }, [settings])
+
   const billingMonths = React.useMemo(() => {
     if (billingCycle === 'monthly') return 1
     if (billingCycle === 'quarterly') return 3
@@ -119,19 +144,14 @@ export default function CreateTeacher() {
   }, [billingCycle])
 
   const discountPercent = React.useMemo(() => {
-    const semiannualDiscount = parseFloat(settings.discount_semi_annually || '10')
-    const annualDiscount = parseFloat(settings.discount_annually || '20')
-    if (billingCycle === 'semi_annual') return semiannualDiscount
-    if (billingCycle === 'annual') return annualDiscount
-    return 0
-  }, [billingCycle, settings])
+    return getPlanDiscount(selectedPlan, billingCycle)
+  }, [selectedPlan, billingCycle, getPlanDiscount])
 
-  const getCardPrice = React.useCallback((monthlyPrice: number) => {
+  const getCardPrice = React.useCallback((monthlyPrice: number, plan: any) => {
     const base = monthlyPrice * billingMonths
-    const discountPct = billingCycle === 'semi_annual' ? parseFloat(settings.discount_semi_annually || '10') :
-                        billingCycle === 'annual' ? parseFloat(settings.discount_annually || '20') : 0
+    const discountPct = getPlanDiscount(plan, billingCycle)
     return base * (1 - discountPct / 100)
-  }, [billingMonths, billingCycle, settings])
+  }, [billingMonths, billingCycle, getPlanDiscount])
 
   const basePlanPrice = selectedPlan.price * billingMonths
   const discountAmount = basePlanPrice * (discountPercent / 100)
@@ -518,7 +538,7 @@ export default function CreateTeacher() {
                     >
                       <div className="flex justify-between items-center w-full">
                         <span className="text-sm font-black">{p.name}</span>
-                        <span className="text-xs font-black text-brand-primary">{getCardPrice(p.price).toFixed(2)} ج.م</span>
+                        <span className="text-xs font-black text-brand-primary">{getCardPrice(p.price, p).toFixed(2)} ج.م</span>
                       </div>
                       <div className="text-[10px] space-y-1 font-light text-[var(--text-secondary)]">
                         <div className="flex items-center gap-1.5">
@@ -544,10 +564,18 @@ export default function CreateTeacher() {
                 onChange={(e) => setBillingCycle(e.target.value as any)}
                 className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-brand-primary font-bold"
               >
-                <option value="monthly">شهري (بدون خصم)</option>
-                <option value="quarterly">3 أشهر (بدون خصم)</option>
-                <option value="semi_annual">نصف سنوي (خصم 10%)</option>
-                <option value="annual">سنوي (خصم 20%)</option>
+                <option value="monthly">
+                  {`شهري (${getPlanDiscount(selectedPlan, 'monthly') > 0 ? `خصم ${getPlanDiscount(selectedPlan, 'monthly')}%` : 'بدون خصم'})`}
+                </option>
+                <option value="quarterly">
+                  {`3 أشهر (${getPlanDiscount(selectedPlan, 'quarterly') > 0 ? `خصم ${getPlanDiscount(selectedPlan, 'quarterly')}%` : 'بدون خصم'})`}
+                </option>
+                <option value="semi_annual">
+                  {`نصف سنوي (${getPlanDiscount(selectedPlan, 'semi_annual') > 0 ? `خصم ${getPlanDiscount(selectedPlan, 'semi_annual')}%` : 'بدون خصم'})`}
+                </option>
+                <option value="annual">
+                  {`سنوي (${getPlanDiscount(selectedPlan, 'annual') > 0 ? `خصم ${getPlanDiscount(selectedPlan, 'annual')}%` : 'بدون خصم'})`}
+                </option>
               </select>
             </div>
 

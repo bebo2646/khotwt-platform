@@ -1012,16 +1012,33 @@ export default function TeacherSubscription() {
             <div className="flex flex-col sm:flex-row gap-4 items-end bg-[var(--bg-color)]/50 p-4 rounded-xl border border-[var(--border-color)]">
               <div className="flex-1 w-full">
                 <label className="text-[11px] text-[var(--text-secondary)] block mb-1">دورة الفاتورة المحددة للمعلم</label>
-                <select
-                  value={billingPeriod}
-                  onChange={(e) => setBillingPeriod(e.target.value as any)}
-                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-lg px-3 py-2 text-xs focus:outline-none font-bold"
-                >
-                  <option value="monthly">شهري (بدون خصم)</option>
-                  <option value="quarterly">3 أشهر (بدون خصم)</option>
-                  <option value="semi_annual">نصف سنوي (خصم 10%)</option>
-                  <option value="annual">سنوي (خصم 20%)</option>
-                </select>
+                {(() => {
+                  const selectedPlan = plans.find(p => Number(p.id) === Number(selectedPlanId));
+                  const monthlyDisc = selectedPlan ? getBillingCycleDetails(selectedPlan, 'monthly').discountPercent : 0;
+                  const quarterlyDisc = selectedPlan ? getBillingCycleDetails(selectedPlan, 'quarterly').discountPercent : 0;
+                  const semiAnnualDisc = selectedPlan ? getBillingCycleDetails(selectedPlan, 'semi_annual').discountPercent : 10;
+                  const annualDisc = selectedPlan ? getBillingCycleDetails(selectedPlan, 'annual').discountPercent : 20;
+                  return (
+                    <select
+                      value={billingPeriod}
+                      onChange={(e) => setBillingPeriod(e.target.value as any)}
+                      className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-lg px-3 py-2 text-xs focus:outline-none font-bold"
+                    >
+                      <option value="monthly">
+                        {`شهري (${monthlyDisc > 0 ? `خصم ${monthlyDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="quarterly">
+                        {`3 أشهر (${quarterlyDisc > 0 ? `خصم ${quarterlyDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="semi_annual">
+                        {`نصف سنوي (${semiAnnualDisc > 0 ? `خصم ${semiAnnualDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="annual">
+                        {`سنوي (${annualDisc > 0 ? `خصم ${annualDisc}%` : 'بدون خصم'})`}
+                      </option>
+                    </select>
+                  );
+                })()}
               </div>
               <button
                 type="submit"
@@ -1253,16 +1270,32 @@ export default function TeacherSubscription() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-semibold block text-slate-300 mb-1.5">اختر دورة الدفع والتجديد:</label>
-                <select
-                  value={renewBillingPeriod}
-                  onChange={(e) => setRenewBillingPeriod(e.target.value as any)}
-                  className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2 text-xs focus:outline-none font-bold"
-                >
-                  <option value="monthly">شهري (بدون خصم)</option>
-                  <option value="quarterly">3 أشهر (بدون خصم)</option>
-                  <option value="semi_annual">نصف سنوي (خصم 10%)</option>
-                  <option value="annual">سنوي (خصم 20%)</option>
-                </select>
+                {(() => {
+                  const monthlyDisc = subscription?.plan ? getBillingCycleDetails(subscription.plan, 'monthly').discountPercent : 0;
+                  const quarterlyDisc = subscription?.plan ? getBillingCycleDetails(subscription.plan, 'quarterly').discountPercent : 0;
+                  const semiAnnualDisc = subscription?.plan ? getBillingCycleDetails(subscription.plan, 'semi_annual').discountPercent : 10;
+                  const annualDisc = subscription?.plan ? getBillingCycleDetails(subscription.plan, 'annual').discountPercent : 20;
+                  return (
+                    <select
+                      value={renewBillingPeriod}
+                      onChange={(e) => setRenewBillingPeriod(e.target.value as any)}
+                      className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2 text-xs focus:outline-none font-bold"
+                    >
+                      <option value="monthly">
+                        {`شهري (${monthlyDisc > 0 ? `خصم ${monthlyDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="quarterly">
+                        {`3 أشهر (${quarterlyDisc > 0 ? `خصم ${quarterlyDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="semi_annual">
+                        {`نصف سنوي (${semiAnnualDisc > 0 ? `خصم ${semiAnnualDisc}%` : 'بدون خصم'})`}
+                      </option>
+                      <option value="annual">
+                        {`سنوي (${annualDisc > 0 ? `خصم ${annualDisc}%` : 'بدون خصم'})`}
+                      </option>
+                    </select>
+                  );
+                })()}
               </div>
 
               {/* Renewal Preview Details */}

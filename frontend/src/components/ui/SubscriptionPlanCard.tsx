@@ -147,16 +147,26 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
 
     if (selectedPeriod === 'quarterly') {
       months = 3
-      discount = 0
       label = 'EGP / 3 أشهر'
     } else if (selectedPeriod === 'semi_annual') {
       months = 6
-      discount = parseFloat(settings.discount_semi_annually || '10')
       label = 'EGP / نصف سنوي'
     } else if (selectedPeriod === 'annual') {
       months = 12
-      discount = parseFloat(settings.discount_annually || '20')
       label = 'EGP / سنوي'
+    }
+
+    const matchedOpt = customOpts.find(o => o.key === selectedPeriod)
+    if (matchedOpt && matchedOpt.discount !== undefined && matchedOpt.discount !== null) {
+      discount = matchedOpt.discount
+    } else {
+      if (selectedPeriod === 'quarterly') {
+        discount = 0
+      } else if (selectedPeriod === 'semi_annual') {
+        discount = parseFloat(settings.discount_semi_annually || '10')
+      } else if (selectedPeriod === 'annual') {
+        discount = parseFloat(settings.discount_annually || '20')
+      }
     }
 
     const basePrice = plan.price_egp * months
