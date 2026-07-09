@@ -144,8 +144,8 @@ export default function TeacherSubscription() {
       try {
         const overridesRes = await API.get(`/admin/teachers/${id}/resources`)
         setResourceOverrides(overridesRes.data)
-        setExtraStorageInput(overridesRes.data.manual_override_storage_gb)
-        setExtraCodesInput(overridesRes.data.manual_override_student_codes)
+        setExtraStorageInput(overridesRes.data.extra_storage_gb)
+        setExtraCodesInput(overridesRes.data.extra_student_codes)
       } catch (errOverrides) {
         console.error("Failed to load resources overrides:", errOverrides)
       }

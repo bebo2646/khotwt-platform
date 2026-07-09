@@ -1784,18 +1784,30 @@ class SubscriptionController extends Controller
             'extra_student_codes' => 'required|integer|min:0',
         ]);
         
+        $subscription = TeacherSubscription::where('teacher_id', $id)->first();
+        
+        // Target total extra values input by admin
+        $targetExtraStorage = (float) $request->extra_storage_gb;
+        $targetExtraCodes = (int) $request->extra_student_codes;
+        
+        // Sum active addons & sales values
+        $addonStorage = (float) ($subscription ? ($subscription->addons()->where('type', 'storage')->sum('amount') ?? 0) : 0.0);
+        $salesStorage = (float) ($subscription ? ($subscription->allocated_storage_from_sales ?? 0) : 0.0);
+        $addonCodes = (int) ($subscription ? ($subscription->addons()->where('type', 'codes')->sum('amount') ?? 0) : 0);
+        
+        // Manual override is the difference to reach target
+        $manualStorage = max(0.0, $targetExtraStorage - $addonStorage - $salesStorage);
+        $manualCodes = max(0, $targetExtraCodes - $addonCodes);
+        
         $override = TeacherResourceOverride::where('teacher_id', $id)->first();
         $oldStorage = $override ? $override->extra_storage_gb : 0;
         $oldCodes = $override ? $override->extra_student_codes : 0;
         
-        $newStorage = (int) $request->extra_storage_gb;
-        $newCodes = (int) $request->extra_student_codes;
-        
         $override = TeacherResourceOverride::updateOrCreate(
             ['teacher_id' => $id],
             [
-                'extra_storage_gb' => $newStorage,
-                'extra_student_codes' => $newCodes,
+                'extra_storage_gb' => $manualStorage,
+                'extra_student_codes' => $manualCodes,
                 'created_by' => $override ? $override->created_by : auth()->id(),
                 'updated_by' => auth()->id(),
             ]
@@ -1805,23 +1817,31 @@ class SubscriptionController extends Controller
             'admin_id' => auth()->id(),
             'teacher_id' => $id,
             'old_extra_storage' => $oldStorage,
-            'new_extra_storage' => $newStorage,
+            'new_extra_storage' => $manualStorage,
             'old_extra_codes' => $oldCodes,
-            'new_extra_codes' => $newCodes,
+            'new_extra_codes' => $manualCodes,
         ]);
         
         // Recalculate limits immediately
         $bunnyService = new \App\Services\BunnyStreamService();
         $bunnyService->recalculateStorage($id);
         
-        // Load plan base limits
+        // Load the updated subscription to calculate correct final limits
         $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
-        $plan = $subscription ? $subscription->plan : null;
-        $baseStorage = $plan ? $plan->video_storage_gb : 10;
-        $baseCodes = $plan ? $plan->student_codes : 0;
         
-        $finalStorage = $baseStorage + $newStorage;
-        $finalCodes = $baseCodes + $newCodes;
+        if ($subscription) {
+            $finalStorage = (float) $subscription->total_storage_gb;
+            $finalCodes = $subscription->total_codes;
+            $newStorage = (float) $subscription->extra_storage_gb;
+            $newCodes = (int) $subscription->extra_codes;
+        } else {
+            $baseStorage = 10;
+            $baseCodes = 0;
+            $finalStorage = $baseStorage + $manualStorage;
+            $finalCodes = $baseCodes + $manualCodes;
+            $newStorage = $manualStorage;
+            $newCodes = $manualCodes;
+        }
         
         // Clear caches if any
         \Cache::forget("teacher_subscription_{$id}");
@@ -1859,6 +1879,12 @@ class SubscriptionController extends Controller
             ]);
         }
         
+        // Delete all active subscription addons
+        $subscription = TeacherSubscription::where('teacher_id', $id)->first();
+        if ($subscription) {
+            $subscription->addons()->delete();
+        }
+        
         \Log::info('ADMIN_RESOURCE_UPDATE', [
             'admin_id' => auth()->id(),
             'teacher_id' => $id,
@@ -1872,20 +1898,31 @@ class SubscriptionController extends Controller
         $bunnyService = new \App\Services\BunnyStreamService();
         $bunnyService->recalculateStorage($id);
         
-        // Load plan base limits
+        // Load the updated subscription to calculate correct final limits
         $subscription = TeacherSubscription::with('plan')->where('teacher_id', $id)->first();
-        $plan = $subscription ? $subscription->plan : null;
-        $baseStorage = $plan ? $plan->video_storage_gb : 10;
-        $baseCodes = $plan ? $plan->student_codes : 0;
+        
+        if ($subscription) {
+            $finalStorage = (float) $subscription->total_storage_gb;
+            $finalCodes = $subscription->total_codes;
+            $newStorage = (float) $subscription->extra_storage_gb;
+            $newCodes = (int) $subscription->extra_codes;
+        } else {
+            $baseStorage = 10;
+            $baseCodes = 0;
+            $finalStorage = $baseStorage;
+            $finalCodes = $baseCodes;
+            $newStorage = 0;
+            $newCodes = 0;
+        }
         
         \Cache::forget("teacher_subscription_{$id}");
         
         return response()->json([
             'success' => true,
-            'storage_limit_gb' => $baseStorage,
-            'student_codes_limit' => $baseCodes,
-            'extra_storage_gb' => 0,
-            'extra_student_codes' => 0,
+            'storage_limit_gb' => $finalStorage,
+            'student_codes_limit' => $finalCodes,
+            'extra_storage_gb' => $newStorage,
+            'extra_student_codes' => $newCodes,
         ]);
     }
 }
