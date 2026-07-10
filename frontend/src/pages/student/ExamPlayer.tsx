@@ -984,7 +984,7 @@ export default function ExamPlayer() {
             </button>
           </footer>
         </>
-      )
+      )}
 
     </div>
   )

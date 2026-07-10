@@ -335,7 +335,7 @@ export default function PurchaseCodes() {
 
                     {/* Amount */}
                     <td className="p-4 sm:p-6 font-bold text-brand-primary">
-                      {((c.code_type || c.type) === 'wallet' || (c.code_type || c.type) === 'teacher') ? `${c.amount || c.credit_amount} ج.م` : '-'}
+                      {c.amount && parseFloat(c.amount) > 0 ? `${c.amount} ج.م` : '-'}
                     </td>
 
                     {/* Associated Course / Teacher / Package */}

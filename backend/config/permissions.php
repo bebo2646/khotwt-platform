@@ -169,5 +169,81 @@ return [
             'group' => 'system_settings',
             'label' => 'إدارة الدعم الفني وتذاكر الطلاب',
         ],
+        'academic_year.reset' => [
+            'group' => 'system_settings',
+            'label' => 'إعادة تعيين السنة الدراسية (Academic Year Reset)',
+        ],
+        'bubble_sheet.manage' => [
+            'group' => 'exams_management',
+            'label' => 'إدارة بابل شيت والواجبات (Bubble Sheet Homework)',
+        ],
+        'course_curriculum.manage' => [
+            'group' => 'courses_management',
+            'label' => 'إدارة المنهج الدراسي للمقررات (Course Curriculum)',
+        ],
+        'bunny.stats' => [
+            'group' => 'video_management',
+            'label' => 'إحصائيات Bunny ومساحات التخزين (Bunny Statistics)',
+        ],
+        'platform.settings' => [
+            'group' => 'system_settings',
+            'label' => 'تعديل إعدادات المنصة (Platform Settings)',
+        ],
+        'platform.initialize' => [
+            'group' => 'system_settings',
+            'label' => 'تهيئة المنصة العامة (Platform Initialization)',
+        ],
+        'student.watch_limits' => [
+            'group' => 'students_management',
+            'label' => 'إدارة حدود مشاهدات الطلاب (Student Watch Limits)',
+        ],
+        'student.view_limits_reset' => [
+            'group' => 'students_management',
+            'label' => 'إعادة تعيين حدود المشاهدة (View Limit Reset)',
+        ],
+        'teacher.revenue' => [
+            'group' => 'wallet_payments',
+            'label' => 'إدارة وعرض أرباح المعلمين (Teacher Revenue)',
+        ],
+        'subscription.plans' => [
+            'group' => 'subscription_management',
+            'label' => 'إدارة خطط وباقات الاشتراك (Subscription Plans)',
+        ],
+        'financial.reports' => [
+            'group' => 'reports_analytics',
+            'label' => 'عرض التقارير المالية والتحليلات (Financial Reports)',
+        ],
+        'exam.scheduling' => [
+            'group' => 'exams_management',
+            'label' => 'إدارة جدولة الامتحانات (Exam Scheduling)',
+        ],
+        'homework.scheduling' => [
+            'group' => 'exams_management',
+            'label' => 'إدارة جدولة الواجبات (Homework Scheduling)',
+        ],
+        'homework.reports' => [
+            'group' => 'reports_analytics',
+            'label' => 'عرض تقارير واجبات الطلاب (Homework Reports)',
+        ],
+        'exam.reports' => [
+            'group' => 'reports_analytics',
+            'label' => 'عرض تقارير الامتحانات والنتائج (Exam Reports)',
+        ],
+        'teacher.reports' => [
+            'group' => 'reports_analytics',
+            'label' => 'عرض وإحصائيات تقارير المعلمين (Teacher Reports)',
+        ],
+        'course.details_view' => [
+            'group' => 'courses_management',
+            'label' => 'عرض تفاصيل وسجل الكورسات (Course Details)',
+        ],
+        'platform.maintenance' => [
+            'group' => 'system_settings',
+            'label' => 'إدارة وضع الصيانة وإغلاق المنصة (Platform Maintenance)',
+        ],
+        'storage.statistics' => [
+            'group' => 'reports_analytics',
+            'label' => 'عرض إحصائيات التخزين (Storage Statistics)',
+        ],
     ]
 ];

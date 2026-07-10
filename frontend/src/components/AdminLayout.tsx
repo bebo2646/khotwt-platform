@@ -329,68 +329,70 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         })}
 
         {/* Settings Group */}
-        <div className="space-y-2">
-          {!sidebarCollapsed && (
-            <span className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest block">
-              النظام والإعدادات
-            </span>
-          )}
-          <div className="space-y-1">
-            {!sidebarCollapsed ? (
-              <>
-                <button
-                  onClick={() => setSettingsOpen(!settingsOpen)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent hover:border-[var(--border-color)] cursor-pointer`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Settings className="w-5 h-5 shrink-0" />
-                    <span>إعدادات المنصة</span>
-                  </div>
-                  {settingsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-                {settingsOpen && (
-                  <div className="mr-4 pr-3 border-r border-slate-800/80 mt-1 space-y-1 animate-slide-down">
-                    {settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
-                      const active = isRouteActive(subItem.path)
-                      return (
-                        <Link
-                          key={sIdx}
-                          to={subItem.path}
-                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 border ${
-                            active 
-                              ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20' 
-                              : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] border-transparent'
-                          }`}
-                        >
-                          {subItem.icon}
-                          <span>{subItem.label}</span>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </>
-            ) : (
-              settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
-                const active = isRouteActive(subItem.path)
-                return (
-                  <Link
-                    key={sIdx}
-                    to={subItem.path}
-                    className={`flex items-center justify-center p-2.5 rounded-xl transition-all duration-200 border ${
-                      active 
-                        ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/30 shadow-md' 
-                        : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border-transparent'
-                    }`}
-                    title={subItem.label}
-                  >
-                    {subItem.icon}
-                  </Link>
-                )
-              })
+        {settingsSubmenu.filter(s => s.visible).length > 0 && (
+          <div className="space-y-2">
+            {!sidebarCollapsed && (
+              <span className="px-3 text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                النظام والإعدادات
+              </span>
             )}
+            <div className="space-y-1">
+              {!sidebarCollapsed ? (
+                <>
+                  <button
+                    onClick={() => setSettingsOpen(!settingsOpen)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border border-transparent hover:border-[var(--border-color)] cursor-pointer`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Settings className="w-5 h-5 shrink-0" />
+                      <span>إعدادات المنصة</span>
+                    </div>
+                    {settingsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  {settingsOpen && (
+                    <div className="mr-4 pr-3 border-r border-slate-800/80 mt-1 space-y-1 animate-slide-down">
+                      {settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
+                        const active = isRouteActive(subItem.path)
+                        return (
+                          <Link
+                            key={sIdx}
+                            to={subItem.path}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 border ${
+                              active 
+                                ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20' 
+                                : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] border-transparent'
+                            }`}
+                          >
+                            {subItem.icon}
+                            <span>{subItem.label}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                settingsSubmenu.filter(s => s.visible).map((subItem, sIdx) => {
+                  const active = isRouteActive(subItem.path)
+                  return (
+                    <Link
+                      key={sIdx}
+                      to={subItem.path}
+                      className={`flex items-center justify-center p-2.5 rounded-xl transition-all duration-200 border ${
+                        active 
+                          ? 'bg-brand-primary/10 text-brand-primary border-brand-primary/30 shadow-md' 
+                          : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)]/60 border-transparent'
+                      }`}
+                      title={subItem.label}
+                    >
+                      {subItem.icon}
+                    </Link>
+                  )
+                })
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Logout Footer Button */}
@@ -461,7 +463,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         
         {/* Top Header: Fixed height 72px */}
         <header 
-          className={`sticky top-0 left-0 right-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
+          className={`sticky top-0 z-[1000] w-full flex items-center justify-between h-[72px] px-6 border-b transition-all duration-300 ${
             theme === 'light' ? 'border-b-slate-200 text-slate-900' : 'border-b-slate-800/80 text-slate-100'
           }`}
         >

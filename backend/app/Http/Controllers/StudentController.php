@@ -146,34 +146,112 @@ class StudentController extends Controller
                     'message' => 'تم تفعيل رصيد خاص بالمعلم ' . $teacher->name . ' بقيمة ' . $creditVal . ' ج.م.',
                 ]);
             } elseif ($type === 'course') {
-                if (!$purchaseCode->course_id) {
-                    return response()->json(['message' => 'كود غير صالح: لا يوجد كورس مرتبط.'], 422);
+                if (!$purchaseCode->course_id && !$purchaseCode->package_id) {
+                    return response()->json(['message' => 'كود غير صالح: لا يوجد كورس أو باقة مرتبطة.'], 422);
                 }
 
-                $alreadyEnrolled = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $purchaseCode->course_id)
-                    ->exists();
+                $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
 
-                $course = Course::findOrFail($purchaseCode->course_id);
+                if ($purchaseCode->course_id) {
+                    $course = Course::findOrFail($purchaseCode->course_id);
+                    $amount = (float) $course->final_price;
 
-                if ($alreadyEnrolled) {
-                    // Reset views used to unlock course/renew views
-                    $viewLimit = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
-                        ->where('course_id', $purchaseCode->course_id)
-                        ->first();
-                        
-                    if ($viewLimit) {
-                        $viewLimit->views_used = 0;
-                        $viewLimit->save();
-                    } else {
-                        \App\Models\StudentCourseViewLimit::create([
-                            'student_id' => $user->id,
-                            'course_id' => $purchaseCode->course_id,
-                            'views_used' => 0,
-                            'max_views_override' => null,
-                            'extra_views' => 0,
+                    $alreadyEnrolled = Enrollment::where('student_id', $user->id)
+                        ->where('course_id', $course->id)
+                        ->whereNull('package_id')
+                        ->exists();
+
+                    if ($alreadyEnrolled) {
+                        // Reset views used to unlock course/renew views
+                        $viewLimit = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
+                            ->where('course_id', $course->id)
+                            ->first();
+                            
+                        if ($viewLimit) {
+                            $viewLimit->views_used = 0;
+                            $viewLimit->save();
+                        } else {
+                            \App\Models\StudentCourseViewLimit::create([
+                                'student_id' => $user->id,
+                                'course_id' => $course->id,
+                                'views_used' => 0,
+                                'max_views_override' => null,
+                                'extra_views' => 0,
+                            ]);
+                        }
+
+                        // Create transaction records exactly like normal checkout (payment method coupon)
+                        WalletTransaction::create([
+                            'wallet_id' => $wallet->id,
+                            'type' => 'recharge',
+                            'amount' => $amount,
+                            'description' => 'شحن تلقائي لتفعيل كود الكورس: ' . $purchaseCode->code,
+                            'reference_id' => $purchaseCode->id,
+                        ]);
+
+                        WalletTransaction::create([
+                            'wallet_id' => $wallet->id,
+                            'type' => 'purchase',
+                            'amount' => $amount,
+                            'description' => 'شراء كورس باستخدام كود: ' . $purchaseCode->code,
+                            'reference_id' => $course->id,
+                        ]);
+
+                        $purchaseCode->is_redeemed = true;
+                        $purchaseCode->redeemed_by = $user->id;
+                        $purchaseCode->redeemed_at = Carbon::now();
+                        $purchaseCode->save();
+
+                        // Split revenue
+                        \App\Services\RevenueSharingService::handlePurchase(
+                            $user->id,
+                            $course->teacher_id,
+                            $amount,
+                            $course->id,
+                            null,
+                            null,
+                            $purchaseCode->id,
+                            'code'
+                        );
+
+                        $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+
+                        return response()->json([
+                            'type' => 'course',
+                            'message' => 'تم تفعيل كود الشحن وتجديد عدد المشاهدات للكورس بنجاح!',
+                            'course_id' => $course->id,
+                            'view_limit_details' => $viewLimitDetails
                         ]);
                     }
+
+                    // Create transaction records for new enrollment
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'recharge',
+                        'amount' => $amount,
+                        'description' => 'شحن تلقائي لتفعيل كود الكورس: ' . $purchaseCode->code,
+                        'reference_id' => $purchaseCode->id,
+                    ]);
+
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'purchase',
+                        'amount' => $amount,
+                        'description' => 'شراء كورس باستخدام كود: ' . $purchaseCode->code,
+                        'reference_id' => $course->id,
+                    ]);
+
+                    Enrollment::create([
+                        'student_id' => $user->id,
+                        'course_id' => $course->id,
+                        'enrolled_at' => Carbon::now(),
+                    ]);
+
+                    // Create or reset views used on enrollment
+                    \App\Models\StudentCourseViewLimit::updateOrCreate(
+                        ['student_id' => $user->id, 'course_id' => $course->id],
+                        ['views_used' => 0]
+                    );
 
                     $purchaseCode->is_redeemed = true;
                     $purchaseCode->redeemed_by = $user->id;
@@ -184,7 +262,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $course->teacher_id,
-                        $purchaseCode->amount,
+                        $amount,
                         $course->id,
                         null,
                         null,
@@ -192,51 +270,73 @@ class StudentController extends Controller
                         'code'
                     );
 
-                    $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+                    return response()->json([
+                        'type' => 'course',
+                        'message' => 'تم الاشتراك في الكورس بنجاح',
+                        'course_id' => $course->id,
+                        'view_limit_details' => $course->getStudentViewLimitDetails($user->id)
+                    ]);
+
+                } elseif ($purchaseCode->package_id) {
+                    $package = Package::with('course')->findOrFail($purchaseCode->package_id);
+                    $amount = (float) $package->price;
+
+                    $alreadyEnrolled = Enrollment::where('student_id', $user->id)
+                        ->where('course_id', $package->course_id)
+                        ->where('package_id', $package->id)
+                        ->exists();
+
+                    if ($alreadyEnrolled) {
+                        return response()->json(['message' => 'أنت مشترك بالفعل في هذه الباقة.'], 422);
+                    }
+
+                    // Create transaction records
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'recharge',
+                        'amount' => $amount,
+                        'description' => 'شحن تلقائي لتفعيل كود الباقة: ' . $purchaseCode->code,
+                        'reference_id' => $purchaseCode->id,
+                    ]);
+
+                    WalletTransaction::create([
+                        'wallet_id' => $wallet->id,
+                        'type' => 'purchase',
+                        'amount' => $amount,
+                        'description' => 'شراء باقة شهرية باستخدام كود: ' . $purchaseCode->code,
+                        'reference_id' => $package->id,
+                    ]);
+
+                    Enrollment::create([
+                        'student_id' => $user->id,
+                        'course_id' => $package->course_id,
+                        'package_id' => $package->id,
+                        'enrolled_at' => Carbon::now(),
+                    ]);
+
+                    $purchaseCode->is_redeemed = true;
+                    $purchaseCode->redeemed_by = $user->id;
+                    $purchaseCode->redeemed_at = Carbon::now();
+                    $purchaseCode->save();
+
+                    // Split revenue
+                    \App\Services\RevenueSharingService::handlePurchase(
+                        $user->id,
+                        $package->course->teacher_id,
+                        $amount,
+                        $package->course_id,
+                        $package->id,
+                        null,
+                        $purchaseCode->id,
+                        'code'
+                    );
 
                     return response()->json([
                         'type' => 'course',
-                        'message' => 'تم تفعيل كود الشحن وتجديد عدد المشاهدات للكورس بنجاح!',
-                        'course_id' => $purchaseCode->course_id,
-                        'view_limit_details' => $viewLimitDetails
+                        'message' => 'تم الاشتراك في الباقة بنجاح',
+                        'course_id' => $package->course_id,
                     ]);
                 }
-
-                Enrollment::create([
-                    'student_id' => $user->id,
-                    'course_id' => $purchaseCode->course_id,
-                    'enrolled_at' => Carbon::now(),
-                ]);
-
-                // Create or reset views used on enrollment
-                $viewLimit = \App\Models\StudentCourseViewLimit::updateOrCreate(
-                    ['student_id' => $user->id, 'course_id' => $purchaseCode->course_id],
-                    ['views_used' => 0]
-                );
-
-                $purchaseCode->is_redeemed = true;
-                $purchaseCode->redeemed_by = $user->id;
-                $purchaseCode->redeemed_at = Carbon::now();
-                $purchaseCode->save();
-
-                // Split revenue
-                \App\Services\RevenueSharingService::handlePurchase(
-                    $user->id,
-                    $course->teacher_id,
-                    $purchaseCode->amount,
-                    $course->id,
-                    null,
-                    null,
-                    $purchaseCode->id,
-                    'code'
-                );
-
-                return response()->json([
-                    'type' => 'course',
-                    'message' => 'تم الاشتراك في الكورس بنجاح',
-                    'course_id' => $purchaseCode->course_id,
-                    'view_limit_details' => $course->getStudentViewLimitDetails($user->id)
-                ]);
             }
 
             return response()->json(['message' => 'نوع الكود غير معروف.'], 422);
@@ -296,11 +396,13 @@ class StudentController extends Controller
                 $type = $purchaseCode->code_type ?: $purchaseCode->type;
 
                 if ($type === 'course') {
+                    $amount = (float) $course->final_price;
+
                     // Direct unlock
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'recharge',
-                        'amount' => $purchaseCode->amount,
+                        'amount' => $amount,
                         'description' => 'شحن تلقائي لتفعيل كود الكورس: ' . $purchaseCode->code,
                         'reference_id' => $purchaseCode->id,
                     ]);
@@ -308,7 +410,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'purchase',
-                        'amount' => $purchaseCode->amount,
+                        'amount' => $amount,
                         'description' => 'شراء كورس باستخدام كود: ' . $purchaseCode->code,
                         'reference_id' => $course->id,
                     ]);
@@ -328,7 +430,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $course->teacher_id,
-                        $purchaseCode->amount,
+                        $amount,
                         $course->id,
                         null,
                         null,
@@ -591,11 +693,13 @@ class StudentController extends Controller
                 $type = $purchaseCode->code_type ?: $purchaseCode->type;
 
                 if ($type === 'course') {
+                    $amount = (float) $package->price;
+
                     // Direct unlock
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'recharge',
-                        'amount' => $purchaseCode->amount,
+                        'amount' => $amount,
                         'description' => 'شحن تلقائي لتفعيل كود الباقة: ' . $purchaseCode->code,
                         'reference_id' => $purchaseCode->id,
                     ]);
@@ -603,7 +707,7 @@ class StudentController extends Controller
                     WalletTransaction::create([
                         'wallet_id' => $wallet->id,
                         'type' => 'purchase',
-                        'amount' => $purchaseCode->amount,
+                        'amount' => $amount,
                         'description' => 'شراء باقة شهرية باستخدام كود: ' . $purchaseCode->code,
                         'reference_id' => $package->id,
                     ]);
@@ -624,7 +728,7 @@ class StudentController extends Controller
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
                         $package->course->teacher_id,
-                        $purchaseCode->amount,
+                        $amount,
                         $package->course_id,
                         $package->id,
                         null,
@@ -844,6 +948,13 @@ class StudentController extends Controller
      */
     private function checkRestrictions($purchaseCode, $type, $itemId)
     {
+        $codeType = $purchaseCode->code_type ?: $purchaseCode->type;
+        if ($codeType === 'course') {
+            if (empty($purchaseCode->course_id) && empty($purchaseCode->package_id)) {
+                return false;
+            }
+        }
+
         // Case 2: teacher_id assigned
         if (!empty($purchaseCode->teacher_id)) {
             if ($type === 'course') {
