@@ -24,6 +24,37 @@ class Video extends Model
         'bunny_status',
     ];
 
+    protected $appends = ['duration_text'];
+
+    public static function formatSecondsToWords($seconds)
+    {
+        $seconds = intval($seconds);
+        if ($seconds <= 0) {
+            return "0 seconds";
+        }
+        $hours = floor($seconds / 3600);
+        $minutes = floor(($seconds % 3600) / 60);
+        $secs = $seconds % 60;
+
+        $parts = [];
+        if ($hours > 0) {
+            $parts[] = $hours . " " . ($hours == 1 ? "hour" : "hours");
+        }
+        if ($minutes > 0) {
+            $parts[] = $minutes . " " . ($minutes == 1 ? "minute" : "minutes");
+        }
+        if ($secs > 0 || empty($parts)) {
+            $parts[] = $secs . " " . ($secs == 1 ? "second" : "seconds");
+        }
+
+        return implode(" ", $parts);
+    }
+
+    public function getDurationTextAttribute()
+    {
+        return self::formatSecondsToWords($this->duration_seconds);
+    }
+
     public function lesson()
     {
         return $this->belongsTo(Lesson::class);

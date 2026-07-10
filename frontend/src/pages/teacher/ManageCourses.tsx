@@ -257,6 +257,37 @@ export default function ManageCourses() {
     }
   }
 
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!pdfTitle.trim()) {
+      const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      setPdfTitle(baseName);
+    }
+    const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+    setPdfSize(`${sizeInMB} MB`);
+
+    setUploadingPdf(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await API.post('/upload', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      setPdfPath(res.data.url)
+      useModalStore.getState().showToast('تم رفع ملف الـ PDF بنجاح.', 'success')
+    } catch (err: any) {
+      console.error(err)
+      const errMsg = err.message || 'فشل رفع ملف الـ PDF. تأكد من الحجم والصيغة.';
+      useModalStore.getState().showToast(errMsg, 'error')
+    } finally {
+      setUploadingPdf(false)
+    }
+  }
+
   // Course handlers
   const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1885,14 +1916,42 @@ export default function ManageCourses() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300 block">رفع ملف PDF محلي</label>
+                <div className="border border-[var(--border-color)] bg-brand-surface/30 rounded-2xl p-4 flex flex-col items-center gap-3">
+                  {pdfPath && pdfPath.startsWith('http') && !pdfPath.includes('drive.google.com') && !pdfPath.includes('docs.google.com') ? (
+                    <div className="text-[10px] text-emerald-400 font-bold text-center break-all leading-normal">
+                      تم رفع الملف بنجاح!
+                      <br/>
+                      <span className="text-slate-400 font-normal">{pdfPath}</span>
+                    </div>
+                  ) : (
+                    <div className="w-full bg-brand-surface rounded-xl border border-dashed border-[var(--border-color)] p-4 text-center text-slate-500 text-[10px] font-bold">
+                      لا يوجد ملف مرفوع بعد. يمكنك رفع ملف أو إدخال رابط خارجي/جوجل درايف بالأسفل.
+                    </div>
+                  )}
+                  
+                  <label className="inline-block px-3 py-1.5 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-slate-300 hover:text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all shadow-sm">
+                    <span>{uploadingPdf ? 'جاري الرفع...' : pdfPath ? 'استبدال الملف المرفوع' : 'اختر ملف PDF'}</span>
+                    <input 
+                      type="file" 
+                      accept="application/pdf" 
+                      className="hidden" 
+                      disabled={uploadingPdf}
+                      onChange={handlePdfUpload}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">رابط ملف الـ PDF (رابط خارجي)</label>
+                <label className="text-xs font-semibold text-slate-300">أو أدخل رابط ملف الـ PDF / Google Drive يدوياً</label>
                 <input
-                  type="url"
-                  required
+                  type="text"
+                  required={!pdfPath}
                   value={pdfPath}
                   onChange={(e) => setPdfPath(e.target.value)}
-                  placeholder="https://example.com/file.pdf"
+                  placeholder="https://drive.google.com/... أو رابط مباشر للـ PDF..."
                   className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
                   dir="ltr"
                 />
@@ -2138,14 +2197,42 @@ export default function ManageCourses() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300 block">رفع ملف PDF محلي جديد</label>
+                <div className="border border-[var(--border-color)] bg-brand-surface/30 rounded-2xl p-4 flex flex-col items-center gap-3">
+                  {pdfPath && pdfPath.startsWith('http') && !pdfPath.includes('drive.google.com') && !pdfPath.includes('docs.google.com') ? (
+                    <div className="text-[10px] text-emerald-400 font-bold text-center break-all leading-normal">
+                      تم رفع الملف بنجاح!
+                      <br/>
+                      <span className="text-slate-400 font-normal">{pdfPath}</span>
+                    </div>
+                  ) : (
+                    <div className="w-full bg-brand-surface rounded-xl border border-dashed border-[var(--border-color)] p-4 text-center text-slate-500 text-[10px] font-bold">
+                      لا يوجد ملف مرفوع بعد. يمكنك رفع ملف أو إدخال رابط خارجي/جوجل درايف بالأسفل.
+                    </div>
+                  )}
+                  
+                  <label className="inline-block px-3 py-1.5 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-slate-300 hover:text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all shadow-sm">
+                    <span>{uploadingPdf ? 'جاري الرفع...' : pdfPath ? 'استبدال الملف المرفوع' : 'اختر ملف PDF'}</span>
+                    <input 
+                      type="file" 
+                      accept="application/pdf" 
+                      className="hidden" 
+                      disabled={uploadingPdf}
+                      onChange={handlePdfUpload}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">رابط ملف الـ PDF الجديد (رابط خارجي)</label>
+                <label className="text-xs font-semibold text-slate-300">أو أدخل رابط ملف الـ PDF الجديد / Google Drive يدوياً</label>
                 <input
-                  type="url"
-                  required
+                  type="text"
+                  required={!pdfPath}
                   value={pdfPath}
                   onChange={(e) => setPdfPath(e.target.value)}
-                  placeholder="https://example.com/new_file.pdf"
+                  placeholder="https://drive.google.com/... أو رابط مباشر للـ PDF الجديد..."
                   className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
                   dir="ltr"
                 />

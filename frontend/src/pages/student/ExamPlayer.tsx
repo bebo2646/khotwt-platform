@@ -486,12 +486,12 @@ export default function ExamPlayer() {
               {isNotStarted ? '⏱️' : '⚠️'}
             </span>
             <h2 className="text-xl font-black text-slate-100">
-              {isNotStarted ? 'هذا الامتحان لم يبدأ بعد' : 'انتهى موعد الامتحان'}
+              {scheduleError.message || (isNotStarted ? 'هذا الامتحان لم يبدأ بعد' : 'انتهى موعد الامتحان')}
             </h2>
             <p className="text-xs text-slate-400 font-light leading-relaxed">
               {isNotStarted 
                 ? 'يرجى الانتظار حتى الموعد المحدد لبدء الاختبار.'
-                : 'عذراً، لقد تجاوز هذا الامتحان موعد التسليم النهائي المسموح به.'}
+                : `عذراً، لقد تجاوز هذا ${scheduleError.message?.includes('الواجب') || scheduleError.message?.includes('واجب') ? 'الواجب' : 'الامتحان'} موعد التسليم النهائي المسموح به.`}
             </p>
           </div>
 

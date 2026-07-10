@@ -75,7 +75,7 @@ class TeacherController extends Controller
 
         // Try getting duration via HTML scrap
         try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()->withHeaders([
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36'
             ])->get("https://www.youtube.com/watch?v={$videoId}");
 
@@ -103,7 +103,7 @@ class TeacherController extends Controller
         // Try getting title via oEmbed
         try {
             $oembedUrl = "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={$videoId}&format=json";
-            $oembedResponse = \Illuminate\Support\Facades\Http::get($oembedUrl);
+            $oembedResponse = \Illuminate\Support\Facades\Http::withoutVerifying()->get($oembedUrl);
             if ($oembedResponse->successful()) {
                 $oembedData = $oembedResponse->json();
                 $title = $oembedData['title'] ?? null;
@@ -162,9 +162,7 @@ class TeacherController extends Controller
         $lesson = Lesson::find($lessonId);
         if ($lesson) {
             $totalSeconds = Video::where('lesson_id', $lessonId)->sum('duration_seconds');
-            $minutes = floor($totalSeconds / 60);
-            $seconds = $totalSeconds % 60;
-            $durationText = sprintf("%d:%02d", $minutes, $seconds);
+            $durationText = \App\Models\Video::formatSecondsToWords($totalSeconds);
             
             $lesson->update([
                 'duration_seconds' => $totalSeconds,
@@ -186,7 +184,7 @@ class TeacherController extends Controller
         }
 
         try {
-            $response = \Illuminate\Support\Facades\Http::withHeaders([
+            $response = \Illuminate\Support\Facades\Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $apiKey,
                 'accept' => 'application/json',
             ])->get("https://video.bunnycdn.com/library/{$libraryId}/videos/{$videoId}");
@@ -869,8 +867,9 @@ class TeacherController extends Controller
                 'required',
                 'string',
                 function ($attribute, $value, $fail) {
-                    if (!str_ends_with(strtolower($value), '.pdf')) {
-                        $fail('الملف المرفوع يجب أن يكون بصيغة PDF فقط.');
+                    $lowVal = strtolower($value);
+                    if (!str_ends_with($lowVal, '.pdf') && !str_contains($lowVal, 'drive.google.com') && !str_contains($lowVal, 'docs.google.com')) {
+                        $fail('الملف المرفوع يجب أن يكون بصيغة PDF أو رابط Google Drive صالح.');
                     }
                 }
             ],
@@ -1183,8 +1182,9 @@ class TeacherController extends Controller
                 'required',
                 'string',
                 function ($attribute, $value, $fail) {
-                    if (!str_ends_with(strtolower($value), '.pdf')) {
-                        $fail('الملف المرفوع يجب أن يكون بصيغة PDF فقط.');
+                    $lowVal = strtolower($value);
+                    if (!str_ends_with($lowVal, '.pdf') && !str_contains($lowVal, 'drive.google.com') && !str_contains($lowVal, 'docs.google.com')) {
+                        $fail('الملف المرفوع يجب أن يكون بصيغة PDF أو رابط Google Drive صالح.');
                     }
                 }
             ],

@@ -25,7 +25,7 @@ API.interceptors.request.use((config) => {
   return Promise.reject(error)
 })
 
-// Global response interceptor for handling 401 (unauthorized), 409 (session invalid) and force-password flags
+// Global response interceptor for handling retries, validation/server errors, 401/409/403/503 sessions
 API.interceptors.response.use(
   (response) => {
     const resData = response.data
@@ -34,9 +34,39 @@ API.interceptors.response.use(
     }
     return response
   },
-  (error) => {
+  async (error) => {
+    const config = error.config
+
+    // 1. Automatic retry for Neno/Render free hosting cold start (sleeping hosting)
+    // Retry up to 3 times, with 2 seconds interval if it's a network error, timeout, or 500-504 server error
+    const isRetryable = config && (!error.response || (error.response.status >= 500 && error.response.status <= 504))
+    if (isRetryable) {
+      config.__retryCount = config.__retryCount || 0
+      if (config.__retryCount < 3) {
+        config.__retryCount += 1
+        console.warn(`[API Retry] Request to ${config.url} failed. Retrying (${config.__retryCount}/3) in 2 seconds due to potential hosting sleep...`)
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        return API(config)
+      }
+    }
+
+    // 2. Assign actual Laravel validation or backend exception messages to error.message
     if (error.response) {
       const { status, data } = error.response
+
+      if (data && typeof data === 'object') {
+        let msg = data.message
+        if (data.errors && typeof data.errors === 'object') {
+          // Flatten and join Laravel validation messages
+          const valMsgs = Object.values(data.errors).flat().join('\n')
+          if (valMsgs) {
+            msg = valMsgs
+          }
+        }
+        if (msg) {
+          error.message = msg // Overwrite the generic error.message
+        }
+      }
       
       if (status === 401) {
         // Clear auth on unauthenticated

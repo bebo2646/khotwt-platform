@@ -127,14 +127,27 @@ class StudentController extends Controller
                 $creditVal = $purchaseCode->amount > 0 ? $purchaseCode->amount : $purchaseCode->credit_amount;
 
                 // Create or update restricted teacher credit
-                DB::table('student_teacher_credits')->updateOrInsert(
-                    ['student_id' => $user->id, 'teacher_id' => $teacher->id],
-                    [
-                        'balance' => DB::raw('balance + ' . (float)$creditVal),
+                $existingCredit = DB::table('student_teacher_credits')
+                    ->where('student_id', $user->id)
+                    ->where('teacher_id', $teacher->id)
+                    ->first();
+                if ($existingCredit) {
+                    DB::table('student_teacher_credits')
+                        ->where('student_id', $user->id)
+                        ->where('teacher_id', $teacher->id)
+                        ->update([
+                            'balance' => $existingCredit->balance + (float)$creditVal,
+                            'updated_at' => Carbon::now(),
+                        ]);
+                } else {
+                    DB::table('student_teacher_credits')->insert([
+                        'student_id' => $user->id,
+                        'teacher_id' => $teacher->id,
+                        'balance' => (float)$creditVal,
                         'created_at' => Carbon::now(),
                         'updated_at' => Carbon::now(),
-                    ]
-                );
+                    ]);
+                }
 
                 $purchaseCode->is_redeemed = true;
                 $purchaseCode->redeemed_by = $user->id;
@@ -444,14 +457,27 @@ class StudentController extends Controller
                     ]);
                 } elseif ($type === 'teacher') {
                     $creditVal = $purchaseCode->amount > 0 ? $purchaseCode->amount : $purchaseCode->credit_amount;
-                    DB::table('student_teacher_credits')->updateOrInsert(
-                        ['student_id' => $user->id, 'teacher_id' => $course->teacher_id],
-                        [
-                            'balance' => DB::raw('balance + ' . (float)$creditVal),
+                    $existingCredit = DB::table('student_teacher_credits')
+                        ->where('student_id', $user->id)
+                        ->where('teacher_id', $course->teacher_id)
+                        ->first();
+                    if ($existingCredit) {
+                        DB::table('student_teacher_credits')
+                            ->where('student_id', $user->id)
+                            ->where('teacher_id', $course->teacher_id)
+                            ->update([
+                                'balance' => $existingCredit->balance + (float)$creditVal,
+                                'updated_at' => Carbon::now(),
+                            ]);
+                    } else {
+                        DB::table('student_teacher_credits')->insert([
+                            'student_id' => $user->id,
+                            'teacher_id' => $course->teacher_id,
+                            'balance' => (float)$creditVal,
                             'created_at' => Carbon::now(),
                             'updated_at' => Carbon::now(),
-                        ]
-                    );
+                        ]);
+                    }
 
                     $purchaseCode->is_redeemed = true;
                     $purchaseCode->redeemed_by = $user->id;
@@ -743,14 +769,27 @@ class StudentController extends Controller
                 } elseif ($type === 'teacher') {
                     $creditVal = $purchaseCode->amount > 0 ? $purchaseCode->amount : $purchaseCode->credit_amount;
                     $course = $package->course;
-                    DB::table('student_teacher_credits')->updateOrInsert(
-                        ['student_id' => $user->id, 'teacher_id' => $course->teacher_id],
-                        [
-                            'balance' => DB::raw('balance + ' . (float)$creditVal),
+                    $existingCredit = DB::table('student_teacher_credits')
+                        ->where('student_id', $user->id)
+                        ->where('teacher_id', $course->teacher_id)
+                        ->first();
+                    if ($existingCredit) {
+                        DB::table('student_teacher_credits')
+                            ->where('student_id', $user->id)
+                            ->where('teacher_id', $course->teacher_id)
+                            ->update([
+                                'balance' => $existingCredit->balance + (float)$creditVal,
+                                'updated_at' => Carbon::now(),
+                            ]);
+                    } else {
+                        DB::table('student_teacher_credits')->insert([
+                            'student_id' => $user->id,
+                            'teacher_id' => $course->teacher_id,
+                            'balance' => (float)$creditVal,
                             'created_at' => Carbon::now(),
                             'updated_at' => Carbon::now(),
-                        ]
-                    );
+                        ]);
+                    }
 
                     $purchaseCode->is_redeemed = true;
                     $purchaseCode->redeemed_by = $user->id;
@@ -1586,8 +1625,9 @@ class StudentController extends Controller
             }
 
             if ($closeDatetime && $now->gt($closeDatetime)) {
+                $msg = $exam->type === 'homework' ? 'انتهى موعد الواجب' : 'انتهى موعد الامتحان';
                 return response()->json([
-                    'message' => 'انتهى موعد الامتحان',
+                    'message' => $msg,
                     'status' => 'expired',
                     'close_datetime' => $closeDatetime->toIso8601String(),
                     'error_code' => 'SCHEDULE_EXPIRED'
