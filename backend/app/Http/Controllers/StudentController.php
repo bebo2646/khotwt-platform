@@ -1181,7 +1181,18 @@ class StudentController extends Controller
         if ($user->isStudent() && $video->lesson && $video->lesson->unit) {
             $course = $video->lesson->unit->course;
             if ($course && $course->hasExceededViewLimitForStudent($user->id)) {
-                return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+                // Allow the student to continue their current active playback session
+                $sessionId = $request->input('session_id');
+                $sessionExists = false;
+                if ($sessionId) {
+                    $sessionExists = \App\Models\VideoViewSession::where('session_id', $sessionId)
+                        ->where('student_id', $user->id)
+                        ->where('video_id', $video->id)
+                        ->exists();
+                }
+                if (!$sessionExists) {
+                    return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+                }
             }
         }
 

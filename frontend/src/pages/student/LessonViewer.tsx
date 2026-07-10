@@ -368,9 +368,6 @@ export default function LessonViewer() {
         const progressData = res.data;
         if (progressData.view_limit_details) {
           setViewLimitDetails(progressData.view_limit_details);
-          if (progressData.view_limit_details.exceeded) {
-            setViewLimitExceeded(true);
-          }
         }
         setVideos(prev => prev.map(v => {
           if (v.id === video.id) {
