@@ -39,13 +39,14 @@
   --color-gray-100: var(--slate-100);
   --color-gray-200: var(--slate-200);
   --color-gray-355: var(--slate-300);
-  --color-gray-300: var(--slate-300);
+  --color-gray-300: var(--faq-answer-color);
   --color-gray-400: var(--slate-400);
   --color-gray-500: var(--slate-500);
   --color-gray-600: var(--slate-600);
-  --color-gray-700: var(--slate-700);
+  --color-gray-700: var(--faq-answer-color);
+  --color-gray-850: var(--slate-800);
   --color-gray-800: var(--slate-800);
-  --color-gray-900: var(--slate-900);
+  --color-gray-900: var(--faq-question-color);
   --color-gray-950: var(--slate-950);
 
   /* Zinc scale redirection */
@@ -83,6 +84,8 @@
   
   /* Dark Mode Default Tokens (Exact User Specifications) */
   --bg-color: #030712;
+  --faq-question-color: #ffffff;
+  --faq-answer-color: #d1d5db;
   --surface-bg: #090d16;
   --card-bg: rgba(15, 23, 42, 0.45);
   --primary-color: #6366F1;
@@ -121,6 +124,8 @@
 :root.light-theme {
   /* Light Mode Specific Tokens (Exact User Specifications) */
   --bg-color: #F8FAFC;
+  --faq-question-color: #111827;
+  --faq-answer-color: #374151;
   --surface-bg: #FFFFFF;
   --card-bg: #FFFFFF;
   --primary-color: #6366F1;
