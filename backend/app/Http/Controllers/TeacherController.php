@@ -847,7 +847,7 @@ class TeacherController extends Controller
             'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
-            'bunny_status' => $request->bunny_stream_id ? 'finished' : null,
+            'bunny_status' => $request->bunny_stream_id ? 'finished' : 'finished',
         ]);
 
         $this->updateLessonDuration($lessonId);
@@ -966,7 +966,7 @@ class TeacherController extends Controller
             'duration_seconds' => $durationSeconds,
             'thumbnail_path' => $request->thumbnail_path,
             'resolution' => $request->resolution,
-            'bunny_status' => $request->bunny_stream_id ? ($video->bunny_status ?: 'finished') : null,
+            'bunny_status' => $request->bunny_stream_id ? ($video->bunny_status ?: 'finished') : 'finished',
         ]);
 
         $this->updateLessonDuration($video->lesson_id);

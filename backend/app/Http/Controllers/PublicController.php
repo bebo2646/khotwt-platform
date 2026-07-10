@@ -516,7 +516,7 @@ class PublicController extends Controller
                         // Check if deadline has passed
                         $deadlinePassed = false;
                         if ($exam->close_date) {
-                            $closeDateTime = \Carbon\Carbon::parse($exam->close_date . ' ' . ($exam->close_time ?: '23:59:59'));
+                            $closeDateTime = \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'));
                             if (\Carbon\Carbon::now()->gt($closeDateTime)) {
                                 $deadlinePassed = true;
                             }

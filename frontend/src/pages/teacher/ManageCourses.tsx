@@ -653,9 +653,12 @@ export default function ManageCourses() {
       setVideoFileDetails(null)
       setShowVideoForm(null)
       handleSelectCourse(selectedCourse)
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      useModalStore.getState().showToast('الرجاء التحقق من صحة البيانات والمحاولة مرة أخرى.', 'warning')
+      const errMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join('\n') 
+        : (err.response?.data?.message || err.message || 'الرجاء التحقق من صحة البيانات والمحاولة مرة أخرى.');
+      useModalStore.getState().showToast(errMsg, 'warning')
     } finally {
       setActionLoading(false)
     }
@@ -686,8 +689,12 @@ export default function ManageCourses() {
       setPdfDetails(null)
       setShowPdfForm(null)
       handleSelectCourse(selectedCourse)
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
+      const errMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join('\n') 
+        : (err.response?.data?.message || err.message || 'فشل إضافة المذكرة.');
+      useModalStore.getState().showToast(errMsg, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -727,9 +734,12 @@ export default function ManageCourses() {
       setEditingVideo(null)
       if (selectedCourse) handleSelectCourse(selectedCourse)
       useModalStore.getState().showToast('تم تعديل الفيديو بنجاح.', 'success')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      useModalStore.getState().showToast('فشل تعديل الفيديو.', 'error')
+      const errMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join('\n') 
+        : (err.response?.data?.message || err.message || 'فشل تعديل الفيديو.');
+      useModalStore.getState().showToast(errMsg, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -770,9 +780,12 @@ export default function ManageCourses() {
       setReplacingVideo(null)
       if (selectedCourse) handleSelectCourse(selectedCourse)
       useModalStore.getState().showToast('تم استبدال الفيديو بنجاح.', 'success')
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      useModalStore.getState().showToast('فشل استبدال الفيديو.', 'error')
+      const errMsg = err.response?.data?.errors 
+        ? Object.values(err.response.data.errors).flat().join('\n') 
+        : (err.response?.data?.message || err.message || 'فشل استبدال الفيديو.');
+      useModalStore.getState().showToast(errMsg, 'error')
     } finally {
       setActionLoading(false)
     }
