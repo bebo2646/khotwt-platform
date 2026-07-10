@@ -173,55 +173,65 @@ export default function CourseCard({
 
       {/* Pricing and Action Footer */}
       <div className="course-card-footer bg-brand-surface/20">
-        {isSubscribed ? (
-          <>
-            <div className="price-box">
-              <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
-              <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
-              <span className="new-price text-xs font-bold" style={{ background: 'none', color: 'var(--text-secondary)', WebkitTextFillColor: 'initial', WebkitBackgroundClip: 'unset', backgroundClip: 'unset' }}>
-                تم الشراء
-              </span>
-            </div>
-            <Link 
-              to={`/course/${slug || id}`} 
-              className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all duration-200 cursor-pointer shrink-0"
-            >
-              <span>متابعة التعليم</span>
-              <ArrowLeft className="h-3.5 w-3.5 shrink-0 mr-1" />
-            </Link>
-          </>
-        ) : (
-          <>
-            <div className="price-box">
-              {pricing.hasDiscount ? (
-                <span className="discount-badge">
-                  {discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`}
-                </span>
-              ) : (
+        <div className="flex items-center justify-between gap-4 w-full">
+          {isSubscribed ? (
+            <>
+              <div className="price-box">
                 <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
-              )}
-              
-              {pricing.hasDiscount ? (
-                <span className="old-price">
-                  {pricing.formattedOriginalPrice}
-                </span>
-              ) : (
                 <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
-              )}
+                <span className="new-price text-xs font-bold" style={{ background: 'none', color: 'var(--text-secondary)', WebkitTextFillColor: 'initial', WebkitBackgroundClip: 'unset', backgroundClip: 'unset' }}>
+                  تم الشراء
+                </span>
+              </div>
+              <Link 
+                to={`/course/${slug || id}`} 
+                className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all duration-200 cursor-pointer shrink-0"
+              >
+                <span>دخول الكورس</span>
+                <ArrowLeft className="h-3.5 w-3.5 shrink-0 mr-1" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <div className="price-box">
+                {pricing.hasDiscount ? (
+                  <span className="discount-badge">
+                    {discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`}
+                  </span>
+                ) : (
+                  <span className="discount-badge invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+                )}
+                
+                {pricing.hasDiscount ? (
+                  <span className="old-price">
+                    {pricing.formattedOriginalPrice}
+                  </span>
+                ) : (
+                  <span className="old-price invisible pointer-events-none select-none" aria-hidden="true">&nbsp;</span>
+                )}
+                
+                <span className="new-price">
+                  {pricing.hasDiscount ? pricing.formattedFinalPrice : pricing.formattedOriginalPrice}
+                </span>
+              </div>
               
-              <span className="new-price">
-                {pricing.hasDiscount ? pricing.formattedFinalPrice : pricing.formattedOriginalPrice}
-              </span>
-            </div>
-            
-            <Link 
-              to={`/course/${slug || id}`} 
-              className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-200 cursor-pointer shrink-0"
-            >
-              اشترك الآن
-            </Link>
-          </>
-        )}
+              <Link 
+                to={`/course/${slug || id}`} 
+                className="w-[130px] h-[40px] flex items-center justify-center bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg hover:shadow-[0_0_15px_rgba(99,102,241,0.3)] transition-all duration-200 cursor-pointer shrink-0"
+              >
+                اشترك الآن
+              </Link>
+            </>
+          )}
+        </div>
+        
+        {/* Course Details Button */}
+        <Link 
+          to={`/course/${slug || id}`} 
+          className="w-full h-[40px] flex items-center justify-center bg-slate-800/80 hover:bg-slate-750 border border-slate-700/60 hover:border-brand-primary/30 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer select-none"
+        >
+          عرض تفاصيل الكورس
+        </Link>
       </div>
     </div>
   )

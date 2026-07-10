@@ -390,16 +390,39 @@ class PublicController extends Controller
                     $lessonData['pdfs_count'] = $lesson->pdfs()->count();
                     $lessonData['exams_count'] = $lesson->exams()->count();
 
-                    if ($isEnrolled && !$isLocked && !$viewLimitExceeded) {
-                        // Include full details - block videos if course is center-only and user is student
-                        if ($course->availability === 'center' && $isStudent) {
-                            $lessonData['videos'] = [];
-                        } else {
-                            $lessonData['videos'] = $lesson->videos;
-                        }
-                        $lessonData['pdfs'] = $lesson->pdfs;
-                        $lessonData['exams'] = $lesson->exams;
-                    }
+                    $secured = $isEnrolled && !$isLocked && !$viewLimitExceeded;
+
+                    $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent) {
+                        $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
+                        return [
+                            'id' => $video->id,
+                            'title' => $video->title,
+                            'duration_seconds' => $video->duration_seconds,
+                            'duration_text' => $video->duration_text,
+                            'is_locked' => !$videoSecured,
+                            'video_url' => $videoSecured ? $video->video_url : null,
+                            'bunny_id' => $videoSecured ? $video->bunny_id : null,
+                        ];
+                    });
+
+                    $lessonData['pdfs'] = $lesson->pdfs->map(function ($pdf) use ($secured) {
+                        return [
+                            'id' => $pdf->id,
+                            'title' => $pdf->title,
+                            'is_locked' => !$secured,
+                            'file_path' => $secured ? $pdf->file_path : null,
+                        ];
+                    });
+
+                    $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured) {
+                        return [
+                            'id' => $exam->id,
+                            'title' => $exam->title,
+                            'type' => $exam->type,
+                            'is_locked' => !$secured,
+                            'time_limit_minutes' => $secured ? $exam->time_limit_minutes : null,
+                        ];
+                    });
 
                     return $lessonData;
                 }),

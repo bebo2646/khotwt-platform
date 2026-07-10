@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
-import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, Video, BookOpen } from 'lucide-react'
+import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, Video, BookOpen, HelpCircle, ClipboardList } from 'lucide-react'
 import SEO from '../components/SEO'
 import PurchaseModal from '../components/PurchaseModal'
 import { getCourseDisplayPrice } from '../utils/pricing'
@@ -30,6 +30,31 @@ interface CourseItem {
   }
 }
 
+interface VideoDetail {
+  id: number
+  title: string
+  duration_seconds?: number
+  duration_text?: string
+  is_locked: boolean
+  video_url?: string | null
+  bunny_id?: string | null
+}
+
+interface PdfDetail {
+  id: number
+  title: string
+  is_locked: boolean
+  file_path?: string | null
+}
+
+interface ExamDetail {
+  id: number
+  title: string
+  type: 'quiz' | 'homework' | 'monthly_exam'
+  is_locked: boolean
+  time_limit_minutes?: number | null
+}
+
 interface LessonItem {
   id: number
   title: string
@@ -38,6 +63,10 @@ interface LessonItem {
   videos_count: number
   pdfs_count: number
   exams_count: number
+  is_locked: boolean
+  videos?: VideoDetail[]
+  pdfs?: PdfDetail[]
+  exams?: ExamDetail[]
 }
 
 interface UnitItem {
@@ -129,10 +158,7 @@ export default function CourseDetail() {
         setViewLimitMessage(res.data.view_limit_message || null)
         setViewLimitDetails(res.data.view_limit_details || null)
 
-        // Expand the first unit by default
-        if (res.data.units.length > 0) {
-          setExpandedUnits({ [res.data.units[0].id]: true })
-        }
+        // Closed by default (do not auto-expand the first unit)
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
@@ -310,54 +336,93 @@ export default function CourseDetail() {
       </nav>
       
       {/* 1. Header Hero Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 bg-brand-card border border-[var(--border-color)] p-8 sm:p-12 rounded-3xl relative overflow-hidden shadow-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-3xl relative overflow-hidden shadow-xl text-right" dir="rtl">
         <div className="absolute top-0 right-0 w-40 h-40 bg-brand-primary/5 rounded-full blur-3xl -z-10" />
 
         {/* Info Column */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <Link 
-              to={`/subject/${course.subject}`}
-              className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-semibold rounded-full hover:bg-brand-primary/20 transition-all"
-            >
-              {SUBJECTS_TRANSLATION[course.subject] || course.subject}
-            </Link>
-            <Link 
-              to={`/grade/${course.grade.replace('_', '-')}`}
-              className="px-3 py-1 bg-slate-500/10 border border-slate-500/20 text-slate-300 text-xs font-semibold rounded-full hover:bg-slate-500/20 transition-all"
-            >
-              {GRADES_TRANSLATION[course.grade] || course.grade}
-            </Link>
+        <div className="lg:col-span-2 space-y-6 flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-semibold rounded-full">
+                {SUBJECTS_TRANSLATION[course.subject] || course.subject}
+              </span>
+              <span className="px-3 py-1 bg-slate-500/10 border border-slate-500/20 text-slate-300 text-xs font-semibold rounded-full">
+                {GRADES_TRANSLATION[course.grade] || course.grade}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                isEnrolled 
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 shadow-sm' 
+                  : 'bg-amber-500/10 text-amber-400 border-amber-500/25 shadow-sm'
+              }`}>
+                {isEnrolled ? '✓ مشترك في الكورس' : '🔒 غير مشترك'}
+              </span>
+            </div>
+
+            <h1 className="text-2xl sm:text-4xl font-black leading-snug">{course.title}</h1>
+            <p className="text-sm text-slate-300 font-light leading-relaxed">{course.description}</p>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-black leading-snug">{course.title}</h1>
-          <p className="text-sm text-slate-300 font-light leading-relaxed">{course.description}</p>
-
-          {/* Teacher row */}
-          <div className="flex items-center gap-3 p-4 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl w-fit">
-            <div className="h-10 w-10 rounded-full bg-slate-800 border overflow-hidden">
-              <img 
-                src={course.teacher.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${course.teacher.name}`} 
-                alt={course.teacher.name} 
-                className="object-cover w-full h-full" 
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${course.teacher.name}`
-                }}
-              />
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-[var(--border-color)]">
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">الأسابيع (الوحدات)</span>
+              <span className="text-lg font-black text-slate-200">{units.length} أسابيع</span>
             </div>
-            <div>
-              <div className="text-xs text-slate-400">مدرس المادة:</div>
-              <Link to={`/teacher/${course.teacher.slug || course.teacher.id}`} className="text-sm font-bold text-slate-100 hover:text-brand-primary transition-colors">
-                {course.teacher.name}
-              </Link>
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">المحاضرات</span>
+              <span className="text-lg font-black text-slate-200">
+                {units.reduce((acc, u) => acc + u.lessons.length, 0)} محاضرة
+              </span>
+            </div>
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">إجمالي الفيديوهات</span>
+              <span className="text-lg font-black text-slate-200">
+                {units.reduce((acc, u) => acc + u.lessons.reduce((accL, l) => accL + (l.videos_count || 0), 0), 0)} فيديو
+              </span>
+            </div>
+          </div>
+
+          {/* Teacher and Features Row */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-4">
+            <div className="flex items-center gap-3 p-3 bg-slate-900/40 border border-[var(--border-color)] rounded-2xl">
+              <div className="h-10 w-10 rounded-full bg-slate-800 border overflow-hidden">
+                <img 
+                  src={course.teacher.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${course.teacher.name}`} 
+                  alt={course.teacher.name} 
+                  className="object-cover w-full h-full" 
+                />
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400">مدرس المادة</div>
+                <div className="text-xs font-bold text-slate-200">{course.teacher.name}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2.5 text-[10px] sm:text-xs text-slate-400 font-semibold">
+              <span className="flex items-center gap-1">🎥 محاضرات مسجلة</span>
+              <span className="text-slate-700">•</span>
+              <span className="flex items-center gap-1">📄 ملخصات PDF</span>
+              <span className="text-slate-700">•</span>
+              <span className="flex items-center gap-1">🧪 اختبارات تفاعلية</span>
+              <span className="text-slate-700">•</span>
+              <span className="flex items-center gap-1">⚡ تصحيح تلقائي</span>
             </div>
           </div>
         </div>
 
-        {/* Purchase Column */}
-        <div className="bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] p-8 rounded-2xl flex flex-col justify-between space-y-6">
+        {/* Purchase & Cover Column */}
+        <div className="bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] p-6 rounded-3xl flex flex-col justify-between space-y-6">
+          {/* Cover Image */}
+          <div className="aspect-video w-full rounded-2xl overflow-hidden border border-[var(--border-color)] shadow-inner">
+            <img 
+              src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+              alt={course.title} 
+              className="object-cover w-full h-full" 
+            />
+          </div>
+
           <div className="space-y-4">
-            <div className="text-xs text-slate-400">سعر الكورس بالكامل:</div>
+            <div className="text-xs text-slate-400">سعر الاشتراك للكورس بالكامل:</div>
             {(() => {
               const pricing = getCourseDisplayPrice(course)
               return pricing.hasDiscount ? (
@@ -368,23 +433,23 @@ export default function CourseDetail() {
                   </span>
                   {/* Discount Badge + Final Price */}
                   <div className="flex items-center gap-2">
-                    <span className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] hover:scale-[1.03] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
+                    <span className="text-3xl font-extrabold text-[#10B981]">
                       {pricing.formattedFinalPrice}
                     </span>
-                    <span className="px-2.5 py-1 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/25 text-xs font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] shrink-0">
+                    <span className="px-2.5 py-0.5 rounded-full bg-[#10B981]/15 text-[#34D399] border border-[#10B981]/25 text-[10px] font-bold shadow-[0_0_12px_rgba(16,185,129,0.15)] shrink-0">
                       {pricing.discountText}
                     </span>
                   </div>
                 </div>
               ) : (
                 <div className="select-none">
-                  <span className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-[#10B981] to-[#34D399] bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(16,185,129,0.15)] hover:scale-[1.03] hover:drop-shadow-[0_0_15px_rgba(52,211,153,0.4)] transition-all duration-300 inline-block font-sans">
+                  <span className="text-3xl font-extrabold text-[#10B981]">
                     {pricing.formattedOriginalPrice}
                   </span>
                 </div>
               )
             })()}
-            <p className="text-xs text-slate-500 font-light">يمنحك الاشتراك وصولاً فورياً مدى الحياة لجميع دروس وامتحانات الكورس.</p>
+            <p className="text-[10px] text-slate-500 font-light leading-relaxed">يمنحك الاشتراك وصولاً فورياً مدى الحياة لجميع دروس وامتحانات الكورس ومتابعة المحاضرات.</p>
           </div>
 
           {purchaseError && (
@@ -571,7 +636,7 @@ export default function CourseDetail() {
       )}
 
       {/* 4. Curriculum Accordion Structure */}
-      <div className="space-y-4">
+      <div className="space-y-4 text-right" dir="rtl">
         <h2 className="text-xl font-bold">منهج ومحتوى الكورس:</h2>
 
         {viewLimitExceeded ? (
@@ -597,65 +662,137 @@ export default function CourseDetail() {
             {units.map((unit) => {
               const isExpanded = !!expandedUnits[unit.id]
               return (
-                <div key={unit.id} className="border border-[var(--border-color)] bg-brand-card rounded-2xl overflow-hidden transition-all duration-300">
+                <div key={unit.id} className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
                   
                   {/* Unit Title Header */}
                   <button
                     onClick={() => toggleUnit(unit.id)}
-                    className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-[rgba(255,255,255,0.01)]"
+                    className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-slate-400">الوحدة {unit.order}</span>
-                      <span>{unit.title}</span>
+                      <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+                      <span className="text-slate-100 font-black">{unit.title}</span>
                     </div>
                     <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* Lessons list details */}
                   {isExpanded && (
-                    <div className="border-t border-[var(--border-color)] bg-[rgba(0,0,0,0.1)] divide-y divide-[var(--border-color)]">
+                    <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
                       {unit.lessons.length === 0 ? (
                         <div className="p-6 text-xs text-slate-500 font-light text-center">لا توجد محاضرات في هذه الوحدة حالياً.</div>
                       ) : (
                         unit.lessons.map((lesson) => {
-                          const LessonContent = (
-                            <div className="flex items-center justify-between p-6">
-                              <div className="space-y-1">
-                                <h4 className="font-bold text-xs sm:text-sm text-slate-200">{lesson.title}</h4>
-                                {lesson.description && (
-                                  <p className="text-[10px] sm:text-xs text-slate-400 font-light line-clamp-1 leading-relaxed">
-                                    {lesson.description}
-                                  </p>
-                                )}
-                              </div>
-                              
-                              {/* Video, PDF counts or lock */}
-                              <div className="flex items-center gap-4">
-                                <div className="hidden sm:flex items-center gap-3 text-slate-400 text-xs font-light">
-                                  {lesson.videos_count > 0 && (
-                                    <span className="flex items-center gap-1"><Play className="h-3.5 w-3.5 text-brand-primary" /> {lesson.videos_count} فيديو</span>
-                                  )}
-                                  {lesson.pdfs_count > 0 && (
-                                    <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5 text-brand-primary" /> {lesson.pdfs_count} ملخص</span>
+                          const hasContent = (lesson.videos && lesson.videos.length > 0) ||
+                                             (lesson.pdfs && lesson.pdfs.length > 0) ||
+                                             (lesson.exams && lesson.exams.length > 0);
+                          
+                          return (
+                            <div key={lesson.id} className="p-6 space-y-4 transition-all hover:bg-slate-900/10">
+                              {/* Lesson Header */}
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                  <h4 className="font-bold text-xs sm:text-sm text-slate-200">{lesson.title}</h4>
+                                  {lesson.description && (
+                                    <p className="text-[10px] sm:text-xs text-slate-400 font-light leading-relaxed">
+                                      {lesson.description}
+                                    </p>
                                   )}
                                 </div>
                                 
-                                {isEnrolled ? (
+                                {isEnrolled && !lesson.is_locked ? (
                                   <CheckCircle className="h-5 w-5 text-brand-success shrink-0" />
                                 ) : (
                                   <Lock className="h-4 w-4 text-slate-500 shrink-0" />
                                 )}
                               </div>
-                            </div>
-                          )
 
-                          return isEnrolled ? (
-                            <Link key={lesson.id} to={`/student/lessons/${lesson.id}`} className="block hover:bg-brand-primary/5 transition-colors">
-                              {LessonContent}
-                            </Link>
-                          ) : (
-                            <div key={lesson.id} className="opacity-80">
-                              {LessonContent}
+                              {/* Lesson Contents Nested List */}
+                              {hasContent && (
+                                <div className="mr-4 pr-4 border-r border-[var(--border-color)] space-y-3 pt-1">
+                                  {/* Videos */}
+                                  {lesson.videos && lesson.videos.map((vid) => (
+                                    <div key={vid.id} className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors">
+                                      <div className="flex items-center gap-2">
+                                        <Play className="h-3.5 w-3.5 text-brand-primary shrink-0" />
+                                        <span className="font-semibold text-slate-300">▶ مشاهدة الفيديو: {vid.title}</span>
+                                        {vid.duration_text && (
+                                          <span className="text-[10px] text-slate-500">({vid.duration_text})</span>
+                                        )}
+                                      </div>
+                                      
+                                      {isEnrolled && !vid.is_locked ? (
+                                        <Link 
+                                          to={`/student/lessons/${lesson.id}?play=${vid.id}`}
+                                          className="px-2.5 py-1 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/20 hover:border-brand-primary/35 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                                        >
+                                          تشغيل
+                                        </Link>
+                                      ) : (
+                                        <Lock className="h-3 w-3 text-slate-600" />
+                                      )}
+                                    </div>
+                                  ))}
+
+                                  {/* PDFs */}
+                                  {lesson.pdfs && lesson.pdfs.map((pdf) => (
+                                    <div key={pdf.id} className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors">
+                                      <div className="flex items-center gap-2">
+                                        <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                        <span className="font-semibold text-slate-300">📄 فتح الملف: {pdf.title}</span>
+                                      </div>
+                                      
+                                      {isEnrolled && !pdf.is_locked ? (
+                                        <Link 
+                                          to={`/student/lessons/${lesson.id}`}
+                                          className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 hover:border-emerald-500/35 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                                        >
+                                          عرض الملف
+                                        </Link>
+                                      ) : (
+                                        <Lock className="h-3 w-3 text-slate-600" />
+                                      )}
+                                    </div>
+                                  ))}
+
+                                  {/* Exams & Homeworks */}
+                                  {lesson.exams && lesson.exams.map((ex) => {
+                                    const isHomework = ex.type === 'homework';
+                                    return (
+                                      <div key={ex.id} className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors">
+                                        <div className="flex items-center gap-2">
+                                          {isHomework ? (
+                                            <ClipboardList className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                                          ) : (
+                                            <HelpCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                          )}
+                                          <span className="font-semibold text-slate-300">
+                                            {isHomework ? "📝 الواجب: " : "🧪 الامتحان: "} {ex.title}
+                                          </span>
+                                          {ex.time_limit_minutes && (
+                                            <span className="text-[10px] text-slate-500">({ex.time_limit_minutes} دقيقة)</span>
+                                          )}
+                                        </div>
+                                        
+                                        {isEnrolled && !ex.is_locked ? (
+                                          <Link 
+                                            to={`/student/exams/${ex.id}`}
+                                            className={`px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                                              isHomework 
+                                                ? "bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/20 hover:border-indigo-500/35"
+                                                : "bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20 hover:border-amber-500/35"
+                                            }`}
+                                          >
+                                            ابدأ الحل
+                                          </Link>
+                                        ) : (
+                                          <Lock className="h-3 w-3 text-slate-600" />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           )
                         })

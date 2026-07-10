@@ -858,10 +858,10 @@ button, .glow-btn, a[class*="bg-brand-primary"], .px-4.py-2.bg-brand-primary {
 
 .course-card-footer {
   display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 16px !important;
-  min-height: 90px !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 12px !important;
+  min-height: 140px !important;
   padding: 16px 24px !important;
   border-top: 1px solid var(--border-color) !important;
   box-sizing: border-box !important;

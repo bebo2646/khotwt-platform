@@ -1349,6 +1349,7 @@ class TeacherController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'type' => 'required|string|in:quiz,homework,monthly_exam',
+            'homework_type' => 'nullable|string|in:normal,bubble_sheet',
             'time_limit_minutes' => 'nullable|integer',
             'max_score' => 'required|integer|min:1',
             'start_date' => 'nullable|date',
@@ -1357,8 +1358,11 @@ class TeacherController extends Controller
             'end_time' => 'nullable|string',
             'max_attempts' => 'nullable|integer|min:1',
             'passing_score' => 'nullable|integer|min:0',
+            'enable_schedule' => 'nullable|boolean',
             'open_date' => 'nullable|date',
+            'open_time' => 'nullable|string',
             'close_date' => 'nullable|date',
+            'close_time' => 'nullable|string',
             'submission_deadline' => 'nullable|string', // flexible string datetime
             'is_paid' => 'nullable|boolean',
             'price' => 'nullable|numeric|min:0',
@@ -1375,6 +1379,7 @@ class TeacherController extends Controller
                 'lesson_id' => $lessonId,
                 'title' => $request->title,
                 'type' => $request->type,
+                'homework_type' => $request->homework_type ?? 'normal',
                 'time_limit_minutes' => $request->time_limit_minutes,
                 'max_score' => $request->max_score,
                 'start_date' => $request->start_date,
@@ -1383,8 +1388,11 @@ class TeacherController extends Controller
                 'end_time' => $request->end_time,
                 'max_attempts' => $request->max_attempts ?? 1,
                 'passing_score' => $request->passing_score ?? 50,
+                'enable_schedule' => $request->enable_schedule ?? false,
                 'open_date' => $request->open_date,
+                'open_time' => $request->open_time,
                 'close_date' => $request->close_date,
+                'close_time' => $request->close_time,
                 'submission_deadline' => $request->submission_deadline,
                 'is_paid' => $request->is_paid ?? false,
                 'price' => $request->price ?? 0.00,
@@ -1455,6 +1463,148 @@ class TeacherController extends Controller
             ->get();
 
         return response()->json($attempts);
+    }
+
+    /**
+     * Get a comprehensive report for scheduled Exam / Homework.
+     */
+    public function examReport(Request $request, $examId)
+    {
+        $exam = Exam::with('lesson.unit.course')->findOrFail($examId);
+        $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+
+        $courseId = $exam->lesson->unit->course_id;
+
+        // Get all students enrolled in the course
+        $enrollments = \App\Models\Enrollment::where('course_id', $courseId)
+            ->with('student')
+            ->get();
+
+        // Get all attempts for this exam
+        $attempts = StudentExam::where('exam_id', $examId)
+            ->get()
+            ->keyBy('student_id');
+
+        $now = \Carbon\Carbon::now();
+        $isDeadlinePassed = false;
+        if ($exam->enable_schedule && $exam->close_date) {
+            $closeDateStr = $exam->close_date->format('Y-m-d');
+            $closeTimeStr = $exam->close_time ?: '23:59:59';
+            $closeDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
+            $isDeadlinePassed = $now->gt($closeDatetime);
+        }
+
+        // Automatic scheduling notifications triggers inside report access
+        if ($isDeadlinePassed) {
+            foreach ($enrollments as $enrollment) {
+                $student = $enrollment->student;
+                if (!$student) continue;
+
+                $attempt = $attempts->get($student->id);
+                $hasMissed = false;
+                $missedType = '';
+
+                if ($attempt && $attempt->status === 'started') {
+                    $hasMissed = true;
+                    $missedType = 'missed_deadline';
+                } elseif (!$attempt) {
+                    $hasMissed = true;
+                    $missedType = 'unopened';
+                }
+
+                if ($hasMissed) {
+                    $notifExists = \App\Models\Notification::where('recipient_id', $exam->lesson->unit->course->teacher_id)
+                        ->where('sender_id', $student->id)
+                        ->where('title', 'like', '%' . ($missedType === 'unopened' ? 'لم يفتح' : 'تجاوز الموعد') . '%')
+                        ->where('message', 'like', '%' . $exam->title . '%')
+                        ->exists();
+
+                    if (!$notifExists) {
+                        if ($missedType === 'unopened') {
+                            \App\Models\Notification::create([
+                                'title' => "تنبيه: طالب لم يفتح التقييم في الموعد",
+                                'message' => "الطالب " . $student->name . " لم يقم بفتح " . ($exam->type === 'homework' ? 'الواجب' : 'الامتحان') . " (" . $exam->title . ") قبل انتهاء الموعد المحدد.",
+                                'recipient_type' => 'specific_teacher',
+                                'recipient_id' => $exam->lesson->unit->course->teacher_id,
+                                'sender_id' => $student->id,
+                                'important' => false,
+                            ]);
+                        } else {
+                            \App\Models\Notification::create([
+                                'title' => "تنبيه: طالب تجاوز الموعد النهائي",
+                                'message' => "الطالب " . $student->name . " بدأ في حل " . ($exam->type === 'homework' ? 'الواجب' : 'الامتحان') . " (" . $exam->title . ") ولكنه لم يقم بالتسليم قبل الموعد النهائي.",
+                                'recipient_type' => 'specific_teacher',
+                                'recipient_id' => $exam->lesson->unit->course->teacher_id,
+                                'sender_id' => $student->id,
+                                'important' => false,
+                            ]);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Format student report records
+        $reportData = $enrollments->map(function ($enrollment) use ($attempts, $isDeadlinePassed, $exam) {
+            $student = $enrollment->student;
+            if (!$student) return null;
+
+            $attempt = $attempts->get($student->id);
+            $status = 'did_not_start'; // default: لم يبدأ بعد
+            $score = null;
+            $percentage = null;
+            $submittedAt = null;
+
+            if ($attempt) {
+                $submittedAt = $attempt->submitted_at;
+                if ($attempt->status === 'graded') {
+                    $status = 'submitted';
+                    $score = $attempt->score;
+                    $percentage = $exam->max_score > 0 ? round(($attempt->score / $exam->max_score) * 100, 1) : 0;
+                } elseif ($attempt->status === 'submitted') {
+                    $status = 'submitted';
+                    $score = $attempt->score;
+                    $percentage = ($attempt->score !== null && $exam->max_score > 0) ? round(($attempt->score / $exam->max_score) * 100, 1) : null;
+                } elseif ($attempt->status === 'started') {
+                    if ($isDeadlinePassed) {
+                        $status = 'missed_deadline'; // بدأ ولم يكمل (تجاوز الموعد)
+                    } else {
+                        $status = 'started'; // بدأ ويحل حالياً
+                    }
+                }
+            } else {
+                if ($isDeadlinePassed) {
+                    $status = 'missed_unopened'; // لم يفتح (تجاوز الموعد)
+                }
+            }
+
+            return [
+                'student_id' => $student->id,
+                'student_name' => $student->name,
+                'student_email' => $student->email,
+                'student_phone' => $student->phone,
+                'parent_phone' => $student->parent_phone,
+                'status' => $status,
+                'score' => $score,
+                'percentage' => $percentage,
+                'submitted_at' => $submittedAt ? $submittedAt->toIso8601String() : null,
+            ];
+        })->filter()->values();
+
+        return response()->json([
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+                'type' => $exam->type,
+                'max_score' => $exam->max_score,
+                'enable_schedule' => $exam->enable_schedule,
+                'open_date' => $exam->open_date ? $exam->open_date->format('Y-m-d') : null,
+                'open_time' => $exam->open_time,
+                'close_date' => $exam->close_date ? $exam->close_date->format('Y-m-d') : null,
+                'close_time' => $exam->close_time,
+            ],
+            'report' => $reportData,
+        ]);
     }
 
     /**
@@ -1960,6 +2110,7 @@ class TeacherController extends Controller
         $request->validate([
             'title' => 'required|string|max:255',
             'type' => 'required|string|in:quiz,homework,monthly_exam',
+            'homework_type' => 'nullable|string|in:normal,bubble_sheet',
             'time_limit_minutes' => 'nullable|integer',
             'max_score' => 'required|integer|min:1',
             'start_date' => 'nullable|date',
@@ -1968,8 +2119,11 @@ class TeacherController extends Controller
             'end_time' => 'nullable|string',
             'max_attempts' => 'nullable|integer|min:1',
             'passing_score' => 'nullable|integer|min:0',
+            'enable_schedule' => 'nullable|boolean',
             'open_date' => 'nullable|date',
+            'open_time' => 'nullable|string',
             'close_date' => 'nullable|date',
+            'close_time' => 'nullable|string',
             'submission_deadline' => 'nullable|string',
             'is_paid' => 'nullable|boolean',
             'price' => 'nullable|numeric|min:0',
@@ -1987,6 +2141,7 @@ class TeacherController extends Controller
                 'lesson_id' => $request->lesson_id,
                 'title' => $request->title,
                 'type' => $request->type,
+                'homework_type' => $request->homework_type ?? 'normal',
                 'time_limit_minutes' => $request->time_limit_minutes,
                 'max_score' => $request->max_score,
                 'start_date' => $request->start_date,
@@ -1995,8 +2150,11 @@ class TeacherController extends Controller
                 'end_time' => $request->end_time,
                 'max_attempts' => $request->max_attempts ?? 1,
                 'passing_score' => $request->passing_score ?? 50,
+                'enable_schedule' => $request->enable_schedule ?? false,
                 'open_date' => $request->open_date,
+                'open_time' => $request->open_time,
                 'close_date' => $request->close_date,
+                'close_time' => $request->close_time,
                 'submission_deadline' => $request->submission_deadline,
                 'is_paid' => $request->is_paid ?? false,
                 'price' => $request->price ?? 0.00,

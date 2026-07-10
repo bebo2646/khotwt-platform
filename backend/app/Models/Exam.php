@@ -13,6 +13,7 @@ class Exam extends Model
         'lesson_id',
         'title',
         'type', // quiz, homework, monthly_exam
+        'homework_type', // normal, bubble_sheet
         'time_limit_minutes',
         'max_score',
         'start_date',
@@ -21,8 +22,11 @@ class Exam extends Model
         'end_time',
         'max_attempts',
         'passing_score',
+        'enable_schedule',
         'open_date',
+        'open_time',
         'close_date',
+        'close_time',
         'submission_deadline',
         'allowed_violations',
         'auto_submit_on_violation',
@@ -38,6 +42,7 @@ class Exam extends Model
         'enable_fullscreen' => 'boolean',
         'enable_anti_tab_switching' => 'boolean',
         'enable_copy_protection' => 'boolean',
+        'enable_schedule' => 'boolean',
         'start_date' => 'date',
         'end_date' => 'date',
         'open_date' => 'date',

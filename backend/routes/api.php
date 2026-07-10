@@ -104,6 +104,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/teacher/exams', [TeacherController::class, 'listExams']);
             Route::get('/teacher/exams/{exam}', [TeacherController::class, 'getExam']);
             Route::get('/teacher/exams/{exam}/attempts', [TeacherController::class, 'examAttempts']);
+            Route::get('/teacher/exams/{exam}/report', [TeacherController::class, 'examReport']);
             Route::get('/teacher/students', [TeacherController::class, 'students']);
             Route::get('/teacher/students/{student}/analytics', [TeacherController::class, 'studentAnalytics']);
 

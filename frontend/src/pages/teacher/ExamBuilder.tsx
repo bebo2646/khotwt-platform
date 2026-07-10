@@ -74,10 +74,14 @@ export default function ExamBuilder() {
   const [openDate, setOpenDate] = React.useState('')
   const [closeDate, setCloseDate] = React.useState('')
   const [submissionDeadline, setSubmissionDeadline] = React.useState('')
+  const [homeworkType, setHomeworkType] = React.useState<'normal' | 'bubble_sheet'>('normal')
+  const [enableSchedule, setEnableSchedule] = React.useState(false)
+  const [openTime, setOpenTime] = React.useState('00:00')
+  const [closeTime, setCloseTime] = React.useState('23:59')
 
   // Questions State
   const [questions, setQuestions] = React.useState<Question[]>([
-    { text: 'السؤال الأول؟', type: 'mcq', options: ['خيار أ', 'خيار ب', 'خيار ج', 'خيار د'], correct_answer: 'خيار أ', score: 5 }
+    { text: 'السؤال الأول؟', type: 'mcq', options: ['خيار أ', 'خيار ب', 'خيار ج', 'خيار د'], correct_answer: 'خيار أ', score: 1 }
   ])
   const [activeQuestionIdx, setActiveQuestionIdx] = React.useState(0)
 
@@ -151,6 +155,10 @@ export default function ExamBuilder() {
       setOpenDate(exam.open_date || '')
       setCloseDate(exam.close_date || '')
       setSubmissionDeadline(exam.submission_deadline || '')
+      setHomeworkType(exam.homework_type || 'normal')
+      setEnableSchedule(!!exam.enable_schedule)
+      setOpenTime(exam.open_time || '00:00')
+      setCloseTime(exam.close_time || '23:59')
 
       if (exam.lesson) {
         setLessonId(exam.lesson.id.toString())
@@ -176,7 +184,7 @@ export default function ExamBuilder() {
           type: q.type,
           options: q.options || ['', '', '', ''],
           correct_answer: q.correct_answer || '',
-          score: q.score || 5
+          score: q.score || 1
         }))
         setQuestions(mappedQuestions)
         setActiveQuestionIdx(0)
@@ -212,7 +220,7 @@ export default function ExamBuilder() {
       type: qType,
       options: qType === 'mcq' ? ['', '', '', ''] : (qType === 'true_false' ? ['صح', 'خطأ'] : []),
       correct_answer: qType === 'true_false' ? 'صح' : '',
-      score: 5
+      score: 1
     }
     setQuestions([...questions, newQuestion])
     setActiveQuestionIdx(questions.length)
@@ -291,7 +299,7 @@ export default function ExamBuilder() {
           type: q.type,
           options: q.options || ['', '', '', ''],
           correct_answer: q.correct_answer,
-          score: q.score || 5
+          score: q.score || 1
         }))
         setQuestions(prev => [...prev, ...parsed])
         useModalStore.getState().showToast(`تم استيراد عدد (${parsed.length}) سؤال بنجاح من ملف الوورد!`, 'success')
@@ -343,7 +351,7 @@ export default function ExamBuilder() {
           type: 'mcq',
           options: [],
           correct_answer: '',
-          score: 5
+          score: 1
         }
       }
     })
@@ -413,6 +421,12 @@ export default function ExamBuilder() {
       end_time: endTime || null,
       max_attempts: Number(maxAttempts) || 1,
       passing_score: Number(passingScore) || 50,
+
+      // Scheduling & homework type settings
+      homework_type: type === 'homework' ? homeworkType : 'normal',
+      enable_schedule: enableSchedule,
+      open_time: enableSchedule ? openTime : null,
+      close_time: enableSchedule ? closeTime : null,
 
       // Homework specific settings
       open_date: openDate || null,
@@ -761,8 +775,8 @@ export default function ExamBuilder() {
                         required
                         min="1"
                         value={activeQuestion.score}
-                        onChange={(e) => updateQuestionField('score', Number(e.target.value))}
-                        placeholder="5"
+                        onChange={(e) => updateQuestionField('score', Math.max(1, Number(e.target.value) || 1))}
+                        placeholder="1"
                         className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-205 focus:outline-none text-center"
                       />
                     </div>
@@ -1012,7 +1026,91 @@ export default function ExamBuilder() {
                 <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
                   <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">إعدادات النشر ومكافحة الغش:</h4>
 
-                  {type !== 'homework' ? (
+                  {/* Homework Type selector (only for homework) */}
+                  {type === 'homework' && (
+                    <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-3">
+                      <label className="text-xs font-bold text-slate-350 block">نوع الواجب الدراسي</label>
+                      <div className="flex gap-6 items-center">
+                        <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                          <input
+                            type="radio"
+                            name="homework_type"
+                            checked={homeworkType === 'normal'}
+                            onChange={() => setHomeworkType('normal')}
+                            className="accent-brand-primary"
+                          />
+                          <span>واجب تقليدي (Normal Homework)</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                          <input
+                            type="radio"
+                            name="homework_type"
+                            checked={homeworkType === 'bubble_sheet'}
+                            onChange={() => setHomeworkType('bubble_sheet')}
+                            className="accent-brand-primary"
+                          />
+                          <span>واجب بابل شيت (Bubble Sheet Homework)</span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scheduling Section for BOTH Exams & Homeworks */}
+                  <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-4">
+                    <label className="text-xs font-bold text-slate-350 select-none cursor-pointer flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={enableSchedule}
+                        onChange={(e) => setEnableSchedule(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                      />
+                      <span>تفعيل جدول المواعيد (Enable Schedule)</span>
+                    </label>
+
+                    {enableSchedule && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-450 block">تاريخ الفتح (Open Date)</label>
+                          <input
+                            type="date"
+                            value={openDate}
+                            onChange={(e) => setOpenDate(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-450 block">وقت الفتح (Open Time)</label>
+                          <input
+                            type="time"
+                            value={openTime}
+                            onChange={(e) => setOpenTime(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-450 block">تاريخ الإغلاق (Close Date)</label>
+                          <input
+                            type="date"
+                            value={closeDate}
+                            onChange={(e) => setCloseDate(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-slate-450 block">وقت الإغلاق (Close Time)</label>
+                          <input
+                            type="time"
+                            value={closeTime}
+                            onChange={(e) => setCloseTime(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Standard date settings for Quiz if not scheduled */}
+                  {type !== 'homework' && !enableSchedule && (
                     <div className="space-y-6">
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div className="space-y-1">
@@ -1052,33 +1150,38 @@ export default function ExamBuilder() {
                           />
                         </div>
                       </div>
+                    </div>
+                  )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div>
-                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الحد الأقصى للمحاولات</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={maxAttempts}
-                            onChange={(e) => setMaxAttempts(e.target.value)}
-                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">درجة النجاح المحددة (%)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={passingScore}
-                            onChange={(e) => setPassingScore(e.target.value)}
-                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                          />
-                        </div>
+                  {/* Attempts & Passing score (only for quiz / monthly_exam) */}
+                  {type !== 'homework' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">الحد الأقصى للمحاولات</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={maxAttempts}
+                          onChange={(e) => setMaxAttempts(e.target.value)}
+                          className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">درجة النجاح المحددة (%)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={passingScore}
+                          onChange={(e) => setPassingScore(e.target.value)}
+                          className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
+                        />
                       </div>
                     </div>
-                  ) : (
-                    // Homework dates
+                  )}
+
+                  {/* Standard deadline setting for Homework if not scheduled */}
+                  {type === 'homework' && !enableSchedule && (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div>

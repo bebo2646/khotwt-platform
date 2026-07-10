@@ -1405,6 +1405,38 @@ class StudentController extends Controller
             return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
+        // Validate scheduling
+        if ($exam->enable_schedule) {
+            $now = \Carbon\Carbon::now();
+            
+            $openDateStr = $exam->open_date ? $exam->open_date->format('Y-m-d') : null;
+            $openTimeStr = $exam->open_time ?: '00:00:00';
+            $openDatetime = $openDateStr ? \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr) : null;
+            
+            $closeDateStr = $exam->close_date ? $exam->close_date->format('Y-m-d') : null;
+            $closeTimeStr = $exam->close_time ?: '23:59:59';
+            $closeDatetime = $closeDateStr ? \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr) : null;
+
+            if ($openDatetime && $now->lt($openDatetime)) {
+                return response()->json([
+                    'message' => 'هذا الامتحان لم يبدأ بعد',
+                    'status' => 'not_started',
+                    'open_datetime' => $openDatetime->toIso8601String(),
+                    'countdown_seconds' => $now->diffInSeconds($openDatetime),
+                    'error_code' => 'SCHEDULE_NOT_STARTED'
+                ], 403);
+            }
+
+            if ($closeDatetime && $now->gt($closeDatetime)) {
+                return response()->json([
+                    'message' => 'انتهى موعد الامتحان',
+                    'status' => 'expired',
+                    'close_datetime' => $closeDatetime->toIso8601String(),
+                    'error_code' => 'SCHEDULE_EXPIRED'
+                ], 403);
+            }
+        }
+
         // Check if the exam is paid and student has purchased it
         if ($exam->is_paid) {
             $hasPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
@@ -1502,12 +1534,20 @@ class StudentController extends Controller
             }
         }
 
+        // Get existing attempt answers to support resuming
+        $existingAnswers = \App\Models\StudentAnswer::where('student_exam_id', $attempt->id)->get();
+        $answersFormatted = [];
+        foreach ($existingAnswers as $ans) {
+            $answersFormatted[$ans->question_id] = $ans->answer_text;
+        }
+
         return response()->json([
             'attempt_id' => $attempt->id,
             'exam' => [
                 'id' => $exam->id,
                 'title' => $exam->title,
                 'type' => $exam->type,
+                'homework_type' => $exam->homework_type,
                 'time_limit_minutes' => $exam->time_limit_minutes,
                 'max_score' => $exam->max_score,
                 'allowed_violations' => $exam->allowed_violations ?? 3,
@@ -1517,6 +1557,7 @@ class StudentController extends Controller
                 'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
             ],
             'questions' => $shuffledQuestions,
+            'existing_answers' => $answersFormatted,
         ]);
     }
 
@@ -1531,7 +1572,7 @@ class StudentController extends Controller
         ]);
 
         $user = $request->user();
-        $exam = Exam::with('questions')->findOrFail($examId);
+        $exam = Exam::with(['questions', 'lesson.unit.course'])->findOrFail($examId);
         $attempt = StudentExam::where('id', $request->attempt_id)
             ->where('student_id', $user->id)
             ->firstOrFail();
@@ -1540,10 +1581,25 @@ class StudentController extends Controller
             return response()->json(['message' => 'تم تسليم هذا الامتحان مسبقاً.'], 422);
         }
 
-        return DB::transaction(function () use ($exam, $attempt, $request) {
+        // Validate scheduling on submit
+        if ($exam->enable_schedule) {
+            $now = \Carbon\Carbon::now();
+            $closeDateStr = $exam->close_date ? $exam->close_date->format('Y-m-d') : null;
+            $closeTimeStr = $exam->close_time ?: '23:59:59';
+            $closeDatetime = $closeDateStr ? \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr) : null;
+
+            if ($closeDatetime && $now->gt($closeDatetime)) {
+                return response()->json([
+                    'message' => 'عذراً، لقد تجاوزت الموعد النهائي لتسليم الامتحان.',
+                    'error_code' => 'SCHEDULE_EXPIRED'
+                ], 403);
+            }
+        }
+
+        return DB::transaction(function () use ($exam, $attempt, $request, $user) {
             $submittedAnswers = $request->answers;
             $totalScore = 0;
-            $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']);
+            $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']) || ($exam->type === 'homework' && $exam->homework_type === 'bubble_sheet');
             $hasEssay = false;
 
             // Loop through all exam questions to grade them
@@ -1574,7 +1630,7 @@ class StudentController extends Controller
                 ]);
             }
 
-            // If it is a quiz/monthly exam with no essay questions, we mark as graded
+            // If it is a quiz/monthly exam or bubble sheet homework with no essay questions, we mark as graded
             if ($isAutoGraded && !$hasEssay) {
                 $attempt->status = 'graded';
                 $attempt->score = $totalScore;
@@ -1586,6 +1642,41 @@ class StudentController extends Controller
 
             $attempt->submitted_at = Carbon::now();
             $attempt->save();
+
+            // Send notification to teacher about submission
+            $teacherId = $exam->lesson->unit->course->teacher_id;
+            \App\Models\Notification::create([
+                'title' => "تسليم جديد: " . ($exam->type === 'homework' ? 'واجب' : 'امتحان'),
+                'message' => "قام الطالب " . $user->name . " بتسليم " . ($exam->type === 'homework' ? 'الواجب' : 'الامتحان') . ": " . $exam->title,
+                'recipient_type' => 'specific_teacher',
+                'recipient_id' => $teacherId,
+                'sender_id' => $user->id,
+                'important' => false,
+            ]);
+
+            // Score and Failure notifications
+            if ($attempt->status === 'graded') {
+                \App\Models\Notification::create([
+                    'title' => "تم رصد درجة الطالب تلقائياً",
+                    'message' => "حصل الطالب " . $user->name . " على درجة " . $totalScore . " من " . $exam->max_score . " في " . $exam->title . ".",
+                    'recipient_type' => 'specific_teacher',
+                    'recipient_id' => $teacherId,
+                    'sender_id' => $user->id,
+                    'important' => false,
+                ]);
+
+                $percent = $exam->max_score > 0 ? ($totalScore / $exam->max_score) * 100 : 0;
+                if ($percent < 50) {
+                    \App\Models\Notification::create([
+                        'title' => "رسوب طالب في التقييم",
+                        'message' => "رسب الطالب " . $user->name . " في " . $exam->title . " بعد الحصول على " . $totalScore . " من " . $exam->max_score . " (النسبة: " . round($percent, 1) . "%).",
+                        'recipient_type' => 'specific_teacher',
+                        'recipient_id' => $teacherId,
+                        'sender_id' => $user->id,
+                        'important' => false,
+                    ]);
+                }
+            }
 
             return response()->json([
                 'message' => 'تم تسليم الإجابات بنجاح.',
