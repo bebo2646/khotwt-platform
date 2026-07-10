@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import CourseCard from '../components/ui/CourseCard'
 import TeacherCard from '../components/ui/TeacherCard'
 import SEO from '../components/SEO'
+import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 
 interface HomeStats {
   teachers_count: number
@@ -210,50 +211,8 @@ export default function Home() {
         }}
       />
       
-      {/* Decorative Blur Spheres & Particles (SaaS Glassmorphism Background) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-        <motion.div
-          animate={{
-            x: [0, 50, -30, 0],
-            y: [0, -40, 50, 0],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute top-[-5%] left-[-5%] w-[450px] h-[450px] bg-brand-primary/15 rounded-full blur-[100px]"
-        />
-        <motion.div
-          animate={{
-            x: [0, -60, 40, 0],
-            y: [0, 50, -50, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute top-[20%] right-[-5%] w-[550px] h-[550px] bg-brand-accent/10 rounded-full blur-[130px]"
-        />
-        
-        {/* Floating SaaS particles */}
-        <motion.div 
-          animate={{ y: [0, -15, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[15%] left-[20%] w-3 h-3 bg-brand-primary/30 rounded-full"
-        />
-        <motion.div 
-          animate={{ y: [0, 20, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[25%] right-[25%] w-4 h-4 bg-brand-accent/20 rounded-full"
-        />
-        <motion.div 
-          animate={{ y: [0, -10, 0] }}
-          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[40%] left-[10%] w-2 h-2 bg-brand-primary/40 rounded-full"
-        />
-      </div>
+      {/* Premium Educational Animated Hero Background */}
+      <EducationalHeroBackground />
 
       {/* 1. Hero Section */}
       <section className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 overflow-hidden">
