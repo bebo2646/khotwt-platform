@@ -559,13 +559,18 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
     <div className="border border-[var(--border-color)] bg-brand-card/30 rounded-2xl overflow-hidden transition-all duration-300">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer text-current hover:text-white"
+        className="w-full flex items-center justify-between p-6 text-right font-semibold text-sm sm:text-base cursor-pointer text-white hover:text-[var(--primary-color)] transition-colors"
       >
         <span>{question}</span>
         <ChevronDown className={`h-5 w-5 text-[var(--primary-color)] transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
       </button>
-      <div className={`transition-all duration-300 overflow-hidden ${open ? 'max-h-40 border-t border-[var(--border-color)] bg-brand-surface/10' : 'max-h-0'}`}>
-        <p className="p-6 text-xs sm:text-sm text-slate-400 leading-relaxed font-light">{answer}</p>
+      <div className={`transition-all duration-300 overflow-hidden ${open ? 'max-h-96 border-t border-[var(--border-color)] bg-brand-surface/10' : 'max-h-0'}`}>
+        <p 
+          className="pt-5 pb-7 px-6 text-xs sm:text-sm text-slate-200 font-normal"
+          style={{ lineHeight: '1.9' }}
+        >
+          {answer}
+        </p>
       </div>
     </div>
   )
