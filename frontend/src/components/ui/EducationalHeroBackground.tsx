@@ -36,7 +36,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 3,
       top: 5,
-      size: 75,
+      size: 72,
       color: 'rgba(129, 140, 248, 0.42)', // Indigo
       rotation: 15,
       duration: 18,
@@ -54,7 +54,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 15,
       top: 8,
-      size: 60,
+      size: 58,
       color: 'rgba(96, 165, 250, 0.45)', // Blue
       rotation: -10,
       duration: 15,
@@ -71,7 +71,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 25,
       top: 4,
-      size: 70,
+      size: 68,
       color: 'rgba(79, 70, 229, 0.38)', // Indigo dark
       rotation: -25,
       duration: 22,
@@ -96,7 +96,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 2,
       top: 22,
-      size: 65,
+      size: 62,
       color: 'rgba(139, 92, 246, 0.42)', // Violet
       rotation: 5,
       duration: 20,
@@ -114,7 +114,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 12,
       top: 28,
-      size: 70,
+      size: 68,
       color: 'rgba(167, 139, 250, 0.4)', // Purple
       rotation: 12,
       duration: 24,
@@ -132,7 +132,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 24,
       top: 20,
-      size: 70,
+      size: 68,
       color: 'rgba(129, 140, 248, 0.38)',
       rotation: -8,
       duration: 19,
@@ -158,7 +158,7 @@ export default function EducationalHeroBackground() {
       subject: 'physics',
       left: 2,
       top: 45,
-      size: 80,
+      size: 78,
       color: 'rgba(244, 63, 94, 0.42)', // Rose
       rotation: 30,
       duration: 25,
@@ -178,7 +178,7 @@ export default function EducationalHeroBackground() {
       subject: 'physics',
       left: 14,
       top: 48,
-      size: 75,
+      size: 72,
       color: 'rgba(251, 113, 133, 0.4)', // Rose light
       rotation: -5,
       duration: 17,
@@ -199,7 +199,7 @@ export default function EducationalHeroBackground() {
       subject: 'physics',
       left: 25,
       top: 40,
-      size: 65,
+      size: 62,
       color: 'rgba(244, 63, 94, 0.38)',
       rotation: 10,
       duration: 21,
@@ -218,7 +218,7 @@ export default function EducationalHeroBackground() {
       subject: 'biology',
       left: 3,
       top: 66,
-      size: 75,
+      size: 72,
       color: 'rgba(45, 212, 191, 0.42)', // Teal
       rotation: 40,
       duration: 23,
@@ -240,7 +240,7 @@ export default function EducationalHeroBackground() {
       subject: 'chemistry',
       left: 12,
       top: 72,
-      size: 80,
+      size: 78,
       color: 'rgba(16, 185, 129, 0.4)', // Emerald
       rotation: 0,
       duration: 26,
@@ -258,7 +258,7 @@ export default function EducationalHeroBackground() {
       subject: 'biology',
       left: 24,
       top: 64,
-      size: 70,
+      size: 68,
       color: 'rgba(20, 184, 166, 0.38)', // Teal dark
       rotation: -5,
       duration: 22,
@@ -275,7 +275,7 @@ export default function EducationalHeroBackground() {
       subject: 'chemistry',
       left: 8,
       top: 84,
-      size: 70,
+      size: 68,
       color: 'rgba(52, 211, 153, 0.42)', // Emerald light
       rotation: 12,
       duration: 20,
@@ -296,7 +296,7 @@ export default function EducationalHeroBackground() {
       subject: 'math',
       left: 20,
       top: 82,
-      size: 70,
+      size: 68,
       color: 'rgba(45, 212, 191, 0.38)',
       rotation: 8,
       duration: 24,
@@ -317,7 +317,7 @@ export default function EducationalHeroBackground() {
       subject: 'arabic',
       right: 3,
       top: 5,
-      size: 75,
+      size: 72,
       color: 'rgba(245, 158, 11, 0.45)', // Amber
       rotation: -10,
       duration: 17,
@@ -335,7 +335,7 @@ export default function EducationalHeroBackground() {
       subject: 'arabic',
       right: 15,
       top: 8,
-      size: 60,
+      size: 58,
       color: 'rgba(251, 191, 36, 0.42)', // Amber light
       rotation: 8,
       duration: 20,
@@ -352,7 +352,7 @@ export default function EducationalHeroBackground() {
       subject: 'arabic',
       right: 25,
       top: 4,
-      size: 70,
+      size: 68,
       color: 'rgba(217, 119, 6, 0.38)', // Orange
       rotation: 12,
       duration: 21,
@@ -372,7 +372,7 @@ export default function EducationalHeroBackground() {
       subject: 'english',
       right: 2,
       top: 22,
-      size: 65,
+      size: 62,
       color: 'rgba(59, 130, 246, 0.45)', // Blue
       rotation: -8,
       duration: 18,
@@ -391,7 +391,7 @@ export default function EducationalHeroBackground() {
       subject: 'english',
       right: 12,
       top: 28,
-      size: 75,
+      size: 72,
       color: 'rgba(96, 165, 250, 0.42)', // Sky
       rotation: 5,
       duration: 23,
@@ -408,7 +408,7 @@ export default function EducationalHeroBackground() {
       subject: 'english',
       right: 24,
       top: 20,
-      size: 60,
+      size: 58,
       color: 'rgba(30, 64, 175, 0.38)', // Dark Blue
       rotation: 45,
       duration: 25,
@@ -427,7 +427,7 @@ export default function EducationalHeroBackground() {
       subject: 'geography',
       right: 2,
       top: 45,
-      size: 80,
+      size: 78,
       color: 'rgba(6, 182, 212, 0.45)', // Cyan
       rotation: 15,
       duration: 26,
@@ -448,7 +448,7 @@ export default function EducationalHeroBackground() {
       subject: 'geography',
       right: 14,
       top: 48,
-      size: 70,
+      size: 68,
       color: 'rgba(34, 211, 238, 0.42)', // Cyan light
       rotation: 45,
       duration: 21,
@@ -468,7 +468,7 @@ export default function EducationalHeroBackground() {
       subject: 'geography',
       right: 25,
       top: 40,
-      size: 65,
+      size: 62,
       color: 'rgba(8, 145, 178, 0.38)', // Cyan dark
       rotation: 0,
       duration: 24,
@@ -488,7 +488,7 @@ export default function EducationalHeroBackground() {
       subject: 'history',
       right: 3,
       top: 66,
-      size: 75,
+      size: 72,
       color: 'rgba(168, 85, 247, 0.42)', // Purple
       rotation: -12,
       duration: 28,
@@ -505,7 +505,7 @@ export default function EducationalHeroBackground() {
       subject: 'history',
       right: 12,
       top: 72,
-      size: 70,
+      size: 68,
       color: 'rgba(192, 132, 252, 0.4)', // Purple light
       rotation: 18,
       duration: 25,
@@ -522,7 +522,7 @@ export default function EducationalHeroBackground() {
       subject: 'cs',
       right: 24,
       top: 64,
-      size: 75,
+      size: 72,
       color: 'rgba(99, 102, 241, 0.42)', // Indigo CS
       rotation: 90,
       duration: 20,
@@ -542,7 +542,7 @@ export default function EducationalHeroBackground() {
       subject: 'cs',
       right: 8,
       top: 84,
-      size: 70,
+      size: 68,
       color: 'rgba(139, 92, 246, 0.4)', // Violet CS
       rotation: -10,
       duration: 23,
@@ -561,7 +561,7 @@ export default function EducationalHeroBackground() {
       subject: 'cs',
       right: 20,
       top: 82,
-      size: 65,
+      size: 62,
       color: 'rgba(99, 102, 241, 0.38)',
       rotation: 0,
       duration: 27,
@@ -577,13 +577,13 @@ export default function EducationalHeroBackground() {
       )
     },
 
-    // === BONUS MUSIC NOTE (Optional, placed on lower edge outskirts) ===
+    // === LOWER BOTTOM MARGINS ===
     {
       id: 'music-note',
       subject: 'music',
       left: 32,
       top: 86,
-      size: 65,
+      size: 62,
       color: 'rgba(236, 72, 153, 0.35)', // Pink
       rotation: 12,
       duration: 22,
@@ -604,7 +604,7 @@ export default function EducationalHeroBackground() {
       subject: 'notebook',
       right: 32,
       top: 86,
-      size: 65,
+      size: 62,
       color: 'rgba(16, 185, 129, 0.38)', // Emerald
       rotation: -15,
       duration: 25,
@@ -635,25 +635,24 @@ export default function EducationalHeroBackground() {
     driftX: (Math.random() - 0.5) * 60
   }))
 
+  const containerStyle: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    zIndex: 0,
+    background: 'radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 45%), radial-gradient(circle at 85% 75%, rgba(236, 72, 153, 0.08) 0%, transparent 50%), radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.02) 0%, transparent 60%)',
+  }
+
   return (
-    <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none -z-10 bg-background select-none">
+    <div style={containerStyle}>
       
       {/* Self-contained cross-device hardware accelerated styling */}
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes meshBlob1 {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1); -webkit-transform: translate3d(0, 0, 0) scale(1); }
-          33% { transform: translate3d(60px, -70px, 0) scale(1.2); -webkit-transform: translate3d(60px, -70px, 0) scale(1.2); }
-          66% { transform: translate3d(-40px, 40px, 0) scale(0.9); -webkit-transform: translate3d(-40px, 40px, 0) scale(0.9); }
-        }
-        @keyframes meshBlob2 {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(1.15); -webkit-transform: translate3d(0, 0, 0) scale(1.15); }
-          50% { transform: translate3d(-70px, 60px, 0) scale(0.85); -webkit-transform: translate3d(-70px, 60px, 0) scale(0.85); }
-        }
-        @keyframes meshBlob3 {
-          0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); -webkit-transform: translate3d(0, 0, 0) scale(0.95); }
-          40% { transform: translate3d(60px, 50px, 0) scale(1.15); -webkit-transform: translate3d(60px, 50px, 0) scale(1.15); }
-          75% { transform: translate3d(-30px, -60px, 0) scale(0.95); -webkit-transform: translate3d(-30px, -60px, 0) scale(0.95); }
-        }
         @keyframes eduFloat {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--base-rot)); -webkit-transform: translate3d(0, 0, 0) rotate(var(--base-rot)); }
           50% { transform: translate3d(0, -22px, 0) rotate(calc(var(--base-rot) + 7deg)); -webkit-transform: translate3d(0, -22px, 0) rotate(calc(var(--base-rot) + 7deg)); }
@@ -667,18 +666,6 @@ export default function EducationalHeroBackground() {
           20% { opacity: 0.75; }
           80% { opacity: 0.75; }
           100% { transform: translate3d(var(--drift), -160px, 0); -webkit-transform: translate3d(var(--drift), -160px, 0); opacity: 0; }
-        }
-        .animate-blob-1 {
-          animation: meshBlob1 24s infinite ease-in-out;
-          -webkit-animation: meshBlob1 24s infinite ease-in-out;
-        }
-        .animate-blob-2 {
-          animation: meshBlob2 30s infinite ease-in-out;
-          -webkit-animation: meshBlob2 30s infinite ease-in-out;
-        }
-        .animate-blob-3 {
-          animation: meshBlob3 27s infinite ease-in-out;
-          -webkit-animation: meshBlob3 27s infinite ease-in-out;
         }
         .edu-float-box {
           animation: eduFloat var(--float-dur) infinite ease-in-out;
@@ -695,30 +682,10 @@ export default function EducationalHeroBackground() {
           -webkit-animation: particleDrift var(--part-dur) infinite linear;
           animation-delay: var(--part-delay);
         }
-        .premium-glow-svg {
-          filter: drop-shadow(0 0 6px currentColor);
-          -webkit-filter: drop-shadow(0 0 6px currentColor);
-        }
       `}} />
 
-      {/* A. PREMIUM MESH GRADIENT BACKDROP (Apple/Stripe Style) */}
-      <div className="absolute inset-0 w-full h-full opacity-55 mix-blend-screen dark:mix-blend-normal z-0">
-        <div 
-          className="absolute top-[-10%] left-[-10%] w-[55%] h-[55%] rounded-full bg-brand-primary/18 blur-[120px] animate-blob-1"
-          style={{ transform: `translate3d(${mousePos.x * 12}px, ${mousePos.y * 12}px, 0)`, WebkitTransform: `translate3d(${mousePos.x * 12}px, ${mousePos.y * 12}px, 0)` }}
-        />
-        <div 
-          className="absolute top-[25%] right-[-10%] w-[60%] h-[60%] rounded-full bg-brand-accent/15 blur-[140px] animate-blob-2"
-          style={{ transform: `translate3d(${mousePos.x * -16}px, ${mousePos.y * -16}px, 0)`, WebkitTransform: `translate3d(${mousePos.x * -16}px, ${mousePos.y * -16}px, 0)` }}
-        />
-        <div 
-          className="absolute bottom-[-15%] left-[15%] w-[50%] h-[50%] rounded-full bg-brand-primary/12 blur-[110px] animate-blob-3"
-          style={{ transform: `translate3d(${mousePos.x * 8}px, ${mousePos.y * 8}px, 0)`, WebkitTransform: `translate3d(${mousePos.x * 8}px, ${mousePos.y * 8}px, 0)` }}
-        />
-      </div>
-
       {/* B. DETAILED SUBJECT FLOATING OUTLINE ICONS */}
-      <div className="absolute inset-0 w-full h-full z-10">
+      <div className="absolute inset-0 w-full h-full">
         {elements.map((el) => {
           const factor = el.layer === 1 ? 12 : el.layer === 2 ? 24 : 36
           const pxTransX = mousePos.x * factor
@@ -742,7 +709,7 @@ export default function EducationalHeroBackground() {
 
           return (
             <div key={el.id} style={style} className="edu-float-box select-none pointer-events-none">
-              <div className="w-full h-full edu-breathe-element flex items-center justify-center premium-glow-svg">
+              <div className="w-full h-full edu-breathe-element flex items-center justify-center">
                 {el.svg}
               </div>
             </div>
@@ -751,7 +718,7 @@ export default function EducationalHeroBackground() {
       </div>
 
       {/* C. SLOW-DRIFTING GLOWING PARTICLES */}
-      <div className="absolute inset-0 w-full h-full opacity-80 z-20">
+      <div className="absolute inset-0 w-full h-full opacity-80">
         {particles.map((p) => {
           const style: React.CSSProperties = {
             position: 'absolute',
@@ -759,8 +726,7 @@ export default function EducationalHeroBackground() {
             top: `${p.top}%`,
             width: `${p.size}px`,
             height: `${p.size}px`,
-            background: 'radial-gradient(circle, rgba(129,140,248,0.7) 0%, rgba(129,140,248,0) 70%)',
-            boxShadow: '0 0 10px rgba(129, 140, 248, 0.45)',
+            background: 'rgba(129, 140, 248, 0.35)',
             borderRadius: '50%',
             '--part-dur': `${p.duration}s`,
             '--part-delay': `${p.delay}s`,

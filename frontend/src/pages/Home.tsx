@@ -183,7 +183,7 @@ export default function Home() {
   const safeFilterResults = Array.isArray(filterResults) ? filterResults : []
 
   return (
-    <div className="bg-background text-foreground space-y-28 pb-24 overflow-x-hidden font-sans">
+    <div className="bg-background text-foreground space-y-28 pb-24 overflow-x-hidden font-sans relative z-0">
       <SEO 
         title="الرئيسية | أول خطوة نحو النجاح"
         description="خطوتك هي أول خطوة نحو النجاح، منصة تعليمية حديثة توفر محاضرات تفاعلية واختبارات ومتابعة مستمرة للطلاب في جميع المراحل الثانوية والإعدادية."
@@ -215,7 +215,7 @@ export default function Home() {
       <EducationalHeroBackground />
 
       {/* 1. Hero Section */}
-      <section className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 overflow-hidden">
+      <section className="relative pt-24 pb-12 sm:pt-32 sm:pb-20 overflow-hidden z-10">
         {/* Soft radial background glow for rich depth */}
         <div className="absolute top-0 right-1/4 left-1/4 h-[500px] bg-brand-primary/10 rounded-full blur-[120px] pointer-events-none -z-10 animate-pulse"></div>
         <div className="max-w-7xl mx-auto px-4 text-center space-y-10">
