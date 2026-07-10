@@ -410,7 +410,7 @@ export default function CourseDetail() {
                 <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-right space-y-1">
                   <span className="text-[10px] text-slate-400 block">المشاهدات المتبقية:</span>
                   <span className="text-sm font-black text-brand-primary">
-                    {viewLimitDetails.is_unlimited ? 'غير محدود' : `${viewLimitDetails.remaining} / ${viewLimitDetails.max_views}`}
+                    {viewLimitDetails.is_unlimited ? 'غير محدود' : `${viewLimitDetails.remaining_views ?? viewLimitDetails.remaining} من ${viewLimitDetails.total_allowed_views ?? viewLimitDetails.max_views}`}
                   </span>
                 </div>
               )}

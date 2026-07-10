@@ -141,10 +141,16 @@ class Course extends Model
         if (!$limitEnabled) {
             return [
                 'limit_enabled' => false,
+                'base_limit' => 0,
+                'extra_views' => 0,
+                'total_allowed_views' => -1,
                 'views_used' => 0,
+                'remaining_views' => -1,
+                'is_unlimited' => true,
+                'is_blocked' => false,
+                // Backward compatibility
                 'max_views' => -1,
                 'remaining' => -1,
-                'is_unlimited' => true,
                 'exceeded' => false
             ];
         }
@@ -158,20 +164,26 @@ class Course extends Model
             'extra_views' => 0,
         ]);
 
-        if (($limitRecord && $limitRecord->max_views_override === -1) || $this->max_views === -1) {
-            return [
-                'limit_enabled' => true,
-                'views_used' => $limitRecord ? (int)$limitRecord->views_used : 0,
-                'max_views' => -1,
-                'remaining' => -1,
-                'is_unlimited' => true,
-                'exceeded' => false
-            ];
-        }
-
         $baseLimit = ($limitRecord && $limitRecord->max_views_override !== null)
             ? (int)$limitRecord->max_views_override
             : ($this->max_views !== null ? (int)$this->max_views : $globalDefaultLimit);
+
+        if (($limitRecord && $limitRecord->max_views_override === -1) || $this->max_views === -1) {
+            return [
+                'limit_enabled' => true,
+                'base_limit' => $baseLimit,
+                'extra_views' => $limitRecord ? (int)$limitRecord->extra_views : 0,
+                'total_allowed_views' => -1,
+                'views_used' => $limitRecord ? (int)$limitRecord->views_used : 0,
+                'remaining_views' => -1,
+                'is_unlimited' => true,
+                'is_blocked' => false,
+                // Backward compatibility
+                'max_views' => -1,
+                'remaining' => -1,
+                'exceeded' => false
+            ];
+        }
 
         $extraViews = $limitRecord ? (int)$limitRecord->extra_views : 0;
         $maxAllowed = $baseLimit + $extraViews;
@@ -180,10 +192,16 @@ class Course extends Model
 
         return [
             'limit_enabled' => true,
+            'base_limit' => $baseLimit,
+            'extra_views' => $extraViews,
+            'total_allowed_views' => $maxAllowed,
             'views_used' => $viewsUsed,
+            'remaining_views' => $remaining,
+            'is_unlimited' => false,
+            'is_blocked' => $viewsUsed >= $maxAllowed,
+            // Backward compatibility
             'max_views' => $maxAllowed,
             'remaining' => $remaining,
-            'is_unlimited' => false,
             'exceeded' => $viewsUsed >= $maxAllowed
         ];
     }
@@ -191,6 +209,6 @@ class Course extends Model
     public function hasExceededViewLimitForStudent($studentId)
     {
         $details = $this->getStudentViewLimitDetails($studentId);
-        return $details['exceeded'];
+        return $details['is_blocked'];
     }
 }
