@@ -1281,7 +1281,7 @@ export default function LessonViewer() {
 
                         <div className="flex gap-2 pt-2">
                           <button
-                            onClick={() => setActivePdf(pdf)}
+                            onClick={() => navigate(`/student/pdf/${pdf.id}`)}
                             className="px-3 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                           >
                             عرض في المنصة

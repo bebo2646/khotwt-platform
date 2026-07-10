@@ -880,20 +880,13 @@ export default function CourseDetail() {
                                         
                                         <div className="flex items-center gap-3">
                                           {isEnrolled && !pdf.is_locked ? (
-                                            <Link 
-                                              to={`/student/lessons/${lesson.id}`}
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                try {
-                                                  await API.post(`/pdfs/${pdf.id}/view`);
-                                                } catch (err) {
-                                                  console.error('Error logging PDF view:', err);
-                                                }
-                                              }}
-                                              className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                                            >
-                                              عرض الملف
-                                            </Link>
+                                             <Link 
+                                               to={`/student/pdf/${pdf.id}`}
+                                               onClick={(e) => e.stopPropagation()}
+                                               className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                                             >
+                                               عرض الملف
+                                             </Link>
                                           ) : (
                                             <Lock className="h-3 w-3 text-slate-600" />
                                           )}

@@ -42,6 +42,7 @@ const ExamResults = React.lazy(() => import('./pages/student/ExamResults'))
 const LessonViewer = React.lazy(() => import('./pages/student/LessonViewer'))
 const ExamPlayer = React.lazy(() => import('./pages/student/ExamPlayer'))
 const ProfileDashboard = React.lazy(() => import('./pages/student/ProfileDashboard'))
+const PdfViewerPage = React.lazy(() => import('./pages/student/PdfViewerPage'))
 
 // Teacher Pages (Lazy Loaded)
 const TeacherDashboard = React.lazy(() => import('./pages/teacher/Dashboard'))
@@ -313,6 +314,11 @@ function App() {
         <Route path="/student/lessons/:id" element={
           <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
             <Layout><LessonViewer /></Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/student/pdf/:pdfId" element={
+          <ProtectedRoute allowedRoles={['student', 'teacher', 'admin']}>
+            <PdfViewerPage />
           </ProtectedRoute>
         } />
         <Route path="/student/exams/:id" element={

@@ -1526,6 +1526,76 @@ class StudentController extends Controller
         ]);
     }
 
+    public function getPdfDetails(Request $request, $pdfId)
+    {
+        $user = $request->user();
+        $pdf = \App\Models\Pdf::findOrFail($pdfId);
+        $lesson = $pdf->lesson;
+        if (!$lesson || !$lesson->unit) {
+            return response()->json(['message' => 'المحاضرة غير صالحة.'], 404);
+        }
+        $courseId = $lesson->unit->course_id;
+
+        $isEnrolled = \App\Models\Enrollment::where('student_id', $user->id)
+            ->where('course_id', $courseId)
+            ->exists();
+
+        if (!$isEnrolled) {
+            return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لمشاهدة الملف.'], 403);
+        }
+
+        $progress = \App\Models\StudentPdfProgress::firstOrCreate(
+            [
+                'student_id' => $user->id,
+                'pdf_id' => $pdf->id,
+            ],
+            [
+                'open_count' => 0,
+            ]
+        );
+        $progress->increment('open_count');
+        $progress->last_opened_at = \Carbon\Carbon::now();
+        $progress->save();
+
+        $isPublic = true;
+        $errorMessage = null;
+
+        if (strpos($pdf->file_path, 'drive.google.com') !== false || strpos($pdf->file_path, 'docs.google.com') !== false) {
+            $fileId = null;
+            if (preg_match('/\/d\/([a-zA-Z0-9-_]+)/', $pdf->file_path, $matches)) {
+                $fileId = $matches[1];
+            } elseif (preg_match('/id=([a-zA-Z0-9-_]+)/', $pdf->file_path, $matches)) {
+                $fileId = $matches[1];
+            }
+
+            if ($fileId) {
+                $previewUrl = "https://drive.google.com/file/d/{$fileId}/preview";
+                try {
+                    $response = \Illuminate\Support\Facades\Http::withoutVerifying()
+                        ->timeout(5)
+                        ->get($previewUrl);
+                    
+                    if ($response->failed() || strpos($response->body(), 'sign-in') !== false || strpos($response->body(), 'Login') !== false || strpos($response->body(), 'Google Drive - Page Not Found') !== false) {
+                        $isPublic = false;
+                        $errorMessage = 'This file is not publicly shared.';
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::warning("Failed to check Google Drive link: " . $e->getMessage());
+                }
+            }
+        }
+
+        return response()->json([
+            'pdf' => $pdf,
+            'is_public' => $isPublic,
+            'error_message' => $errorMessage,
+            'lesson' => [
+                'id' => $lesson->id,
+                'title' => $lesson->title,
+            ]
+        ]);
+    }
+
     /**
      * Merge overlapping time segments.
      */
