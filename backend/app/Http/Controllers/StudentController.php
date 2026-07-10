@@ -1441,6 +1441,36 @@ class StudentController extends Controller
     }
 
     /**
+     * Record PDF open/view progress.
+     */
+    public function viewPdf(Request $request, $pdfId)
+    {
+        $user = $request->user();
+        $pdf = \App\Models\Pdf::findOrFail($pdfId);
+
+        // Record or update PDF progress
+        $progress = \App\Models\StudentPdfProgress::firstOrCreate(
+            [
+                'student_id' => $user->id,
+                'pdf_id' => $pdf->id,
+            ],
+            [
+                'open_count' => 0,
+            ]
+        );
+
+        $progress->increment('open_count');
+        $progress->last_opened_at = \Carbon\Carbon::now();
+        $progress->save();
+
+        return response()->json([
+            'message' => 'تم تسجيل فتح الملف بنجاح.',
+            'open_count' => $progress->open_count,
+            'last_opened_at' => $progress->last_opened_at->toIso8601String(),
+        ]);
+    }
+
+    /**
      * Merge overlapping time segments.
      */
     private function mergeTimeSegments(array $segments): array

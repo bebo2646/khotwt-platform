@@ -364,13 +364,48 @@ class PublicController extends Controller
             $availabilityMessage = 'هذا الكورس مخصص لطلاب السنتر.';
         }
 
+        $videoProgresses = [];
+        $pdfProgresses = [];
+        $examAttempts = [];
+        $viewLimitDetails = null;
+
+        if ($user && $user->isStudent()) {
+            // Find all videos, pdfs, and exams in this course
+            $lessonIds = \App\Models\Lesson::whereHas('unit', function ($q) use ($courseId) {
+                $q->where('course_id', $courseId);
+            })->pluck('id');
+
+            $videoIds = \App\Models\Video::whereIn('lesson_id', $lessonIds)->pluck('id');
+            $pdfIds = \App\Models\Pdf::whereIn('lesson_id', $lessonIds)->pluck('id');
+            $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
+
+            $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
+                ->whereIn('video_id', $videoIds)
+                ->get()
+                ->keyBy('video_id');
+
+            $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
+                ->whereIn('pdf_id', $pdfIds)
+                ->get()
+                ->keyBy('pdf_id');
+
+            $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+                ->whereIn('exam_id', $examIds)
+                ->get()
+                ->groupBy('exam_id');
+
+            if ($isEnrolled) {
+                $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+            }
+        }
+
         // Clean lesson data if NOT enrolled or if view limit is exceeded
-        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded) {
+        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails) {
             return [
                 'id' => $unit->id,
                 'title' => $unit->title,
                 'order' => $unit->order,
-                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded) {
+                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails) {
                     $lessonData = [
                         'id' => $lesson->id,
                         'title' => $lesson->title,
@@ -392,8 +427,36 @@ class PublicController extends Controller
 
                     $secured = $isEnrolled && !$isLocked && !$viewLimitExceeded;
 
-                    $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent) {
+                    $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $viewLimitDetails) {
                         $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
+                        
+                        $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
+                        
+                        $viewsUsed = $progress ? (int)$progress->views_count : 0;
+                        $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
+                        $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
+                        $completed = $progress ? (bool)$progress->completed : false;
+                        $lastPosition = $progress ? (int)$progress->last_position_seconds : 0;
+                        $lastWatchedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
+
+                        // Allowed views
+                        $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
+                        $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
+                        
+                        $viewsRemaining = -1;
+                        if ($limitEnabled) {
+                            $viewsRemaining = max(0, $totalAllowed - $viewsUsed);
+                        }
+
+                        // Determine status
+                        if ($completed) {
+                            $status = 'completed'; // مكتمل
+                        } elseif ($watchedPercentage > 0) {
+                            $status = 'in_progress'; // قيد المشاهدة
+                        } else {
+                            $status = 'not_started'; // لم يبدأ
+                        }
+
                         return [
                             'id' => $video->id,
                             'title' => $video->title,
@@ -402,25 +465,113 @@ class PublicController extends Controller
                             'is_locked' => !$videoSecured,
                             'video_url' => $videoSecured ? $video->video_url : null,
                             'bunny_id' => $videoSecured ? $video->bunny_id : null,
+                            'progress' => [
+                                'views_used' => $viewsUsed,
+                                'watched_seconds' => $watchedSeconds,
+                                'watched_percentage' => $watchedPercentage,
+                                'completed' => $completed,
+                                'last_position_seconds' => $lastPosition,
+                                'last_watched_at' => $lastWatchedAt,
+                                'views_allowed' => $totalAllowed,
+                                'views_remaining' => $viewsRemaining,
+                                'status' => $status,
+                            ]
                         ];
                     });
 
-                    $lessonData['pdfs'] = $lesson->pdfs->map(function ($pdf) use ($secured) {
+                    $lessonData['pdfs'] = $lesson->pdfs->map(function ($pdf) use ($secured, $pdfProgresses) {
+                        $progress = isset($pdfProgresses[$pdf->id]) ? $pdfProgresses[$pdf->id] : null;
+                        
+                        $openCount = $progress ? (int)$progress->open_count : 0;
+                        $lastOpenedAt = $progress && $progress->last_opened_at ? $progress->last_opened_at->toIso8601String() : null;
+                        
+                        $status = $openCount > 0 ? 'completed' : 'not_started';
+
                         return [
                             'id' => $pdf->id,
                             'title' => $pdf->title,
+                            'page_count' => $pdf->page_count,
+                            'file_size' => $pdf->file_size,
                             'is_locked' => !$secured,
                             'file_path' => $secured ? $pdf->file_path : null,
+                            'progress' => [
+                                'open_count' => $openCount,
+                                'last_opened_at' => $lastOpenedAt,
+                                'status' => $status,
+                            ]
                         ];
                     });
 
-                    $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured) {
+                    $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured, $examAttempts) {
+                        $attempts = isset($examAttempts[$exam->id]) ? $examAttempts[$exam->id] : collect([]);
+                        
+                        $attemptsUsed = $attempts->count();
+                        $maxAttempts = $exam->max_attempts ?: 1;
+                        $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
+
+                        $lastAttempt = $attempts->sortByDesc('created_at')->first();
+                        $lastStatus = $lastAttempt ? $lastAttempt->status : null; // started, submitted, graded
+                        
+                        // Calculate highest score or last attempt score
+                        $score = $lastAttempt ? $lastAttempt->score : null;
+                        
+                        $isHomework = $exam->type === 'homework';
+                        
+                        // Check if deadline has passed
+                        $deadlinePassed = false;
+                        if ($exam->close_date) {
+                            $closeDateTime = \Carbon\Carbon::parse($exam->close_date . ' ' . ($exam->close_time ?: '23:59:59'));
+                            if (\Carbon\Carbon::now()->gt($closeDateTime)) {
+                                $deadlinePassed = true;
+                            }
+                        }
+                        if ($exam->submission_deadline && \Carbon\Carbon::now()->gt($exam->submission_deadline)) {
+                            $deadlinePassed = true;
+                        }
+
+                        // Determine status
+                        if ($attemptsUsed === 0) {
+                            if ($deadlinePassed) {
+                                $status = 'expired'; // انتهى الموعد
+                            } else {
+                                $status = 'not_started'; // لم يبدأ
+                            }
+                        } else {
+                            if ($lastStatus === 'graded') {
+                                $status = 'graded'; // تم التصحيح / تمت المراجعة
+                            } elseif ($lastStatus === 'submitted') {
+                                $status = 'submitted'; // تم التسليم / قيد التصحيح
+                            } elseif ($lastStatus === 'started') {
+                                if ($deadlinePassed) {
+                                    $status = 'expired'; // انتهى الموعد
+                                } else {
+                                    $status = 'in_progress'; // جاري الحل
+                                }
+                            } else {
+                                $status = 'not_started';
+                            }
+                        }
+
                         return [
                             'id' => $exam->id,
                             'title' => $exam->title,
                             'type' => $exam->type,
+                            'homework_type' => $exam->homework_type ?: 'normal',
                             'is_locked' => !$secured,
                             'time_limit_minutes' => $secured ? $exam->time_limit_minutes : null,
+                            'questions_count' => $secured ? $exam->questions()->count() : 0,
+                            'max_score' => $exam->max_score,
+                            'passing_score' => $exam->passing_score,
+                            'max_attempts' => $exam->max_attempts,
+                            'open_date' => $exam->open_date ? $exam->open_date->toDateString() : ($exam->start_date ? $exam->start_date->toDateString() : null),
+                            'close_date' => $exam->close_date ? $exam->close_date->toDateString() : ($exam->end_date ? $exam->end_date->toDateString() : null),
+                            'progress' => [
+                                'attempts_used' => $attemptsUsed,
+                                'attempts_remaining' => $attemptsRemaining,
+                                'last_attempt_status' => $lastStatus,
+                                'score' => $score,
+                                'status' => $status,
+                            ]
                         ];
                     });
 
