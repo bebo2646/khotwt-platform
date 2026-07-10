@@ -432,7 +432,7 @@ class PublicController extends Controller
                         
                         $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
                         
-                        $viewsUsed = $progress ? (int)$progress->views_count : 0;
+                        $viewsUsed = $viewLimitDetails ? (int)$viewLimitDetails['views_used'] : 0;
                         $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
                         $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
                         $completed = $progress ? (bool)$progress->completed : false;
@@ -442,11 +442,7 @@ class PublicController extends Controller
                         // Allowed views
                         $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
                         $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
-                        
-                        $viewsRemaining = -1;
-                        if ($limitEnabled) {
-                            $viewsRemaining = max(0, $totalAllowed - $viewsUsed);
-                        }
+                        $viewsRemaining = $limitEnabled ? (int)$viewLimitDetails['remaining_views'] : -1;
 
                         // Determine status
                         if ($completed) {

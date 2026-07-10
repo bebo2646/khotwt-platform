@@ -133,6 +133,7 @@ class Course extends Model
         $settings = PlatformSetting::first();
         $globalLimitEnabled = $settings ? (bool)$settings->view_limit_enabled : false;
         $globalDefaultLimit = $settings ? (int)$settings->default_max_views : 10;
+        $configuredThreshold = $settings ? (int)$settings->video_threshold_seconds : 300;
 
         $limitEnabled = $this->view_limit_enabled !== null 
             ? (bool)$this->view_limit_enabled 
@@ -174,7 +175,7 @@ class Course extends Model
                 'base_limit' => $baseLimit,
                 'extra_views' => $limitRecord ? (int)$limitRecord->extra_views : 0,
                 'total_allowed_views' => -1,
-                'views_used' => $limitRecord ? (int)$limitRecord->views_used : 0,
+                'views_used' => 0,
                 'remaining_views' => -1,
                 'is_unlimited' => true,
                 'is_blocked' => false,
@@ -185,9 +186,9 @@ class Course extends Model
             ];
         }
 
+        $viewsUsed = $limitRecord ? (int)$limitRecord->views_used : 0;
         $extraViews = $limitRecord ? (int)$limitRecord->extra_views : 0;
         $maxAllowed = $baseLimit + $extraViews;
-        $viewsUsed = $limitRecord ? (int)$limitRecord->views_used : 0;
         $remaining = max(0, $maxAllowed - $viewsUsed);
 
         return [

@@ -128,16 +128,33 @@ export default function ExamPlayer() {
   }, [countdown])
 
   const formatCountdown = (secs: number) => {
-    const d = Math.floor(secs / (3600 * 24))
-    const h = Math.floor((secs % (3600 * 24)) / 3600)
-    const m = Math.floor((secs % 3600) / 60)
-    const s = secs % 60
+    const totalSecs = Math.max(0, Math.floor(secs))
+    const d = Math.floor(totalSecs / (3600 * 24))
+    const h = Math.floor((totalSecs % (3600 * 24)) / 3600)
+    const m = Math.floor((totalSecs % 3600) / 60)
+    const s = totalSecs % 60
 
     let parts = []
-    if (d > 0) parts.push(`${d} يوم`)
-    if (h > 0 || d > 0) parts.push(`${h} ساعة`)
-    if (m > 0 || h > 0 || d > 0) parts.push(`${m} دقيقة`)
-    parts.push(`${s} ثانية`)
+    if (d > 0) {
+      parts.push(`${d} يوم`)
+    }
+    if (h > 0 || d > 0) {
+      parts.push(`${h} ساعة`)
+    }
+    if (m > 0 || h > 0 || d > 0) {
+      parts.push(`${m} دقيقة`)
+    }
+    
+    // Plural rules for seconds in Arabic
+    if (s === 1) {
+      parts.push(`ثانية واحدة`)
+    } else if (s === 2) {
+      parts.push(`ثانيتين`)
+    } else if (s >= 3 && s <= 10) {
+      parts.push(`${s} ثوان`)
+    } else if (s > 10 || s === 0) {
+      parts.push(`${s} ثانية`)
+    }
 
     return parts.join(' و ')
   }
@@ -420,8 +437,9 @@ export default function ExamPlayer() {
   }
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
+    const totalSecs = Math.max(0, Math.floor(seconds))
+    const mins = Math.floor(totalSecs / 60)
+    const secs = totalSecs % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
@@ -480,8 +498,8 @@ export default function ExamPlayer() {
           <div className="p-4 bg-slate-950/45 border border-border-color rounded-2xl text-xs text-slate-300 font-semibold space-y-2 text-right">
             {isNotStarted ? (
               <>
-                <div>📅 تاريخ البدء: {new Date(scheduleError.datetime || '').toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                <div>⏰ وقت البدء: {new Date(scheduleError.datetime || '').toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>📅 تاريخ البدء: {new Date(scheduleError.datetime || '').toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div>⏰ وقت البدء: {new Date(scheduleError.datetime || '').toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' })}</div>
                 {countdown > 0 && (
                   <div className="mt-3 text-center text-amber-400 font-bold text-sm bg-amber-500/5 py-2 rounded-xl border border-amber-500/10">
                     البداية بعد: {formatCountdown(countdown)}
@@ -490,8 +508,8 @@ export default function ExamPlayer() {
               </>
             ) : (
               <>
-                <div>📅 تاريخ الانتهاء: {new Date(scheduleError.datetime || '').toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
-                <div>⏰ وقت الانتهاء: {new Date(scheduleError.datetime || '').toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</div>
+                <div>📅 تاريخ الانتهاء: {new Date(scheduleError.datetime || '').toLocaleDateString('ar-EG', { timeZone: 'Africa/Cairo', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                <div>⏰ وقت الانتهاء: {new Date(scheduleError.datetime || '').toLocaleTimeString('ar-EG', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' })}</div>
               </>
             )}
           </div>
@@ -754,13 +772,7 @@ export default function ExamPlayer() {
           </main>
 
           {/* Bubble Sheet Action Footer */}
-          <footer className="bg-brand-surface border-t border-border-color px-6 py-4 flex items-center justify-between sticky bottom-0 z-50">
-            <button
-              onClick={handleExit}
-              className="px-5 py-2.5 bg-brand-card hover:bg-background border border-border-color text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
-            >
-              خروج وحفظ مؤقت
-            </button>
+          <footer className="bg-brand-surface border-t border-border-color px-6 py-4 flex items-center justify-end sticky bottom-0 z-50">
             <button
               onClick={handleManualSubmit}
               disabled={submitting}

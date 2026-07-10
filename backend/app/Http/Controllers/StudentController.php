@@ -1349,16 +1349,33 @@ class StudentController extends Controller
                 $session->counted = true;
                 $session->save();
 
-                $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
-                    'student_id' => $user->id,
-                    'course_id' => $courseId,
-                ], [
-                    'views_used' => 0,
-                    'max_views_override' => null,
-                    'extra_views' => 0,
-                ]);
+                // Check if this video has already been counted for the student (no duplicates across sessions/refreshes)
+                $alreadyCountedSession = \App\Models\VideoViewSession::where('student_id', $user->id)
+                    ->where('video_id', $video->id)
+                    ->where('counted', true)
+                    ->where('session_id', '!=', $session->session_id)
+                    ->exists();
 
-                $viewLimit->increment('views_used');
+                $alreadyCompletedProgress = \App\Models\VideoProgress::where('student_id', $user->id)
+                    ->where('video_id', $video->id)
+                    ->where(function ($q) use ($threshold) {
+                        $q->where('completed', true)
+                          ->orWhere('watched_seconds', '>=', $threshold);
+                    })
+                    ->exists();
+
+                if (!$alreadyCountedSession && !$alreadyCompletedProgress) {
+                    $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
+                        'student_id' => $user->id,
+                        'course_id' => $courseId,
+                    ], [
+                        'views_used' => 0,
+                        'max_views_override' => null,
+                        'extra_views' => 0,
+                    ]);
+
+                    $viewLimit->increment('views_used');
+                }
             }
 
             // Get views count after update
