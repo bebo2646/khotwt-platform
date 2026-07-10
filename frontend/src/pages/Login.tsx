@@ -8,6 +8,7 @@ import { useConfigStore } from '../store/configStore'
 import { useModalStore } from '../store/modalStore'
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
+import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 
 type LoginFormInputs = {
   email: string
@@ -152,63 +153,20 @@ export default function Login() {
   }, [location.search])
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 text-right font-sans" dir="rtl">
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 text-right font-sans relative z-0" dir="rtl">
       <SEO 
         title="بوابة تسجيل الدخول | منصة خطوتك"
         description="سجل الدخول إلى حسابك في منصة خطوتك التعليمية لمتابعة دروسك، ومحاضراتك، واختباراتك التفاعلية بكل سهولة."
         keywords="تسجيل الدخول, خطوتك دخول, حساب الطالب, منصة خطوتك تسجيل الدخول"
       />
       
+      <EducationalHeroBackground />
+      
       {/* Left Column: Form Section */}
-      <div className="lg:col-span-5 flex items-center justify-center p-6 sm:p-12 bg-brand-dark-bg transition-colors duration-300 relative overflow-hidden">
-        {/* Floating purple gradient circles/blobs */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-          <motion.div
-            animate={{
-              x: [0, 60, -40, 0],
-              y: [0, -50, 60, 0],
-              scale: [1, 1.15, 0.9, 1]
-            }}
-            transition={{
-              duration: 25,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="top-[-15%] left-[-15%] w-[400px] h-[400px] rounded-full bg-[#7C5CFF]/15 blur-[120px]"
-          />
-          <motion.div
-            animate={{
-              x: [0, -70, 50, 0],
-              y: [0, 60, -60, 0],
-              scale: [1, 0.85, 1.15, 1]
-            }}
-            transition={{
-              duration: 28,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="bottom-[-15%] right-[-15%] w-[450px] h-[450px] rounded-full bg-[#8B5CF6]/20 blur-[120px]"
-          />
-          <motion.div
-            animate={{
-              x: [0, 40, -30, 0],
-              y: [0, 30, -40, 0],
-            }}
-            transition={{
-              duration: 22,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
-            style={{ position: 'absolute', pointerEvents: 'none', zIndex: 0 }}
-            className="top-[25%] right-[-10%] w-[350px] h-[350px] rounded-full bg-[#6366F1]/10 blur-[120px]"
-          />
-        </div>
+      <div className="lg:col-span-5 flex items-center justify-center p-6 sm:p-12 bg-transparent transition-colors duration-300 relative overflow-hidden z-10">
 
         <div 
-          className="w-full max-w-md bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-[32px] shadow-2xl space-y-8 relative z-10"
-          style={{ position: 'relative', zIndex: 10 }}
+          className="w-full max-w-md bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-[32px] shadow-2xl space-y-8"
         >
           
           {/* Logo & Header */}
@@ -341,11 +299,7 @@ export default function Login() {
       </div>
 
       {/* Right Column: Premium Banner Section */}
-      <div className="hidden lg:col-span-7 lg:flex flex-col justify-between p-12 bg-gradient-to-br from-brand-surface to-brand-dark-bg border-r border-[var(--border-color)] relative overflow-hidden">
-        
-        {/* Glow Spheres */}
-        <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[450px] h-[450px] bg-brand-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="hidden lg:col-span-7 lg:flex flex-col justify-between p-12 bg-transparent border-r border-[var(--border-color)] relative overflow-hidden z-10">
 
         {/* Top Badges */}
         <div className="flex justify-between items-center relative z-10">

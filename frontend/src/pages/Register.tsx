@@ -7,6 +7,7 @@ import { useConfigStore } from '../store/configStore'
 import { Mail, Lock, User, Phone, ShieldCheck, AlertCircle, Loader2, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
 import { useModalStore } from '../store/modalStore'
+import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 
 type RegisterFormInputs = {
   name: string
@@ -130,15 +131,17 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 text-right font-sans" dir="rtl">
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 text-right font-sans relative z-0" dir="rtl">
       <SEO 
         title="إنشاء حساب جديد | منصة خطوتك"
         description="سجل حساب طالب جديد في منصة خطوتك التعليمية لتتمكن من الاشتراك في الكورسات وحل الاختبارات ومتابعة دراستك مباشرة."
         keywords="إنشاء حساب, تسجيل حساب طالب, منصة خطوتك تسجيل, حساب جديد خطوتك"
       />
       
+      <EducationalHeroBackground />
+      
       {/* Left Column: Register Form */}
-      <div className="lg:col-span-6 flex items-center justify-center p-6 sm:p-12 bg-brand-dark-bg transition-colors duration-300">
+      <div className="lg:col-span-6 flex items-center justify-center p-6 sm:p-12 bg-transparent transition-colors duration-300 relative z-10">
         <div className="w-full max-w-lg bg-brand-card border border-[var(--border-color)] p-8 sm:p-10 rounded-[32px] shadow-2xl space-y-8">
           
           {/* Header */}
@@ -372,11 +375,7 @@ export default function Register() {
       </div>
 
       {/* Right Column: Premium Banner Section */}
-      <div className="hidden lg:col-span-6 lg:flex flex-col justify-between p-12 bg-gradient-to-br from-brand-surface to-brand-dark-bg border-r border-[var(--border-color)] relative overflow-hidden">
-        
-        {/* Glow Spheres */}
-        <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-brand-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[450px] h-[450px] bg-brand-primary/5 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="hidden lg:col-span-6 lg:flex flex-col justify-between p-12 bg-transparent border-r border-[var(--border-color)] relative overflow-hidden z-10">
 
         {/* Top Badges */}
         <div className="flex justify-between items-center relative z-10">
