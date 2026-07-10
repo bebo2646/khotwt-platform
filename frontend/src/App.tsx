@@ -384,12 +384,12 @@ function App() {
             Admin Protected Scope Routes
             ========================================================================== */}
         <Route path="/admin" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="dashboard.view">
             <AdminLayout><AdminDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/dashboard" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="dashboard.view">
             <AdminLayout><AdminDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
@@ -404,27 +404,27 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/admin/teachers/:id/subscription" element={
-          <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="teacher_subscriptions.manage">
             <AdminLayout><AdminTeacherSubscription /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/notifications" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="notifications.send">
             <AdminLayout><AdminNotifications /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/subscriptions/requests" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="subscription_requests.manage">
             <AdminLayout><AdminSubscriptionRequests /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/subscription-plans" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="subscription_plans.manage">
             <AdminLayout><AdminSubscriptionPlans /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/payouts" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="payouts.manage">
             <AdminLayout><AdminPayouts /></AdminLayout>
           </ProtectedRoute>
         } />
@@ -449,7 +449,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/admin/bunny" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="bunny.view">
             <AdminLayout><AdminBunnyDashboard /></AdminLayout>
           </ProtectedRoute>
         } />
@@ -459,12 +459,12 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/admin/students/pending" element={
-          <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.pending">
             <AdminLayout><PendingStudents /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/settings" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="settings.manage">
             <AdminLayout><PlatformSettings /></AdminLayout>
           </ProtectedRoute>
         } />

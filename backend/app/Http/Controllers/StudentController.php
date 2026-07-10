@@ -1432,16 +1432,75 @@ class StudentController extends Controller
             ]
         );
 
-        // Map questions hide answers for security
-        $questions = $exam->questions->map(function ($q) {
-            return [
-                'id' => $q->id,
-                'text' => $q->text,
-                'type' => $q->type,
-                'options' => $q->options,
-                'score' => $q->score,
+        // Persistent exam randomization (anti-cheating)
+        if (!$attempt->shuffle_mapping) {
+            $questionIds = $exam->questions->pluck('id')->toArray();
+            shuffle($questionIds);
+
+            $optionsMapping = [];
+            foreach ($exam->questions as $question) {
+                if ($question->type === 'mcq' && is_array($question->options)) {
+                    $indexes = array_keys($question->options);
+                    shuffle($indexes);
+                    $optionsMapping[$question->id] = $indexes;
+                }
+            }
+
+            $attempt->shuffle_mapping = [
+                'questions' => $questionIds,
+                'options' => $optionsMapping,
             ];
-        });
+            $attempt->save();
+        }
+
+        $mapping = $attempt->shuffle_mapping;
+        $shuffledQuestionIds = $mapping['questions'] ?? [];
+        $optionsMap = $mapping['options'] ?? [];
+
+        $keyedQuestions = $exam->questions->keyBy('id');
+        $shuffledQuestions = collect();
+
+        foreach ($shuffledQuestionIds as $qId) {
+            if (isset($keyedQuestions[$qId])) {
+                $q = $keyedQuestions[$qId];
+                
+                $shuffledOptions = [];
+                if ($q->type === 'mcq' && is_array($q->options) && isset($optionsMap[$qId])) {
+                    $shuffledIndexes = $optionsMap[$qId];
+                    foreach ($shuffledIndexes as $idx) {
+                        if (isset($q->options[$idx])) {
+                            $shuffledOptions[] = $q->options[$idx];
+                        }
+                    }
+                    if (count($shuffledOptions) !== count($q->options)) {
+                        $shuffledOptions = $q->options;
+                    }
+                } else {
+                    $shuffledOptions = $q->options;
+                }
+
+                $shuffledQuestions->push([
+                    'id' => $q->id,
+                    'text' => $q->text,
+                    'type' => $q->type,
+                    'options' => $shuffledOptions,
+                    'score' => $q->score,
+                ]);
+            }
+        }
+
+        // Fallback for new questions added after attempt started
+        foreach ($exam->questions as $q) {
+            if (!in_array($q->id, $shuffledQuestionIds)) {
+                $shuffledQuestions->push([
+                    'id' => $q->id,
+                    'text' => $q->text,
+                    'type' => $q->type,
+                    'options' => $q->options,
+                    'score' => $q->score,
+                ]);
+            }
+        }
 
         return response()->json([
             'attempt_id' => $attempt->id,
@@ -1457,7 +1516,7 @@ class StudentController extends Controller
                 'enable_anti_tab_switching' => (bool)($exam->enable_anti_tab_switching ?? true),
                 'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
             ],
-            'questions' => $questions,
+            'questions' => $shuffledQuestions,
         ]);
     }
 
@@ -1624,6 +1683,38 @@ class StudentController extends Controller
                 $attempt->rank = null;
                 $attempt->total_participants = StudentExam::where('exam_id', $attempt->exam_id)->count();
             }
+
+            // Restore the exact same randomized order of questions and choices for review
+            if ($attempt->shuffle_mapping) {
+                $mapping = $attempt->shuffle_mapping;
+                $questionOrder = $mapping['questions'] ?? [];
+                $optionsMap = $mapping['options'] ?? [];
+
+                if ($attempt->relationLoaded('answers') && !empty($questionOrder)) {
+                    $sortedAnswers = $attempt->answers->sortBy(function ($ans) use ($questionOrder) {
+                        $pos = array_search($ans->question_id, $questionOrder);
+                        return $pos === false ? 9999 : $pos;
+                    })->values();
+
+                    foreach ($sortedAnswers as $ans) {
+                        $q = $ans->question;
+                        if ($q && $q->type === 'mcq' && is_array($q->options) && isset($optionsMap[$q->id])) {
+                            $shuffledOptions = [];
+                            foreach ($optionsMap[$q->id] as $idx) {
+                                if (isset($q->options[$idx])) {
+                                    $shuffledOptions[] = $q->options[$idx];
+                                }
+                            }
+                            if (count($shuffledOptions) === count($q->options)) {
+                                $q->options = $shuffledOptions;
+                            }
+                        }
+                    }
+
+                    $attempt->setRelation('answers', $sortedAnswers);
+                }
+            }
+
             return $attempt;
         });
 

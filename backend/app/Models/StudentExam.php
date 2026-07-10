@@ -29,6 +29,7 @@ class StudentExam extends Model
         'graded_at' => 'datetime',
         'violation_timestamps' => 'array',
         'is_suspicious' => 'boolean',
+        'shuffle_mapping' => 'array',
     ];
 
     public function student()

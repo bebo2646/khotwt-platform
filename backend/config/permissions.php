@@ -19,6 +19,11 @@ return [
         'system_settings' => 'إعدادات النظام العامة',
     ],
     'permissions' => [
+        // Dashboard
+        'dashboard.view' => [
+            'group' => 'system_settings',
+            'label' => 'عرض لوحة التحكم العامة',
+        ],
         // Users Management
         'users.view' => [
             'group' => 'users_management',
@@ -49,10 +54,37 @@ return [
             'group' => 'students_management',
             'label' => 'حذف حسابات الطلاب',
         ],
+        'students.pending' => [
+            'group' => 'students_management',
+            'label' => 'مراجعة وقبول الطلاب الجدد',
+        ],
+        'watch_limits.manage' => [
+            'group' => 'students_management',
+            'label' => 'تعديل حدود مشاهدات الطلاب',
+        ],
+        'watch_limits.reset' => [
+            'group' => 'students_management',
+            'label' => 'إعادة تعيين حدود مشاهدات الطلاب',
+        ],
         // Teachers Management
         'teachers.manage' => [
             'group' => 'teachers_management',
             'label' => 'إدارة المعلمين كاملة',
+        ],
+        // Teacher Subscriptions
+        'teacher_subscriptions.manage' => [
+            'group' => 'subscription_management',
+            'label' => 'إدارة اشتراكات المعلمين وتجاوز الموارد',
+        ],
+        // Subscription Requests
+        'subscription_requests.manage' => [
+            'group' => 'subscription_management',
+            'label' => 'إدارة طلبات اشتراكات المعلمين',
+        ],
+        // Subscription Plans
+        'subscription_plans.manage' => [
+            'group' => 'subscription_management',
+            'label' => 'إدارة خطط الاشتراك وباقات المعلمين',
         ],
         // Courses Management
         'courses.manage' => [
@@ -64,6 +96,14 @@ return [
             'group' => 'exams_management',
             'label' => 'إدارة الامتحانات والواجبات والأسئلة',
         ],
+        'exam_results.view' => [
+            'group' => 'exams_management',
+            'label' => 'عرض نتائج واحصائيات الامتحانات',
+        ],
+        'certificates.manage' => [
+            'group' => 'exams_management',
+            'label' => 'إدارة الشهادات للطلاب',
+        ],
         // Notifications
         'notifications.send' => [
             'group' => 'notifications',
@@ -74,14 +114,9 @@ return [
             'group' => 'wallet_payments',
             'label' => 'إدارة المحفظة وشحن الأرصدة',
         ],
-        // Subscription Management
-        'subscriptions.manage' => [
-            'group' => 'subscription_management',
-            'label' => 'إدارة اشتراكات المعلمين والخطط',
-        ],
-        'subscription_plans.edit' => [
-            'group' => 'subscription_management',
-            'label' => 'تعديل وإنشاء خطط الاشتراك',
+        'payouts.manage' => [
+            'group' => 'wallet_payments',
+            'label' => 'إدارة مستحقات ومدفوعات المعلمين',
         ],
         // Promo Codes
         'coupons.manage' => [
@@ -96,7 +131,7 @@ return [
         // Admin Management
         'admins.manage' => [
             'group' => 'admin_management',
-            'label' => 'إدارة حسابات المشرفين',
+            'label' => 'إدارة حسابات المشرفين وصلاحياتهم',
         ],
         // Permissions Management
         'permissions.manage' => [
@@ -108,15 +143,31 @@ return [
             'group' => 'content_management',
             'label' => 'إدارة الدروس والوحدات والملفات',
         ],
+        'lessons.manage' => [
+            'group' => 'content_management',
+            'label' => 'إدارة المحاضرات والدروس',
+        ],
         // Video Management
         'videos.manage' => [
             'group' => 'video_management',
             'label' => 'إدارة الفيديوهات وبوابات البث',
         ],
+        'bunny.view' => [
+            'group' => 'video_management',
+            'label' => 'عرض إحصائيات مساحات تخزين Bunny',
+        ],
         // System Settings
         'settings.manage' => [
             'group' => 'system_settings',
-            'label' => 'تعديل إعدادات النظام وتهيئة السنوات الدراسية',
+            'label' => 'تعديل إعدادات النظام المتقدمة',
+        ],
+        'academic_year.initialize' => [
+            'group' => 'system_settings',
+            'label' => 'تهيئة المنصة للسنة الدراسية الجديدة',
+        ],
+        'support.manage' => [
+            'group' => 'system_settings',
+            'label' => 'إدارة الدعم الفني وتذاكر الطلاب',
         ],
     ]
 ];

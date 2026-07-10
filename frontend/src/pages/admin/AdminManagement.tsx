@@ -26,6 +26,7 @@ interface SystemPermission {
 export default function AdminManagement() {
   const { user } = useAuthStore()
   const isSuperAdmin = !!user?.is_super_admin || !!user?.is_super
+  const hasPerm = (perm: string) => isSuperAdmin || (!!user?.permissions && user.permissions.includes(perm))
 
   const [admins, setAdmins] = React.useState<AdminUser[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -520,7 +521,7 @@ export default function AdminManagement() {
           )}
 
           {/* Year Reset Section */}
-          {isSuperAdmin && (
+          {hasPerm('academic_year.initialize') && (
             <div className="bg-brand-card border border-red-500/20 p-6 sm:p-8 rounded-3xl space-y-4 shadow-md bg-gradient-to-br from-red-500/5 to-transparent relative overflow-hidden">
               <div className="absolute top-0 right-0 w-1 bg-red-500 h-full" />
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 text-right">
@@ -545,7 +546,7 @@ export default function AdminManagement() {
           )}
 
           {/* System Audit Logs Section */}
-          {isSuperAdmin && (
+          {hasPerm('admins.manage') && (
             <div className="bg-brand-card border border-[var(--border-color)] p-6 sm:p-8 rounded-3xl space-y-6 shadow-md">
               <div className="flex justify-between items-center pb-4 border-b border-[var(--border-color)]">
                 <div>

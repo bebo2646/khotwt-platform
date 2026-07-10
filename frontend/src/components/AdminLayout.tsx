@@ -167,7 +167,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'لوحة التحكم',
           path: '/admin/dashboard',
           icon: <LayoutDashboard className="w-5 h-5 shrink-0" />,
-          visible: true
+          visible: hasPerm('dashboard.view')
         }
       ]
     },
@@ -190,7 +190,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'مراجعة التسجيلات',
           path: '/admin/students/pending',
           icon: <ShieldAlert className="w-5 h-5 shrink-0" />,
-          visible: hasPerm('students.manage')
+          visible: hasPerm('students.pending')
         },
         {
           label: 'الكورسات',
@@ -207,7 +207,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'طلبات الاشتراكات',
           path: '/admin/subscriptions/requests',
           icon: <ClipboardList className="w-5 h-5 shrink-0" />,
-          visible: true
+          visible: hasPerm('subscription_requests.manage')
         },
         {
           label: 'أكواد الشحن',
@@ -225,7 +225,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'مستحقات المعلمين',
           path: '/admin/payouts',
           icon: <Wallet className="w-5 h-5 shrink-0" />,
-          visible: true
+          visible: hasPerm('payouts.manage')
         }
       ]
     },
@@ -236,7 +236,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'الإشعارات',
           path: '/admin/notifications',
           icon: <Bell className="w-5 h-5 shrink-0" />,
-          visible: true
+          visible: hasPerm('notifications.send')
         }
       ]
     }
@@ -247,13 +247,13 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       label: 'إدارة الباقات',
       path: '/admin/subscription-plans',
       icon: <Layers className="w-4 h-4 shrink-0" />,
-      visible: true
+      visible: hasPerm('subscription_plans.manage')
     },
     {
       label: 'إحصائيات Bunny',
       path: '/admin/bunny',
       icon: <Tv className="w-4 h-4 shrink-0" />,
-      visible: true
+      visible: hasPerm('bunny.view')
     },
     {
       label: 'صلاحيات المشرفين',
@@ -265,7 +265,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       label: 'إعدادات المنصة',
       path: '/admin/settings',
       icon: <Settings className="w-4 h-4 shrink-0" />,
-      visible: true
+      visible: hasPerm('settings.manage')
     }
   ]
 

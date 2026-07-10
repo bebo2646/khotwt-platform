@@ -145,17 +145,25 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
          * Administrator Scope
          */
         Route::middleware('role:admin')->group(function () {
-            Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
-            Route::get('/admin/bunny/dashboard', [AdminController::class, 'bunnyDashboard']);
-            Route::post('/admin/reset-year', [AdminController::class, 'resetYear']);
-            Route::post('/admin/bulk/students', [AdminController::class, 'bulkDeleteStudents']);
-            Route::post('/admin/bulk/teachers', [AdminController::class, 'bulkDeleteTeachers']);
-            Route::post('/admin/bulk/codes', [AdminController::class, 'bulkDeleteCodes']);
+            // Dashboard
+            Route::middleware('permission:dashboard.view')->group(function () {
+                Route::get('/admin/dashboard', [AdminController::class, 'dashboard']);
+                Route::get('/admin/video-views-analytics', [AdminController::class, 'getVideoViewsAnalytics']);
+            });
 
-            // Active Sessions Management
-            Route::get('/admin/active-sessions', [AdminController::class, 'listActiveSessions']);
-            Route::post('/admin/active-sessions/logout-all', [AdminController::class, 'forceLogoutAllSessions']);
-            Route::post('/admin/active-sessions/{id}/logout', [AdminController::class, 'forceLogoutSession']);
+            // Bunny storage stats
+            Route::middleware('permission:bunny.view')->get('/admin/bunny/dashboard', [AdminController::class, 'bunnyDashboard']);
+
+            // Academic Year Initialization
+            Route::middleware('permission:academic_year.initialize')->post('/admin/reset-year', [AdminController::class, 'resetYear']);
+
+            // Active Sessions Management (under admins.manage)
+            Route::middleware('permission:admins.manage')->group(function () {
+                Route::get('/admin/active-sessions', [AdminController::class, 'listActiveSessions']);
+                Route::post('/admin/active-sessions/logout-all', [AdminController::class, 'forceLogoutAllSessions']);
+                Route::post('/admin/active-sessions/{id}/logout', [AdminController::class, 'forceLogoutSession']);
+                Route::get('/admin/logs', [AdminController::class, 'activityLogs']);
+            });
 
             // Teachers Management
             Route::middleware('permission:teachers.manage')->group(function () {
@@ -164,6 +172,39 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::put('/admin/teachers/{teacher}', [AdminController::class, 'updateTeacher']);
                 Route::post('/admin/teachers/{teacher}/reset-password', [AdminController::class, 'resetTeacherPassword']);
                 Route::delete('/admin/teachers/{id}', [AdminController::class, 'deleteTeacher']);
+                Route::post('/admin/bulk/teachers', [AdminController::class, 'bulkDeleteTeachers']);
+            });
+
+            // Teacher Subscriptions & Resource overrides
+            Route::middleware('permission:teacher_subscriptions.manage')->group(function () {
+                Route::get('/admin/teachers/{id}/subscription', [SubscriptionController::class, 'getTeacherSubscription']);
+                Route::post('/admin/teachers/{id}/subscription/plan', [SubscriptionController::class, 'updateTeacherPlan']);
+                Route::post('/admin/teachers/{id}/subscription/renew', [SubscriptionController::class, 'renewSubscription']);
+                Route::post('/admin/teachers/{id}/subscription/addons', [SubscriptionController::class, 'addSubscriptionAddon']);
+                Route::post('/admin/teachers/{id}/subscription/payments', [SubscriptionController::class, 'confirmSubscriptionPayment']);
+                Route::get('/admin/teachers-resources-summary', [SubscriptionController::class, 'getTeachersResourcesSummary']);
+                Route::get('/admin/teachers/{id}/resources', [SubscriptionController::class, 'getTeacherResourceOverrides']);
+                Route::put('/admin/teachers/{id}/resources', [SubscriptionController::class, 'updateTeacherResourceOverrides']);
+                Route::delete('/admin/teachers/{id}/resources', [SubscriptionController::class, 'deleteTeacherResourceOverrides']);
+            });
+
+            // Subscription Requests
+            Route::middleware('permission:subscription_requests.manage')->group(function () {
+                Route::get('/admin/subscriptions/requests', [SubscriptionController::class, 'getSubscriptionRequests']);
+                Route::post('/admin/subscriptions/requests/{id}/action', [SubscriptionController::class, 'handleSubscriptionRequest']);
+            });
+
+            // Subscription Plans management CRUD
+            Route::middleware('permission:subscription_plans.manage')->group(function () {
+                Route::get('/admin/subscription-plans', [SubscriptionController::class, 'listPlansAdmin']);
+                Route::post('/admin/subscription-plans', [SubscriptionController::class, 'createPlan']);
+                Route::put('/admin/subscription-plans/{id}', [SubscriptionController::class, 'updatePlan']);
+                Route::delete('/admin/subscription-plans/{id}', [SubscriptionController::class, 'deletePlan']);
+                Route::post('/admin/subscription-plans/{id}/toggle', [SubscriptionController::class, 'togglePlanStatus']);
+                Route::post('/admin/subscription-plans/reorder', [SubscriptionController::class, 'reorderPlans']);
+                Route::get('/admin/subscription-plans/{id}/price-history', [SubscriptionController::class, 'getPriceHistory']);
+                Route::get('/admin/subscription-plans/{id}/audit-logs', [SubscriptionController::class, 'getAuditLogs']);
+                Route::post('/admin/subscription-settings', [SubscriptionController::class, 'updateSettings']);
             });
 
             // Students Management
@@ -174,12 +215,20 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/admin/students/{id}', [AdminController::class, 'deleteStudent']);
                 Route::post('/admin/users/{id}/disable', [AdminController::class, 'disableUser']);
                 Route::post('/admin/users/{id}/enable', [AdminController::class, 'enableUser']);
+                Route::post('/admin/bulk/students', [AdminController::class, 'bulkDeleteStudents']);
                 
                 // Refund & Wallet control
                 Route::get('/admin/students/{student}/enrollments', [AdminController::class, 'studentEnrollments']);
                 Route::post('/admin/enrollments/{enrollment}/refund', [AdminController::class, 'refundEnrollment']);
                 Route::post('/admin/students/{student}/wallet/adjust', [AdminController::class, 'adjustStudentWallet']);
                 Route::get('/admin/refund-logs', [AdminController::class, 'refundLogs']);
+            });
+
+            // Student Registration Approval
+            Route::middleware('permission:students.pending')->group(function () {
+                Route::get('/admin/pending-students', [AdminController::class, 'getPendingStudents']);
+                Route::post('/admin/students/{id}/approve', [AdminController::class, 'approveStudent']);
+                Route::post('/admin/students/{id}/reject', [AdminController::class, 'rejectStudent']);
             });
 
             // Courses Management
@@ -195,19 +244,14 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:coupons.manage')->group(function () {
                 Route::post('/admin/purchase-codes', [AdminController::class, 'generatePurchaseCodes']);
                 Route::get('/admin/purchase-codes', [AdminController::class, 'listPurchaseCodes']);
+                Route::post('/admin/bulk/codes', [AdminController::class, 'bulkDeleteCodes']);
             });
 
             // Reports
             Route::middleware('permission:reports.view')->group(function () {
                 Route::get('/admin/reports', [AdminController::class, 'reports']);
+                Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);
             });
-
-            // Admin logs (Super Admin only)
-            Route::get('/admin/logs', [AdminController::class, 'activityLogs']);
-
-            // Maintenance Mode Control (Super Admin only)
-            Route::get('/admin/maintenance-settings', [AdminController::class, 'getMaintenanceSettings']);
-            Route::post('/admin/maintenance-settings', [AdminController::class, 'updateMaintenanceSettings']);
 
             // Admins CRUD (Super Admin restricted inside controller as well)
             Route::middleware('permission:admins.manage')->group(function () {
@@ -219,62 +263,40 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/admin/manage/{id}/toggle', [AdminController::class, 'toggleAdminStatus']);
             });
 
-            // Subscription & Notifications Management
-            Route::get('/admin/teachers/{id}/subscription', [SubscriptionController::class, 'getTeacherSubscription']);
-            Route::post('/admin/teachers/{id}/subscription/plan', [SubscriptionController::class, 'updateTeacherPlan']);
-            Route::post('/admin/teachers/{id}/subscription/renew', [SubscriptionController::class, 'renewSubscription']);
-            Route::post('/admin/teachers/{id}/subscription/addons', [SubscriptionController::class, 'addSubscriptionAddon']);
-            Route::post('/admin/teachers/{id}/subscription/payments', [SubscriptionController::class, 'confirmSubscriptionPayment']);
-            Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);
-
-            // Teacher Resource Overrides Management
-            Route::get('/admin/teachers-resources-summary', [SubscriptionController::class, 'getTeachersResourcesSummary']);
-            Route::get('/admin/teachers/{id}/resources', [SubscriptionController::class, 'getTeacherResourceOverrides']);
-            Route::put('/admin/teachers/{id}/resources', [SubscriptionController::class, 'updateTeacherResourceOverrides']);
-            Route::delete('/admin/teachers/{id}/resources', [SubscriptionController::class, 'deleteTeacherResourceOverrides']);
-            Route::get('/admin/subscriptions/requests', [SubscriptionController::class, 'getSubscriptionRequests']);
-            Route::post('/admin/subscriptions/requests/{id}/action', [SubscriptionController::class, 'handleSubscriptionRequest']);
-            
-            // Subscription Plans management CRUD
-            Route::get('/admin/subscription-plans', [SubscriptionController::class, 'listPlansAdmin']);
-            Route::post('/admin/subscription-plans', [SubscriptionController::class, 'createPlan']);
-            Route::put('/admin/subscription-plans/{id}', [SubscriptionController::class, 'updatePlan']);
-            Route::delete('/admin/subscription-plans/{id}', [SubscriptionController::class, 'deletePlan']);
-            Route::post('/admin/subscription-plans/{id}/toggle', [SubscriptionController::class, 'togglePlanStatus']);
-            Route::post('/admin/subscription-plans/reorder', [SubscriptionController::class, 'reorderPlans']);
-            Route::get('/admin/subscription-plans/{id}/price-history', [SubscriptionController::class, 'getPriceHistory']);
-            Route::get('/admin/subscription-plans/{id}/audit-logs', [SubscriptionController::class, 'getAuditLogs']);
-            
-            Route::post('/admin/subscription-settings', [SubscriptionController::class, 'updateSettings']);
-
             // Admin Notifications Management
-            Route::post('/admin/notifications', [SubscriptionController::class, 'sendNotification']);
-            Route::post('/admin/notifications/send', [SubscriptionController::class, 'sendNotification']);
-            Route::delete('/admin/notifications/{id}', [SubscriptionController::class, 'deleteNotification']);
-            Route::delete('/admin/notifications', [SubscriptionController::class, 'deleteNotifications']);
-            Route::get('/admin/users-selectors', [SubscriptionController::class, 'getUsersForSelectors']);
-            Route::get('/admin/notifications/users', [SubscriptionController::class, 'getUsersForSelectors']);
+            Route::middleware('permission:notifications.send')->group(function () {
+                Route::post('/admin/notifications', [SubscriptionController::class, 'sendNotification']);
+                Route::post('/admin/notifications/send', [SubscriptionController::class, 'sendNotification']);
+                Route::delete('/admin/notifications/{id}', [SubscriptionController::class, 'deleteNotification']);
+                Route::delete('/admin/notifications', [SubscriptionController::class, 'deleteNotifications']);
+                Route::get('/admin/users-selectors', [SubscriptionController::class, 'getUsersForSelectors']);
+                Route::get('/admin/notifications/users', [SubscriptionController::class, 'getUsersForSelectors']);
+            });
 
             // Admin Payouts Management
-            Route::get('/admin/payouts', [AdminController::class, 'listPayouts']);
-            Route::post('/admin/payouts', [AdminController::class, 'createPayout']);
+            Route::middleware('permission:payouts.manage')->group(function () {
+                Route::get('/admin/payouts', [AdminController::class, 'listPayouts']);
+                Route::post('/admin/payouts', [AdminController::class, 'createPayout']);
+            });
 
-            // Enterprise Settings & View limit overrides
-            Route::get('/admin/enterprise-settings', [AdminController::class, 'getEnterpriseSettings']);
-            Route::post('/admin/enterprise-settings', [AdminController::class, 'updateEnterpriseSettings']);
-            Route::get('/admin/student-course-limits', [AdminController::class, 'getStudentCourseLimits']);
-            Route::post('/admin/student-course-limits', [AdminController::class, 'updateStudentCourseLimit']);
-            Route::post('/admin/student-course-limits/reset', [AdminController::class, 'resetStudentCourseLimit']);
-            Route::get('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'getCourseViewLimitsConfig']);
-            Route::post('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'updateCourseViewLimitsConfig']);
+            // Platform Settings
+            Route::middleware('permission:settings.manage')->group(function () {
+                Route::get('/admin/enterprise-settings', [AdminController::class, 'getEnterpriseSettings']);
+                Route::post('/admin/enterprise-settings', [AdminController::class, 'updateEnterpriseSettings']);
+                Route::get('/admin/maintenance-settings', [AdminController::class, 'getMaintenanceSettings']);
+                Route::post('/admin/maintenance-settings', [AdminController::class, 'updateMaintenanceSettings']);
+            });
 
-            // Student Registration Approval
-            Route::get('/admin/pending-students', [AdminController::class, 'getPendingStudents']);
-            Route::post('/admin/students/{id}/approve', [AdminController::class, 'approveStudent']);
-            Route::post('/admin/students/{id}/reject', [AdminController::class, 'rejectStudent']);
-
-            // Video Views Dashboard Statistics
-            Route::get('/admin/video-views-analytics', [AdminController::class, 'getVideoViewsAnalytics']);
+            // Watch limits (Course view limits per student, Course view limits config)
+            Route::middleware('permission:watch_limits.manage')->group(function () {
+                Route::get('/admin/student-course-limits', [AdminController::class, 'getStudentCourseLimits']);
+                Route::post('/admin/student-course-limits', [AdminController::class, 'updateStudentCourseLimit']);
+                Route::get('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'getCourseViewLimitsConfig']);
+                Route::post('/admin/course-view-limits-config/{courseId}', [AdminController::class, 'updateCourseViewLimitsConfig']);
+            });
+            Route::middleware('permission:watch_limits.reset')->group(function () {
+                Route::post('/admin/student-course-limits/reset', [AdminController::class, 'resetStudentCourseLimit']);
+            });
         });
 
     });

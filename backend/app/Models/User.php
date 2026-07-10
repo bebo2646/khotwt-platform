@@ -101,9 +101,22 @@ class User extends Authenticatable
         return $this->role === 'admin';
     }
 
+    public function getPermissionsAttribute($value)
+    {
+        if ($this->is_super_admin || $this->is_super) {
+            $config = require base_path('config/permissions.php');
+            return array_keys($config['permissions'] ?? []);
+        }
+        if (is_array($value)) {
+            return $value;
+        }
+        $perms = json_decode($value, true);
+        return is_array($perms) ? $perms : [];
+    }
+
     public function hasPermission(string $permission): bool
     {
-        if ($this->is_super_admin) {
+        if ($this->is_super_admin || $this->is_super) {
             return true;
         }
         return is_array($this->permissions) && in_array($permission, $this->permissions);
