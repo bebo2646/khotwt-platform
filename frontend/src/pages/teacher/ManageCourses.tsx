@@ -91,6 +91,7 @@ export default function ManageCourses() {
   const [editCourseMode, setEditCourseMode] = React.useState<CourseItem | null>(null)
   const [showUnitForm, setShowUnitForm] = React.useState(false)
   const [showLessonForm, setShowLessonForm] = React.useState<number | null>(null) // unitId
+  const [editLessonMode, setEditLessonMode] = React.useState<any>(null)
   const [showVideoForm, setShowVideoForm] = React.useState<number | null>(null) // lessonId
   const [showPdfForm, setShowPdfForm] = React.useState<number | null>(null) // lessonId
   const [showPackageForm, setShowPackageForm] = React.useState(false)
@@ -409,22 +410,59 @@ export default function ManageCourses() {
 
     setActionLoading(true)
     try {
-      await API.post(`/teacher/units/${unitId}/lessons`, {
-        title: lessonTitle,
-        description: lessonDesc,
-        price: lessonPrice || '0.00',
-        order: 99,
-      })
+      if (editLessonMode) {
+        await API.put(`/teacher/lessons/${editLessonMode.id}`, {
+          title: lessonTitle,
+          description: lessonDesc,
+          price: lessonPrice || '0.00',
+        })
+        useModalStore.getState().showToast('تم تعديل الدرس بنجاح.', 'success')
+      } else {
+        await API.post(`/teacher/units/${unitId}/lessons`, {
+          title: lessonTitle,
+          description: lessonDesc,
+          price: lessonPrice || '0.00',
+          order: 99,
+        })
+        useModalStore.getState().showToast('تمت إضافة الدرس بنجاح.', 'success')
+      }
       setLessonTitle('')
       setLessonDesc('')
       setLessonPrice('')
       setShowLessonForm(null)
+      setEditLessonMode(null)
       handleSelectCourse(selectedCourse)
     } catch (err) {
       console.error(err)
+      useModalStore.getState().showToast('فشل حفظ الدرس.', 'error')
     } finally {
       setActionLoading(false)
     }
+  }
+
+  const handleDeleteLesson = (lessonId: number) => {
+    useModalStore.getState().showConfirm({
+      title: 'حذف الدرس',
+      description: 'هل أنت متأكد من حذف هذا الدرس نهائياً؟ سيتم حذف جميع الفيديوهات، ملفات PDF، الامتحانات، والواجبات المرتبطة به.',
+      confirmText: 'حذف الدرس',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await API.delete(`/teacher/lessons/${lessonId}`)
+          if (selectedCourse) {
+            handleSelectCourse(selectedCourse)
+          }
+          useModalStore.getState().showToast('تم حذف الدرس بنجاح.', 'success')
+        } catch (err) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل حذف الدرس.', 'error')
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
   }
 
   // Video Handler
@@ -1194,6 +1232,24 @@ export default function ManageCourses() {
                                         >
                                           <FileText className="h-3 w-3" /> ربط مذكرات
                                         </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditLessonMode(lesson)
+                                            setLessonTitle(lesson.title)
+                                            setLessonDesc(lesson.description || '')
+                                            setLessonPrice(lesson.price || '')
+                                            setShowLessonForm(unit.id)
+                                          }}
+                                          className="p-1 px-2 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/10 rounded text-[9px] font-bold flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                          <Edit3 className="h-3 w-3" /> تعديل الدرس
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteLesson(lesson.id)}
+                                          className="p-1 px-2 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/10 rounded text-[9px] font-bold flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                          <Trash2 className="h-3 w-3" /> حذف الدرس
+                                        </button>
                                       </div>
                                     </div>
 
@@ -1351,85 +1407,7 @@ export default function ManageCourses() {
                 )}
               </div>
 
-              {/* Packages List */}
-              <div className="space-y-4 pt-6 border-t border-[var(--border-color)]">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-sm">الباقات المجمعة النشطة (الاشتراك الشهري):</h4>
-                  <button
-                    onClick={() => {
-                      setEditPackageMode(null)
-                      setPackageTitle('')
-                      setPackagePrice('')
-                      setPackageDesc('')
-                      setPackageCoverImage('')
-                      setPackageThumbnail('')
-                      setSelectedLessons([])
-                      setShowPackageForm(true)
-                    }}
-                    className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" /> <span>بناء باقة مجمعة</span>
-                  </button>
-                </div>
 
-                {packages.length === 0 ? (
-                  <div className="text-center py-10 border border-dashed border-[var(--border-color)] rounded-2xl text-slate-500 text-sm font-light">
-                    لا توجد باقات مجمعة لهذا الكورس بعد. اضغط على زر "بناء باقة مجمعة" لإنشاء باقة.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {packages.map((pkg) => (
-                      <div key={pkg.id} className="border border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] p-5 rounded-2xl space-y-4 flex flex-col justify-between">
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-start">
-                            <h5 className="font-bold text-sm text-slate-200">{pkg.title}</h5>
-                            <span className="text-xs font-bold text-brand-success bg-brand-success/10 px-2 py-1 rounded-lg">
-                              {pkg.price} ج.م
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-[10px] text-slate-400 font-light">
-                            <div>عدد الكورسات: 1</div>
-                            <div>عدد المحاضرات: {pkg.lessons?.length || pkg.lessons_count || 0}</div>
-                            <div className="col-span-2">عدد المشتركين: {pkg.enrollments_count || 0} طالباً</div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 pt-2 border-t border-[var(--border-color)]">
-                          <button
-                            onClick={() => {
-                              window.open(`/courses/${selectedCourse.id}?package_id=${pkg.id}&preview=true`, '_blank')
-                            }}
-                            className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> <span>معاينة</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEditPackageMode(pkg)
-                              setPackageTitle(pkg.title)
-                              setPackagePrice(pkg.price)
-                              setPackageDesc(pkg.description || '')
-                              setPackageCoverImage(pkg.cover_image || '')
-                              setPackageThumbnail(pkg.package_thumbnail || '')
-                              setSelectedLessons(pkg.lessons ? pkg.lessons.map((l: any) => l.id) : [])
-                              setShowPackageForm(true)
-                            }}
-                            className="flex-1 py-1.5 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" /> <span>تعديل</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePackage(pkg.id)}
-                            className="flex-1 py-1.5 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> <span>حذف</span>
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
 
             </div>
           ) : (
@@ -2288,183 +2266,7 @@ export default function ManageCourses() {
         </div>
       )}
 
-      {/* Package Form Modal */}
-      {showPackageForm && selectedCourse && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-transparent" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
-            <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3">
-              {editPackageMode ? 'تعديل الباقة المجمعة' : 'بناء باقة مجمعة (عرض شهري)'}
-            </h3>
-            
-            <form onSubmit={handleSavePackage} className="space-y-4 text-right">
-              
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">عنوان الباقة</label>
-                <input
-                  type="text"
-                  required
-                  value={packageTitle}
-                  onChange={(e) => setPackageTitle(e.target.value)}
-                  placeholder="مثال: باقة محاضرات شهر أكتوبر كيمياء..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                />
-              </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">سعر الباقة المجمعة (ج.م)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={packagePrice}
-                  onChange={(e) => setPackagePrice(e.target.value)}
-                  placeholder="مثال: 80.00"
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">وصف الباقة المجمعة</label>
-                <textarea
-                  value={packageDesc}
-                  onChange={(e) => setPackageDesc(e.target.value)}
-                  placeholder="مثال: تشمل الباقة جميع محاضرات الباب الأول في الكيمياء العضوية..."
-                  rows={3}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none resize-none text-right"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold">رابط غلاف الباقة (اختياري)</label>
-                <input
-                  type="text"
-                  value={packageCoverImage}
-                  onChange={(e) => setPackageCoverImage(e.target.value)}
-                  placeholder="رابط الصورة أو اتركها فارغة لاستخدام غلاف الكورس"
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold block">صورة الباقة المجمعة (تحميل مباشر)</label>
-                
-                {/* Drag & Drop area */}
-                <div 
-                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  onDrop={async (e) => {
-                    e.preventDefault();
-                    setIsDragOver(false);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) {
-                      const formData = new FormData();
-                      formData.append('file', file);
-                      setUploadingThumbnail(true);
-                      try {
-                        const res = await API.post('/upload', formData, {
-                          headers: { 'Content-Type': 'multipart/form-data' },
-                        });
-                        setPackageThumbnail(res.data.url);
-                        useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
-                      } catch (err) {
-                        useModalStore.getState().showToast('فشل الرفع.', 'error');
-                      } finally {
-                        setUploadingThumbnail(false);
-                      }
-                    }
-                  }}
-                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
-                    isDragOver ? 'border-brand-primary bg-brand-primary/5' : 'border-border-color bg-brand-surface/10'
-                  }`}
-                >
-                  {packageThumbnail ? (
-                    <div className="space-y-3">
-                      <img src={packageThumbnail} alt="Preview" className="h-28 mx-auto rounded-xl object-cover aspect-video border border-border-color" />
-                      <button 
-                        type="button" 
-                        onClick={() => setPackageThumbnail('')}
-                        className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black"
-                      >
-                        إزالة الصورة
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <span className="text-[10px] text-text-secondary block font-bold">اسحب صورة الباقة وأفلتها هنا، أو اضغط على الزر أدناه</span>
-                      <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
-                        <span>اختر صورة للباقة</span>
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          className="hidden" 
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const formData = new FormData();
-                              formData.append('file', file);
-                              setUploadingThumbnail(true);
-                              try {
-                                const res = await API.post('/upload', formData, {
-                                  headers: { 'Content-Type': 'multipart/form-data' },
-                                });
-                                setPackageThumbnail(res.data.url);
-                                useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
-                              } catch (err) {
-                                useModalStore.getState().showToast('فشل الرفع.', 'error');
-                              } finally {
-                                setUploadingThumbnail(false);
-                              }
-                            }
-                          }}
-                        />
-                      </label>
-                      {uploadingThumbnail && (
-                        <div className="text-[10px] text-brand-primary animate-pulse font-bold">جاري رفع الصورة...</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">اختر المحاضرات التابعة للباقة:</label>
-                
-                <div className="space-y-2 border border-[var(--border-color)] p-4 rounded-2xl max-h-40 overflow-y-auto bg-[rgba(0,0,0,0.05)]">
-                  {units.flatMap((u) => u.lessons).length === 0 ? (
-                    <div className="text-center py-4 text-[10px] text-slate-500 font-light">لا توجد محاضرات مضافة بالكورس لتضمينها بالباقة بعد.</div>
-                  ) : (
-                    units.flatMap((u) => u.lessons).map((lesson) => {
-                      const isChecked = selectedLessons.includes(lesson.id)
-                      return (
-                        <button
-                          type="button"
-                          key={lesson.id}
-                          onClick={() => toggleLessonInPackage(lesson.id)}
-                          className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-right transition-colors ${
-                            isChecked ? 'border-brand-primary bg-brand-primary/5 text-slate-100 font-bold' : 'border-[var(--border-color)] text-slate-400'
-                          }`}
-                        >
-                          <span className="text-xs">{lesson.title}</span>
-                          {isChecked && <Check className="h-4 w-4 text-brand-primary" />}
-                        </button>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button type="button" onClick={() => { setShowPackageForm(false); setEditPackageMode(null); }} className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
-                <button type="submit" className="px-5 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl">
-                  {editPackageMode ? 'حفظ التعديلات' : 'حفظ الباقة وتنشيطها'}
-                </button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   )

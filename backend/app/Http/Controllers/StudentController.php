@@ -46,7 +46,28 @@ class StudentController extends Controller
                 $course = $enrollment->package->course;
                 $typeLabel = $enrollment->package->type; // bundle, month, revision
                 $productTitle = $enrollment->package->title;
-                $coverImage = $enrollment->package->package_thumbnail ?: $course->cover_image;
+                if ($typeLabel === 'bundle') {
+                    $teacher = $enrollment->package->teacher;
+                    return [
+                        'id' => $enrollment->id,
+                        'enrolled_at' => $enrollment->enrolled_at ? $enrollment->enrolled_at->toIso8601String() : null,
+                        'product_type' => 'bundle',
+                        'product_title' => $productTitle,
+                        'package_id' => $enrollment->package_id,
+                        'lesson_id' => null,
+                        'course' => [
+                            'id' => 'bundle-' . $enrollment->package_id,
+                            'title' => $productTitle,
+                            'description' => $enrollment->package->description,
+                            'cover_image' => $enrollment->package->package_thumbnail ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
+                            'subject' => 'باقة مجمعة',
+                            'teacher' => [
+                                'name' => $teacher ? $teacher->name : 'معلم محذوف',
+                            ],
+                        ]
+                    ];
+                }
+                $coverImage = $enrollment->package->package_thumbnail ?: ($course ? $course->cover_image : null);
             } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
                 $course = $enrollment->lesson->unit->course;
                 $typeLabel = 'lesson';
@@ -340,9 +361,9 @@ class StudentController extends Controller
                 } elseif ($purchaseCode->package_id) {
                     $package = Package::with('course')->findOrFail($purchaseCode->package_id);
                     $amount = (float) $package->price;
+                    $teacherId = $package->course ? $package->course->teacher_id : $package->teacher_id;
 
                     $alreadyEnrolled = Enrollment::where('student_id', $user->id)
-                        ->where('course_id', $package->course_id)
                         ->where('package_id', $package->id)
                         ->exists();
 
@@ -382,7 +403,7 @@ class StudentController extends Controller
                     // Split revenue
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
-                        $package->course->teacher_id,
+                        $teacherId,
                         $amount,
                         $package->course_id,
                         $package->id,
@@ -394,7 +415,7 @@ class StudentController extends Controller
                     return response()->json([
                         'type' => 'course',
                         'message' => 'تم الاشتراك في الباقة بنجاح',
-                        'course_id' => $package->course_id,
+                        'course_id' => $package->course_id ?: 'bundle-' . $package->id,
                     ]);
                 }
             }
@@ -721,9 +742,9 @@ class StudentController extends Controller
     {
         $user = $request->user();
         $package = Package::with('course')->findOrFail($packageId);
+        $teacherId = $package->course ? $package->course->teacher_id : $package->teacher_id;
 
         $alreadyEnrolled = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $package->course_id)
             ->where('package_id', $packageId)
             ->exists();
 
@@ -731,7 +752,7 @@ class StudentController extends Controller
             return response()->json(['message' => 'أنت مشترك بالفعل في هذا الباقة.'], 422);
         }
 
-        $capacityCheck = $this->checkTeacherCapacity($user->id, $package->course->teacher_id);
+        $capacityCheck = $this->checkTeacherCapacity($user->id, $teacherId);
         if ($capacityCheck === 'subscription_expired') {
             return response()->json(['message' => 'عذراً، اشتراك المعلم غير نشط أو منتهي الصلاحية حالياً. لا يمكن الاشتراك في الباقة.'], 422);
         } elseif (!$capacityCheck) {
@@ -762,7 +783,7 @@ class StudentController extends Controller
                 return response()->json(['message' => 'هذا الكود غير صالح لهذا الكورس أو هذا المعلم.'], 422);
             }
 
-            return DB::transaction(function () use ($purchaseCode, $package, $user) {
+            return DB::transaction(function () use ($purchaseCode, $package, $user, $teacherId) {
                 $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
                 $type = $purchaseCode->code_type ?: $purchaseCode->type;
 
@@ -788,7 +809,7 @@ class StudentController extends Controller
 
                     Enrollment::create([
                         'student_id' => $user->id,
-                        'course_id' => null,
+                        'course_id' => $package->course_id,
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
@@ -801,7 +822,7 @@ class StudentController extends Controller
                     // Split revenue
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
-                        $package->course->teacher_id,
+                        $teacherId,
                         $amount,
                         $package->course_id,
                         $package->id,
@@ -816,15 +837,14 @@ class StudentController extends Controller
                     ]);
                 } elseif ($type === 'teacher') {
                     $creditVal = $purchaseCode->amount > 0 ? $purchaseCode->amount : $purchaseCode->credit_amount;
-                    $course = $package->course;
                     $existingCredit = DB::table('student_teacher_credits')
                         ->where('student_id', $user->id)
-                        ->where('teacher_id', $course->teacher_id)
+                        ->where('teacher_id', $teacherId)
                         ->first();
                     if ($existingCredit) {
                         DB::table('student_teacher_credits')
                             ->where('student_id', $user->id)
-                            ->where('teacher_id', $course->teacher_id)
+                            ->where('teacher_id', $teacherId)
                             ->update([
                                 'balance' => $existingCredit->balance + (float)$creditVal,
                                 'updated_at' => Carbon::now(),
@@ -832,7 +852,7 @@ class StudentController extends Controller
                     } else {
                         DB::table('student_teacher_credits')->insert([
                             'student_id' => $user->id,
-                            'teacher_id' => $course->teacher_id,
+                            'teacher_id' => $teacherId,
                             'balance' => (float)$creditVal,
                             'created_at' => Carbon::now(),
                             'updated_at' => Carbon::now(),
@@ -846,7 +866,7 @@ class StudentController extends Controller
 
                     $teacherCredit = DB::table('student_teacher_credits')
                         ->where('student_id', $user->id)
-                        ->where('teacher_id', $course->teacher_id)
+                        ->where('teacher_id', $teacherId)
                         ->first();
                     $creditBalance = $teacherCredit ? (float)$teacherCredit->balance : 0.00;
 
@@ -860,49 +880,51 @@ class StudentController extends Controller
                         ], 200);
                     }
 
-                    if ($deductFromCredit > 0) {
-                        DB::table('student_teacher_credits')
-                            ->where('student_id', $user->id)
-                            ->where('teacher_id', $course->teacher_id)
-                            ->decrement('balance', $deductFromCredit);
-                    }
+                    return DB::transaction(function () use ($wallet, $package, $user, $deductFromCredit, $deductFromWallet, $teacherId, $purchaseCode) {
+                        if ($deductFromCredit > 0) {
+                            DB::table('student_teacher_credits')
+                                ->where('student_id', $user->id)
+                                ->where('teacher_id', $teacherId)
+                                ->decrement('balance', $deductFromCredit);
+                        }
 
-                    if ($deductFromWallet > 0) {
-                        $wallet->balance -= $deductFromWallet;
-                        $wallet->save();
+                        if ($deductFromWallet > 0) {
+                            $wallet->balance -= $deductFromWallet;
+                            $wallet->save();
 
-                        WalletTransaction::create([
-                            'wallet_id' => $wallet->id,
-                            'type' => 'purchase',
-                            'amount' => $deductFromWallet,
-                            'description' => 'شراء باقة شهرية (جزء من المحفظة): ' . $package->title,
-                            'reference_id' => $package->id,
+                            WalletTransaction::create([
+                                'wallet_id' => $wallet->id,
+                                'type' => 'purchase',
+                                'amount' => $deductFromWallet,
+                                'description' => 'شراء باقة شهرية باستخدام رصيد المعلم والمحفظة: ' . $package->id,
+                                'reference_id' => $package->id,
+                            ]);
+                        }
+
+                        Enrollment::create([
+                            'student_id' => $user->id,
+                            'course_id' => $package->course_id,
+                            'package_id' => $package->id,
+                            'enrolled_at' => Carbon::now(),
                         ]);
-                    }
 
-                    Enrollment::create([
-                        'student_id' => $user->id,
-                        'course_id' => null,
-                        'package_id' => $package->id,
-                        'enrolled_at' => Carbon::now(),
-                    ]);
+                        // Split revenue
+                        \App\Services\RevenueSharingService::handlePurchase(
+                            $user->id,
+                            $teacherId,
+                            $package->price,
+                            $package->course_id,
+                            $package->id,
+                            null,
+                            $purchaseCode->id,
+                            'code'
+                        );
 
-                    // Split revenue
-                    \App\Services\RevenueSharingService::handlePurchase(
-                        $user->id,
-                        $package->course->teacher_id,
-                        $package->price,
-                        $package->course_id,
-                        $package->id,
-                        null,
-                        $purchaseCode->id,
-                        'code'
-                    );
-
-                    return response()->json([
-                        'message' => 'تم شحن رصيد المعلم المخصص والاشتراك في الباقة بنجاح.',
-                        'balance' => $wallet->balance,
-                    ]);
+                        return response()->json([
+                            'message' => 'تم شحن رصيد المعلم المخصص والاشتراك في الباقة بنجاح.',
+                            'balance' => $wallet->balance,
+                        ]);
+                    });
                 } elseif ($type === 'wallet') {
                     // Recharge and buy
                     $wallet->balance += $purchaseCode->amount;
@@ -935,13 +957,13 @@ class StudentController extends Controller
                         'wallet_id' => $wallet->id,
                         'type' => 'purchase',
                         'amount' => $package->price,
-                        'description' => 'شراء باقة شهرية: ' . $package->title . ' لـ ' . $package->course->title,
+                        'description' => 'شراء باقة شهرية: ' . $package->title . ($package->course ? ' لـ ' . $package->course->title : ''),
                         'reference_id' => $package->id,
                     ]);
 
                     Enrollment::create([
                         'student_id' => $user->id,
-                        'course_id' => null,
+                        'course_id' => $package->course_id,
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
@@ -949,7 +971,7 @@ class StudentController extends Controller
                     // Split revenue
                     \App\Services\RevenueSharingService::handlePurchase(
                         $user->id,
-                        $package->course->teacher_id,
+                        $teacherId,
                         $package->price,
                         $package->course_id,
                         $package->id,
@@ -968,10 +990,9 @@ class StudentController extends Controller
 
         // Wallet / Restricted teacher credit option
         $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
-        $course = $package->course;
         $teacherCredit = DB::table('student_teacher_credits')
             ->where('student_id', $user->id)
-            ->where('teacher_id', $course->teacher_id)
+            ->where('teacher_id', $teacherId)
             ->first();
         $creditBalance = $teacherCredit ? (float)$teacherCredit->balance : 0.00;
         $totalAvailable = $wallet->balance + $creditBalance;
@@ -1051,7 +1072,11 @@ class StudentController extends Controller
                 }
             } elseif ($type === 'package') {
                 $package = Package::with('course')->find($itemId);
-                if (!$package || !$package->course || $package->course->teacher_id != $purchaseCode->teacher_id) {
+                if (!$package) {
+                    return false;
+                }
+                $tId = $package->course ? $package->course->teacher_id : $package->teacher_id;
+                if ($tId != $purchaseCode->teacher_id) {
                     return false;
                 }
             }
@@ -2269,21 +2294,37 @@ class StudentController extends Controller
 
         foreach ($enrollments as $enrollment) {
             $course = $enrollment->course;
-            if (!$course) {
+            $isBundle = false;
+            $bundleLessons = collect();
+            
+            if ($enrollment->package && $enrollment->package->type === 'bundle') {
+                $isBundle = true;
+                $bundleLessons = $enrollment->package->lessons()->with('videos')->get();
+            }
+
+            if (!$course && !$isBundle) {
                 if ($enrollment->package) {
                     $course = $enrollment->package->course;
                 } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
                     $course = $enrollment->lesson->unit->course;
                 }
             }
-            if (!$course) continue;
+            if (!$course && !$isBundle) continue;
 
-            // Gather all video IDs for this course
+            // Gather all video IDs
             $videoIds = [];
-            foreach ($course->units as $unit) {
-                foreach ($unit->lessons as $lesson) {
+            if ($isBundle) {
+                foreach ($bundleLessons as $lesson) {
                     foreach ($lesson->videos as $video) {
                         $videoIds[] = $video->id;
+                    }
+                }
+            } else {
+                foreach ($course->units as $unit) {
+                    foreach ($unit->lessons as $lesson) {
+                        foreach ($lesson->videos as $video) {
+                            $videoIds[] = $video->id;
+                        }
                     }
                 }
             }
@@ -2297,17 +2338,28 @@ class StudentController extends Controller
                 $courseProgress = $progressRecords->only($videoIds);
                 $completedVideos = $courseProgress->where('completed', true)->count();
                 $sumPercentage = $courseProgress->sum('watched_percentage');
-
                 $progress = min(100, round($sumPercentage / $totalVideos));
                 
                 // Get actual durations and watched seconds
-                foreach ($course->units as $unit) {
-                    foreach ($unit->lessons as $lesson) {
+                if ($isBundle) {
+                    foreach ($bundleLessons as $lesson) {
                         foreach ($lesson->videos as $video) {
                             $totalDuration += $video->duration_seconds;
                             $prog = $progressRecords->get($video->id);
                             if ($prog) {
                                 $watchedSeconds += $prog->watched_seconds;
+                            }
+                        }
+                    }
+                } else {
+                    foreach ($course->units as $unit) {
+                        foreach ($unit->lessons as $lesson) {
+                            foreach ($lesson->videos as $video) {
+                                $totalDuration += $video->duration_seconds;
+                                $prog = $progressRecords->get($video->id);
+                                if ($prog) {
+                                    $watchedSeconds += $prog->watched_seconds;
+                                }
                             }
                         }
                     }
@@ -2319,27 +2371,51 @@ class StudentController extends Controller
             $totalVideosCount += $totalVideos;
             $completedVideosCount += $completedVideos;
 
-            $coursesData[] = [
-                'id' => $course->id,
-                'title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
-                'description' => $enrollment->package ? $enrollment->package->description : ($enrollment->lesson ? $enrollment->lesson->description : $course->description),
-                'cover_image' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : ($course->cover_image ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'),
-                'subject' => $course->subject,
-                'grade' => $course->grade,
-                'teacher' => [
-                    'name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
-                    'avatar' => $course->teacher ? $course->teacher->avatar : null,
-                ],
-                'progress_percentage' => $progress,
-                'total_duration_seconds' => $totalDuration,
-                'watched_seconds' => $watchedSeconds,
-                'purchase_type' => $enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course'),
-                'package_id' => $enrollment->package_id,
-                'lesson_id' => $enrollment->lesson_id,
-                'package_type' => $enrollment->package ? $enrollment->package->type : null,
-                'package_title' => $enrollment->package ? $enrollment->package->title : null,
-                'lesson_title' => $enrollment->lesson ? $enrollment->lesson->title : null,
-            ];
+            if ($isBundle) {
+                $coursesData[] = [
+                    'id' => 'bundle-' . $enrollment->package_id,
+                    'title' => $enrollment->package->title,
+                    'description' => $enrollment->package->description,
+                    'cover_image' => $enrollment->package->package_thumbnail ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
+                    'subject' => 'باقة مجمعة',
+                    'grade' => null,
+                    'teacher' => [
+                        'name' => $enrollment->package->teacher ? $enrollment->package->teacher->name : 'معلم محذوف',
+                        'avatar' => $enrollment->package->teacher ? $enrollment->package->teacher->avatar : null,
+                    ],
+                    'progress_percentage' => $progress,
+                    'total_duration_seconds' => $totalDuration,
+                    'watched_seconds' => $watchedSeconds,
+                    'purchase_type' => 'package',
+                    'package_id' => $enrollment->package_id,
+                    'lesson_id' => null,
+                    'package_type' => 'bundle',
+                    'package_title' => $enrollment->package->title,
+                    'lesson_title' => null,
+                ];
+            } else {
+                $coursesData[] = [
+                    'id' => $course->id,
+                    'title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
+                    'description' => $enrollment->package ? $enrollment->package->description : ($enrollment->lesson ? $enrollment->lesson->description : $course->description),
+                    'cover_image' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : ($course->cover_image ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'),
+                    'subject' => $course->subject,
+                    'grade' => $course->grade,
+                    'teacher' => [
+                        'name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
+                        'avatar' => $course->teacher ? $course->teacher->avatar : null,
+                    ],
+                    'progress_percentage' => $progress,
+                    'total_duration_seconds' => $totalDuration,
+                    'watched_seconds' => $watchedSeconds,
+                    'purchase_type' => $enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course'),
+                    'package_id' => $enrollment->package_id,
+                    'lesson_id' => $enrollment->lesson_id,
+                    'package_type' => $enrollment->package ? $enrollment->package->type : null,
+                    'package_title' => $enrollment->package ? $enrollment->package->title : null,
+                    'lesson_title' => $enrollment->lesson ? $enrollment->lesson->title : null,
+                ];
+            }
         }
 
         // Overall progress percentage
@@ -2347,6 +2423,16 @@ class StudentController extends Controller
         if ($totalVideosCount > 0) {
             $allVideoIds = [];
             foreach ($enrollments as $enrollment) {
+                if ($enrollment->package && $enrollment->package->type === 'bundle') {
+                    $bundleLessons = $enrollment->package->lessons()->with('videos')->get();
+                    foreach ($bundleLessons as $lesson) {
+                        foreach ($lesson->videos as $video) {
+                            $allVideoIds[] = $video->id;
+                        }
+                    }
+                    continue;
+                }
+
                 $course = $enrollment->course;
                 if (!$course) {
                     if ($enrollment->package) {

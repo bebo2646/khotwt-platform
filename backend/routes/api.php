@@ -126,6 +126,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/teacher/courses/{course}', [TeacherController::class, 'deleteCourse']);
                 Route::post('/teacher/courses/{course}/units', [TeacherController::class, 'addUnit']);
                 Route::post('/teacher/units/{unit}/lessons', [TeacherController::class, 'addLesson']);
+                Route::put('/teacher/lessons/{lesson}', [TeacherController::class, 'updateLesson']);
+                Route::delete('/teacher/lessons/{lesson}', [TeacherController::class, 'deleteLesson']);
                 Route::post('/teacher/lessons/{lesson}/video', [TeacherController::class, 'addVideo']);
                 Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::post('/teacher/videos/signed-upload', [TeacherController::class, 'generateSignedUpload']);
@@ -136,6 +138,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::put('/teacher/pdfs/{pdf}', [TeacherController::class, 'updatePdf']);
                 Route::delete('/teacher/pdfs/{pdf}', [TeacherController::class, 'deletePdf']);
                 Route::post('/teacher/courses/{course}/packages', [TeacherController::class, 'createPackage']);
+                Route::get('/teacher/packages', [TeacherController::class, 'listPackages']);
+                Route::post('/teacher/packages', [TeacherController::class, 'createPackageNew']);
                 Route::put('/teacher/packages/{package}', [TeacherController::class, 'updatePackage']);
                 Route::delete('/teacher/packages/{package}', [TeacherController::class, 'deletePackage']);
                 Route::post('/teacher/lessons/{lesson}/exam', [TeacherController::class, 'addExam']);

@@ -11,16 +11,19 @@ class Package extends Model
 
     protected $fillable = [
         'course_id',
+        'teacher_id',
         'title',
         'price',
         'description',
         'cover_image',
         'package_thumbnail',
         'type',
+        'is_active',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
     protected $appends = [
@@ -44,6 +47,11 @@ class Package extends Model
         $original = $this->getOriginalLessonsTotalAttribute();
         $price = (float) $this->price;
         return max(0, $original - $price);
+    }
+
+    public function teacher()
+    {
+        return $this->belongsTo(User::class, 'teacher_id');
     }
 
     public function course()

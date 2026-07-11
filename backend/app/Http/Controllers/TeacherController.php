@@ -771,6 +771,75 @@ class TeacherController extends Controller
     }
 
     /**
+     * Update Lesson.
+     */
+    public function updateLesson(Request $request, $lessonId)
+    {
+        $lesson = Lesson::with('unit.course')->findOrFail($lessonId);
+        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'price' => 'nullable|numeric|min:0',
+        ]);
+
+        $lesson->update([
+            'title' => $request->title,
+            'description' => $request->description,
+            'price' => $request->price ?: 0.00,
+        ]);
+
+        return response()->json($lesson);
+    }
+
+    /**
+     * Delete Lesson.
+     */
+    public function deleteLesson(Request $request, $lessonId)
+    {
+        $lesson = Lesson::with(['unit.course', 'videos'])->findOrFail($lessonId);
+        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+
+        $teacherId = $request->user()->id;
+        $unitId = $lesson->unit_id;
+
+        DB::transaction(function () use ($lesson, $unitId, $teacherId) {
+            $bunnyService = new \App\Services\BunnyStreamService();
+            
+            // Delete all videos from Bunny Stream
+            foreach ($lesson->videos as $video) {
+                $bunnyVideoId = $video->bunny_video_id ?: $video->bunny_stream_id;
+                if (!empty($bunnyVideoId)) {
+                    try {
+                        $bunnyService->deleteVideo($bunnyVideoId);
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to delete video {$bunnyVideoId} on lesson delete: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // Delete the lesson (cascades database delete for videos, pdfs, exams, etc.)
+            $lesson->delete();
+
+            // Recalculate storage for the teacher
+            try {
+                $bunnyService->recalculateStorage($teacherId);
+            } catch (\Exception $e) {
+                \Log::error("Failed to recalculate storage: " . $e->getMessage());
+            }
+
+            // Refresh the lesson ordering correctly
+            $lessons = Lesson::where('unit_id', $unitId)->orderBy('order')->get();
+            foreach ($lessons as $index => $item) {
+                $item->update(['order' => $index]);
+            }
+        });
+
+        return response()->json(['success' => true, 'message' => 'تم حذف الدرس وجميع الفيديوهات والملفات المرتبطة بنجاح.']);
+    }
+
+    /**
      * Add Video to Lesson.
      */
     public function addVideo(Request $request, $lessonId)
@@ -1221,6 +1290,23 @@ class TeacherController extends Controller
     /**
      * Create monthly packages.
      */
+    /**
+     * List teacher packages/bundles.
+     */
+    public function listPackages(Request $request)
+    {
+        $packages = Package::where('teacher_id', $request->user()->id)
+            ->with(['lessons.unit.course'])
+            ->withCount('enrollments')
+            ->latest()
+            ->get();
+
+        return response()->json($packages);
+    }
+
+    /**
+     * Create monthly packages.
+     */
     public function createPackage(Request $request, $courseId)
     {
         $this->verifyCourseTeacher($request, $courseId);
@@ -1239,6 +1325,7 @@ class TeacherController extends Controller
         return DB::transaction(function () use ($request, $courseId) {
             $package = Package::create([
                 'course_id' => $courseId,
+                'teacher_id' => $request->user()->id,
                 'title' => $request->title,
                 'price' => $request->price,
                 'description' => $request->description,
@@ -1254,12 +1341,51 @@ class TeacherController extends Controller
     }
 
     /**
+     * Create standalone or multi-course bundles.
+     */
+    public function createPackageNew(Request $request)
+    {
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'price' => 'required|numeric|min:0',
+            'description' => 'nullable|string',
+            'cover_image' => 'nullable|string',
+            'package_thumbnail' => 'nullable|string',
+            'lesson_ids' => 'required|array',
+            'lesson_ids.*' => 'exists:lessons,id',
+            'type' => 'required|string|in:bundle,month,revision',
+            'course_id' => 'nullable|exists:courses,id',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        return DB::transaction(function () use ($request) {
+            $package = Package::create([
+                'course_id' => $request->course_id,
+                'teacher_id' => $request->user()->id,
+                'title' => $request->title,
+                'price' => $request->price,
+                'description' => $request->description,
+                'cover_image' => $request->cover_image,
+                'package_thumbnail' => $request->package_thumbnail,
+                'type' => $request->type,
+                'is_active' => $request->input('is_active', true),
+            ]);
+
+            $package->lessons()->sync($request->lesson_ids);
+
+            return response()->json($package->load('lessons'), 201);
+        });
+    }
+
+    /**
      * Update monthly packages.
      */
     public function updatePackage(Request $request, $packageId)
     {
         $package = Package::findOrFail($packageId);
-        $this->verifyCourseTeacher($request, $package->course_id);
+        if ($package->teacher_id !== $request->user()->id) {
+            abort(403, 'غير مصرح لك بتعديل بيانات هذه الباقة.');
+        }
 
         $request->validate([
             'title' => 'required|string|max:255',
@@ -1270,6 +1396,7 @@ class TeacherController extends Controller
             'lesson_ids' => 'required|array',
             'lesson_ids.*' => 'exists:lessons,id',
             'type' => 'required|string|in:bundle,month,revision',
+            'is_active' => 'nullable|boolean',
         ]);
 
         return DB::transaction(function () use ($request, $package) {
@@ -1280,6 +1407,7 @@ class TeacherController extends Controller
                 'cover_image' => $request->cover_image,
                 'package_thumbnail' => $request->package_thumbnail,
                 'type' => $request->type,
+                'is_active' => $request->has('is_active') ? $request->is_active : $package->is_active,
             ]);
 
             $package->lessons()->sync($request->lesson_ids);
@@ -1311,7 +1439,9 @@ class TeacherController extends Controller
                 ], 404);
             }
 
-            $this->verifyCourseTeacher($request, $package->course_id);
+            if ($package->teacher_id !== $request->user()->id) {
+                abort(403, 'غير مصرح لك بحذف هذه الباقة.');
+            }
 
             \Log::info('STARTING DELETE');
 

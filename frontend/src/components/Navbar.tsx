@@ -139,6 +139,7 @@ export default function Navbar() {
         <>
           {navLink("/teacher/dashboard", "الرئيسية")}
           {navLink("/teacher/courses", "كورساتي")}
+          {navLink("/teacher/packages", "الباقات المجمعة")}
           {navLink("/teacher/students", "الطلاب")}
           {navLink("/teacher/revenue", "تقرير الأرباح")}
           {navLink("/teacher/subscription", "اشتراكي")}

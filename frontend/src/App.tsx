@@ -54,6 +54,7 @@ const RevenueReport = React.lazy(() => import('./pages/teacher/RevenueReport'))
 const TeacherSubscriptionPage = React.lazy(() => import('./pages/teacher/Subscription'))
 const TeacherPlansPage = React.lazy(() => import('./pages/teacher/Plans'))
 const TeacherVideosManager = React.lazy(() => import('./pages/teacher/VideosManager'))
+const ManageBundles = React.lazy(() => import('./pages/teacher/ManageBundles'))
 
 // Admin Pages (Lazy Loaded)
 const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'))
@@ -354,6 +355,11 @@ function App() {
         <Route path="/teacher/courses" element={
           <ProtectedRoute allowedRoles={['teacher']}>
             <Layout><ManageCourses /></Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/teacher/packages" element={
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <Layout><ManageBundles /></Layout>
           </ProtectedRoute>
         } />
         <Route path="/teacher/students" element={

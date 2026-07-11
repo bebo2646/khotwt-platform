@@ -282,6 +282,66 @@ class PublicController extends Controller
      */
     public function courseDetail($id, Request $request)
     {
+        if (str_starts_with($id, 'bundle-')) {
+            $packageId = str_replace('bundle-', '', $id);
+            $package = \App\Models\Package::with(['lessons.unit.course', 'teacher'])->findOrFail($packageId);
+
+            $course = (object) [
+                'id' => 'bundle-' . $package->id,
+                'title' => $package->title,
+                'description' => $package->description,
+                'cover_image' => $package->package_thumbnail ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
+                'teacher_id' => $package->teacher_id,
+                'teacher' => $package->teacher,
+                'is_published' => true,
+            ];
+
+            // Group lessons by unit
+            $lessons = $package->lessons()->with(['videos', 'pdfs', 'exams'])->get();
+            $units = $lessons->groupBy('unit_id')->map(function ($unitLessons) {
+                $firstLesson = $unitLessons->first();
+                $originalUnit = $firstLesson->unit;
+                return [
+                    'id' => $originalUnit->id,
+                    'title' => $originalUnit->title . ' (' . $originalUnit->course->title . ')',
+                    'course_id' => $originalUnit->course_id,
+                    'lessons' => $unitLessons->map(function ($l) {
+                        return [
+                            'id' => $l->id,
+                            'title' => $l->title,
+                            'description' => $l->description,
+                            'price' => $l->price,
+                            'videos' => $l->videos,
+                            'pdfs' => $l->pdfs,
+                            'exams' => $l->exams,
+                        ];
+                    }),
+                ];
+            })->values();
+
+            $isEnrolled = false;
+            $user = Auth::guard('sanctum')->user();
+            if ($user) {
+                if ($user->isAdmin() || ($user->isTeacher() && $package->teacher_id === $user->id)) {
+                    $isEnrolled = true;
+                } elseif ($user->isStudent()) {
+                    $isEnrolled = Enrollment::where('student_id', $user->id)
+                        ->where('package_id', $package->id)
+                        ->exists();
+                }
+            }
+
+            return response()->json([
+                'course' => $course,
+                'units' => $units,
+                'packages' => [],
+                'is_enrolled' => $isEnrolled,
+                'last_watched' => null,
+                'availability_message' => null,
+                'view_limit_exceeded' => false,
+            ]);
+        }
+
         $query = Course::with('teacher')->where('is_published', true);
         if (is_numeric($id)) {
             $query->where('id', $id);
