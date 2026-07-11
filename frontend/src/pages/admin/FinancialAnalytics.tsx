@@ -6,7 +6,7 @@ import {
   FileDown, RefreshCw, BarChart2, DollarSign, BookOpen, AlertCircle, 
   Coins, Filter, Search, Calendar, ChevronDown, ChevronRight, X, Eye, 
   Users, Wallet, GraduationCap, Percent, TrendingUp, Clock, BookOpen as BookIcon,
-  Award, FileText, CheckCircle, Printer, HelpCircle, ArrowLeft, PlusCircle, ArrowDownCircle, ArrowUpCircle
+  Award, FileText, CheckCircle, Printer, HelpCircle, ArrowLeft, PlusCircle, ArrowDownCircle, ArrowUpCircle, ShieldAlert, ShieldCheck
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
@@ -47,6 +47,7 @@ interface DailyReportItem {
   teachers_earnings: number
   purchases_count: number
   new_students_count: number
+  refunds_amount: number
   courses_sold: number
   bundles_sold: number
   monthly_packages_sold: number
@@ -100,8 +101,19 @@ interface StatementEvent {
   running_balance: number
 }
 
+interface AuditLogItem {
+  id: number
+  admin_name: string
+  action: string
+  previous_value: string | null
+  new_value: string | null
+  reason: string | null
+  ip_address: string | null
+  created_at: string
+}
+
 export default function FinancialAnalytics() {
-  const [activeTab, setActiveTab] = React.useState<'dashboard' | 'transactions' | 'daily' | 'teachers' | 'students'>('dashboard')
+  const [activeTab, setActiveTab] = React.useState<'dashboard' | 'transactions' | 'daily' | 'teachers' | 'students' | 'audit'>('dashboard')
   const [loading, setLoading] = React.useState(true)
 
   // Filters
@@ -141,6 +153,14 @@ export default function FinancialAnalytics() {
   const [topBundlesChart, setTopBundlesChart] = React.useState<any[]>([])
   const [topTeachersChart, setTopTeachersChart] = React.useState<any[]>([])
   const [topStudentsChart, setTopStudentsChart] = React.useState<any[]>([])
+  const [alerts, setAlerts] = React.useState<any>({
+    large_refunds: [],
+    large_adjustments: [],
+    negative_balances: [],
+    revenue_mismatch: { mismatch: false, student_payments: 0, teacher_earnings: 0, platform_earnings: 0, difference: 0 },
+    duplicate_payments: [],
+    duplicate_wallet_transactions: []
+  })
 
   // Transactions Data
   const [transactions, setTransactions] = React.useState<TransactionItem[]>([])
@@ -167,6 +187,11 @@ export default function FinancialAnalytics() {
   const [studentLastPage, setStudentLastPage] = React.useState(1)
   const [selectedStudentLedger, setSelectedStudentLedger] = React.useState<any | null>(null)
   const [isLedgerLoading, setIsLedgerLoading] = React.useState(false)
+
+  // Audit Logs
+  const [auditLogs, setAuditLogs] = React.useState<AuditLogItem[]>([])
+  const [auditPage, setAuditPage] = React.useState(1)
+  const [auditLastPage, setAuditLastPage] = React.useState(1)
 
   // Fetch reference lists
   React.useEffect(() => {
@@ -195,6 +220,7 @@ export default function FinancialAnalytics() {
     setStudentSearch('')
     setCurrentPage(1)
     setStudentPage(1)
+    setAuditPage(1)
   }
 
   // Load active tab data
@@ -234,6 +260,14 @@ export default function FinancialAnalytics() {
         setTopBundlesChart(res.data.charts.top_selling_bundles || [])
         setTopTeachersChart(res.data.charts.top_teachers || [])
         setTopStudentsChart(res.data.charts.top_students_by_spending || [])
+        setAlerts(res.data.alerts || {
+          large_refunds: [],
+          large_adjustments: [],
+          negative_balances: [],
+          revenue_mismatch: { mismatch: false },
+          duplicate_payments: [],
+          duplicate_wallet_transactions: []
+        })
       } else if (activeTab === 'transactions') {
         const res = await API.get('/admin/financial/transactions', { 
           params: { ...params, page: currentPage } 
@@ -253,6 +287,12 @@ export default function FinancialAnalytics() {
         })
         setStudentReport(res.data.data || [])
         setStudentLastPage(res.data.last_page || 1)
+      } else if (activeTab === 'audit') {
+        const res = await API.get('/admin/financial/audit-logs', { 
+          params: { page: auditPage } 
+        })
+        setAuditLogs(res.data.data || [])
+        setAuditLastPage(res.data.last_page || 1)
       }
     } catch (err) {
       console.error(err)
@@ -260,7 +300,7 @@ export default function FinancialAnalytics() {
     } finally {
       setLoading(false)
     }
-  }, [activeTab, range, startDate, endDate, teacherId, studentId, courseId, packageId, productType, paymentMethod, purchaseType, priceMin, priceMax, grade, subject, status, currentPage, studentSearch, studentPage])
+  }, [activeTab, range, startDate, endDate, teacherId, studentId, courseId, packageId, productType, paymentMethod, purchaseType, priceMin, priceMax, grade, subject, status, currentPage, studentSearch, studentPage, auditPage])
 
   React.useEffect(() => {
     fetchData()
@@ -296,7 +336,6 @@ export default function FinancialAnalytics() {
         description: adjustDescription
       })
       useModalStore.getState().showToast('تم حفظ التسوية الحسابية اليدوية بنجاح.', 'success')
-      // Refresh statement
       fetchTeacherStatement(selectedTeacherStatement.teacher.id)
       fetchData() // Refresh parent reports
     } catch (err: any) {
@@ -362,13 +401,42 @@ export default function FinancialAnalytics() {
     }
   }
 
+  // Export Single Day Closing report
+  const handleExportDayClosing = async (date: string) => {
+    try {
+      const response = await API.get('/admin/financial/daily-closing/export', {
+        params: { date },
+        responseType: 'blob'
+      })
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.setAttribute('href', url)
+      link.setAttribute('download', `daily_closing_report_${date}.csv`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      useModalStore.getState().showToast(`تم تصدير تقرير إغلاق يوم ${date} بنجاح.`, 'success')
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('حدث خطأ أثناء تصدير تقرير الإغلاق اليومي.', 'error')
+    }
+  }
+
   const handlePrintReport = () => {
     window.print()
   }
 
+  // Check if any critical alert is active
+  const hasCriticalAlerts = alerts.revenue_mismatch.mismatch || 
+                            alerts.negative_balances.length > 0 || 
+                            alerts.duplicate_payments.length > 0 ||
+                            alerts.duplicate_wallet_transactions.length > 0;
+
   return (
     <div className="space-y-6 pb-12 text-right antialiased font-sans">
-      {/* Printable Report Header Helper */}
+      
+      {/* Printable Report Header */}
       <div className="hidden print:block text-center border-b pb-4 mb-6">
         <h1 className="text-2xl font-black text-slate-900">التقرير المالي والحسابات الختامية للمنصة</h1>
         <p className="text-sm text-slate-600 mt-2">تاريخ التقرير: {new Date().toLocaleDateString('ar-EG')} - الوقت الحالي: {new Date().toLocaleTimeString('ar-EG')}</p>
@@ -384,13 +452,13 @@ export default function FinancialAnalytics() {
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           <button
             onClick={handleExportCSV}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/20 hover:border-transparent rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-indigo-600/10 hover:bg-indigo-650 text-indigo-400 hover:text-white border border-indigo-500/20 hover:border-transparent rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <FileDown className="h-4 w-4" /> <span>تصدير Excel / CSV</span>
           </button>
           <button
             onClick={handlePrintReport}
-            className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-transparent rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600/10 hover:bg-emerald-650 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-transparent rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Printer className="h-4 w-4" /> <span>طباعة التقرير / PDF</span>
           </button>
@@ -411,6 +479,7 @@ export default function FinancialAnalytics() {
           { key: 'daily', label: 'التقارير الحسابية اليومية (Daily Closing)' },
           { key: 'teachers', label: 'كشوفات حساب المعلمين' },
           { key: 'students', label: 'حسابات الطلاب ومشترياتهم' },
+          { key: 'audit', label: 'سجل الحوكمة والتدقيق الإداري' },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -655,6 +724,132 @@ export default function FinancialAnalytics() {
           {/* TAB 1: DASHBOARD ANALYTICS */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
+              
+              {/* Financial Verification & Mismatch Panel */}
+              <div className={`p-5 rounded-2xl border text-right transition-all ${
+                alerts.revenue_mismatch.mismatch 
+                  ? 'bg-rose-500/10 border-rose-500/30' 
+                  : 'bg-emerald-500/10 border-emerald-500/30'
+              }`}>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    {alerts.revenue_mismatch.mismatch ? (
+                      <ShieldAlert className="h-5 w-5 text-rose-450 animate-bounce" />
+                    ) : (
+                      <ShieldCheck className="h-5 w-5 text-emerald-450" />
+                    )}
+                    <span className="text-xs font-black text-slate-200">
+                      {alerts.revenue_mismatch.mismatch 
+                        ? 'تنبيه: يوجد عدم تطابق في مطابقة إيرادات الحسابات الختامية!' 
+                        : 'تطابق القيود المالية: تم التحقق والتدقيق بنجاح.'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400">مطابقة الحسابات (Total Payments = Teachers Share + Platform Profit)</span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 pt-3 border-t border-slate-800 text-xs font-mono">
+                  <div>
+                    <span className="text-[10px] text-slate-450 font-sans block">إجمالي مشتريات الطلاب</span>
+                    <span className="text-slate-200 font-bold">{(alerts.revenue_mismatch.student_payments || 0).toLocaleString()} ج.م</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-450 font-sans block">إجمالي حصة المعلمين الكلية</span>
+                    <span className="text-slate-200 font-bold">{(alerts.revenue_mismatch.teacher_earnings || 0).toLocaleString()} ج.م</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-450 font-sans block">إجمالي أرباح وعمولة المنصة</span>
+                    <span className="text-slate-200 font-bold">{(alerts.revenue_mismatch.platform_earnings || 0).toLocaleString()} ج.م</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-450 font-sans block">فارق التسوية</span>
+                    <span className={`font-bold ${alerts.revenue_mismatch.mismatch ? 'text-rose-450' : 'text-emerald-450'}`}>
+                      {(alerts.revenue_mismatch.difference || 0).toLocaleString()} ج.م
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Dashboard Alerts Panel (Unusual activity detect) */}
+              <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
+                <h5 className="text-xs font-black text-slate-200 mb-4 flex justify-between items-center">
+                  <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[10px] animate-pulse">شاشات المراقبة النشطة</span>
+                  <span className="flex items-center gap-1.5">
+                    <ShieldAlert className="h-4.5 w-4.5 text-rose-450" />
+                    <span>لوحة الرصد والإنذار المبكر للعمليات غير العادية</span>
+                  </span>
+                </h5>
+
+                {!hasCriticalAlerts && 
+                 alerts.large_refunds.length === 0 && 
+                 alerts.large_adjustments.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400">
+                    لا توجد أي معاملات مالية غير عادية أو انحرافات حسابية مسجلة حالياً.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    {/* negative balances */}
+                    {alerts.negative_balances.length > 0 && (
+                      <div className="bg-rose-500/5 border border-rose-500/10 p-4 rounded-xl space-y-2">
+                        <span className="font-bold text-rose-400 block">رصيد معلم أصبح سالباً (سحب زائد)</span>
+                        {alerts.negative_balances.map((n: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-[11px] font-mono">
+                            <span className="text-rose-400 font-bold">{n.balance} ج.م</span>
+                            <span className="text-slate-300 font-sans">{n.teacher_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* duplicate payments */}
+                    {alerts.duplicate_payments.length > 0 && (
+                      <div className="bg-amber-550/5 border border-amber-550/10 p-4 rounded-xl space-y-2">
+                        <span className="font-bold text-amber-400 block">عمليات شراء متكررة متطابقة (خلال دقيقتين)</span>
+                        {alerts.duplicate_payments.map((dp: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-mono leading-relaxed border-b border-slate-800 pb-1">
+                            <div className="text-right">
+                              <p className="text-slate-350">{dp.product_name}</p>
+                              <p className="text-slate-500 text-[9px]">{dp.timestamp} (فارق: {dp.time_diff})</p>
+                            </div>
+                            <span className="text-slate-300 font-sans font-semibold">{dp.student_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* duplicate wallet transactions */}
+                    {alerts.duplicate_wallet_transactions.length > 0 && (
+                      <div className="bg-amber-550/5 border border-amber-550/10 p-4 rounded-xl space-y-2">
+                        <span className="font-bold text-amber-450 block">حركات محفظة مكررة مشتبه بها (خلال دقيقتين)</span>
+                        {alerts.duplicate_wallet_transactions.map((dw: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-mono border-b border-slate-800 pb-1">
+                            <div className="text-right">
+                              <p className="text-slate-350 font-bold">{dw.amount} ج.م ({dw.type === 'purchase' ? 'خصم' : 'شحن'})</p>
+                              <p className="text-slate-500 text-[9px]">{dw.timestamp}</p>
+                            </div>
+                            <span className="text-slate-300 font-sans">{dw.student_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* large refunds */}
+                    {alerts.large_refunds.length > 0 && (
+                      <div className="bg-indigo-500/5 border border-indigo-500/10 p-4 rounded-xl space-y-2">
+                        <span className="font-bold text-indigo-400 block">عمليات استرجاع مبالغ ضخمة (&gt; 500 ج.م)</span>
+                        {alerts.large_refunds.map((r: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center text-[10px] font-mono border-b border-slate-800 pb-1">
+                            <div className="text-right">
+                              <p className="text-indigo-400 font-bold">{r.amount} ج.م</p>
+                              <p className="text-slate-450">{r.product}</p>
+                            </div>
+                            <span className="text-slate-300 font-sans">{r.student_name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Financial Metrics Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
@@ -672,7 +867,7 @@ export default function FinancialAnalytics() {
                     </div>
                     <div className="mt-3">
                       <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450 font-mono">ج.م</span></span>
-                      <p className="text-[9px] text-slate-450 mt-1 font-light">{c.desc}</p>
+                      <p className="text-[9px] text-slate-455 mt-1 font-light">{c.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -694,7 +889,7 @@ export default function FinancialAnalytics() {
                     </div>
                     <div className="mt-3">
                       <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450 font-mono">ج.م</span></span>
-                      <p className="text-[9px] text-slate-450 mt-1 font-light">{c.desc}</p>
+                      <p className="text-[9px] text-slate-455 mt-1 font-light">{c.desc}</p>
                     </div>
                   </div>
                 ))}
@@ -702,7 +897,6 @@ export default function FinancialAnalytics() {
 
               {/* Charts Panel */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 1. Daily Revenue Chart */}
                 <div className="lg:col-span-2 bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
                   <h5 className="text-xs font-black text-slate-200 mb-4 flex justify-between items-center">
                     <span className="text-[10px] text-slate-400 font-normal">الأيام النشطة: {dailyChart.length} يوم</span>
@@ -731,7 +925,6 @@ export default function FinancialAnalytics() {
                   </div>
                 </div>
 
-                {/* 2. Product Type Split Chart */}
                 <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
                   <h5 className="text-xs font-black text-slate-200 mb-4">مبيعات المنصة حسب نوع المنتج</h5>
                   <div className="h-64">
@@ -747,206 +940,6 @@ export default function FinancialAnalytics() {
                       </SafeResponsiveContainer>
                     ) : (
                       <EmptyState type="general" title="لا توجد أرباح حسب نوع المنتج" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Weekly Revenue Chart */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">تحليل الإيرادات الأسبوعية</h5>
-                  <div className="h-64">
-                    {weeklyChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={weeklyChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={8} />
-                          <YAxis stroke="#94a3b8" fontSize={9} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="مبيعات الأسبوع" fill="#6366f1" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات أسبوعية" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 4. Monthly Revenue Chart */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">تحليل الإيرادات الشهرية</h5>
-                  <div className="h-64">
-                    {monthlyChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={monthlyChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={9} />
-                          <YAxis stroke="#94a3b8" fontSize={9} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="مبيعات الشهر" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات شهرية" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 5. Yearly Revenue Chart */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">تحليل الإيرادات السنوية</h5>
-                  <div className="h-64">
-                    {yearlyChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={yearlyChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={9} />
-                          <YAxis stroke="#94a3b8" fontSize={9} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="مبيعات السنة" fill="#ec4899" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات سنوية" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 6. Revenue Per Teacher */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">الأكثر مبيعاً من المدرسين</h5>
-                  <div className="h-64">
-                    {teacherChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={teacherChart} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={9} />
-                          <YAxis type="category" dataKey="label" stroke="#94a3b8" fontSize={8} width={75} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="إيرادات" fill="#3b82f6" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات مدرسين متوفرة" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 7. Subject Split Chart */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">مبيعات المنصة حسب المواد الدراسية</h5>
-                  <div className="h-64">
-                    {subjectChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={subjectChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={9} />
-                          <YAxis stroke="#94a3b8" fontSize={9} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="المبيعات" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد مبيعات للمواد" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 8. Grade Split Chart */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">مبيعات المنصة حسب الصفوف الدراسية</h5>
-                  <div className="h-64">
-                    {gradeChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={gradeChart}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis dataKey="label" stroke="#94a3b8" fontSize={9} />
-                          <YAxis stroke="#94a3b8" fontSize={9} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="المبيعات" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد مبيعات للصفوف" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 9. Top Selling Courses */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">الكورسات الأكثر مبيعاً (Top Courses)</h5>
-                  <div className="h-64">
-                    {topCoursesChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={topCoursesChart} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={9} />
-                          <YAxis type="category" dataKey="label" stroke="#94a3b8" fontSize={8} width={75} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="sales_count" name="عدد المبيعات" fill="#10b981" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات كورسات مبيعاً" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 10. Top Selling Bundles */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">الحزم والمحاضرات المجمعة الأكثر مبيعاً</h5>
-                  <div className="h-64">
-                    {topBundlesChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={topBundlesChart} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={9} />
-                          <YAxis type="category" dataKey="label" stroke="#94a3b8" fontSize={8} width={75} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="sales_count" name="عدد المبيعات" fill="#ec4899" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد مبيعات للحزم" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 11. Top Teachers */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">أعلى المدرسين تحقيقاً للإيرادات</h5>
-                  <div className="h-64">
-                    {topTeachersChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={topTeachersChart} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={9} />
-                          <YAxis type="category" dataKey="label" stroke="#94a3b8" fontSize={8} width={75} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="مبيعات كلية (ج.م)" fill="#3b82f6" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات مدرسين" />
-                    )}
-                  </div>
-                </div>
-
-                {/* 12. Top Students by Spending */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
-                  <h5 className="text-xs font-black text-slate-200 mb-4">الطلاب الأكثر إنفاقاً للمشتريات</h5>
-                  <div className="h-64">
-                    {topStudentsChart.length > 0 ? (
-                      <SafeResponsiveContainer height={256}>
-                        <BarChart data={topStudentsChart} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                          <XAxis type="number" stroke="#94a3b8" fontSize={9} />
-                          <YAxis type="category" dataKey="label" stroke="#94a3b8" fontSize={8} width={75} />
-                          <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', textAlign: 'right' }} />
-                          <Bar dataKey="value" name="إجمالي الإنفاق (ج.م)" fill="#f59e0b" radius={[0, 6, 6, 0]} />
-                        </BarChart>
-                      </SafeResponsiveContainer>
-                    ) : (
-                      <EmptyState type="general" title="لا توجد بيانات إنفاق" />
                     )}
                   </div>
                 </div>
@@ -1018,16 +1011,16 @@ export default function FinancialAnalytics() {
                           </td>
                           <td className="px-4 py-4">{tr.wallet_transaction_id ? `#${tr.wallet_transaction_id}` : 'N/A'}</td>
                           <td className="px-4 py-4 font-sans">
-                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${tr.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-450'}`}>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${tr.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-455'}`}>
                               {tr.status === 'paid' ? 'مكتملة' : 'مسترجعة'}
                             </span>
                           </td>
-                          <td className="px-4 py-4 text-center font-sans">
+                          <td className="px-4 py-4 text-center font-sans whitespace-nowrap">
                             <button
                               onClick={() => setSelectedTransaction(tr)}
-                              className="px-2 py-1 bg-slate-800 hover:bg-indigo-650 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-indigo-650 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
                             >
-                              <Eye className="h-3.5 w-3.5" /> <span>تفاصيل</span>
+                              <Eye className="h-3.5 w-3.5" /> <span>تدقيق</span>
                             </button>
                           </td>
                         </tr>
@@ -1037,7 +1030,6 @@ export default function FinancialAnalytics() {
                 </table>
               </div>
 
-              {/* Pagination controls */}
               {lastPage > 1 && (
                 <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-xs">
                   <button
@@ -1073,17 +1065,18 @@ export default function FinancialAnalytics() {
                       <th className="px-5 py-4 text-right">التاريخ</th>
                       <th className="px-5 py-4 text-right font-sans">الأعلى مبيعاً (مدرس / مادة)</th>
                       <th className="px-5 py-4 text-right font-sans">الكورس / الحزمة الأفضل</th>
-                      <th className="px-5 py-4 text-right">الطلاب الجدد</th>
-                      <th className="px-5 py-4 text-right">تفاصيل المبيعات اليومية</th>
+                      <th className="px-5 py-4 text-right">المسترجعات اليومية</th>
+                      <th className="px-5 py-4 text-right">تفاصيل المبيعات والطلاب</th>
                       <th className="px-5 py-4 text-right">إيرادات المدرسين</th>
                       <th className="px-5 py-4 text-right">أرباح المنصة</th>
-                      <th className="px-5 py-4 text-right">إجمالي الإيرادات اليومية</th>
+                      <th className="px-5 py-4 text-right">إجمالي الإيرادات</th>
+                      <th className="px-5 py-4 text-center">التقرير</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
                     {dailyReports.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 font-sans">
+                        <td colSpan={9} className="py-8 font-sans">
                           <EmptyState type="general" title="لا توجد تقارير حسابية يومية مسجلة." />
                         </td>
                       </tr>
@@ -1099,14 +1092,22 @@ export default function FinancialAnalytics() {
                             <p className="font-bold">{item.top_course}</p>
                             <p className="text-[10px] text-slate-450">الحزمة: {item.top_bundle}</p>
                           </td>
-                          <td className="px-5 py-4 text-sky-400 font-bold font-sans">+{item.new_students_count} طالب</td>
+                          <td className="px-5 py-4 text-rose-455 font-bold font-sans">-{item.refunds_amount.toLocaleString()} ج.م</td>
                           <td className="px-5 py-4 font-sans text-slate-400 text-[10px] leading-relaxed">
-                            <p>إجمالي المبيعات: {item.purchases_count} عملية</p>
+                            <p>المبيعات: {item.purchases_count} عملية | طلاب جدد: +{item.new_students_count}</p>
                             <p>كورسات: {item.courses_sold} | حزم: {item.bundles_sold} | باقات: {item.monthly_packages_sold} | مراجعات: {item.revision_packages_sold} | درس: {item.standalone_sold}</p>
                           </td>
                           <td className="px-5 py-4 text-emerald-400 font-bold">{item.teachers_earnings.toLocaleString()} ج.م</td>
-                          <td className="px-5 py-4 text-indigo-400 font-bold">{item.platform_earnings.toLocaleString()} ج.م</td>
+                          <td className="px-5 py-4 text-indigo-400 font-bold">{item.platform_earnings.toLocaleString()} ج.m</td>
                           <td className="px-5 py-4 font-black text-slate-100 bg-indigo-500/[0.01]">{item.total_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-5 py-4 text-center font-sans">
+                            <button
+                              onClick={() => handleExportDayClosing(item.date)}
+                              className="px-2 py-1 bg-slate-800 hover:bg-emerald-650 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1"
+                            >
+                              <FileDown className="h-3.5 w-3.5" /> <span>تصدير</span>
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1219,8 +1220,8 @@ export default function FinancialAnalytics() {
                         studentReport.map((item, i) => (
                           <tr key={i} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
                             <td className="px-6 py-4 font-bold font-sans text-slate-200">{item.student.name}</td>
-                            <td className="px-6 py-4 font-mono text-slate-350">{item.student.email}</td>
-                            <td className="px-6 py-4 font-mono text-slate-350">{item.student.phone || 'N/A'}</td>
+                            <td className="px-6 py-4 font-mono text-slate-355">{item.student.email}</td>
+                            <td className="px-6 py-4 font-mono text-slate-355">{item.student.phone || 'N/A'}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-slate-400 font-sans">{item.last_purchase_date || 'N/A'}</td>
                             <td className="px-6 py-4 text-indigo-400 font-semibold font-sans">{item.favorite_teacher}</td>
                             <td className="px-6 py-4 text-pink-400 font-semibold font-sans">{item.favorite_subject}</td>
@@ -1268,14 +1269,79 @@ export default function FinancialAnalytics() {
               </div>
             </div>
           )}
+
+          {/* TAB 6: AUDIT GOVERNANCE LOGS */}
+          {activeTab === 'audit' && (
+            <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden text-right">
+              <div className="p-6 border-b border-[var(--border-color)]">
+                <h5 className="font-bold text-sm text-slate-200 font-arabic">سجل التدقيق والحوكمة المالية الإدارية (Financial Audit Log)</h5>
+                <p className="text-xs text-slate-455 mt-1 font-light">سجل تاريخي دائم لجميع العمليات الإدارية والمالية الحساسة التي تتم على السيرفر.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-slate-350">
+                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)] font-arabic">
+                    <tr>
+                      <th className="px-5 py-4 text-right">تاريخ وتوقيت العملية</th>
+                      <th className="px-5 py-4 text-right">اسم المسؤول</th>
+                      <th className="px-5 py-4 text-right">نوع الإجراء الحسابي</th>
+                      <th className="px-5 py-4 text-right">القيمة السابقة</th>
+                      <th className="px-5 py-4 text-right">القيمة الجديدة المحسوبة</th>
+                      <th className="px-5 py-4 text-right">سبب التعديل والبيان</th>
+                      <th className="px-5 py-4 text-right font-sans">عنوان IP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
+                    {auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 font-sans">
+                          <EmptyState type="general" title="لا توجد سجلات تدقيق مالي مسجلة حالياً." />
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
+                          <td className="px-5 py-4 text-slate-400 whitespace-nowrap">{log.created_at}</td>
+                          <td className="px-5 py-4 font-bold font-sans text-slate-200">{log.admin_name}</td>
+                          <td className="px-5 py-4 font-sans text-indigo-400 font-bold">{log.action}</td>
+                          <td className="px-5 py-4 text-slate-300">{log.previous_value || 'N/A'}</td>
+                          <td className="px-5 py-4 text-slate-100 font-bold">{log.new_value || 'N/A'}</td>
+                          <td className="px-5 py-4 font-sans text-slate-400">{log.reason || 'N/A'}</td>
+                          <td className="px-5 py-4 text-slate-455">{log.ip_address || 'N/A'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {auditLastPage > 1 && (
+                <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-xs">
+                  <button
+                    disabled={auditPage === 1}
+                    onClick={() => setAuditPage((p) => p - 1)}
+                    className="px-3 py-1.5 bg-slate-800 text-slate-350 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    السابق
+                  </button>
+                  <span className="text-slate-400 font-mono">الصفحة {auditPage} من {auditLastPage}</span>
+                  <button
+                    disabled={auditPage === auditLastPage}
+                    onClick={() => setAuditPage((p) => p + 1)}
+                    className="px-3 py-1.5 bg-slate-800 text-slate-350 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    التالي
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
-      {/* Transaction Details Modal (Drill down tracing) */}
+      {/* Transaction Details Modal */}
       {selectedTransaction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-right">
-            {/* Modal Header */}
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/20">
               <button
                 onClick={() => setSelectedTransaction(null)}
@@ -1285,17 +1351,12 @@ export default function FinancialAnalytics() {
               </button>
               <div>
                 <h4 className="font-black text-sm text-slate-100 font-arabic">سلسلة تدقيق تتبع المعاملة (Traceability Audit Trail)</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5 font-mono">رقم الفاتورة: #{selectedTransaction.id}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-mono">رقم المعاملة: #{selectedTransaction.id}</p>
               </div>
             </div>
 
-            {/* Modal Body (Trace Map) */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[72vh]">
-              
-              {/* Chronological Audit Steps visual */}
               <div className="relative border-r border-indigo-500/25 pr-6 mr-3 space-y-5">
-                
-                {/* Step 1: Student */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">1</span>
                   <div className="space-y-1">
@@ -1308,7 +1369,6 @@ export default function FinancialAnalytics() {
                   </div>
                 </div>
 
-                {/* Step 2: Purchased Product */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">2</span>
                   <div className="space-y-1">
@@ -1320,7 +1380,6 @@ export default function FinancialAnalytics() {
                   </div>
                 </div>
 
-                {/* Step 3: Course */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">3</span>
                   <div className="space-y-1">
@@ -1332,19 +1391,17 @@ export default function FinancialAnalytics() {
                   </div>
                 </div>
 
-                {/* Step 4: Teacher */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">4</span>
                   <div className="space-y-1">
                     <span className="text-[10px] font-bold text-indigo-400 block font-arabic">المعلم المعتمد والتسوية المادية</span>
                     <div className="text-xs text-slate-300">
                       <p className="font-bold text-slate-200">{selectedTransaction.teacher.name}</p>
-                      <p className="text-[10px] text-slate-450">معرف المعلم: #{selectedTransaction.teacher.id} | مادة: {selectedTransaction.teacher.subject}</p>
+                      <p className="text-[10px] text-slate-455">معرف المعلم: #{selectedTransaction.teacher.id} | مادة: {selectedTransaction.teacher.subject}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Step 5: Wallet Transaction */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">5</span>
                   <div className="space-y-1">
@@ -1362,7 +1419,6 @@ export default function FinancialAnalytics() {
                   </div>
                 </div>
 
-                {/* Step 6: Revenue Split */}
                 <div className="relative">
                   <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">6</span>
                   <div className="space-y-2">
@@ -1372,20 +1428,20 @@ export default function FinancialAnalytics() {
                         <span className="font-bold text-slate-200">{selectedTransaction.original_price} ج.م</span>
                         <span className="font-sans">سعر البيع الأساسي</span>
                       </div>
-                      <div className="flex justify-between text-rose-400">
+                      <div className="flex justify-between text-rose-455 font-bold">
                         <span>-{selectedTransaction.discount} ج.م</span>
                         <span className="font-sans">الخصومات الممنوحة</span>
                       </div>
                       <div className="flex justify-between border-t border-slate-800 pt-2 font-bold text-slate-100">
-                        <span>{selectedTransaction.final_paid_amount} ...</span>
+                        <span>{selectedTransaction.final_paid_amount} ج.م</span>
                         <span className="font-sans">المبلغ النهائي المسدد</span>
                       </div>
-                      <div className="flex justify-between text-emerald-400 pt-1">
-                        <span>{selectedTransaction.teacher_share} ...</span>
+                      <div className="flex justify-between text-emerald-450 pt-1">
+                        <span>{selectedTransaction.teacher_share} ج.م</span>
                         <span className="font-sans">صافي نصيب المعلم</span>
                       </div>
                       <div className="flex justify-between text-indigo-400">
-                        <span>{selectedTransaction.platform_share} ...</span>
+                        <span>{selectedTransaction.platform_share} ج.م</span>
                         <span className="font-sans">عمولة وصافي ربح المنصة</span>
                       </div>
                     </div>
@@ -1393,7 +1449,6 @@ export default function FinancialAnalytics() {
                 </div>
               </div>
 
-              {/* Timelines and status info */}
               <div className="grid grid-cols-2 gap-4 text-xs pt-3 border-t border-slate-800 font-sans">
                 <div>
                   <span className="text-[10px] font-bold text-slate-500 block">وقت وتاريخ الشراء</span>
@@ -1406,7 +1461,6 @@ export default function FinancialAnalytics() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end">
               <button
                 onClick={() => setSelectedTransaction(null)}
@@ -1419,12 +1473,10 @@ export default function FinancialAnalytics() {
         </div>
       )}
 
-      {/* Teacher Statement bank statement style modal */}
+      {/* Teacher Statement Modal */}
       {selectedTeacherStatement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transition-opacity print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in duration-150 text-right">
-            
-            {/* Modal Header */}
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/25">
               <div className="flex gap-2">
                 <button
@@ -1446,10 +1498,7 @@ export default function FinancialAnalytics() {
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
-              
-              {/* Manual balance adjustment form */}
               {showAdjustForm && (
                 <form onSubmit={handleTeacherAdjustment} className="bg-slate-950/40 border border-indigo-500/20 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
                   <h5 className="text-xs font-black text-indigo-400 flex items-center gap-1.5 justify-end">
@@ -1470,7 +1519,7 @@ export default function FinancialAnalytics() {
                       />
                     </div>
                     <div className="col-span-2 space-y-1">
-                      <label className="text-[10px] font-bold text-slate-400">وصف وسبب التسوية (يظهر في كشف الحساب)</label>
+                      <label className="text-[10px] font-bold text-slate-400">وصف وسبب التسوية (يظهر في كشف الحساب والتدقيق)</label>
                       <input
                         type="text"
                         required
@@ -1501,14 +1550,13 @@ export default function FinancialAnalytics() {
                 </form>
               )}
 
-              {/* Statement KPI Balance details */}
               <div className="grid grid-cols-3 gap-4 border-b border-slate-800 pb-5 text-center font-mono">
                 <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
-                  <span className="text-[9px] font-bold text-slate-450 block font-sans">الرصيد الافتتاحي (Opening Balance)</span>
+                  <span className="text-[9px] font-bold text-slate-455 block font-sans">الرصيد الافتتاحي (Opening Balance)</span>
                   <span className="text-lg font-black text-slate-300 mt-1 block">{selectedTeacherStatement.opening_balance.toLocaleString()} ج.م</span>
                 </div>
                 <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
-                  <span className="text-[9px] font-bold text-slate-450 block font-sans">إجمالي أرباح ومبيعات الفترة</span>
+                  <span className="text-[9px] font-bold text-slate-455 block font-sans">إجمالي أرباح ومبيعات الفترة</span>
                   <span className="text-lg font-black text-emerald-400 mt-1 block">+{selectedTeacherStatement.timeline.reduce((acc: number, val: any) => val.type !== 'Withdrawal' && val.amount > 0 ? acc + val.amount : acc, 0).toLocaleString()} ج.م</span>
                 </div>
                 <div className="bg-slate-950/15 border border-indigo-500/20 p-4 rounded-xl">
@@ -1517,11 +1565,10 @@ export default function FinancialAnalytics() {
                 </div>
               </div>
 
-              {/* bank statement timeline table */}
               <div className="overflow-hidden border border-slate-800 rounded-2xl bg-slate-950/15">
                 <div className="p-4 border-b border-slate-800 font-bold text-xs text-slate-300 font-arabic">سجل حركات الحساب المالي (Statement Timeline)</div>
                 <div className="overflow-x-auto max-h-[35vh]">
-                  <table className="w-full text-xs text-slate-350">
+                  <table className="w-full text-xs text-slate-355">
                     <thead className="bg-slate-900 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 font-arabic">
                       <tr>
                         <th className="px-5 py-3 text-right">التاريخ والوقت</th>
@@ -1549,14 +1596,14 @@ export default function FinancialAnalytics() {
                                   : event.type === 'Adjustment' 
                                     ? 'bg-indigo-500/10 text-indigo-400' 
                                     : event.type === 'Reversal'
-                                      ? 'bg-rose-500/10 text-rose-450'
+                                      ? 'bg-rose-500/10 text-rose-455'
                                       : 'bg-amber-500/10 text-amber-400'
                               }`}>
                                 {event.type === 'Sale' ? 'عملية بيع' : event.type === 'Adjustment' ? 'تسوية يدوية' : event.type === 'Reversal' ? 'عكس معاملة' : 'سحب مستحقات'}
                               </span>
                             </td>
                             <td className="px-5 py-3 font-sans text-slate-350">{event.description}</td>
-                            <td className={`px-5 py-3 font-bold ${event.amount >= 0 ? 'text-emerald-400' : 'text-rose-450'}`}>
+                            <td className={`px-5 py-3 font-bold ${event.amount >= 0 ? 'text-emerald-450' : 'text-rose-455'}`}>
                               {event.amount >= 0 ? '+' : ''}{event.amount.toLocaleString()} ج.م
                             </td>
                             <td className="px-5 py-3 font-bold text-slate-200">{event.running_balance.toLocaleString()} ج.م</td>
@@ -1569,7 +1616,6 @@ export default function FinancialAnalytics() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end font-sans">
               <button
                 onClick={() => setSelectedTeacherStatement(null)}
@@ -1586,8 +1632,6 @@ export default function FinancialAnalytics() {
       {selectedStudentLedger && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transition-opacity print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in duration-150 text-right">
-            
-            {/* Modal Header */}
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/25">
               <button
                 onClick={() => setSelectedStudentLedger(null)}
@@ -1601,26 +1645,22 @@ export default function FinancialAnalytics() {
               </div>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
-              
-              {/* Ledger Summary Stats */}
               <div className="grid grid-cols-2 gap-4 border-b border-slate-800 pb-5 text-center font-mono">
                 <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
-                  <span className="text-[9px] font-bold text-slate-450 block font-sans">عدد العمليات الكلي</span>
+                  <span className="text-[9px] font-bold text-slate-455 block font-sans">عدد العمليات الكلي</span>
                   <span className="text-lg font-black text-slate-300 mt-1 block">{selectedStudentLedger.ledger.length} عملية</span>
                 </div>
                 <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
-                  <span className="text-[9px] font-bold text-slate-450 block font-sans">إجمالي قيمة المدفوعات والإنفاق</span>
+                  <span className="text-[9px] font-bold text-slate-455 block font-sans">إجمالي قيمة المدفوعات والإنفاق</span>
                   <span className="text-lg font-black text-indigo-400 mt-1 block">{(selectedStudentLedger.ledger.reduce((acc: number, val: any) => val.status === 'paid' ? acc + val.amount : acc, 0)).toLocaleString()} ج.م</span>
                 </div>
               </div>
 
-              {/* Purchase Ledger timeline table */}
               <div className="overflow-hidden border border-slate-800 rounded-2xl bg-slate-950/15">
                 <div className="p-4 border-b border-slate-800 font-bold text-xs text-slate-350 font-arabic">سجل الفواتير والمشتريات (Purchase Ledger)</div>
                 <div className="overflow-x-auto max-h-[35vh]">
-                  <table className="w-full text-xs text-slate-350">
+                  <table className="w-full text-xs text-slate-355">
                     <thead className="bg-slate-900 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 font-arabic">
                       <tr>
                         <th className="px-5 py-3 text-right">تاريخ المعاملة</th>
@@ -1654,10 +1694,10 @@ export default function FinancialAnalytics() {
                             <td className="px-5 py-3 font-sans text-slate-300">{item.teacher_name}</td>
                             <td className="px-5 py-3 font-sans text-slate-400">{item.payment_method}</td>
                             <td className="px-5 py-3">{item.original_price} ج.م</td>
-                            <td className="px-5 py-3 text-rose-400">-{item.discount} ...</td>
+                            <td className="px-5 py-3 text-rose-455">-{item.discount} ...</td>
                             <td className="px-5 py-3 font-bold text-slate-100">{item.amount} ج.م</td>
                             <td className="px-5 py-3 font-sans">
-                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${item.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-450'}`}>
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${item.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-455'}`}>
                                 {item.status === 'paid' ? 'نشطة ومكتملة' : 'مسترجعة ومعكوسة'}
                               </span>
                             </td>
@@ -1670,7 +1710,6 @@ export default function FinancialAnalytics() {
               </div>
             </div>
 
-            {/* Modal Footer */}
             <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end font-sans">
               <button
                 onClick={() => setSelectedStudentLedger(null)}

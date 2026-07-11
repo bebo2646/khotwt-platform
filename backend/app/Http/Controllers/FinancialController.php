@@ -9,6 +9,7 @@ use App\Models\PaymentHistory;
 use App\Models\TeacherEarning;
 use App\Models\PlatformEarning;
 use App\Models\TeacherPayout;
+use App\Models\FinancialAuditLog;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -179,7 +180,7 @@ class FinancialController extends Controller
     }
 
     /**
-     * Main dashboard cards & charts.
+     * Main dashboard cards, charts, and automatic financial audit alerts.
      */
     public function dashboard(Request $request)
     {
@@ -231,29 +232,24 @@ class FinancialController extends Controller
             ->orderBy('date')
             ->get();
 
-        // Group into Weekly, Monthly, Yearly in PHP for database type independence
         $weeklyRevenue = [];
         $monthlyRevenue = [];
         $yearlyRevenue = [];
 
         foreach ($salesByDay as $sale) {
             $date = Carbon::parse($sale->date);
-            
-            // Weekly
             $weekKey = $date->format('Y') . '-W' . $date->format('W');
             if (!isset($weeklyRevenue[$weekKey])) {
                 $weeklyRevenue[$weekKey] = ['label' => $weekKey, 'value' => 0.00];
             }
             $weeklyRevenue[$weekKey]['value'] += (float)$sale->total;
 
-            // Monthly
             $monthKey = $date->format('Y-m');
             if (!isset($monthlyRevenue[$monthKey])) {
                 $monthlyRevenue[$monthKey] = ['label' => $monthKey, 'value' => 0.00];
             }
             $monthlyRevenue[$monthKey]['value'] += (float)$sale->total;
 
-            // Yearly
             $yearKey = $date->format('Y');
             if (!isset($yearlyRevenue[$yearKey])) {
                 $yearlyRevenue[$yearKey] = ['label' => $yearKey, 'value' => 0.00];
@@ -292,7 +288,6 @@ class FinancialController extends Controller
             ['label' => 'Standalone Lecture', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereNotNull('payment_histories.lesson_id')->sum('payment_histories.amount')],
         ];
 
-        // Top Selling Courses
         $topSellingCourses = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
             ->whereNotNull('payment_histories.course_id')
             ->whereNull('payment_histories.package_id')
@@ -304,7 +299,6 @@ class FinancialController extends Controller
             ->limit(5)
             ->get();
 
-        // Top Selling Bundles
         $topSellingBundles = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
             ->whereNotNull('payment_histories.package_id')
             ->join('packages', 'payment_histories.package_id', '=', 'packages.id')
@@ -315,7 +309,6 @@ class FinancialController extends Controller
             ->limit(5)
             ->get();
 
-        // Top Teachers
         $topTeachers = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
             ->join('users', 'payment_histories.teacher_id', '=', 'users.id')
             ->selectRaw('users.name as label, COUNT(*) as sales_count, SUM(payment_histories.amount) as value')
@@ -324,7 +317,6 @@ class FinancialController extends Controller
             ->limit(5)
             ->get();
 
-        // Top Students
         $topStudents = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
             ->join('users', 'payment_histories.student_id', '=', 'users.id')
             ->selectRaw('users.name as label, COUNT(*) as purchases_count, SUM(payment_histories.amount) as value')
@@ -332,6 +324,161 @@ class FinancialController extends Controller
             ->orderByDesc('value')
             ->limit(5)
             ->get();
+
+        // --- AUTOMATED AUDIT ALERTS CHECKS ---
+        
+        // 1. Large Refund (> 500 EGP)
+        $largeRefundsAlerts = \App\Models\RefundLog::where('amount', '>', 500.00)
+            ->with(['student:id,name', 'course:id,title'])
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(function($r) {
+                return [
+                    'id' => $r->id,
+                    'student_name' => $r->student ? $r->student->name : 'N/A',
+                    'product' => $r->course ? $r->course->title : ($r->package ? $r->package->title : 'Product'),
+                    'amount' => (float)$r->amount,
+                    'timestamp' => $r->created_at->toDateTimeString()
+                ];
+            });
+
+        // 2. Large Manual Adjustment (> 1000 EGP or < -1000 EGP)
+        $largeAdjustmentAlerts = TeacherEarning::where('source', 'manual_adjustment')
+            ->where(function($q) {
+                $q->where('amount', '>', 1000.00)
+                  ->orWhere('amount', '<', -1000.00);
+            })
+            ->with('teacher:id,name')
+            ->latest()
+            ->limit(5)
+            ->get()
+            ->map(function($a) {
+                return [
+                    'id' => $a->id,
+                    'teacher_name' => $a->teacher ? $a->teacher->name : 'N/A',
+                    'amount' => (float)$a->amount,
+                    'description' => $a->description,
+                    'timestamp' => $a->created_at->toDateTimeString()
+                ];
+            });
+
+        // 3. Negative Teacher Balances
+        $teacherEarningsSum = TeacherEarning::selectRaw('teacher_id, SUM(amount) as total')
+            ->groupBy('teacher_id')
+            ->pluck('total', 'teacher_id');
+
+        $teacherPayoutsSum = TeacherPayout::where('status', 'completed')
+            ->selectRaw('teacher_id, SUM(amount) as total')
+            ->groupBy('teacher_id')
+            ->pluck('total', 'teacher_id');
+
+        $negativeBalanceAlerts = [];
+        $teacherNames = User::where('role', 'teacher')->pluck('name', 'id');
+        foreach ($teacherNames as $tid => $name) {
+            $earn = $teacherEarningsSum->get($tid) ?: 0.00;
+            $payout = $teacherPayoutsSum->get($tid) ?: 0.00;
+            $bal = (float)$earn - (float)$payout;
+            if ($bal < 0) {
+                $negativeBalanceAlerts[] = [
+                    'teacher_id' => $tid,
+                    'teacher_name' => $name,
+                    'balance' => round($bal, 2)
+                ];
+            }
+        }
+
+        // 4. Revenue Reconciliation Mismatch Alert (Student Payments == Teacher Share + Platform Share)
+        $totalAllStudentPayments = PaymentHistory::sum('amount');
+        $totalAllTeacherShare = TeacherEarning::sum('amount');
+        $totalAllPlatformShare = PlatformEarning::sum('amount');
+        $difference = round($totalAllStudentPayments - ($totalAllTeacherShare + $totalAllPlatformShare), 2);
+        
+        $reconciliationMismatch = [
+            'mismatch' => abs($difference) > 0.05,
+            'student_payments' => (float)$totalAllStudentPayments,
+            'teacher_earnings' => (float)$totalAllTeacherShare,
+            'platform_earnings' => (float)$totalAllPlatformShare,
+            'difference' => $difference
+        ];
+
+        // 5. Duplicate Payments Alert (same student, same product, within 2 minutes)
+        $duplicatePaymentsCandidates = PaymentHistory::select('student_id', 'course_id', 'package_id', 'lesson_id', DB::raw('COUNT(*) as count'))
+            ->groupBy('student_id', 'course_id', 'package_id', 'lesson_id')
+            ->having('count', '>', 1)
+            ->limit(5)
+            ->get();
+
+        $duplicatePaymentAlerts = [];
+        foreach ($duplicatePaymentsCandidates as $dp) {
+            $records = PaymentHistory::where('student_id', $dp->student_id)
+                ->where('course_id', $dp->course_id)
+                ->where('package_id', $dp->package_id)
+                ->where('lesson_id', $dp->lesson_id)
+                ->orderBy('created_at')
+                ->get();
+            
+            for ($i = 0; $i < count($records) - 1; $i++) {
+                $t1 = strtotime($records[$i]->created_at);
+                $t2 = strtotime($records[$i+1]->created_at);
+                if ($t2 - $t1 <= 120) {
+                    $student = User::find($dp->student_id);
+                    $productName = 'Product';
+                    if ($dp->course_id) {
+                        $c = Course::find($dp->course_id);
+                        $productName = $c ? $c->title : 'Course';
+                    } elseif ($dp->package_id) {
+                        $p = \App\Models\Package::find($dp->package_id);
+                        $productName = $p ? $p->title : 'Package';
+                    } elseif ($dp->lesson_id) {
+                        $l = \App\Models\Lesson::find($dp->lesson_id);
+                        $productName = $l ? $l->title : 'Lecture';
+                    }
+
+                    $duplicatePaymentAlerts[] = [
+                        'student_id' => $dp->student_id,
+                        'student_name' => $student ? $student->name : 'Unknown Student',
+                        'product_name' => $productName,
+                        'time_diff' => ($t2 - $t1) . ' seconds',
+                        'timestamp' => $records[$i+1]->created_at->toDateTimeString(),
+                    ];
+                    break;
+                }
+            }
+        }
+
+        // 6. Duplicate Wallet Transactions Alert (same wallet, same amount, same type, within 2 minutes)
+        $duplicateWalletCandidates = \App\Models\WalletTransaction::select('wallet_id', 'amount', 'type', DB::raw('COUNT(*) as count'))
+            ->groupBy('wallet_id', 'amount', 'type')
+            ->having('count', '>', 1)
+            ->limit(5)
+            ->get();
+
+        $duplicateWalletAlerts = [];
+        foreach ($duplicateWalletCandidates as $dwt) {
+            $records = \App\Models\WalletTransaction::where('wallet_id', $dwt->wallet_id)
+                ->where('amount', $dwt->amount)
+                ->where('type', $dwt->type)
+                ->orderBy('created_at')
+                ->get();
+            
+            for ($i = 0; $i < count($records) - 1; $i++) {
+                $t1 = strtotime($records[$i]->created_at);
+                $t2 = strtotime($records[$i+1]->created_at);
+                if ($t2 - $t1 <= 120) {
+                    $wallet = \App\Models\Wallet::find($dwt->wallet_id);
+                    $studentName = ($wallet && $wallet->student) ? $wallet->student->name : 'Wallet #' . $dwt->wallet_id;
+                    $duplicateWalletAlerts[] = [
+                        'wallet_id' => $dwt->wallet_id,
+                        'student_name' => $studentName,
+                        'amount' => (float)$dwt->amount,
+                        'type' => $dwt->type,
+                        'timestamp' => $records[$i+1]->created_at->toDateTimeString(),
+                    ];
+                    break;
+                }
+            }
+        }
 
         return response()->json([
             'summary' => [
@@ -361,6 +508,14 @@ class FinancialController extends Controller
                 'top_selling_bundles' => $topSellingBundles,
                 'top_teachers' => $topTeachers,
                 'top_students_by_spending' => $topStudents
+            ],
+            'alerts' => [
+                'large_refunds' => $largeRefundsAlerts,
+                'large_adjustments' => $largeAdjustmentAlerts,
+                'negative_balances' => $negativeBalanceAlerts,
+                'revenue_mismatch' => $reconciliationMismatch,
+                'duplicate_payments' => $duplicatePaymentAlerts,
+                'duplicate_wallet_transactions' => $duplicateWalletAlerts
             ]
         ]);
     }
@@ -392,7 +547,7 @@ class FinancialController extends Controller
             ->whereIn('teacher_id', $teacherIds)
             ->get();
 
-        // Trace and resolve exact WalletTransaction details for each student purchase
+        // Trace wallet transactions
         $wallets = \App\Models\Wallet::whereIn('student_id', $studentIds)->get()->keyBy('student_id');
         $walletIds = $wallets->pluck('id')->toArray();
         $walletTransactions = \App\Models\WalletTransaction::whereIn('wallet_id', $walletIds)
@@ -418,7 +573,6 @@ class FinancialController extends Controller
                     && abs(strtotime($e->created_at) - strtotime($ph->created_at)) < 15;
             });
 
-            // Match exact WalletTransaction ID
             $wallet = $wallets->get($ph->student_id);
             $wtId = null;
             if ($wallet) {
@@ -434,7 +588,6 @@ class FinancialController extends Controller
                 }
             }
 
-            // Product Type resolution
             $productType = 'Course';
             $productName = $ph->course ? $ph->course->title : 'Unknown Course';
 
@@ -457,7 +610,6 @@ class FinancialController extends Controller
                 $productName = $ph->lesson ? $ph->lesson->title : 'Unknown Lecture';
             }
 
-            // Original price and discount resolution
             $originalPrice = (float)$ph->amount;
             $discount = 0.00;
             if ($ph->course) {
@@ -471,7 +623,6 @@ class FinancialController extends Controller
                 $discount = max(0.00, $originalPrice - (float)$ph->amount);
             }
 
-            // Activation time resolution (if code, activation is redeemed_at; otherwise purchase time)
             $activationTime = $ph->created_at->toDateTimeString();
             if ($ph->purchaseCode && $ph->purchaseCode->redeemed_at) {
                 $activationTime = $ph->purchaseCode->redeemed_at->toDateTimeString();
@@ -529,7 +680,6 @@ class FinancialController extends Controller
         $query = $this->applyGeneralFilters($query, $request);
         $query = $this->applyDateFilter($query, $range, $startDate, $endDate);
 
-        // Group by day with joins on packages to split out package types
         $reports = $query->leftJoin('packages', 'payment_histories.package_id', '=', 'packages.id')
             ->selectRaw("
                 DATE(payment_histories.created_at) as date, 
@@ -545,7 +695,6 @@ class FinancialController extends Controller
             ->orderBy('date', 'desc')
             ->get();
 
-        // Daily Top Aggregators in memory to avoid N+1 queries
         $dailyTopTeachers = PaymentHistory::selectRaw("DATE(created_at) as date, teacher_id, SUM(amount) as total_amount")
             ->groupBy('date', 'teacher_id')
             ->orderByDesc('total_amount')
@@ -590,8 +739,8 @@ class FinancialController extends Controller
             $teacherShare = TeacherEarning::whereDate('created_at', $dateStr)->sum('amount');
             $platformShare = PlatformEarning::whereDate('created_at', $dateStr)->sum('amount');
             $newStudents = User::where('role', 'student')->whereDate('created_at', $dateStr)->count();
+            $refundsSum = \App\Models\RefundLog::whereDate('created_at', $dateStr)->sum('amount');
 
-            // Resolve top metrics
             $topTeacher = 'N/A';
             $tList = $dailyTopTeachers->get($dateStr);
             if ($tList && $tList->count() > 0) {
@@ -626,6 +775,7 @@ class FinancialController extends Controller
                 'teachers_earnings' => (float)$teacherShare,
                 'purchases_count' => (int)$rep->total_purchases,
                 'new_students_count' => $newStudents,
+                'refunds_amount' => (float)$refundsSum,
                 'courses_sold' => (int)$rep->courses_sold,
                 'bundles_sold' => (int)$rep->bundles_sold,
                 'monthly_packages_sold' => (int)$rep->monthly_packages_sold,
@@ -646,10 +796,6 @@ class FinancialController extends Controller
      */
     public function teachersReport(Request $request)
     {
-        $range = $request->query('range', 'this_month');
-        $startDate = $request->query('start_date');
-        $endDate = $request->query('end_date');
-
         $teachers = User::where('role', 'teacher')->get();
         $teacherIds = $teachers->pluck('id')->toArray();
 
@@ -682,7 +828,6 @@ class FinancialController extends Controller
             ->get()
             ->keyBy('teacher_id');
 
-        // Top Selling Products per teacher
         $courseSales = PaymentHistory::whereIn('teacher_id', $teacherIds)
             ->whereNotNull('course_id')
             ->whereNull('package_id')
@@ -794,7 +939,6 @@ class FinancialController extends Controller
         $paginator = $query->paginate(20);
         $studentIds = collect($paginator->items())->pluck('id')->toArray();
 
-        // Financial stats for pagination size
         $studentStats = PaymentHistory::whereIn('student_id', $studentIds)
             ->selectRaw("
                 student_id,
@@ -911,6 +1055,11 @@ class FinancialController extends Controller
         ]);
 
         $teacher = User::where('role', 'teacher')->findOrFail($id);
+        
+        $oldBalance = TeacherEarning::where('teacher_id', $teacher->id)->sum('amount') - TeacherPayout::where('teacher_id', $teacher->id)->where('status', 'completed')->sum('amount');
+        $newBalance = $oldBalance + $request->amount;
+
+        $admin = $request->user();
 
         TeacherEarning::create([
             'teacher_id' => $teacher->id,
@@ -918,6 +1067,17 @@ class FinancialController extends Controller
             'source' => 'manual_adjustment',
             'status' => 'completed',
             'description' => $request->description,
+        ]);
+
+        // Audit Log entry
+        FinancialAuditLog::create([
+            'admin_id' => $admin ? $admin->id : null,
+            'admin_name' => $admin ? $admin->name : 'System/Admin',
+            'action' => "Manual Adjustment (Teacher: {$teacher->name})",
+            'previous_value' => "Balance: {$oldBalance} EGP",
+            'new_value' => "Balance: {$newBalance} EGP (Adj: {$request->amount} EGP)",
+            'reason' => $request->description,
+            'ip_address' => $request->ip(),
         ]);
 
         return response()->json([
@@ -935,7 +1095,6 @@ class FinancialController extends Controller
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
 
-        // Opening Balance calculation
         $openingBalance = 0.00;
         if ($startDate) {
             $prevEarnings = TeacherEarning::where('teacher_id', $teacher->id)
@@ -948,7 +1107,6 @@ class FinancialController extends Controller
             $openingBalance = (float)$prevEarnings - (float)$prevPayouts;
         }
 
-        // Apply filters to ledger collections
         $earningsQuery = TeacherEarning::where('teacher_id', $teacher->id);
         $payoutsQuery = TeacherPayout::where('teacher_id', $teacher->id);
 
@@ -1012,15 +1170,12 @@ class FinancialController extends Controller
             ]);
         }
 
-        // Sort chronologically and apply running balance
         $sortedEvents = $events->sortBy('timestamp')->values();
         $currentRunning = $openingBalance;
         $timeline = [];
         
         foreach ($sortedEvents as $ev) {
-            // Apply payouts only if they are completed to represent active liquid withdrawals
             if ($ev['type'] === 'Withdrawal' && isset($ev['status']) && $ev['status'] !== 'completed') {
-                // Pending payouts do not impact actual completed bank statement balance
                 $ev['running_balance'] = round($currentRunning, 2);
             } else {
                 $currentRunning += $ev['amount'];
@@ -1118,6 +1273,103 @@ class FinancialController extends Controller
     }
 
     /**
+     * Financial Audit Logs list (for administrative visibility).
+     */
+    public function auditLogs(Request $request)
+    {
+        $logs = FinancialAuditLog::orderBy('created_at', 'desc')->paginate(30);
+        return response()->json($logs);
+    }
+
+    /**
+     * CSV Export of a specific Daily Closing report.
+     */
+    public function exportDailyClosing(Request $request)
+    {
+        $dateStr = $request->query('date', Carbon::today()->toDateString());
+
+        // Calculate statistics
+        $totalRevenue = PaymentHistory::whereDate('created_at', $dateStr)->sum('amount');
+        $teacherShare = TeacherEarning::whereDate('created_at', $dateStr)->sum('amount');
+        $platformShare = PlatformEarning::whereDate('created_at', $dateStr)->sum('amount');
+        $refundsSum = \App\Models\RefundLog::whereDate('created_at', $dateStr)->sum('amount');
+        $newStudents = User::where('role', 'student')->whereDate('created_at', $dateStr)->count();
+        $purchasesCount = PaymentHistory::whereDate('created_at', $dateStr)->count();
+
+        // Tops
+        $tList = PaymentHistory::whereDate('created_at', $dateStr)
+            ->selectRaw('teacher_id, SUM(amount) as total_amount')
+            ->groupBy('teacher_id')
+            ->orderByDesc('total_amount')
+            ->first();
+        $topTeacherName = $tList && $tList->teacher ? $tList->teacher->name : 'N/A';
+
+        $cList = PaymentHistory::whereDate('created_at', $dateStr)
+            ->whereNotNull('course_id')
+            ->whereNull('package_id')
+            ->whereNull('lesson_id')
+            ->selectRaw('course_id, COUNT(*) as count')
+            ->groupBy('course_id')
+            ->orderByDesc('count')
+            ->first();
+        $topCourseTitle = $cList && $cList->course ? $cList->course->title : 'N/A';
+
+        $bList = PaymentHistory::whereDate('created_at', $dateStr)
+            ->whereNotNull('package_id')
+            ->join('packages', 'payment_histories.package_id', '=', 'packages.id')
+            ->where('packages.type', 'bundle')
+            ->selectRaw('payment_histories.package_id, COUNT(*) as count')
+            ->groupBy('payment_histories.package_id')
+            ->orderByDesc('count')
+            ->first();
+        $topBundleTitle = $bList && $bList->package ? $bList->package->title : 'N/A';
+
+        $sList = PaymentHistory::whereDate('payment_histories.created_at', $dateStr)
+            ->join('courses', 'payment_histories.course_id', '=', 'courses.id')
+            ->selectRaw('courses.subject, SUM(payment_histories.amount) as total_amount')
+            ->groupBy('courses.subject')
+            ->orderByDesc('total_amount')
+            ->first();
+        $topSubject = $sList ? $sList->subject : 'N/A';
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="daily_closing_report_' . $dateStr . '.csv"',
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0'
+        ];
+
+        $callback = function() use ($dateStr, $totalRevenue, $platformShare, $teacherShare, $refundsSum, $purchasesCount, $newStudents, $topTeacherName, $topCourseTitle, $topBundleTitle, $topSubject) {
+            $file = fopen('php://output', 'w');
+            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
+
+            fputcsv($file, ['تقرير الإغلاق اليومي للمنصة (Daily Closing Report)']);
+            fputcsv($file, ['التاريخ', $dateStr]);
+            fputcsv($file, []);
+            fputcsv($file, ['البند المالي', 'القيمة بالجنيه المصري']);
+            fputcsv($file, ['إجمالي المبيعات (Total Sales)', $totalRevenue]);
+            fputcsv($file, ['أرباح المنصة (Platform Profit)', $platformShare]);
+            fputcsv($file, ['أرباح المدرسين (Teachers Profit)', $teacherShare]);
+            fputcsv($file, ['المبالغ المسترجعة (Refunds)', $refundsSum]);
+            fputcsv($file, []);
+            fputcsv($file, ['إحصائيات غير مالية', 'العدد']);
+            fputcsv($file, ['الطلاب الجدد (New Students)', $newStudents]);
+            fputcsv($file, ['عدد عمليات الشراء (New Purchases)', $purchasesCount]);
+            fputcsv($file, []);
+            fputcsv($file, ['الأعلى تحقيقاً', 'الاسم / العنوان']);
+            fputcsv($file, ['المعلم الأعلى مبيعاً (Top Teacher)', $topTeacherName]);
+            fputcsv($file, ['الكورس الأكثر مبيعاً (Top Course)', $topCourseTitle]);
+            fputcsv($file, ['الباقة الأكثر مبيعاً (Top Bundle)', $topBundleTitle]);
+            fputcsv($file, ['المادة الأكثر مبيعاً (Top Subject)', $topSubject]);
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
+    }
+
+    /**
      * CSV Export of the filtered transactions list
      */
     public function export(Request $request)
@@ -1153,8 +1405,6 @@ class FinancialController extends Controller
 
         $callback = function() use ($transactions, $teacherEarnings, $platformEarnings) {
             $file = fopen('php://output', 'w');
-            
-            // UTF-8 BOM for Excel Arabic character support
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
             fputcsv($file, [

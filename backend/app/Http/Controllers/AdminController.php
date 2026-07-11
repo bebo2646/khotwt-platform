@@ -1625,6 +1625,17 @@ class AdminController extends Controller
                 'admin_id' => $admin->id,
             ]);
 
+            // Create Financial Audit Log Entry
+            \App\Models\FinancialAuditLog::create([
+                'admin_id' => $admin->id,
+                'admin_name' => $admin->name,
+                'action' => "Refund Enrollment (Student ID: {$studentId})",
+                'previous_value' => "Paid Amount: {$amount} EGP",
+                'new_value' => "Reversing transaction written: -{$amount} EGP",
+                'reason' => "إلغاء اشتراك واسترجاع مالي للمحفظة",
+                'ip_address' => $request->ip(),
+            ]);
+
             // Save Admin Activity Log
             \App\Models\AdminActivityLog::create([
                 'admin_name' => $admin->name,
@@ -1691,6 +1702,16 @@ class AdminController extends Controller
             }
 
             // Log activity
+            \App\Models\FinancialAuditLog::create([
+                'admin_id' => $admin->id,
+                'admin_name' => $admin->name,
+                'action' => "Student Wallet Adjustment ({$action}) (Student ID: {$studentId})",
+                'previous_value' => "Balance: " . ($wallet->balance - ($action === 'increase' ? $amount : -$amount)) . " EGP",
+                'new_value' => "Balance: {$wallet->balance} EGP (Adjustment: " . ($action === 'increase' ? "+{$amount}" : "-{$amount}") . " EGP)",
+                'reason' => $request->description ?: 'تعديل يدوي للمحفظة من الإدارة',
+                'ip_address' => $request->ip(),
+            ]);
+
             \App\Models\AdminActivityLog::create([
                 'admin_name' => $admin->name,
                 'action_type' => "Wallet Adjustment ({$action}: {$amount} ج.م) for Student ID: {$studentId}",
@@ -2012,6 +2033,16 @@ class AdminController extends Controller
             }
 
             // Create admin activity log
+            \App\Models\FinancialAuditLog::create([
+                'admin_id' => $request->user()->id,
+                'admin_name' => $request->user()->name,
+                'action' => "Teacher Earning Payout Recorded (Teacher ID: {$teacherId})",
+                'previous_value' => "Pending sum: {$pendingSum} EGP",
+                'new_value' => "Paid: {$amount} EGP",
+                'reason' => $request->notes ?: 'تحويل أرباح المعلم من الإدارة',
+                'ip_address' => $request->ip(),
+            ]);
+
             \App\Models\AdminActivityLog::create([
                 'admin_name' => $request->user()->name,
                 'action_type' => "تسجيل عملية دفع للمعلم ID: {$teacherId} بقيمة {$amount} ج.م",
