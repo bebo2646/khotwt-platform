@@ -620,12 +620,13 @@ class TeacherController extends Controller
      */
     public function createCourse(Request $request)
     {
+        $isBundle = $request->input('is_bundle') || $request->is_bundle === 'true';
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'grade' => 'required|string',
+            'grade' => $isBundle ? 'nullable|string' : 'required|string',
             'subject' => 'required|string',
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
@@ -640,7 +641,7 @@ class TeacherController extends Controller
             'description' => $request->description,
             'cover_image' => $request->cover_image,
             'price' => $request->price,
-            'grade' => $request->grade,
+            'grade' => $request->grade ?? 'باقة مجمعة',
             'subject' => $request->subject,
             'is_published' => true,
             'enable_discount' => $request->enable_discount ?? false,
@@ -672,12 +673,13 @@ class TeacherController extends Controller
     {
         $course = $this->verifyCourseTeacher($request, $id);
 
+        $isBundle = $request->input('is_bundle') || $request->is_bundle === 'true' || $course->is_bundle;
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'grade' => 'required|string',
+            'grade' => $isBundle ? 'nullable|string' : 'required|string',
             'subject' => 'required|string',
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
@@ -691,7 +693,7 @@ class TeacherController extends Controller
             'description' => $request->description,
             'cover_image' => $request->cover_image,
             'price' => $request->price,
-            'grade' => $request->grade,
+            'grade' => $request->grade ?? $course->grade ?? 'باقة مجمعة',
             'subject' => $request->subject,
             'enable_discount' => $request->enable_discount ?? false,
             'discount_type' => $request->discount_type,
@@ -2439,6 +2441,21 @@ class TeacherController extends Controller
         $childIds = array_filter($request->child_ids, function($id) use ($courseId) {
             return (int)$id !== (int)$courseId;
         });
+
+        // Validate that all linked courses belong to the same grade
+        if (!empty($childIds)) {
+            $childCourses = \App\Models\Course::whereIn('id', $childIds)->get();
+            $grades = $childCourses->pluck('grade')->unique()->filter();
+            if ($grades->count() > 1) {
+                return response()->json([
+                    'message' => 'لا يمكن إنشاء كورس مجمع من كورسات تنتمي إلى مراحل دراسية مختلفة.'
+                ], 422);
+            }
+            if ($grades->count() === 1) {
+                $course->grade = $grades->first();
+                $course->save();
+            }
+        }
 
         $course->childCourses()->sync($childIds);
 

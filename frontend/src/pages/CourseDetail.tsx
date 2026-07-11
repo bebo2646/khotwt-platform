@@ -355,6 +355,18 @@ export default function CourseDetail() {
     )
   }
 
+  const displayUnitsCount = course?.is_bundle 
+    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.length : 0), 0)
+    : units.length;
+
+  const displayLessonsCount = course?.is_bundle
+    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.length : 0), 0) : 0), 0)
+    : units.reduce((acc: number, u: any) => acc + u.lessons.length, 0);
+
+  const displayVideosCount = course?.is_bundle
+    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.videos ? l.videos.length : (l.videos_count || 0)), 0) : 0), 0) : 0), 0)
+    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.videos_count || 0), 0), 0);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
@@ -457,18 +469,18 @@ export default function CourseDetail() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-[var(--border-color)]">
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">الأسابيع (الوحدات)</span>
-              <span className="text-lg font-black text-slate-200">{units.length} أسابيع</span>
+              <span className="text-lg font-black text-slate-200">{displayUnitsCount} أسابيع</span>
             </div>
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">المحاضرات</span>
               <span className="text-lg font-black text-slate-200">
-                {units.reduce((acc, u) => acc + u.lessons.length, 0)} محاضرة
+                {displayLessonsCount} محاضرة
               </span>
             </div>
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">إجمالي الفيديوهات</span>
               <span className="text-lg font-black text-slate-200">
-                {units.reduce((acc, u) => acc + u.lessons.reduce((accL, l) => accL + (l.videos_count || 0), 0), 0)} فيديو
+                {displayVideosCount} فيديو
               </span>
             </div>
           </div>

@@ -36,7 +36,7 @@ export default function ManageBundles() {
   const [title, setTitle] = React.useState('')
   const [description, setDescription] = React.useState('')
   const [coverImage, setCoverImage] = React.useState('')
-  const [grade, setGrade] = React.useState('الصف الأول الثانوي')
+  const [grade, setGrade] = React.useState('باقة مجمعة')
   const [subject, setSubject] = React.useState('الفيزياء')
   const [price, setPrice] = React.useState('')
   const [enableDiscount, setEnableDiscount] = React.useState(false)
@@ -71,7 +71,7 @@ export default function ManageBundles() {
     setTitle('')
     setDescription('')
     setCoverImage('')
-    setGrade('الصف الأول الثانوي')
+    setGrade('باقة مجمعة')
     setSubject('الفيزياء')
     setPrice('')
     setEnableDiscount(false)
@@ -398,16 +398,9 @@ export default function ManageBundles() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-355">السنة الدراسية (الفرقة)</label>
-                  <select 
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    className="w-full bg-slate-950 border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
-                  >
-                    <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
-                    <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
-                    <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
-                    <option value="كورسات حرة/أخرى">كورسات حرة/أخرى</option>
-                  </select>
+                  <div className="w-full bg-slate-905/30 border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-400 select-none">
+                    {editMode ? grade : 'سيتم تحديدها تلقائياً عند ربط الكورسات'}
+                  </div>
                 </div>
 
                 <div className="space-y-1">

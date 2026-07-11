@@ -2646,10 +2646,22 @@ class StudentController extends Controller
             if (!$course) continue;
 
             $videoIds = [];
-            foreach ($course->units as $unit) {
-                foreach ($unit->lessons as $lesson) {
+            if ($course->is_bundle) {
+                $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
+                $bundleLessons = \App\Models\Lesson::whereIn('unit_id', function($q) use ($childIds) {
+                    $q->select('id')->from('units')->whereIn('course_id', $childIds);
+                })->with('videos')->get();
+                foreach ($bundleLessons as $lesson) {
                     foreach ($lesson->videos as $video) {
                         $videoIds[] = $video->id;
+                    }
+                }
+            } else {
+                foreach ($course->units as $unit) {
+                    foreach ($unit->lessons as $lesson) {
+                        foreach ($lesson->videos as $video) {
+                            $videoIds[] = $video->id;
+                        }
                     }
                 }
             }

@@ -254,6 +254,18 @@ export default function ManageCourses() {
 
   const handleLinkCourses = async () => {
     if (!selectedCourse) return
+
+    // Validate that all selected child courses belong to the same grade
+    const selectedGrades = courses
+      .filter((c) => selectedLinkCourseIds.includes(c.id))
+      .map((c) => c.grade);
+    const uniqueGrades = Array.from(new Set(selectedGrades));
+
+    if (uniqueGrades.length > 1) {
+      useModalStore.getState().showToast('لا يمكن إنشاء كورس مجمع من كورسات تنتمي إلى مراحل دراسية مختلفة.', 'error')
+      return
+    }
+
     setActionLoading(true)
     try {
       await API.post(`/teacher/courses/${selectedCourse.id}/link-courses`, {
@@ -262,9 +274,10 @@ export default function ManageCourses() {
       useModalStore.getState().showToast('تم تحديث ارتباط الكورسات بنجاح.', 'success')
       setShowLinkCoursesModal(false)
       handleSelectCourse(selectedCourse)
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      useModalStore.getState().showToast('فشل ربط الكورسات.', 'error')
+      const errorMsg = err.response?.data?.message || 'فشل ربط الكورسات.'
+      useModalStore.getState().showToast(errorMsg, 'error')
     } finally {
       setActionLoading(false)
     }
