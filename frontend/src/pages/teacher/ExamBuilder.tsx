@@ -39,6 +39,10 @@ interface LessonItem {
   unit: {
     course_id: number
   }
+  course_id?: number | null
+  package_id?: number | null
+  matching_package_id?: number | null
+  is_locked?: boolean
 }
 
 export default function ExamBuilder() {

@@ -99,6 +99,9 @@ interface LessonItem {
   videos?: VideoDetail[]
   pdfs?: PdfDetail[]
   exams?: ExamDetail[]
+  course_id?: number | null
+  package_id?: number | null
+  matching_package_id?: number | null
 }
 
 interface UnitItem {

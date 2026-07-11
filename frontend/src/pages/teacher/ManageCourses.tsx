@@ -31,6 +31,10 @@ interface LessonItem {
   price?: string
   videos?: any[]
   pdfs?: any[]
+  course_id?: number | null
+  package_id?: number | null
+  matching_package_id?: number | null
+  is_locked?: boolean
 }
 
 interface UnitItem {
