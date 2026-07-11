@@ -357,7 +357,7 @@ function App() {
             <Layout><ManageCourses /></Layout>
           </ProtectedRoute>
         } />
-        <Route path="/teacher/packages" element={
+        <Route path="/teacher/bundles" element={
           <ProtectedRoute allowedRoles={['teacher']}>
             <Layout><ManageBundles /></Layout>
           </ProtectedRoute>

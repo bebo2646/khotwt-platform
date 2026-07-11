@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
-import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, Video, BookOpen, HelpCircle, ClipboardList, Clock, Eye, Award } from 'lucide-react'
+import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, ArrowLeft, Video, BookOpen, HelpCircle, ClipboardList, Clock, Eye, Award } from 'lucide-react'
 import SEO from '../components/SEO'
 import PurchaseModal from '../components/PurchaseModal'
 import { getCourseDisplayPrice } from '../utils/pricing'
@@ -17,6 +17,7 @@ interface CourseItem {
   price: string
   grade: string
   subject: string
+  is_bundle?: boolean
   enable_discount?: boolean
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
@@ -161,6 +162,7 @@ export default function CourseDetail() {
   // States
   const [course, setCourse] = React.useState<CourseItem | null>(null)
   const [units, setUnits] = React.useState<UnitItem[]>([])
+  const [childCourses, setChildCourses] = React.useState<any[]>([])
   const [packages, setPackages] = React.useState<PackageItem[]>([])
   const [isEnrolled, setIsEnrolled] = React.useState(false)
   const [lastWatched, setLastWatched] = React.useState<LastWatched | null>(null)
@@ -238,6 +240,7 @@ export default function CourseDetail() {
       .then((res) => {
         setCourse(res.data.course)
         setUnits(res.data.units || [])
+        setChildCourses(res.data.child_courses || [])
         setPackages(res.data.packages || [])
         setIsEnrolled(res.data.is_enrolled || false)
         setLastWatched(res.data.last_watched || null)
@@ -741,6 +744,115 @@ export default function CourseDetail() {
             <h3 className="font-black text-sm sm:text-base text-amber-500">هذا الكورس مخصص لطلاب السنتر</h3>
             <p className="text-xs text-slate-300 font-light leading-relaxed">{availabilityMessage}</p>
           </div>
+        ) : course?.is_bundle ? (
+          childCourses.length === 0 ? (
+            <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
+              لا توجد كورسات مضافة في هذا الكورس المجمع حتى الآن.
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {childCourses.map((child) => (
+                <div key={child.id} className="space-y-4">
+                  <div className="bg-brand-primary/10 border border-brand-primary/20 p-4.5 rounded-2xl flex items-center justify-between">
+                    <span className="text-sm font-black text-brand-primary">📚 كورس: {child.title}</span>
+                    <span className="text-[10px] text-slate-400 font-bold">{child.units?.length || 0} وحدات مضافة</span>
+                  </div>
+                  
+                  <div className="space-y-4 mr-2 border-r border-dashed border-[var(--border-color)]/60 pr-2">
+                    {!child.units || child.units.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-slate-550 font-light">لا توجد محاضرات في هذا الكورس بعد.</div>
+                    ) : (
+                      child.units.map((unit: any) => {
+                        const isExpanded = !!expandedUnits[unit.id]
+                        return (
+                          <div key={unit.id} className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
+                            {/* Unit Title Header */}
+                            <button
+                              onClick={() => toggleUnit(unit.id)}
+                              className="w-full flex items-center justify-between p-5 text-right font-bold text-xs sm:text-sm cursor-pointer hover:bg-slate-900/10 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-[10px] font-black rounded-lg">الأسبوع {unit.order}</span>
+                                <span className="text-slate-100 font-bold">{unit.title}</span>
+                              </div>
+                              <ChevronDown className={`h-4.5 w-4.5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {/* Lessons list details */}
+                            {isExpanded && (
+                              <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
+                                {!unit.lessons || unit.lessons.length === 0 ? (
+                                  <div className="p-5 text-xs text-slate-500 font-light text-center">لا توجد محاضرات في هذه الوحدة حالياً.</div>
+                                ) : (
+                                  unit.lessons.map((lesson: any) => {
+                                    const hasContent = (lesson.videos && lesson.videos.length > 0) ||
+                                                       (lesson.pdfs && lesson.pdfs.length > 0) ||
+                                                       (lesson.exams && lesson.exams.length > 0);
+                                    
+                                    return (
+                                      <div key={lesson.id} className="p-5 space-y-4 transition-all hover:bg-slate-900/10">
+                                        {/* Lesson Header */}
+                                        <div className="flex items-start justify-between gap-4">
+                                          <div className="space-y-1">
+                                            <h4 className="font-bold text-xs sm:text-sm text-slate-200">{lesson.title}</h4>
+                                            {lesson.description && (
+                                              <p className="text-[10px] sm:text-xs text-slate-400 font-light leading-relaxed">
+                                                {lesson.description}
+                                              </p>
+                                            )}
+                                          </div>
+                                          
+                                          {isEnrolled ? (
+                                            <button
+                                              onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${child.id}&package_id=${course?.id}`)}
+                                              className="px-3.5 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <span>بدء الدراسة</span>
+                                              <ArrowLeft className="h-3 w-3" />
+                                            </button>
+                                          ) : (
+                                            <Lock className="h-4 w-4 text-slate-500 shrink-0" />
+                                          )}
+                                        </div>
+
+                                        {/* Lesson contents */}
+                                        {hasContent && (
+                                          <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-3 pt-2">
+                                            {lesson.videos && lesson.videos.length > 0 && (
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                                                <span>🎥</span>
+                                                <span>فيديو شرح: {lesson.videos.map((v: any) => v.title).join('، ')}</span>
+                                              </div>
+                                            )}
+                                            {lesson.pdfs && lesson.pdfs.length > 0 && (
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                                                <span>📄</span>
+                                                <span>مذكرة / ملف PDF: {lesson.pdfs.map((p: any) => p.title).join('، ')}</span>
+                                              </div>
+                                            )}
+                                            {lesson.exams && lesson.exams.length > 0 && (
+                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                                                <span>📝</span>
+                                                <span>امتحان / واجب: {lesson.exams.map((e: any) => e.title).join('، ')}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )
+                                  })
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : units.length === 0 ? (
           <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
             لم يقم المدرس بنشر أي وحدات دراسية لهذا الكورس حتى الآن.

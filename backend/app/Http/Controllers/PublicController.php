@@ -363,6 +363,41 @@ class PublicController extends Controller
             abort(404, 'Course not found');
         }
 
+        if ($course->is_bundle) {
+            $childCourses = $course->childCourses()
+                ->with(['units' => function ($q) {
+                    $q->orderBy('order')->with(['lessons' => function ($l) {
+                        $l->orderBy('order')->with(['videos', 'pdfs', 'exams']);
+                    }]);
+                }])
+                ->get();
+
+            $isEnrolled = false;
+            $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
+            if ($user) {
+                if ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id)) {
+                    $isEnrolled = true;
+                } elseif ($user->isStudent()) {
+                    $isEnrolled = Enrollment::where('student_id', $user->id)
+                        ->where('course_id', $course->id)
+                        ->whereNull('package_id')
+                        ->whereNull('lesson_id')
+                        ->exists();
+                }
+            }
+
+            return response()->json([
+                'course' => $course,
+                'child_courses' => $childCourses,
+                'units' => [],
+                'packages' => [],
+                'is_enrolled' => $isEnrolled,
+                'last_watched' => null,
+                'availability_message' => null,
+                'view_limit_exceeded' => false,
+            ]);
+        }
+
         $courseId = $course->id;
 
         $packageId = $request->input('package_id');
@@ -540,6 +575,23 @@ class PublicController extends Controller
                         if ($ownsCourse) {
                             $hasLessonAccess = true;
                         } else {
+                            // Check if student owns a bundled course containing this course
+                            $ownsBundle = Enrollment::where('student_id', $user->id)
+                                ->whereNull('package_id')
+                                ->whereNull('lesson_id')
+                                ->whereIn('course_id', function($subQuery) use ($courseId) {
+                                    $subQuery->select('parent_id')
+                                        ->from('course_bundle_items')
+                                        ->where('child_id', $courseId);
+                                })
+                                ->exists();
+                            if ($ownsBundle) {
+                                $ownsCourse = true;
+                                $hasLessonAccess = true;
+                            }
+                        }
+
+                        if (!$hasLessonAccess) {
                             // 2. Check direct lesson ownership
                             $ownsLessonDirect = Enrollment::where('student_id', $user->id)
                                 ->where('lesson_id', $lesson->id)

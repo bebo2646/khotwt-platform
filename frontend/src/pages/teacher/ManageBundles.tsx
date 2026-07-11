@@ -1,183 +1,117 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
-import { Plus, Edit3, Trash2, BookOpen, ChevronDown, Check, Loader2, Eye, ArrowRight, ArrowLeft, Image } from 'lucide-react'
+import { Plus, Edit3, Trash2, BookOpen, Check, Loader2, ArrowLeft, Image as ImageIcon, FolderOpen } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
-
-interface BundleItem {
-  id: number
-  title: string
-  price: string
-  description: string
-  package_thumbnail?: string
-  cover_image?: string
-  type: string
-  is_active: boolean
-  lessons?: any[]
-  lessons_count?: number
-  enrollments_count?: number
-}
+import { getCourseDisplayPrice } from '../../utils/pricing'
 
 interface CourseItem {
   id: number
   title: string
+  description: string
+  cover_image: string
+  price: string
+  grade: string
   subject: string
+  is_published: boolean
+  is_bundle: boolean
+  enable_discount?: boolean
+  discount_type?: 'percentage' | 'fixed'
+  discount_value?: string
+  students_count?: number
 }
 
 export default function ManageBundles() {
-  const [bundles, setBundles] = React.useState<BundleItem[]>([])
-  const [courses, setCourses] = React.useState<CourseItem[]>([])
+  const navigate = useNavigate()
+  const [bundles, setBundles] = React.useState<CourseItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [actionLoading, setActionLoading] = React.useState(false)
+  
+  // Modal states
   const [showForm, setShowForm] = React.useState(false)
-  
-  // Step workflow: 1 = Choose Courses, 2 = Choose Lessons, 3 = Bundle Info
-  const [step, setStep] = React.useState(1)
-  
-  // Selection states
-  const [selectedCourseIds, setSelectedCourseIds] = React.useState<number[]>([])
-  const [courseDetails, setCourseDetails] = React.useState<any[]>([]) // Detailed lessons from selected courses
-  const [selectedLessonIds, setSelectedLessonIds] = React.useState<number[]>([])
+  const [editMode, setEditMode] = React.useState<CourseItem | null>(null)
   
   // Form states
-  const [editMode, setEditMode] = React.useState<BundleItem | null>(null)
-  const [bundleTitle, setBundleTitle] = React.useState('')
-  const [bundlePrice, setBundlePrice] = React.useState('')
-  const [bundleDesc, setBundleDesc] = React.useState('')
-  const [bundleThumbnail, setBundleThumbnail] = React.useState('')
-  const [isActive, setIsActive] = React.useState(true)
-
-  const [uploadingThumbnail, setUploadingThumbnail] = React.useState(false)
+  const [title, setTitle] = React.useState('')
+  const [description, setDescription] = React.useState('')
+  const [coverImage, setCoverImage] = React.useState('')
+  const [grade, setGrade] = React.useState('الصف الأول الثانوي')
+  const [subject, setSubject] = React.useState('الفيزياء')
+  const [price, setPrice] = React.useState('')
+  const [enableDiscount, setEnableDiscount] = React.useState(false)
+  const [discountType, setDiscountType] = React.useState<'percentage' | 'fixed'>('percentage')
+  const [discountValue, setDiscountValue] = React.useState('')
+  const [isPublished, setIsPublished] = React.useState(true)
+  
+  // File upload state
+  const [uploadingCover, setUploadingCover] = React.useState(false)
   const [isDragOver, setIsDragOver] = React.useState(false)
 
-  // Fetch bundles and courses
-  const loadData = async () => {
+  const loadBundledCourses = async () => {
     setLoading(true)
     try {
-      const [bundlesRes, coursesRes] = await Promise.all([
-        API.get('/teacher/packages'),
-        API.get('/teacher/courses')
-      ])
-      // Filter only type 'bundle'
-      setBundles(bundlesRes.data.filter((pkg: any) => pkg.type === 'bundle'))
-      setCourses(coursesRes.data)
+      const res = await API.get('/teacher/courses')
+      // Only keep courses where is_bundle === true (or 1)
+      setBundles(res.data.filter((c: any) => c.is_bundle === true || c.is_bundle === 1 || c.is_bundle === '1'))
     } catch (err) {
       console.error(err)
-      useModalStore.getState().showToast('فشل تحميل البيانات.', 'error')
+      useModalStore.getState().showToast('فشل تحميل الكورسات المجمعة.', 'error')
     } finally {
       setLoading(false)
     }
   }
 
   React.useEffect(() => {
-    loadData()
+    loadBundledCourses()
   }, [])
-
-  // Load lessons when courses are selected and teacher advances to Step 2
-  const handleLoadLessonsForStep2 = async () => {
-    if (selectedCourseIds.length === 0) {
-      useModalStore.getState().showToast('يرجى اختيار كورس واحد على الأقل للمتابعة.', 'warning')
-      return
-    }
-    setActionLoading(true)
-    try {
-      const details = await Promise.all(
-        selectedCourseIds.map(async (cId) => {
-          const res = await API.get(`/courses/${cId}`)
-          return {
-            courseId: cId,
-            courseTitle: res.data.course.title,
-            units: res.data.units || []
-          }
-        })
-      )
-      setCourseDetails(details)
-      setStep(2)
-    } catch (err) {
-      console.error(err)
-      useModalStore.getState().showToast('فشل تحميل المحاضرات الخاصة بالكورسات المحددة.', 'error')
-    } finally {
-      setActionLoading(false)
-    }
-  }
 
   const handleCreateNewClick = () => {
     setEditMode(null)
-    setBundleTitle('')
-    setBundlePrice('')
-    setBundleDesc('')
-    setBundleThumbnail('')
-    setIsActive(true)
-    setSelectedCourseIds([])
-    setSelectedLessonIds([])
-    setCourseDetails([])
-    setStep(1)
+    setTitle('')
+    setDescription('')
+    setCoverImage('')
+    setGrade('الصف الأول الثانوي')
+    setSubject('الفيزياء')
+    setPrice('')
+    setEnableDiscount(false)
+    setDiscountType('percentage')
+    setDiscountValue('')
+    setIsPublished(true)
     setShowForm(true)
   }
 
-  const handleEditClick = async (bundle: BundleItem) => {
-    setEditMode(bundle)
-    setBundleTitle(bundle.title)
-    setBundlePrice(bundle.price)
-    setBundleDesc(bundle.description || '')
-    setBundleThumbnail(bundle.package_thumbnail || '')
-    setIsActive(bundle.is_active)
-    
-    // Find courses of the lessons in the bundle
-    const lessonIds = bundle.lessons ? bundle.lessons.map(l => l.id) : []
-    setSelectedLessonIds(lessonIds)
-    
-    // Pre-select courses that these lessons belong to
-    const courseIds = new Set<number>()
-    if (bundle.lessons) {
-      bundle.lessons.forEach(l => {
-        if (l.unit && l.unit.course_id) {
-          courseIds.add(l.unit.course_id)
-        }
-      })
-    }
-    const selectedIds = Array.from(courseIds)
-    setSelectedCourseIds(selectedIds)
-    
-    setActionLoading(true)
-    try {
-      const details = await Promise.all(
-        selectedIds.map(async (cId) => {
-          const res = await API.get(`/courses/${cId}`)
-          return {
-            courseId: cId,
-            courseTitle: res.data.course.title,
-            units: res.data.units || []
-          }
-        })
-      )
-      setCourseDetails(details)
-      setStep(1) // Start edit at step 1 in case they want to adjust courses
-      setShowForm(true)
-    } catch (err) {
-      console.error(err)
-      useModalStore.getState().showToast('فشل تحميل تفاصيل الباقة للتعديل.', 'error')
-    } finally {
-      setActionLoading(false)
-    }
+  const handleEditClick = (course: CourseItem) => {
+    setEditMode(course)
+    setTitle(course.title)
+    setDescription(course.description || '')
+    setCoverImage(course.cover_image || '')
+    setGrade(course.grade)
+    setSubject(course.subject)
+    setPrice(course.price)
+    setEnableDiscount(!!course.enable_discount)
+    setDiscountType(course.discount_type || 'percentage')
+    setDiscountValue(course.discount_value || '')
+    setIsPublished(!!course.is_published)
+    setShowForm(true)
   }
 
-  const handleDeleteClick = (bundleId: number) => {
+  const handleDeleteClick = (courseId: number) => {
     useModalStore.getState().showConfirm({
-      title: 'حذف الباقة المجمعة',
-      description: 'هل أنت متأكد من حذف هذه الباقة المجمعة نهائياً؟ لن يتمكن طلاب جدد من الاشتراك بها ولكن الطلاب المشتركون بالفعل سيحتفظون بالوصول.',
-      confirmText: 'حذف الباقة',
+      title: 'حذف الكورس المجمع',
+      description: 'هل أنت متأكد من حذف هذا الكورس المجمع نهائياً؟ سيتم إلغاء تجميع الكورسات وبيعها، ولكن الطلاب المشتركون بالفعل سيحتفظون بالوصول.',
+      confirmText: 'حذف',
       cancelText: 'إلغاء',
       type: 'delete',
       onConfirm: async () => {
         setLoading(true)
         try {
-          await API.delete(`/teacher/packages/${bundleId}`)
-          useModalStore.getState().showToast('تم حذف الباقة بنجاح.', 'success')
-          loadData()
+          await API.delete(`/teacher/courses/${courseId}`)
+          useModalStore.getState().showToast('تم حذف الكورس المجمع بنجاح.', 'success')
+          loadBundledCourses()
         } catch (err) {
           console.error(err)
-          useModalStore.getState().showToast('فشل حذف الباقة.', 'error')
+          useModalStore.getState().showToast('فشل حذف الكورس المجمع.', 'error')
         } finally {
           setLoading(false)
         }
@@ -185,93 +119,94 @@ export default function ManageBundles() {
     })
   }
 
-  const handleToggleActive = async (bundle: BundleItem) => {
+  const handleCoverUpload = async (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    setUploadingCover(true)
     try {
-      const updatedStatus = !bundle.is_active
-      await API.put(`/teacher/packages/${bundle.id}`, {
-        title: bundle.title,
-        price: bundle.price,
-        description: bundle.description,
-        package_thumbnail: bundle.package_thumbnail,
-        type: 'bundle',
-        is_active: updatedStatus,
-        lesson_ids: bundle.lessons ? bundle.lessons.map(l => l.id) : []
+      const res = await API.post('/teacher/videos/signed-upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       })
-      useModalStore.getState().showToast(updatedStatus ? 'تم تنشيط الباقة بنجاح.' : 'تم إلغاء تنشيط الباقة.', 'success')
-      loadData()
+      setCoverImage(res.data.url)
+      useModalStore.getState().showToast('تم رفع الصورة بنجاح.', 'success')
     } catch (err) {
       console.error(err)
-      useModalStore.getState().showToast('فشل تعديل حالة الباقة.', 'error')
+      useModalStore.getState().showToast('فشل رفع الصورة.', 'error')
+    } finally {
+      setUploadingCover(false)
     }
   }
 
-  const toggleCourseSelection = (cId: number) => {
-    setSelectedCourseIds(prev => 
-      prev.includes(cId) ? prev.filter(id => id !== cId) : [...prev, cId]
-    )
-  }
-
-  const toggleLessonSelection = (lId: number) => {
-    setSelectedLessonIds(prev => 
-      prev.includes(lId) ? prev.filter(id => id !== lId) : [...prev, lId]
-    )
-  }
-
-  const handleSaveBundle = async (e: React.FormEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    if (!bundleTitle.trim()) {
-      useModalStore.getState().showToast('يرجى كتابة عنوان للباقة.', 'warning')
-      return
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      handleCoverUpload(file)
     }
-    if (selectedLessonIds.length === 0) {
-      useModalStore.getState().showToast('يرجى اختيار درس واحد على الأقل للباقة.', 'warning')
+  }
+
+  const handleSaveCourse = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!title.trim()) {
+      useModalStore.getState().showToast('يرجى كتابة عنوان الكورس المجمع.', 'warning')
       return
     }
 
     setActionLoading(true)
     try {
       const payload = {
-        title: bundleTitle,
-        price: bundlePrice || '0.00',
-        description: bundleDesc,
-        package_thumbnail: bundleThumbnail,
-        type: 'bundle',
-        is_active: isActive,
-        lesson_ids: selectedLessonIds,
+        title,
+        description,
+        cover_image: coverImage,
+        grade,
+        subject,
+        price: price || '0.00',
+        enable_discount: enableDiscount,
+        discount_type: discountType,
+        discount_value: discountValue || null,
+        is_published: isPublished,
+        is_bundle: true
       }
+
+      let courseId: number
 
       if (editMode) {
-        await API.put(`/teacher/packages/${editMode.id}`, payload)
-        useModalStore.getState().showToast('تم تعديل الباقة المجمعة بنجاح.', 'success')
+        await API.put(`/teacher/courses/${editMode.id}`, payload)
+        courseId = editMode.id
+        useModalStore.getState().showToast('تم تعديل تفاصيل الكورس المجمع بنجاح.', 'success')
+        setShowForm(false)
+        loadBundledCourses()
       } else {
-        await API.post('/teacher/packages', payload)
-        useModalStore.getState().showToast('تم إنشاء الباقة المجمعة بنجاح.', 'success')
+        const res = await API.post('/teacher/courses', payload)
+        courseId = res.data.id
+        useModalStore.getState().showToast('تم إنشاء الكورس المجمع بنجاح. جاري توجيهك لربط الكورسات القائمة...', 'success')
+        setShowForm(false)
+        // Redirect to the course details editor immediately with the course preselected
+        navigate(`/teacher/courses?course_id=${courseId}`)
       }
-
-      setShowForm(false)
-      loadData()
     } catch (err) {
       console.error(err)
-      useModalStore.getState().showToast('حدث خطأ أثناء حفظ الباقة.', 'error')
+      useModalStore.getState().showToast('حدث خطأ أثناء حفظ الكورس المجمع.', 'error')
     } finally {
       setActionLoading(false)
     }
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12 text-right" dir="rtl">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-[var(--border-color)] pb-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-100">إدارة الباقات المجمعة</h1>
-          <p className="text-sm text-slate-400 font-light mt-1">أنشئ باقات دراسية مستقلة تحتوي على دروس من كورسات مختلفة مع أسعار وتفاصيل مخصصة.</p>
+          <h1 className="text-3xl font-black text-slate-100">إدارة الكورسات المجمعة</h1>
+          <p className="text-sm text-slate-400 font-light mt-1">أنشئ كورسات مجمعة مستقلة تحتوي على كورس كامل أو أكثر مع أسعار وتفاصيل مخصصة.</p>
         </div>
         <button
           onClick={handleCreateNewClick}
           className="px-5 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-primary/10 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
         >
-          <Plus className="h-4.5 w-4.5" /> <span>بناء باقة مجمعة جديدة</span>
+          <Plus className="h-4.5 w-4.5" /> <span>➕ إنشاء كورس مجمع جديد</span>
         </button>
       </div>
 
@@ -283,448 +218,314 @@ export default function ManageBundles() {
       ) : bundles.length === 0 ? (
         <EmptyState
           type="courses"
-          title="لا توجد باقات مجمعة بعد"
-          description="يمكنك إنشاء باقة مجمعة جديدة لتجميع دروس مختلفة من عدة كورسات وبيعها كمنتج مستقل بسعر خاص."
+          title="لا توجد كورسات مجمعة بعد"
+          description="يمكنك إنشاء كورس مجمع جديد لتجميع كورسات كاملة وبيعها كمنتج مستقل بسعر خاص."
           actionButton={
             <button
               onClick={handleCreateNewClick}
-              className="px-6 py-3 bg-brand-primary text-white text-xs font-bold rounded-xl shadow-lg"
+              className="px-6 py-3 bg-brand-primary text-white text-xs font-bold rounded-xl shadow-lg cursor-pointer"
             >
-              أنشئ أول باقة مجمعة
+              أنشئ أول كورس مجمع
             </button>
           }
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {bundles.map((pkg) => (
+          {bundles.map((course) => (
             <div 
-              key={pkg.id} 
+              key={course.id} 
               className={`bg-brand-card border rounded-3xl overflow-hidden flex flex-col justify-between transition-all group ${
-                pkg.is_active ? 'border-[var(--border-color)] hover:border-brand-primary/30' : 'border-slate-800 opacity-60'
+                course.is_published ? 'border-[var(--border-color)] hover:border-brand-primary/30' : 'border-slate-800 opacity-60'
               }`}
             >
               <div>
                 {/* Cover Preview */}
                 <div className="aspect-video bg-slate-900 relative overflow-hidden border-b border-[var(--border-color)]">
                   <img 
-                    src={pkg.package_thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
-                    alt={pkg.title} 
+                    src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+                    alt={course.title} 
                     className="object-cover w-full h-full group-hover:scale-105 transition-transform" 
                   />
                   <div className="absolute top-3 right-3 px-3 py-1 bg-black/80 rounded-full text-xs font-semibold text-brand-primary">
-                    باقة مجمعة
+                    كورس مجمع
                   </div>
                   <div className="absolute top-3 left-3 px-2 py-0.5 bg-brand-success/15 border border-brand-success/30 rounded-lg text-[10px] font-bold text-brand-success">
-                    {pkg.price} ج.م
+                    {course.price} ج.م
                   </div>
                 </div>
 
-                <div className="p-6 space-y-4 text-right">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] text-slate-400 font-bold bg-slate-850 px-2 py-1 rounded-md">
-                      📝 {pkg.lessons_count || pkg.lessons?.length || 0} دروس مشمولة
-                    </span>
-                    <button
-                      onClick={() => handleToggleActive(pkg)}
-                      className={`text-[9px] font-black px-2 py-0.5 rounded-full border transition-all ${
-                        pkg.is_active 
-                          ? 'bg-brand-success/10 text-brand-success border-brand-success/20' 
-                          : 'bg-red-500/10 text-red-400 border-red-500/20'
-                      }`}
-                    >
-                      {pkg.is_active ? 'نشطة (اضغط للتعطيل)' : 'معطلة (اضغط للتنشيط)'}
-                    </button>
+                {/* Details */}
+                <div className="p-6 space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="font-black text-base text-slate-100 group-hover:text-brand-primary transition-colors truncate">{course.title}</h3>
+                    <p className="text-xs text-slate-400 font-light line-clamp-2 min-h-[2rem] leading-relaxed">{course.description}</p>
                   </div>
-                  
-                  <h3 className="font-bold text-base text-slate-200 line-clamp-1 group-hover:text-brand-primary transition-colors">{pkg.title}</h3>
-                  <p className="text-xs text-slate-400 font-light line-clamp-2 leading-relaxed">{pkg.description || 'لا يوجد وصف لهذه الباقة.'}</p>
-                  
-                  <div className="text-[10px] text-slate-500 border-t border-[var(--border-color)]/30 pt-3">
-                    👥 عدد المشتركين بالباقة حالياً: <span className="font-bold text-slate-300">{pkg.enrollments_count || 0}</span> طالب
+
+                  <div className="flex gap-2 items-center flex-wrap pt-2 border-t border-[var(--border-color)]/20 text-[10px] text-slate-400">
+                    <span className="bg-slate-850 px-2 py-0.5 rounded">{course.grade}</span>
+                    <span className="bg-slate-850 px-2 py-0.5 rounded">{course.subject}</span>
+                    <span>•</span>
+                    <span>{course.students_count || 0} طالب</span>
                   </div>
                 </div>
               </div>
 
-              {/* Actions Footer */}
-              <div className="px-6 pb-6 pt-3 flex gap-2.5">
+              {/* Actions */}
+              <div className="p-6 pt-0 border-t border-[var(--border-color)]/20 mt-4 flex items-center justify-between gap-3">
                 <button
-                  onClick={() => window.open(`/course/bundle-${pkg.id}?preview=true`, '_blank')}
-                  className="flex-1 py-2 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                  onClick={() => navigate(`/teacher/courses?course_id=${course.id}`)}
+                  className="flex-grow py-2.5 bg-slate-900 hover:bg-slate-850 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-[var(--border-color)]"
                 >
-                  <Eye className="h-3.5 w-3.5" /> <span>معاينة</span>
+                  <FolderOpen className="h-4 w-4 text-brand-primary" />
+                  <span>تعديل المحتوى والربط</span>
                 </button>
-                <button
-                  onClick={() => handleEditClick(pkg)}
-                  className="flex-grow py-2 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
-                >
-                  <Edit3 className="h-3.5 w-3.5" /> <span>تعديل</span>
-                </button>
-                <button
-                  onClick={() => handleDeleteClick(pkg.id)}
-                  className="py-2 px-3.5 bg-red-500/10 hover:bg-red-650 text-red-500 hover:text-white rounded-xl text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center"
-                  title="حذف الباقة"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditClick(course)}
+                    className="p-2.5 bg-slate-900 hover:bg-slate-850 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer border border-[var(--border-color)]"
+                    title="تعديل التفاصيل"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClick(course.id)}
+                    className="p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 rounded-xl transition-all cursor-pointer border border-rose-550/20"
+                    title="حذف"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Bundle Form Modal */}
+      {/* Course Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-black/60 backdrop-blur-sm">
-          <div className="fixed inset-0 bg-transparent" onClick={() => { if (!actionLoading) setShowForm(false) }} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-2xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
-            
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-slate-950/80">
+          <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-2xl w-full space-y-6 shadow-2xl relative text-right animate-scale-up" dir="rtl">
             <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-4">
-              <h3 className="text-lg font-black text-slate-100">
-                {editMode ? `تعديل الباقة: ${editMode.title}` : 'بناء باقة مجمعة جديدة'}
+              <h3 className="text-xl font-black text-slate-100">
+                {editMode ? 'تعديل تفاصيل الكورس المجمع' : 'إنشاء كورس مجمع جديد'}
               </h3>
-              
-              {/* Step indicator */}
-              <div className="flex gap-2">
-                <span className={`h-2 w-8 rounded-full transition-all ${step >= 1 ? 'bg-brand-primary' : 'bg-slate-800'}`} />
-                <span className={`h-2 w-8 rounded-full transition-all ${step >= 2 ? 'bg-brand-primary' : 'bg-slate-800'}`} />
-                <span className={`h-2 w-8 rounded-full transition-all ${step >= 3 ? 'bg-brand-primary' : 'bg-slate-800'}`} />
-              </div>
+              <button 
+                onClick={() => setShowForm(false)} 
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* STEP 1: Select Courses */}
-            {step === 1 && (
-              <div className="space-y-4">
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm text-slate-200">الخطوة 1: اختر الكورسات الدراسية المشمولة</h4>
-                  <p className="text-xs text-slate-400">حدد كورس واحد أو أكثر لاستيراد المحاضرات والدروس منها.</p>
-                </div>
+            <form onSubmit={handleSaveCourse} className="space-y-5">
+              
+              {/* Title */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-350">عنوان الكورس المجمع</label>
+                <input 
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="مثال: باقة الفيزياء للترم الأول 2027"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                />
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto p-1 bg-black/10 rounded-2xl border border-[var(--border-color)] p-4">
-                  {courses.length === 0 ? (
-                    <div className="col-span-2 text-center py-8 text-xs text-slate-500">لا توجد كورسات مضافة بعد لإنشاء باقة.</div>
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-350">وصف قصير</label>
+                <textarea 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="وصف مميزات الكورس المجمع والمواد المشمولة به..."
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-brand-primary h-24 resize-none"
+                />
+              </div>
+
+              {/* Cover Image */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-350">صورة غلاف الكورس المجمع</label>
+                <div 
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
+                    isDragOver ? 'border-brand-primary bg-brand-primary/5' : 'border-[var(--border-color)]'
+                  }`}
+                >
+                  {uploadingCover ? (
+                    <div className="flex flex-col items-center gap-2 py-4">
+                      <Loader2 className="h-8 w-8 text-brand-primary animate-spin" />
+                      <span className="text-xs text-slate-400">جاري رفع الصورة...</span>
+                    </div>
+                  ) : coverImage ? (
+                    <div className="space-y-3">
+                      <div className="aspect-video max-w-xs mx-auto rounded-lg overflow-hidden border border-[var(--border-color)]">
+                        <img src={coverImage} alt="غلاف الكورس" className="w-full h-full object-cover" />
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setCoverImage('')}
+                        className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                      >
+                        إزالة الغلاف
+                      </button>
+                    </div>
                   ) : (
-                    courses.map((course) => {
-                      const isSelected = selectedCourseIds.includes(course.id)
-                      return (
-                        <button
-                          type="button"
-                          key={course.id}
-                          onClick={() => toggleCourseSelection(course.id)}
-                          className={`flex items-center justify-between p-3 rounded-xl border text-right transition-all ${
-                            isSelected 
-                              ? 'border-brand-primary bg-brand-primary/5 text-slate-100 font-bold' 
-                              : 'border-[var(--border-color)] text-slate-450 hover:bg-[rgba(255,255,255,0.01)]'
-                          }`}
-                        >
-                          <span className="text-xs">{course.title}</span>
-                          <span className={`h-4.5 w-4.5 rounded-md border flex items-center justify-center ${
-                            isSelected ? 'bg-brand-primary border-brand-primary' : 'border-slate-700'
-                          }`}>
-                            {isSelected && <Check className="h-3 w-3 text-white" />}
-                          </span>
-                        </button>
-                      )
-                    })
+                    <div className="space-y-3">
+                      <ImageIcon className="h-8 w-8 text-slate-650 mx-auto" />
+                      <div className="text-xs text-slate-400 font-light">اسحب الصورة وأفلتها هنا أو اضغط للاختيار</div>
+                      <label className="inline-block px-4 py-2 bg-slate-900 hover:bg-slate-850 text-slate-200 border border-[var(--border-color)] rounded-xl text-xs font-bold cursor-pointer transition-all">
+                        <span>اختر صورة الغلاف</span>
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          className="hidden" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) handleCoverUpload(file)
+                          }}
+                        />
+                      </label>
+                    </div>
                   )}
                 </div>
+              </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                  <button 
-                    type="button" 
-                    onClick={() => setShowForm(false)} 
-                    className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl cursor-pointer"
+              {/* Grade and Subject */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-355">السنة الدراسية (الفرقة)</label>
+                  <select 
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    className="w-full bg-slate-950 border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                   >
-                    إلغاء
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={handleLoadLessonsForStep2}
-                    disabled={selectedCourseIds.length === 0 || actionLoading}
-                    className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  >
-                    {actionLoading ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>جاري تحميل الدروس...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>التالي: اختيار المحاضرات</span>
-                        <ArrowLeft className="h-3.5 w-3.5" />
-                      </>
-                    )}
-                  </button>
+                    <option value="الصف الأول الثانوي">الصف الأول الثانوي</option>
+                    <option value="الصف الثاني الثانوي">الصف الثاني الثانوي</option>
+                    <option value="الصف الثالث الثانوي">الصف الثالث الثانوي</option>
+                    <option value="كورسات حرة/أخرى">كورسات حرة/أخرى</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-355">المادة الدراسية</label>
+                  <input 
+                    type="text"
+                    required
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    placeholder="مثال: الفيزياء، الكيمياء..."
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                  />
                 </div>
               </div>
-            )}
 
-            {/* STEP 2: Choose Lessons */}
-            {step === 2 && (
-              <div className="space-y-4">
+              {/* Pricing & Discount */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[var(--border-color)]/20">
                 <div className="space-y-1">
-                  <h4 className="font-bold text-sm text-slate-200">الخطوة 2: اختر المحاضرات والدروس لتضمينها بالباقة</h4>
-                  <p className="text-xs text-slate-400">اختر الدروس المحددة التي سيحصل عليها الطالب عند شراء الباقة.</p>
+                  <label className="text-xs font-semibold text-slate-355">سعر البيع (ج.م)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-left"
+                    dir="ltr"
+                  />
                 </div>
 
-                <div className="space-y-4 max-h-96 overflow-y-auto bg-black/10 rounded-2xl border border-[var(--border-color)] p-4">
-                  {courseDetails.map((details) => (
-                    <div key={details.courseId} className="space-y-2 border-b border-[var(--border-color)]/20 pb-4 last:border-0 last:pb-0">
-                      <h5 className="font-bold text-xs text-brand-primary bg-brand-primary/5 px-2 py-1 rounded-md inline-block">
-                        📚 كورس: {details.courseTitle}
-                      </h5>
-                      
-                      {details.units.length === 0 ? (
-                        <div className="text-[10px] text-slate-500 py-1 pr-3">لا توجد وحدات أو دروس مضافة في هذا الكورس.</div>
-                      ) : (
-                        details.units.map((unit: any) => (
-                          <div key={unit.id} className="pr-4 space-y-1">
-                            <div className="text-[11px] font-bold text-slate-355">📁 وحدة: {unit.title}</div>
-                            
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pr-3 pt-1">
-                              {unit.lessons.length === 0 ? (
-                                <div className="col-span-2 text-[10px] text-slate-500">لا توجد محاضرات في هذه الوحدة.</div>
-                              ) : (
-                                unit.lessons.map((lesson: any) => {
-                                  const isChecked = selectedLessonIds.includes(lesson.id)
-                                  return (
-                                    <button
-                                      type="button"
-                                      key={lesson.id}
-                                      onClick={() => toggleLessonSelection(lesson.id)}
-                                      className={`flex items-center justify-between p-2 rounded-lg border text-right transition-colors ${
-                                        isChecked 
-                                          ? 'border-brand-primary bg-brand-primary/5 text-slate-100 font-bold' 
-                                          : 'border-[var(--border-color)] text-slate-450 hover:bg-[rgba(255,255,255,0.01)]'
-                                      }`}
-                                    >
-                                      <span className="text-[11px]">{lesson.title}</span>
-                                      <span className={`h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                                        isChecked ? 'bg-brand-primary border-brand-primary' : 'border-slate-700'
-                                      }`}>
-                                        {isChecked && <Check className="h-2.5 w-2.5 text-white" />}
-                                      </span>
-                                    </button>
-                                  )
-                                })
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-between items-center pt-4 border-t border-[var(--border-color)]">
-                  <button 
-                    type="button"
-                    onClick={() => setStep(1)}
-                    className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl flex items-center gap-1 cursor-pointer"
-                  >
-                    <ArrowRight className="h-3.5 w-3.5" />
-                    <span>رجوع للخطوة 1</span>
-                  </button>
-
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      if (selectedLessonIds.length === 0) {
-                        useModalStore.getState().showToast('يرجى اختيار درس واحد على الأقل للمتابعة.', 'warning')
-                        return
-                      }
-                      setStep(3)
-                    }}
-                    className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>التالي: تفاصيل الباقة السعرية</span>
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Bundle Info */}
-            {step === 3 && (
-              <form onSubmit={handleSaveBundle} className="space-y-4">
-                <div className="space-y-1">
-                  <h4 className="font-bold text-sm text-slate-200">الخطوة 3: حدد معلومات الباقة وسعر البيع</h4>
-                  <p className="text-xs text-slate-400">أدخل تفاصيل تسويقية مخصصة مع السعر المناسب للباقة.</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-350 block">عنوان الباقة المجمعة</label>
-                    <input
-                      type="text"
-                      required
-                      value={bundleTitle}
-                      onChange={(e) => setBundleTitle(e.target.value)}
-                      placeholder="مثال: باقة المراجعة النهائية في الفيزياء..."
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
+                <div className="space-y-2 flex flex-col justify-end">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
+                    <input 
+                      type="checkbox"
+                      checked={enableDiscount}
+                      onChange={(e) => setEnableDiscount(e.target.checked)}
+                      className="rounded border-slate-700 text-brand-primary focus:ring-brand-primary"
                     />
+                    <span>تفعيل نسبة خصم خاصة</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Discount Details */}
+              {enableDiscount && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-900/10 border border-[var(--border-color)]/40 rounded-2xl animate-slide-down">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-355">نوع الخصم</label>
+                    <select
+                      value={discountType}
+                      onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                      className="w-full bg-slate-950 border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                    >
+                      <option value="percentage">نسبة مئوية (%)</option>
+                      <option value="fixed">مبلغ ثابت (ج.م)</option>
+                    </select>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-350 block">سعر الباقة المستقلة (ج.م)</label>
-                    <input
+                    <label className="text-xs font-semibold text-slate-355">قيمة الخصم</label>
+                    <input 
                       type="number"
                       step="0.01"
                       required
-                      value={bundlePrice}
-                      onChange={(e) => setBundlePrice(e.target.value)}
-                      placeholder="مثال: 150.00"
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                    />
-                  </div>
-
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-xs font-semibold text-slate-350 block">وصف الباقة المجمعة</label>
-                    <textarea
-                      value={bundleDesc}
-                      onChange={(e) => setBundleDesc(e.target.value)}
-                      placeholder="صف الباقة والمميزات التي سيحصل عليها الطالب..."
-                      rows={3}
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none resize-none"
-                    />
-                  </div>
-
-                  <div className="col-span-2 space-y-1">
-                    <label className="text-xs font-semibold text-slate-350 block">رابط غلاف الباقة (اختياري)</label>
-                    <input
-                      type="text"
-                      value={bundleThumbnail}
-                      onChange={(e) => setBundleThumbnail(e.target.value)}
-                      placeholder="رابط الصورة أو اتركها فارغة لاستخدام الصورة الافتراضية"
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      placeholder={discountType === 'percentage' ? 'مثال: 15' : 'مثال: 50'}
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-left"
                       dir="ltr"
                     />
                   </div>
-
-                  <div className="col-span-2 space-y-2">
-                    <label className="text-xs font-semibold text-slate-350 block">تحميل صورة غلاف الباقة (تحميل مباشر)</label>
-                    
-                    <div 
-                      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                      onDragLeave={() => setIsDragOver(false)}
-                      onDrop={async (e) => {
-                        e.preventDefault();
-                        setIsDragOver(false);
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) {
-                          const formData = new FormData();
-                          formData.append('file', file);
-                          setUploadingThumbnail(true);
-                          try {
-                            const res = await API.post('/upload', formData, {
-                              headers: { 'Content-Type': 'multipart/form-data' },
-                            });
-                            setBundleThumbnail(res.data.url);
-                            useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
-                          } catch (err) {
-                            useModalStore.getState().showToast('فشل الرفع.', 'error');
-                          } finally {
-                            setUploadingThumbnail(false);
-                          }
-                        }
-                      }}
-                      className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all ${
-                        isDragOver ? 'border-brand-primary bg-brand-primary/5' : 'border-slate-800 bg-slate-900/10'
-                      }`}
-                    >
-                      {bundleThumbnail ? (
-                        <div className="space-y-3">
-                          <img src={bundleThumbnail} alt="Preview" className="h-28 mx-auto rounded-xl object-cover aspect-video border border-slate-850" />
-                          <button 
-                            type="button" 
-                            onClick={() => setBundleThumbnail('')}
-                            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black"
-                          >
-                            إزالة الصورة
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <span className="text-[10px] text-slate-400 block">اسحب صورة الغلاف وأفلتها هنا، أو اضغط على الزر أدناه</span>
-                          <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
-                            <span>اختر صورة</span>
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="hidden" 
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const formData = new FormData();
-                                  formData.append('file', file);
-                                  setUploadingThumbnail(true);
-                                  try {
-                                    const res = await API.post('/upload', formData, {
-                                      headers: { 'Content-Type': 'multipart/form-data' },
-                                    });
-                                    setBundleThumbnail(res.data.url);
-                                    useModalStore.getState().showToast('تم رفع صورة الباقة بنجاح.', 'success');
-                                  } catch (err) {
-                                    useModalStore.getState().showToast('فشل الرفع.', 'error');
-                                  } finally {
-                                    setUploadingThumbnail(false);
-                                  }
-                                }
-                              }}
-                            />
-                          </label>
-                          {uploadingThumbnail && (
-                            <div className="text-[10px] text-brand-primary animate-pulse font-bold">جاري رفع الصورة...</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 flex items-center justify-between p-4 bg-slate-900/10 border border-[var(--border-color)] rounded-2xl">
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-200">حالة الباقة المجمعة</h5>
-                      <p className="text-[10px] text-slate-400">حدد ما إذا كانت الباقة نشطة ومعروضة للبيع الفوري للطلاب.</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        checked={isActive} 
-                        onChange={(e) => setIsActive(e.target.checked)} 
-                        className="sr-only peer" 
-                      />
-                      <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:-translate-x-full rtl:peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-primary peer-checked:after:bg-white"></div>
-                    </label>
-                  </div>
                 </div>
+              )}
 
-                <div className="flex justify-between items-center pt-4 border-t border-[var(--border-color)]">
-                  <button 
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl flex items-center gap-1 cursor-pointer"
-                  >
-                    <ArrowRight className="h-3.5 w-3.5" />
-                    <span>رجوع للخطوة 2</span>
-                  </button>
+              {/* Status Toggle */}
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-300">
+                  <input 
+                    type="checkbox"
+                    checked={isPublished}
+                    onChange={(e) => setIsPublished(e.target.checked)}
+                    className="rounded border-slate-700 text-brand-primary focus:ring-brand-primary"
+                  />
+                  <span>نشر الكورس المجمع وتفعيله للبيع مباشرة</span>
+                </label>
+              </div>
 
-                  <button 
-                    type="submit"
-                    disabled={actionLoading}
-                    className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1 cursor-pointer disabled:opacity-40"
-                  >
-                    {actionLoading ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>جاري حفظ الباقة...</span>
-                      </>
-                    ) : (
-                      <span>{editMode ? 'حفظ التعديلات ونشر الباقة' : 'حفظ ونشر الباقة المجمعة'}</span>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
+              {/* Submit Buttons */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-[var(--border-color)]">
+                <button 
+                  type="button" 
+                  onClick={() => setShowForm(false)} 
+                  className="px-5 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button 
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl shadow-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                >
+                  {actionLoading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>جاري الحفظ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{editMode ? 'حفظ التعديلات' : 'التالي: ربط الكورسات'}</span>
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
 
+            </form>
           </div>
         </div>
       )}

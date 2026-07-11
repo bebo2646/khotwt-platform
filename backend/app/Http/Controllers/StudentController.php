@@ -2311,9 +2311,18 @@ class StudentController extends Controller
             }
             if (!$course && !$isBundle) continue;
 
+            $isBundledCourse = false;
+            if ($course && $course->is_bundle) {
+                $isBundledCourse = true;
+                $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
+                $bundleLessons = \App\Models\Lesson::whereIn('unit_id', function($q) use ($childIds) {
+                    $q->select('id')->from('units')->whereIn('course_id', $childIds);
+                })->with('videos')->get();
+            }
+
             // Gather all video IDs
             $videoIds = [];
-            if ($isBundle) {
+            if ($isBundle || $isBundledCourse) {
                 foreach ($bundleLessons as $lesson) {
                     foreach ($lesson->videos as $video) {
                         $videoIds[] = $video->id;
@@ -2341,7 +2350,7 @@ class StudentController extends Controller
                 $progress = min(100, round($sumPercentage / $totalVideos));
                 
                 // Get actual durations and watched seconds
-                if ($isBundle) {
+                if ($isBundle || $isBundledCourse) {
                     foreach ($bundleLessons as $lesson) {
                         foreach ($lesson->videos as $video) {
                             $totalDuration += $video->duration_seconds;

@@ -124,6 +124,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/teacher/courses', [TeacherController::class, 'createCourse']);
                 Route::put('/teacher/courses/{course}', [TeacherController::class, 'updateCourse']);
                 Route::delete('/teacher/courses/{course}', [TeacherController::class, 'deleteCourse']);
+                Route::post('/teacher/courses/{course}/link-courses', [TeacherController::class, 'linkBundleCourses']);
                 Route::post('/teacher/courses/{course}/units', [TeacherController::class, 'addUnit']);
                 Route::post('/teacher/units/{unit}/lessons', [TeacherController::class, 'addLesson']);
                 Route::put('/teacher/lessons/{lesson}', [TeacherController::class, 'updateLesson']);

@@ -25,6 +25,7 @@ class Course extends Model
         'availability',
         'view_limit_enabled',
         'max_views',
+        'is_bundle',
     ];
 
     protected static function booted()
@@ -63,6 +64,7 @@ class Course extends Model
         'discount_value' => 'decimal:2',
         'view_limit_enabled' => 'boolean',
         'max_views' => 'integer',
+        'is_bundle' => 'boolean',
     ];
 
     protected $appends = ['final_price'];
@@ -126,6 +128,16 @@ class Course extends Model
     public function lessons()
     {
         return $this->hasManyThrough(Lesson::class, Unit::class);
+    }
+
+    public function childCourses()
+    {
+        return $this->belongsToMany(Course::class, 'course_bundle_items', 'parent_id', 'child_id')->withTimestamps();
+    }
+
+    public function parentBundles()
+    {
+        return $this->belongsToMany(Course::class, 'course_bundle_items', 'child_id', 'parent_id')->withTimestamps();
     }
 
     public function getStudentViewLimitDetails($studentId)

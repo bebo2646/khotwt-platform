@@ -631,6 +631,7 @@ class TeacherController extends Controller
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
             'availability' => 'nullable|string|in:online,center,both',
+            'is_bundle' => 'nullable|boolean',
         ]);
 
         $course = Course::create([
@@ -646,6 +647,7 @@ class TeacherController extends Controller
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,
             'availability' => $request->availability ?? 'both',
+            'is_bundle' => $request->is_bundle ?? false,
         ]);
 
         // Send Student Notification
@@ -681,6 +683,7 @@ class TeacherController extends Controller
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
             'availability' => 'nullable|string|in:online,center,both',
+            'is_bundle' => 'nullable|boolean',
         ]);
 
         $course->update([
@@ -694,6 +697,7 @@ class TeacherController extends Controller
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,
             'availability' => $request->availability ?? $course->availability ?? 'both',
+            'is_bundle' => $request->has('is_bundle') ? $request->is_bundle : $course->is_bundle,
         ]);
 
         return response()->json($course);
@@ -2413,6 +2417,32 @@ class TeacherController extends Controller
         });
 
         return response()->json($limits);
+    }
+
+    /**
+     * Link/Sync child courses to a bundled course.
+     */
+    public function linkBundleCourses(Request $request, $courseId)
+    {
+        $course = $this->verifyCourseTeacher($request, $courseId);
+        
+        if (!$course->is_bundle) {
+            abort(400, 'هذا الكورس ليس كورس مجمع.');
+        }
+
+        $request->validate([
+            'child_ids' => 'required|array',
+            'child_ids.*' => 'exists:courses,id',
+        ]);
+
+        // Ensure we do not link the bundled course to itself
+        $childIds = array_filter($request->child_ids, function($id) use ($courseId) {
+            return (int)$id !== (int)$courseId;
+        });
+
+        $course->childCourses()->sync($childIds);
+
+        return response()->json($course->load('childCourses'));
     }
 }
 

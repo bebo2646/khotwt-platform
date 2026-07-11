@@ -1021,7 +1021,7 @@ export default function LessonViewer() {
         </div>
 
         <Link
-          to={`/course/${lesson.unit.course_id}`}
+          to={packageId ? `/course/${packageId}` : `/course/${lesson.unit.course_id}`}
           className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl hover:bg-[rgba(255,255,255,0.06)] flex items-center gap-1.5 w-fit"
         >
           <ArrowLeft className="h-4 w-4" /> العودة لصفحة الكورس

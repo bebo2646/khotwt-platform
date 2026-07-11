@@ -1,4 +1,5 @@
 import React from 'react'
+import { useSearchParams } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { useConfigStore } from '../../store/configStore'
@@ -16,6 +17,7 @@ interface CourseItem {
   grade: string
   subject: string
   students_count: number
+  is_bundle?: boolean
   enable_discount?: boolean
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
@@ -83,6 +85,12 @@ export default function ManageCourses() {
   const [units, setUnits] = React.useState<UnitItem[]>([])
   const [packages, setPackages] = React.useState<PackageItem[]>([])
   const [editPackageMode, setEditPackageMode] = React.useState<PackageItem | null>(null)
+  const [searchParams] = useSearchParams()
+  const initialCourseId = searchParams.get('course_id')
+
+  const [childCourses, setChildCourses] = React.useState<any[]>([])
+  const [showLinkCoursesModal, setShowLinkCoursesModal] = React.useState(false)
+  const [selectedLinkCourseIds, setSelectedLinkCourseIds] = React.useState<number[]>([])
   const [loading, setLoading] = React.useState(true)
   const [actionLoading, setActionLoading] = React.useState(false)
 
@@ -205,8 +213,11 @@ export default function ManageCourses() {
     API.get('/teacher/courses')
       .then((res) => {
         setCourses(res.data)
-        if (res.data.length > 0 && !selectedCourse) {
-          handleSelectCourse(res.data[0])
+        if (res.data.length > 0) {
+          const preselected = initialCourseId
+            ? res.data.find((c: any) => c.id === parseInt(initialCourseId))
+            : null
+          handleSelectCourse(preselected || res.data[0])
         }
       })
       .catch((err) => console.error(err))
@@ -228,14 +239,62 @@ export default function ManageCourses() {
     // Fetch curriculum
     API.get(`/courses/${course.id}`)
       .then((res) => {
-        setUnits(res.data.units)
+        setUnits(res.data.units || [])
+        setChildCourses(res.data.child_courses || [])
         setPackages(res.data.packages || [])
         // Expand first unit
-        if (res.data.units.length > 0) {
+        if (res.data.units && res.data.units.length > 0) {
           setExpandedUnits({ [res.data.units[0].id]: true })
+        } else {
+          setExpandedUnits({})
         }
       })
       .catch((err) => console.error(err))
+  }
+
+  const handleLinkCourses = async () => {
+    if (!selectedCourse) return
+    setActionLoading(true)
+    try {
+      await API.post(`/teacher/courses/${selectedCourse.id}/link-courses`, {
+        child_ids: selectedLinkCourseIds,
+      })
+      useModalStore.getState().showToast('تم تحديث ارتباط الكورسات بنجاح.', 'success')
+      setShowLinkCoursesModal(false)
+      handleSelectCourse(selectedCourse)
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('فشل ربط الكورسات.', 'error')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleUnlinkCourse = async (childId: number) => {
+    if (!selectedCourse) return
+    useModalStore.getState().showConfirm({
+      title: 'إلغاء ربط الكورس',
+      description: 'هل أنت متأكد من إلغاء ربط هذا الكورس من الكورس المجمع؟ لن يتمكن الطلاب المشتركون في الكورس المجمع من الوصول لمحاضرات هذا الكورس بعد الآن.',
+      confirmText: 'إلغاء الربط',
+      cancelText: 'تراجع',
+      type: 'delete',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          const updatedChildIds = childCourses.filter(c => c.id !== childId).map(c => c.id)
+          await API.post(`/teacher/courses/${selectedCourse.id}/link-courses`, {
+            child_ids: updatedChildIds,
+          })
+          useModalStore.getState().showToast('تم إلغاء ربط الكورس بنجاح.', 'success')
+          handleSelectCourse(selectedCourse)
+        } catch (err) {
+          console.error(err)
+          useModalStore.getState().showToast('فشل إلغاء ربط الكورس.', 'error')
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
   }
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1159,9 +1218,71 @@ export default function ManageCourses() {
               </div>
 
               {/* Units builder list */}
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-bold text-sm">الوحدات والدروس المضافة:</h4>
+              {selectedCourse.is_bundle ? (
+                /* Bundled course child references manager */
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-sm">الكورسات المشمولة في هذا الكورس المجمع:</h4>
+                    <button
+                      onClick={() => {
+                        setSelectedLinkCourseIds(childCourses.map((c) => c.id))
+                        setShowLinkCoursesModal(true)
+                      }}
+                      className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" /> <span>ربط كورس قائم</span>
+                    </button>
+                  </div>
+
+                  {childCourses.length === 0 ? (
+                    <div className="text-center py-16 border border-dashed border-[var(--border-color)] rounded-2xl text-slate-500 text-sm font-light">
+                      لا توجد كورسات مرتبطة بهذا الكورس المجمع بعد. اضغط على زر "ربط كورس قائم" لإضافة كورسات.
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {childCourses.map((child) => (
+                        <div key={child.id} className="border border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] rounded-2xl p-4 space-y-4">
+                          <div className="flex justify-between items-center border-b border-[var(--border-color)]/30 pb-2">
+                            <span className="font-black text-xs text-brand-primary">📚 كورس: {child.title}</span>
+                            <button
+                              onClick={() => handleUnlinkCourse(child.id)}
+                              className="text-[10px] font-bold text-red-500 hover:underline flex items-center gap-0.5 cursor-pointer"
+                            >
+                              إلغاء الربط
+                            </button>
+                          </div>
+
+                          <div className="space-y-2 pr-2 border-r border-dashed border-[var(--border-color)]/30">
+                            {!child.units || child.units.length === 0 ? (
+                              <div className="text-[10px] text-slate-500 font-light">لا توجد وحدات أو دروس مضافة بالكورس بعد.</div>
+                            ) : (
+                              child.units.map((unit: any) => (
+                                <div key={unit.id} className="space-y-1">
+                                  <div className="text-[11px] font-bold text-slate-300">📁 {unit.title}</div>
+                                  <div className="space-y-1 pr-3">
+                                    {!unit.lessons || unit.lessons.length === 0 ? (
+                                      <div className="text-[9px] text-slate-500 font-light">لا توجد دروس.</div>
+                                    ) : (
+                                      unit.lessons.map((lesson: any) => (
+                                        <div key={lesson.id} className="text-[10px] text-slate-450">
+                                          • {lesson.title}
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold text-sm">الوحدات والدروس المضافة:</h4>
                   <button
                     onClick={() => setShowUnitForm(true)}
                     className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1 cursor-pointer"
@@ -1406,6 +1527,7 @@ export default function ManageCourses() {
                   </div>
                 )}
               </div>
+              )}
 
 
 
@@ -2266,7 +2388,75 @@ export default function ManageCourses() {
         </div>
       )}
 
+      {/* Link Courses Modal */}
+      {showLinkCoursesModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-slate-950/80">
+          <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 max-w-md w-full space-y-4 shadow-xl text-right animate-scale-up" dir="rtl">
+            <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-3">
+              <h3 className="text-lg font-black text-slate-100">ربط كورسات قائمة</h3>
+              <button 
+                onClick={() => setShowLinkCoursesModal(false)}
+                className="text-slate-400 hover:text-slate-200 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
 
+            <p className="text-xs text-slate-400 leading-relaxed font-light">
+              اختر الكورسات التي ترغب في تضمينها داخل كورس مجمع "{selectedCourse?.title}".
+            </p>
+
+            <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
+              {courses
+                .filter((c) => !c.is_bundle && c.id !== selectedCourse?.id)
+                .map((course) => {
+                  const isChecked = selectedLinkCourseIds.includes(course.id)
+                  return (
+                    <label 
+                      key={course.id}
+                      className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border-color)] bg-slate-900/20 hover:border-slate-800 cursor-pointer transition-all select-none"
+                    >
+                      <input 
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          if (isChecked) {
+                            setSelectedLinkCourseIds(selectedLinkCourseIds.filter(id => id !== course.id))
+                          } else {
+                            setSelectedLinkCourseIds([...selectedLinkCourseIds, course.id])
+                          }
+                        }}
+                        className="rounded border-slate-700 text-brand-primary focus:ring-brand-primary"
+                      />
+                      <div className="flex-grow min-w-0">
+                        <div className="text-xs font-bold text-slate-200 truncate">{course.title}</div>
+                        <div className="text-[10px] text-slate-450">{course.grade} - {course.subject}</div>
+                      </div>
+                    </label>
+                  )
+                })}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+              <button
+                type="button"
+                onClick={() => setShowLinkCoursesModal(false)}
+                className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl text-slate-300 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleLinkCourses}
+                disabled={actionLoading}
+                className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-55"
+              >
+                {actionLoading ? 'جاري الحفظ...' : 'تأكيد الربط'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )
