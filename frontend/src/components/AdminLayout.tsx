@@ -33,7 +33,8 @@ import {
   ChevronLeft,
   UserCheck,
   AlertTriangle,
-  Wallet
+  Wallet,
+  Coins
 } from 'lucide-react'
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -146,6 +147,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/courses')) return 'إدارة الكورسات والمناهج'
     if (path.startsWith('/admin/subscriptions/requests')) return 'طلبات اشتراكات المعلمين'
     if (path.startsWith('/admin/codes')) return 'إدارة أكواد الشحن'
+    if (path.startsWith('/admin/financial')) return 'التحليلات المالية والأرباح'
     if (path.startsWith('/admin/reports')) return 'التقارير المالية والمبيعات'
     if (path.startsWith('/admin/notifications')) return 'إرسال الإشعارات الجماعية'
     if (path.startsWith('/admin/subscription-plans')) return 'إعدادات باقات الاشتراك'
@@ -214,6 +216,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           path: '/admin/codes',
           icon: <Ticket className="w-5 h-5 shrink-0" />,
           visible: hasPerm('coupons.manage')
+        },
+        {
+          label: 'التحليلات المالية',
+          path: '/admin/financial',
+          icon: <Coins className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('reports.view')
         },
         {
           label: 'التقارير المالية',

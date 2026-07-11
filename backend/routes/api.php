@@ -258,6 +258,12 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:reports.view')->group(function () {
                 Route::get('/admin/reports', [AdminController::class, 'reports']);
                 Route::get('/admin/subscriptions/reports', [SubscriptionController::class, 'exportReports']);
+                Route::get('/admin/financial/dashboard', [\App\Http\Controllers\FinancialController::class, 'dashboard']);
+                Route::get('/admin/financial/transactions', [\App\Http\Controllers\FinancialController::class, 'transactions']);
+                Route::get('/admin/financial/daily-report', [\App\Http\Controllers\FinancialController::class, 'dailyReport']);
+                Route::get('/admin/financial/teachers', [\App\Http\Controllers\FinancialController::class, 'teachersReport']);
+                Route::get('/admin/financial/students', [\App\Http\Controllers\FinancialController::class, 'studentsReport']);
+                Route::get('/admin/financial/export', [\App\Http\Controllers\FinancialController::class, 'export']);
             });
 
             // Admins CRUD (Super Admin restricted inside controller as well)

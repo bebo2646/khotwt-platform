@@ -63,6 +63,7 @@ const AdminStudentsList = React.lazy(() => import('./pages/admin/StudentsList'))
 const AdminCoursesList = React.lazy(() => import('./pages/admin/CoursesList'))
 const PurchaseCodes = React.lazy(() => import('./pages/admin/PurchaseCodes'))
 const ReportsPage = React.lazy(() => import('./pages/admin/ReportsPage'))
+const AdminFinancialAnalytics = React.lazy(() => import('./pages/admin/FinancialAnalytics'))
 const AdminManagement = React.lazy(() => import('./pages/admin/AdminManagement'))
 const AdminTeacherSubscription = React.lazy(() => import('./pages/admin/TeacherSubscription'))
 const AdminNotifications = React.lazy(() => import('./pages/admin/Notifications'))
@@ -452,6 +453,11 @@ function App() {
         <Route path="/admin/reports" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="reports.view">
             <AdminLayout><ReportsPage /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/financial" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="reports.view">
+            <AdminLayout><AdminFinancialAnalytics /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/bunny" element={
