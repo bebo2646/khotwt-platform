@@ -2524,7 +2524,7 @@ class StudentController extends Controller
         $user = $request->user();
 
         // 1. Enrolled courses
-        $enrollments = Enrollment::with(['course.teacher', 'course.units.lessons.videos', 'package'])
+        $enrollments = Enrollment::with(['course.teacher', 'course.units.lessons.videos', 'package.course.teacher', 'lesson.unit.course.teacher'])
             ->where('student_id', $user->id)
             ->latest()
             ->get();
@@ -2541,6 +2541,13 @@ class StudentController extends Controller
 
         foreach ($enrollments as $enrollment) {
             $course = $enrollment->course;
+            if (!$course) {
+                if ($enrollment->package) {
+                    $course = $enrollment->package->course;
+                } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
+                    $course = $enrollment->lesson->unit->course;
+                }
+            }
             if (!$course) continue;
 
             $videoIds = [];
@@ -2570,9 +2577,9 @@ class StudentController extends Controller
 
             $coursesData[] = [
                 'id' => $course->id,
-                'title' => $course->title,
+                'title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
                 'cover_image' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : ($course->cover_image ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'),
-                'teacher_name' => $course->teacher->name,
+                'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
                 'progress_percentage' => $progress,
                 'completed_lectures' => $completedVideos,
                 'remaining_lectures' => max(0, $totalVideos - $completedVideos),

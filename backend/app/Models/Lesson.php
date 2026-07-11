@@ -58,9 +58,20 @@ class Lesson extends Model
         // Get the course ID
         $courseId = $this->unit->course_id;
 
-        // Package access validation
+        // Package and standalone access validation (including null course_id enrollments)
         $enrollments = Enrollment::where('student_id', $studentId)
-            ->where('course_id', $courseId)
+            ->where(function($query) use ($courseId) {
+                $query->where('course_id', $courseId)
+                    ->orWhereIn('package_id', function($sub) use ($courseId) {
+                        $sub->select('id')->from('packages')->where('course_id', $courseId);
+                    })
+                    ->orWhereIn('lesson_id', function($sub) use ($courseId) {
+                        $sub->select('lessons.id')
+                            ->from('lessons')
+                            ->join('units', 'lessons.unit_id', '=', 'units.id')
+                            ->where('units.course_id', $courseId);
+                    });
+            })
             ->get();
 
         if ($enrollments->isEmpty()) {
@@ -81,6 +92,7 @@ class Lesson extends Model
                     return true; // Locked because it is not in the purchased package(s) and not purchased individually
                 }
             }
+            return false; // Standalone or package/bundle purchases bypass course-level sequential locking
         }
 
         // Get all lessons of this course, sorted by unit.order, then lesson.order, then lesson.id

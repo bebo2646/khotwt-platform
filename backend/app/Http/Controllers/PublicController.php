@@ -456,12 +456,12 @@ class PublicController extends Controller
         }
 
         // Clean lesson data if NOT enrolled or if view limit is exceeded
-        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails) {
+        $unitsFormatted = $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $courseId, $packageId, $requestLessonId) {
             return [
                 'id' => $unit->id,
                 'title' => $unit->title,
                 'order' => $unit->order,
-                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $courseId) {
+                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $courseId, $packageId, $requestLessonId) {
                     $matchingPackageId = null;
                     $hasLessonAccess = false;
                     $ownsCourse = false;
