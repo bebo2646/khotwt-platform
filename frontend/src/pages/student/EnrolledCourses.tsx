@@ -7,6 +7,9 @@ import EmptyState from '../../components/EmptyState'
 interface EnrolledCourse {
   id: number
   enrolled_at: string
+  product_type?: string
+  package_id?: number | null
+  lesson_id?: number | null
   course: {
     id: number
     title: string
@@ -91,7 +94,7 @@ export default function EnrolledCourses() {
                 </div>
 
                 <div className="pt-4 border-t border-[var(--border-color)] flex justify-end">
-                  <Link to={`/course/${enr.course.id}`} className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
+                  <Link to={`/course/${enr.course.id}${enr.package_id ? `?package_id=${enr.package_id}` : (enr.lesson_id ? `?lesson_id=${enr.lesson_id}` : '')}`} className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5">
                     <span>دخول المحتوى الدراسي</span>
                     <ArrowRight className="h-4 w-4" />
                   </Link>

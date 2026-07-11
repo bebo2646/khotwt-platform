@@ -44,6 +44,9 @@ interface CourseProgress {
   watched_seconds?: number
   total_duration_seconds?: number
   description?: string
+  purchase_type?: string
+  package_id?: number | null
+  lesson_id?: number | null
 }
 
 interface DashboardData {
@@ -525,7 +528,7 @@ export default function StudentDashboard() {
 
                       <div className="flex justify-end pt-1">
                         <Link 
-                          to={`/course/${course.id}`} 
+                          to={`/course/${course.id}${course.purchase_type === 'package' ? `?package_id=${course.package_id}` : (course.purchase_type === 'lesson' ? `?lesson_id=${course.lesson_id}` : '')}`} 
                           className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all duration-200 flex items-center gap-1.5"
                         >
                           <span>استكمال الكورس</span>
@@ -821,7 +824,7 @@ export default function StudentDashboard() {
                               <h4 className="font-black text-xs text-slate-200 group-hover:text-brand-primary transition-colors">{course.title}</h4>
                               <span className="text-[9px] text-slate-500 block">الإنجاز: {course.progress_percentage}%</span>
                             </div>
-                            <Link to={`/course/${course.id}`} className="p-2.5 bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-white rounded-xl transition-all">
+                            <Link to={`/course/${course.id}${course.purchase_type === 'package' ? `?package_id=${course.package_id}` : (course.purchase_type === 'lesson' ? `?lesson_id=${course.lesson_id}` : '')}`} className="p-2.5 bg-brand-primary/10 text-brand-primary group-hover:bg-brand-primary group-hover:text-white rounded-xl transition-all">
                               <Play className="h-4 w-4 fill-current" />
                             </Link>
                           </div>

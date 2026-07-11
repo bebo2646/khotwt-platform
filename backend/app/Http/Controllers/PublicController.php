@@ -305,13 +305,38 @@ class PublicController extends Controller
 
         $courseId = $course->id;
 
-        // Standard hierarchy: Course -> Units -> Lessons
-        $units = \App\Models\Unit::where('course_id', $courseId)
-            ->with(['lessons' => function ($query) {
+        $packageId = $request->input('package_id');
+        $requestLessonId = $request->input('lesson_id');
+
+        $unitsQuery = \App\Models\Unit::where('course_id', $courseId)
+            ->orderBy('order');
+
+        if ($packageId) {
+            $packageLessonIds = \DB::table('package_lessons')
+                ->where('package_id', $packageId)
+                ->pluck('lesson_id')
+                ->toArray();
+
+            $unitsQuery->with(['lessons' => function ($query) use ($packageLessonIds) {
+                $query->whereIn('id', $packageLessonIds)->orderBy('order');
+            }]);
+        } elseif ($requestLessonId) {
+            $unitsQuery->with(['lessons' => function ($query) use ($requestLessonId) {
+                $query->where('id', $requestLessonId)->orderBy('order');
+            }]);
+        } else {
+            $unitsQuery->with(['lessons' => function ($query) {
                 $query->orderBy('order');
-            }])
-            ->orderBy('order')
-            ->get();
+            }]);
+        }
+
+        $units = $unitsQuery->get();
+
+        if ($packageId || $requestLessonId) {
+            $units = $units->filter(function ($unit) {
+                return $unit->lessons->count() > 0;
+            })->values();
+        }
 
         $packages = \App\Models\Package::where('course_id', $courseId)->with('lessons')->withCount('enrollments')->get();
 
@@ -328,11 +353,40 @@ class PublicController extends Controller
                 $isStudent = false;
             } elseif ($user->isStudent()) {
                 $isStudent = true;
-                $isEnrolled = Enrollment::where('student_id', $user->id)
+                
+                $courseEnroll = Enrollment::where('student_id', $user->id)
                     ->where('course_id', $courseId)
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
+
+                $packageEnroll = false;
+                if ($packageId) {
+                    $packageEnroll = Enrollment::where('student_id', $user->id)
+                        ->where('package_id', $packageId)
+                        ->exists();
+                } else {
+                    $allCoursePackageIds = \App\Models\Package::where('course_id', $courseId)->pluck('id');
+                    $packageEnroll = Enrollment::where('student_id', $user->id)
+                        ->whereIn('package_id', $allCoursePackageIds)
+                        ->exists();
+                }
+
+                $lessonEnroll = false;
+                if ($requestLessonId) {
+                    $lessonEnroll = Enrollment::where('student_id', $user->id)
+                        ->where('lesson_id', $requestLessonId)
+                        ->exists();
+                } else {
+                    $allCourseLessonIds = \App\Models\Lesson::whereHas('unit', function($q) use ($courseId) {
+                        $q->where('course_id', $courseId);
+                    })->pluck('id');
+                    $lessonEnroll = Enrollment::where('student_id', $user->id)
+                        ->whereIn('lesson_id', $allCourseLessonIds)
+                        ->exists();
+                }
+
+                $isEnrolled = $courseEnroll || $packageEnroll || $lessonEnroll;
 
                 if ($isEnrolled) {
                     if ($course->hasExceededViewLimitForStudent($user->id)) {
@@ -463,7 +517,8 @@ class PublicController extends Controller
                         'owns_course' => $ownsCourse,
                         'owns_lesson_direct' => $ownsLessonDirect,
                         'matching_package_id' => $matchingPackageId,
-                        'course_id' => $ownsCourse ? $courseId : null,
+                        'package_id' => $packageId ? (int)$packageId : $matchingPackageId,
+                        'course_id' => $courseId,
                     ];
 
                     $isLocked = false;

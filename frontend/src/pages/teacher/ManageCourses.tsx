@@ -1118,14 +1118,6 @@ export default function ManageCourses() {
                   <span className="text-[10px] text-slate-400">الكورس المختار:</span>
                   <h3 className="text-xl font-black">{selectedCourse.title}</h3>
                 </div>
-                
-                {/* Package builder toggle */}
-                <button
-                  onClick={() => setShowPackageForm(true)}
-                  className="px-4 py-2 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary hover:bg-brand-primary hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 w-fit"
-                >
-                  <Package className="h-4 w-4" /> <span>بناء باقة مجمعة</span>
-                </button>
               </div>
 
               {/* Units builder list */}

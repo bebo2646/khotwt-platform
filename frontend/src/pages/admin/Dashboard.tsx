@@ -58,6 +58,10 @@ export default function Dashboard() {
   const [maintenanceEta, setMaintenanceEta] = React.useState('')
   const [savingSettings, setSavingSettings] = React.useState(false)
 
+  // Academic Reset states
+  const [resetConfirmationText, setResetConfirmationText] = React.useState('')
+  const [resettingYear, setResettingYear] = React.useState(false)
+
   // Package admin states
   const [showPackageForm, setShowPackageForm] = React.useState(false)
   const [editPackageMode, setEditPackageMode] = React.useState<any | null>(null)
@@ -82,59 +86,85 @@ export default function Dashboard() {
     }
   }
 
-  React.useEffect(() => {
-    const loadDashboardData = async () => {
-      setLoading(true)
+  const loadDashboardData = React.useCallback(async () => {
+    setLoading(true)
+    try {
+      // Load stats
       try {
-        // Load stats
-        try {
-          const statsRes = await API.get('/admin/dashboard')
-          if (import.meta.env.DEV) {
-            console.log('[Dashboard Response]:', statsRes.data)
-          }
-          setStats(statsRes.data)
-        } catch (statsErr) {
-          console.error('[Dashboard Response Error]:', statsErr)
-          useModalStore.getState().showToast('فشل تحميل إحصائيات لوحة التحكم.', 'error')
-          // Fallback stats to allow rendering
-          setStats({
-            total_teachers: 0,
-            total_students: 0,
-            total_courses: 0,
-            total_enrollments: 0,
-            total_revenue: '0.00',
-            monthly_revenue: '0.00',
-            recent_transactions: [],
-            monthly_chart: [],
-            sub_lifetime_revenue: 0,
-            sub_current_month_revenue: 0,
-            sub_previous_month_revenue: 0,
-            sub_today_revenue: 0,
-            sub_pending_revenue: 0,
-            sub_refunded_revenue: 0,
-            sub_growth_percentage: 0,
-          })
+        const statsRes = await API.get('/admin/dashboard')
+        if (import.meta.env.DEV) {
+          console.log('[Dashboard Response]:', statsRes.data)
         }
-
-        // Load packages
-        try {
-          const pkgsRes = await API.get('/admin/packages')
-          if (import.meta.env.DEV) {
-            console.log('[Packages Response]:', pkgsRes.data)
-          }
-          setPackages(pkgsRes.data)
-        } catch (pkgsErr) {
-          console.error('[Packages Response Error]:', pkgsErr)
-          useModalStore.getState().showToast('فشل تحميل الباقات المجمعة.', 'error')
-        }
-      } catch (err) {
-        console.error('[Dashboard Loader Error]:', err)
-      } finally {
-        setLoading(false)
+        setStats(statsRes.data)
+      } catch (statsErr) {
+        console.error('[Dashboard Response Error]:', statsErr)
+        useModalStore.getState().showToast('فشل تحميل إحصائيات لوحة التحكم.', 'error')
+        // Fallback stats to allow rendering
+        setStats({
+          total_teachers: 0,
+          total_students: 0,
+          total_courses: 0,
+          total_enrollments: 0,
+          total_revenue: '0.00',
+          monthly_revenue: '0.00',
+          recent_transactions: [],
+          monthly_chart: [],
+          sub_lifetime_revenue: 0,
+          sub_current_month_revenue: 0,
+          sub_previous_month_revenue: 0,
+          sub_today_revenue: 0,
+          sub_pending_revenue: 0,
+          sub_refunded_revenue: 0,
+          sub_growth_percentage: 0,
+        })
       }
+
+      // Load packages
+      try {
+        const pkgsRes = await API.get('/admin/packages')
+        if (import.meta.env.DEV) {
+          console.log('[Packages Response]:', pkgsRes.data)
+        }
+        setPackages(pkgsRes.data)
+      } catch (pkgsErr) {
+        console.error('[Packages Response Error]:', pkgsErr)
+        useModalStore.getState().showToast('فشل تحميل الباقات المجمعة.', 'error')
+      }
+    } catch (err) {
+      console.error('[Dashboard Loader Error]:', err)
+    } finally {
+      setLoading(false)
     }
-    loadDashboardData()
   }, [])
+
+  React.useEffect(() => {
+    loadDashboardData()
+  }, [loadDashboardData])
+
+  const handleAcademicYearReset = async () => {
+    if (resetConfirmationText !== 'RESET ACADEMIC YEAR') return;
+
+    useModalStore.getState().showConfirm({
+      title: 'تأكيد تهيئة السنة الدراسية الجديدة',
+      description: 'تحذير: هذا الإجراء لا يمكن التراجع عنه نهائياً! سيتم مسح كافة سجلات الطلاب المالية والدراسية بنسبة 100%. هل تريد المتابعة بالتأكيد؟',
+      confirmText: 'نعم، تهيئة المنصة الآن',
+      onConfirm: async () => {
+        setResettingYear(true)
+        try {
+          const res = await API.post('/admin/reset-academic-year', {
+            confirmation: resetConfirmationText,
+          })
+          useModalStore.getState().showToast(res.data.message || 'تمت تهيئة السنة الدراسية بنجاح.', 'success')
+          setResetConfirmationText('')
+          loadDashboardData()
+        } catch (err: any) {
+          useModalStore.getState().showToast(err.response?.data?.message || 'فشل تهيئة السنة الدراسية.', 'error')
+        } finally {
+          setResettingYear(false)
+        }
+      }
+    })
+  }
 
   React.useEffect(() => {
     if (user?.is_super_admin || user?.is_super) {
@@ -938,6 +968,41 @@ export default function Dashboard() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+
+          {/* New Academic Year Reset */}
+          <div className="lg:col-span-3 bg-brand-card border border-rose-500/20 p-8 rounded-3xl space-y-6 shadow-sm mt-6">
+            <div>
+              <h3 className="font-bold text-base text-rose-500 flex items-center gap-2 border-b border-rose-500/20 pb-3 text-right">
+                <AlertCircle className="h-5 w-5 text-rose-500" />
+                <span>تهيئة السنة الدراسية الجديدة (إجراء خطير جداً)</span>
+              </h3>
+              <p className="text-xs text-slate-400 font-light mt-1 text-right">
+                يقوم هذا الخيار بحذف جميع حسابات الطلاب، سجلات الاشتراكات، المحافظ، السجلات المالية والتقارير، والمشاهدات ومحاولات الامتحانات بالكامل مع الاحتفاظ بالمحتوى الدراسي وهيكل المواد.
+              </p>
+            </div>
+
+            <div className="space-y-4 max-w-md text-right">
+              <label className="text-xs font-semibold text-slate-300 block">
+                لتأكيد تهيئة السنة الدراسية الجديدة، يرجى كتابة عبارة <span className="text-rose-400 font-bold select-all">RESET ACADEMIC YEAR</span> في الحقل أدناه:
+              </label>
+              <input
+                type="text"
+                value={resetConfirmationText}
+                onChange={(e) => setResetConfirmationText(e.target.value)}
+                placeholder="RESET ACADEMIC YEAR"
+                className="w-full bg-[rgba(255,255,255,0.02)] border border-rose-500/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-center font-bold tracking-wider"
+              />
+              
+              <button
+                type="button"
+                onClick={handleAcademicYearReset}
+                disabled={resetConfirmationText !== 'RESET ACADEMIC YEAR' || resettingYear}
+                className="w-full sm:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                {resettingYear ? 'جاري تهيئة المنصة...' : 'بدء تهيئة السنة الدراسية'}
+              </button>
             </div>
           </div>
         </div>

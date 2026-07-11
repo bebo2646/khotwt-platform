@@ -2326,5 +2326,88 @@ class AdminController extends Controller
             'teacher_statistics' => $formattedTeacherStats,
         ]);
     }
+
+    /**
+     * Reset the academic year (Admin only).
+     */
+    public function resetAcademicYear(Request $request)
+    {
+        $request->validate([
+            'confirmation' => 'required|string',
+        ]);
+
+        if ($request->input('confirmation') !== 'RESET ACADEMIC YEAR') {
+            return response()->json(['message' => 'تأكيد التهيئة غير صحيح. يرجى كتابة RESET ACADEMIC YEAR بدقة.'], 422);
+        }
+
+        \DB::transaction(function () {
+            // Get student IDs
+            $studentIds = \DB::table('users')->where('role', 'student')->pluck('id')->toArray();
+
+            // 1. Delete student progress, attempts, messages, transactions
+            \DB::table('video_progresses')->delete();
+            if (\Schema::hasTable('student_pdf_progresses')) {
+                \DB::table('student_pdf_progresses')->delete();
+            }
+            \DB::table('student_answers')->delete();
+            \DB::table('student_exams')->delete();
+            \DB::table('enrollments')->delete();
+            \DB::table('wallet_transactions')->delete();
+            \DB::table('wallets')->delete();
+            if (\Schema::hasTable('exam_purchases')) {
+                \DB::table('exam_purchases')->delete();
+            }
+            if (\Schema::hasTable('refund_logs')) {
+                \DB::table('refund_logs')->delete();
+            }
+            
+            // Teacher earnings, payouts, platform earnings, payment histories
+            if (\Schema::hasTable('teacher_payouts')) {
+                \DB::table('teacher_payouts')->delete();
+            }
+            if (\Schema::hasTable('teacher_earnings')) {
+                \DB::table('teacher_earnings')->delete();
+            }
+            if (\Schema::hasTable('platform_earnings')) {
+                \DB::table('platform_earnings')->delete();
+            }
+            if (\Schema::hasTable('payment_histories')) {
+                \DB::table('payment_histories')->delete();
+            }
+            if (\Schema::hasTable('purchase_audit_logs')) {
+                \DB::table('purchase_audit_logs')->delete();
+            }
+
+            // Notifications
+            \DB::table('notification_reads')->delete();
+            \DB::table('notifications')->delete();
+
+            // Reset purchase codes usage
+            \DB::table('purchase_codes')->update([
+                'is_redeemed' => false,
+                'redeemed_by' => null,
+                'redeemed_at' => null,
+            ]);
+
+            // Delete sessions and tokens for students
+            if (!empty($studentIds)) {
+                \DB::table('sessions')->whereIn('user_id', $studentIds)->delete();
+                \DB::table('personal_access_tokens')
+                    ->whereIn('tokenable_id', $studentIds)
+                    ->where('tokenable_type', 'App\\Models\\User')
+                    ->delete();
+            }
+            \DB::table('sessions')->whereNull('user_id')->delete();
+            \DB::table('password_reset_tokens')->delete();
+
+            // Finally delete the student users
+            \DB::table('users')->where('role', 'student')->delete();
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تهيئة السنة الدراسية الجديدة بنجاح وتصفير السجلات المالية والطلاب مع الاحتفاظ بالمحتوى التعليمي.'
+        ]);
+    }
 }
 

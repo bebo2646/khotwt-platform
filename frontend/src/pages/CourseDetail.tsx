@@ -1,5 +1,5 @@
 import React from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
@@ -154,6 +154,9 @@ export default function CourseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { isLoggedIn, user, updateUser } = useAuthStore()
+  const [searchParams] = useSearchParams()
+  const packageId = searchParams.get('package_id')
+  const lessonId = searchParams.get('lesson_id')
 
   // States
   const [course, setCourse] = React.useState<CourseItem | null>(null)
@@ -227,7 +230,11 @@ export default function CourseDetail() {
   }
 
   const fetchDetails = React.useCallback(() => {
-    API.get(`/courses/${id}`)
+    const params = new URLSearchParams()
+    if (packageId) params.append('package_id', packageId)
+    if (lessonId) params.append('lesson_id', lessonId)
+
+    API.get(`/courses/${id}?${params.toString()}`)
       .then((res) => {
         setCourse(res.data.course)
         setUnits(res.data.units || [])
@@ -243,7 +250,7 @@ export default function CourseDetail() {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, packageId, lessonId])
 
   const handleRedeemRechargeCode = async () => {
     if (!rechargeCode.trim()) return
@@ -813,7 +820,7 @@ export default function CourseDetail() {
                                         <div className="flex items-center gap-3">
                                           {!vid.is_locked ? (
                                             <Link 
-                                              to={`/student/lessons/${lesson.id}?play=${vid.id}${lesson.course_id ? `&course_id=${lesson.course_id}` : lesson.matching_package_id ? `&package_id=${lesson.matching_package_id}` : ''}`}
+                                              to={`/student/lessons/${lesson.id}?play=${vid.id}${packageId ? `&package_id=${packageId}` : (lessonId ? `&lesson_id=${lessonId}` : (lesson.course_id ? `&course_id=${lesson.course_id}` : ''))}`}
                                               onClick={(e) => e.stopPropagation()}
                                               className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                                             >
@@ -884,7 +891,7 @@ export default function CourseDetail() {
                                         <div className="flex items-center gap-3">
                                           {!pdf.is_locked ? (
                                              <Link 
-                                               to={`/student/pdf/${pdf.id}${lesson.course_id ? `?course_id=${lesson.course_id}` : lesson.matching_package_id ? `?package_id=${lesson.matching_package_id}` : ''}`}
+                                               to={`/student/pdf/${pdf.id}${packageId ? `?package_id=${packageId}` : (lessonId ? `?lesson_id=${lessonId}` : (lesson.course_id ? `?course_id=${lesson.course_id}` : ''))}`}
                                                onClick={(e) => e.stopPropagation()}
                                                className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                                              >
@@ -955,7 +962,7 @@ export default function CourseDetail() {
                                           <div className="flex items-center gap-3">
                                             {!ex.is_locked ? (
                                               <Link 
-                                                to={`/student/exams/${ex.id}${lesson.course_id ? `?course_id=${lesson.course_id}` : lesson.matching_package_id ? `?package_id=${lesson.matching_package_id}` : ''}`}
+                                                to={`/student/exams/${ex.id}${packageId ? `?package_id=${packageId}` : (lessonId ? `?lesson_id=${lessonId}` : (lesson.course_id ? `?course_id=${lesson.course_id}` : ''))}`}
                                                 onClick={(e) => e.stopPropagation()}
                                                 className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
                                                   isHomework 
