@@ -26,12 +26,59 @@ class StudentController extends Controller
     public function enrolledCourses(Request $request)
     {
         $user = $request->user();
-        $enrollments = Enrollment::with('course.teacher')
+        $enrollments = Enrollment::with(['course.teacher', 'package.course.teacher', 'lesson.unit.course.teacher'])
             ->where('student_id', $user->id)
             ->latest()
             ->get();
 
-        return response()->json($enrollments);
+        $formatted = $enrollments->map(function ($enrollment) {
+            $course = null;
+            $typeLabel = 'course';
+            $coverImage = null;
+            $productTitle = null;
+
+            if ($enrollment->course) {
+                $course = $enrollment->course;
+                $typeLabel = 'course';
+                $productTitle = $course->title;
+                $coverImage = $course->cover_image;
+            } elseif ($enrollment->package) {
+                $course = $enrollment->package->course;
+                $typeLabel = $enrollment->package->type; // bundle, month, revision
+                $productTitle = $enrollment->package->title;
+                $coverImage = $enrollment->package->package_thumbnail ?: $course->cover_image;
+            } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
+                $course = $enrollment->lesson->unit->course;
+                $typeLabel = 'lesson';
+                $productTitle = $enrollment->lesson->title;
+                $coverImage = $course->cover_image;
+            }
+
+            if (!$course) {
+                return null;
+            }
+
+            return [
+                'id' => $enrollment->id,
+                'enrolled_at' => $enrollment->enrolled_at ? $enrollment->enrolled_at->toIso8601String() : null,
+                'product_type' => $typeLabel,
+                'product_title' => $productTitle,
+                'package_id' => $enrollment->package_id,
+                'lesson_id' => $enrollment->lesson_id,
+                'course' => [
+                    'id' => $course->id,
+                    'title' => $productTitle,
+                    'description' => $course->description,
+                    'cover_image' => $coverImage ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
+                    'subject' => $course->subject,
+                    'teacher' => [
+                        'name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
+                    ],
+                ]
+            ];
+        })->filter();
+
+        return response()->json(array_values($formatted->toArray()));
     }
 
     /**
@@ -741,7 +788,7 @@ class StudentController extends Controller
 
                     Enrollment::create([
                         'student_id' => $user->id,
-                        'course_id' => $package->course_id,
+                        'course_id' => null,
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
@@ -835,7 +882,7 @@ class StudentController extends Controller
 
                     Enrollment::create([
                         'student_id' => $user->id,
-                        'course_id' => $package->course_id,
+                        'course_id' => null,
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
@@ -894,7 +941,7 @@ class StudentController extends Controller
 
                     Enrollment::create([
                         'student_id' => $user->id,
-                        'course_id' => $package->course_id,
+                        'course_id' => null,
                         'package_id' => $package->id,
                         'enrolled_at' => Carbon::now(),
                     ]);
@@ -959,7 +1006,7 @@ class StudentController extends Controller
 
             Enrollment::create([
                 'student_id' => $user->id,
-                'course_id' => $package->course_id,
+                'course_id' => null,
                 'package_id' => $package->id,
                 'enrolled_at' => Carbon::now(),
             ]);
@@ -1101,7 +1148,7 @@ class StudentController extends Controller
 
             Enrollment::create([
                 'student_id' => $user->id,
-                'course_id' => $courseId,
+                'course_id' => null,
                 'lesson_id' => $lesson->id,
                 'enrolled_at' => Carbon::now(),
             ]);
@@ -2206,7 +2253,7 @@ class StudentController extends Controller
         $walletBalance = $wallet->balance;
 
         // Enrolled Courses and calculation of progress
-        $enrollments = Enrollment::with(['course.teacher', 'course.units.lessons.videos', 'package'])
+        $enrollments = Enrollment::with(['course.teacher', 'course.units.lessons.videos', 'package.course.teacher', 'lesson.unit.course.teacher'])
             ->where('student_id', $user->id)
             ->latest()
             ->get();
@@ -2222,6 +2269,13 @@ class StudentController extends Controller
 
         foreach ($enrollments as $enrollment) {
             $course = $enrollment->course;
+            if (!$course) {
+                if ($enrollment->package) {
+                    $course = $enrollment->package->course;
+                } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
+                    $course = $enrollment->lesson->unit->course;
+                }
+            }
             if (!$course) continue;
 
             // Gather all video IDs for this course
@@ -2267,18 +2321,24 @@ class StudentController extends Controller
 
             $coursesData[] = [
                 'id' => $course->id,
-                'title' => $course->title,
-                'description' => $course->description,
+                'title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
+                'description' => $enrollment->package ? $enrollment->package->description : ($enrollment->lesson ? $enrollment->lesson->description : $course->description),
                 'cover_image' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : ($course->cover_image ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'),
                 'subject' => $course->subject,
                 'grade' => $course->grade,
                 'teacher' => [
-                    'name' => $course->teacher->name,
-                    'avatar' => $course->teacher->avatar,
+                    'name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
+                    'avatar' => $course->teacher ? $course->teacher->avatar : null,
                 ],
                 'progress_percentage' => $progress,
                 'total_duration_seconds' => $totalDuration,
                 'watched_seconds' => $watchedSeconds,
+                'purchase_type' => $enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course'),
+                'package_id' => $enrollment->package_id,
+                'lesson_id' => $enrollment->lesson_id,
+                'package_type' => $enrollment->package ? $enrollment->package->type : null,
+                'package_title' => $enrollment->package ? $enrollment->package->title : null,
+                'lesson_title' => $enrollment->lesson ? $enrollment->lesson->title : null,
             ];
         }
 
@@ -2288,6 +2348,13 @@ class StudentController extends Controller
             $allVideoIds = [];
             foreach ($enrollments as $enrollment) {
                 $course = $enrollment->course;
+                if (!$course) {
+                    if ($enrollment->package) {
+                        $course = $enrollment->package->course;
+                    } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
+                        $course = $enrollment->lesson->unit->course;
+                    }
+                }
                 if (!$course) continue;
                 foreach ($course->units as $unit) {
                     foreach ($unit->lessons as $lesson) {
@@ -2306,7 +2373,22 @@ class StudentController extends Controller
         }
 
         // Recent lessons within enrolled courses
-        $enrolledCourseIds = Enrollment::where('student_id', $user->id)->pluck('course_id');
+        $enrolledCourseIds = Enrollment::where('student_id', $user->id)
+            ->whereNotNull('course_id')
+            ->pluck('course_id')
+            ->union(
+                Package::whereIn('id', Enrollment::where('student_id', $user->id)->whereNotNull('package_id')->pluck('package_id'))
+                    ->pluck('course_id')
+            )
+            ->union(
+                \App\Models\Lesson::whereIn('id', Enrollment::where('student_id', $user->id)->whereNotNull('lesson_id')->pluck('lesson_id'))
+                    ->whereHas('unit', function($q) { $q->whereNotNull('course_id'); })
+                    ->get()
+                    ->pluck('unit.course_id')
+            )
+            ->filter()
+            ->unique();
+
         $recentLessons = \App\Models\Lesson::whereIn('unit_id', function ($query) use ($enrolledCourseIds) {
             $query->select('id')->from('units')->whereIn('course_id', $enrolledCourseIds);
         })
