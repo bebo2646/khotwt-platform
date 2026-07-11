@@ -6,7 +6,7 @@ import {
   FileDown, RefreshCw, BarChart2, DollarSign, BookOpen, AlertCircle, 
   Coins, Filter, Search, Calendar, ChevronDown, ChevronRight, X, Eye, 
   Users, Wallet, GraduationCap, Percent, TrendingUp, Clock, BookOpen as BookIcon,
-  Award, FileText, CheckCircle, Printer, HelpCircle
+  Award, FileText, CheckCircle, Printer, HelpCircle, ArrowLeft, PlusCircle, ArrowDownCircle, ArrowUpCircle
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
@@ -52,6 +52,10 @@ interface DailyReportItem {
   monthly_packages_sold: number
   revision_packages_sold: number
   standalone_sold: number
+  top_teacher: string
+  top_course: string
+  top_bundle: string
+  top_subject: string
 }
 
 interface TeacherStatsItem {
@@ -87,6 +91,15 @@ interface StudentStatsItem {
   favorite_product_type: string
 }
 
+interface StatementEvent {
+  id: string
+  date: string
+  type: 'Sale' | 'Adjustment' | 'Reversal' | 'Withdrawal'
+  description: string
+  amount: number
+  running_balance: number
+}
+
 export default function FinancialAnalytics() {
   const [activeTab, setActiveTab] = React.useState<'dashboard' | 'transactions' | 'daily' | 'teachers' | 'students'>('dashboard')
   const [loading, setLoading] = React.useState(true)
@@ -109,7 +122,7 @@ export default function FinancialAnalytics() {
   const [status, setStatus] = React.useState('')
   const [studentSearch, setStudentSearch] = React.useState('')
 
-  // Lists for reference dropdowns
+  // Reference lists
   const [teachersList, setTeachersList] = React.useState<any[]>([])
   const [coursesList, setCoursesList] = React.useState<any[]>([])
   const [packagesList, setPackagesList] = React.useState<any[]>([])
@@ -129,33 +142,37 @@ export default function FinancialAnalytics() {
   const [topTeachersChart, setTopTeachersChart] = React.useState<any[]>([])
   const [topStudentsChart, setTopStudentsChart] = React.useState<any[]>([])
 
-  // Transaction Data
+  // Transactions Data
   const [transactions, setTransactions] = React.useState<TransactionItem[]>([])
   const [currentPage, setCurrentPage] = React.useState(1)
   const [lastPage, setLastPage] = React.useState(1)
   const [totalTransactions, setTotalTransactions] = React.useState(0)
   const [selectedTransaction, setSelectedTransaction] = React.useState<TransactionItem | null>(null)
 
-  // Daily report Data
+  // Daily Reports Closing Data
   const [dailyReports, setDailyReports] = React.useState<DailyReportItem[]>([])
 
-  // Teacher Revenue Data
+  // Teacher Revenue Reports
   const [teacherReport, setTeacherReport] = React.useState<TeacherStatsItem[]>([])
+  const [selectedTeacherStatement, setSelectedTeacherStatement] = React.useState<any | null>(null)
+  const [isStatementLoading, setIsStatementLoading] = React.useState(false)
+  const [isAdjustmentLoading, setIsAdjustmentLoading] = React.useState(false)
+  const [adjustAmount, setAdjustAmount] = React.useState('')
+  const [adjustDescription, setAdjustDescription] = React.useState('')
+  const [showAdjustForm, setShowAdjustForm] = React.useState(false)
 
-  // Student Purchase Data
+  // Student Ledger Reports
   const [studentReport, setStudentReport] = React.useState<StudentStatsItem[]>([])
   const [studentPage, setStudentPage] = React.useState(1)
   const [studentLastPage, setStudentLastPage] = React.useState(1)
+  const [selectedStudentLedger, setSelectedStudentLedger] = React.useState<any | null>(null)
+  const [isLedgerLoading, setIsLedgerLoading] = React.useState(false)
 
   // Fetch reference lists
   React.useEffect(() => {
     API.get('/admin/teachers').then((res) => setTeachersList(res.data.teachers || res.data || []))
     API.get('/admin/courses').then((res) => setCoursesList(res.data.courses || res.data.data || []))
-    API.get('/admin/packages').then((res) => {
-      // Find package types, filtering for bundles if needed or showing all packages
-      const pkgs = res.data.packages || res.data.data || res.data || []
-      setPackagesList(pkgs)
-    }).catch(err => console.error("Error loading packages:", err))
+    API.get('/admin/packages').then((res) => setPackagesList(res.data.packages || res.data.data || res.data || []))
   }, [])
 
   // Clear all filters helper
@@ -249,7 +266,62 @@ export default function FinancialAnalytics() {
     fetchData()
   }, [fetchData])
 
-  // Trigger export CSV from the optimized streaming API
+  // Fetch Teacher Statement
+  const fetchTeacherStatement = async (id: number) => {
+    setIsStatementLoading(true)
+    try {
+      const res = await API.get(`/admin/financial/teachers/${id}/statement`, {
+        params: { start_date: startDate, end_date: endDate }
+      })
+      setSelectedTeacherStatement(res.data)
+      setShowAdjustForm(false)
+      setAdjustAmount('')
+      setAdjustDescription('')
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('حدث خطأ أثناء تحميل كشف الحساب المالي للمعلم.', 'error')
+    } finally {
+      setIsStatementLoading(false)
+    }
+  }
+
+  // Post Teacher Adjustment
+  const handleTeacherAdjustment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedTeacherStatement) return
+    setIsAdjustmentLoading(true)
+    try {
+      await API.post(`/admin/financial/teachers/${selectedTeacherStatement.teacher.id}/adjust`, {
+        amount: parseFloat(adjustAmount),
+        description: adjustDescription
+      })
+      useModalStore.getState().showToast('تم حفظ التسوية الحسابية اليدوية بنجاح.', 'success')
+      // Refresh statement
+      fetchTeacherStatement(selectedTeacherStatement.teacher.id)
+      fetchData() // Refresh parent reports
+    } catch (err: any) {
+      console.error(err)
+      useModalStore.getState().showToast(err.message || 'فشلت إضافة التسوية اليدوية للمعلم.', 'error')
+    } finally {
+      setIsAdjustmentLoading(false)
+    }
+  }
+
+  // Fetch Student Ledger
+  const fetchStudentLedger = async (id: number) => {
+    setIsLedgerLoading(true)
+    try {
+      const res = await API.get(`/admin/financial/students/${id}/ledger`)
+      setSelectedStudentLedger(res.data)
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('حدث خطأ أثناء تحميل كشف عمليات الطالب.', 'error')
+    } finally {
+      setIsLedgerLoading(false)
+    }
+  }
+
+  // Export CSV
   const handleExportCSV = async () => {
     try {
       const params = {
@@ -300,14 +372,14 @@ export default function FinancialAnalytics() {
       <div className="hidden print:block text-center border-b pb-4 mb-6">
         <h1 className="text-2xl font-black text-slate-900">التقرير المالي والحسابات الختامية للمنصة</h1>
         <p className="text-sm text-slate-600 mt-2">تاريخ التقرير: {new Date().toLocaleDateString('ar-EG')} - الوقت الحالي: {new Date().toLocaleTimeString('ar-EG')}</p>
-        <p className="text-xs text-slate-500 mt-1">الفلاتر المطبقة: {range === 'custom' ? `من ${startDate} إلى ${endDate}` : `فترة: ${range}`}</p>
+        <p className="text-xs text-slate-500 mt-1 font-mono">الفلاتر المطبقة: {range === 'custom' ? `من ${startDate} إلى ${endDate}` : `فترة: ${range}`}</p>
       </div>
 
       {/* Header and Exporters */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-brand-card p-6 border border-[var(--border-color)] rounded-3xl print:hidden">
         <div>
           <h2 className="text-xl font-black text-slate-200">التحليلات المالية وتتبع الإيرادات</h2>
-          <p className="text-xs text-slate-400 mt-1 font-light">نظام الرقابة المالية والحسابات الكامل للمبيعات، أنصبة المعلمين، المسحوبات والعمولات.</p>
+          <p className="text-xs text-slate-400 mt-1 font-light font-arabic">نظام الرقابة المالية والحسابات الكامل للمبيعات، أنصبة المعلمين، المسحوبات والعمولات.</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
           <button
@@ -336,8 +408,8 @@ export default function FinancialAnalytics() {
         {[
           { key: 'dashboard', label: 'لوحة التحكم والتحليلات البيانية' },
           { key: 'transactions', label: 'سجل المبيعات والعمليات' },
-          { key: 'daily', label: 'التقارير الحسابية اليومية' },
-          { key: 'teachers', label: 'إيرادات ومستحقات المعلمين' },
+          { key: 'daily', label: 'التقارير الحسابية اليومية (Daily Closing)' },
+          { key: 'teachers', label: 'كشوفات حساب المعلمين' },
           { key: 'students', label: 'حسابات الطلاب ومشترياتهم' },
         ].map((tab) => (
           <button
@@ -362,7 +434,7 @@ export default function FinancialAnalytics() {
         <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-3">
           <button
             onClick={handleClearFilters}
-            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all cursor-pointer"
+            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all cursor-pointer animate-pulse"
           >
             تفريغ الفلاتر وتصفير المعاينة
           </button>
@@ -399,7 +471,7 @@ export default function FinancialAnalytics() {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-250 focus:outline-none focus:border-indigo-500 text-right"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
                 />
               </div>
               <div className="space-y-1">
@@ -408,7 +480,7 @@ export default function FinancialAnalytics() {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-250 focus:outline-none focus:border-indigo-500 text-right"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
                 />
               </div>
             </>
@@ -435,7 +507,7 @@ export default function FinancialAnalytics() {
               value={studentId}
               onChange={(e) => setStudentId(e.target.value)}
               placeholder="مثال: 5"
-              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right"
+              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
             />
           </div>
 
@@ -528,7 +600,7 @@ export default function FinancialAnalytics() {
             <select
               value={purchaseType}
               onChange={(e) => setPurchaseType(e.target.value)}
-              className="w-full bg-[rgba(255,255,255,0.02)] border border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="">الكل</option>
               <option value="direct">شراء مباشر (رصيد المحفظة)</option>
@@ -543,7 +615,7 @@ export default function FinancialAnalytics() {
               value={priceMin}
               onChange={(e) => setPriceMin(e.target.value)}
               placeholder="0"
-              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right"
+              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
             />
           </div>
 
@@ -554,7 +626,7 @@ export default function FinancialAnalytics() {
               value={priceMax}
               onChange={(e) => setPriceMax(e.target.value)}
               placeholder="1000"
-              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right"
+              className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
             />
           </div>
 
@@ -567,7 +639,7 @@ export default function FinancialAnalytics() {
             >
               <option value="">الكل</option>
               <option value="paid">مدفوعة ومكتملة (Paid)</option>
-              <option value="refunded">مسترجعة (Refunded)</option>
+              <option value="refunded">مسترجعة ومعكوسة (Refunded)</option>
             </select>
           </div>
         </div>
@@ -599,7 +671,7 @@ export default function FinancialAnalytics() {
                       {c.icon}
                     </div>
                     <div className="mt-3">
-                      <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450">ج.م</span></span>
+                      <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450 font-mono">ج.م</span></span>
                       <p className="text-[9px] text-slate-450 mt-1 font-light">{c.desc}</p>
                     </div>
                   </div>
@@ -612,8 +684,8 @@ export default function FinancialAnalytics() {
                   { title: "صافي أرباح المنصة", val: summary.platform_net_profit, icon: <Percent className="w-5 h-5 text-indigo-400" />, desc: "العمولة المحصلة للمنصة" },
                   { title: "إيرادات المعلمين الكلية", val: summary.teachers_earnings, icon: <Users className="w-5 h-5 text-emerald-400" />, desc: "أنصبة المدرسين الكلية" },
                   { title: "عمولة المنصة الكلية", val: summary.platform_commission, icon: <Percent className="w-5 h-5 text-pink-400" />, desc: `نسبة متوسطة: ${summary.average_commission_percentage}%` },
-                  { title: "مسحوبات قيد الانتظار", val: summary.pending_withdrawals, icon: <Clock className="w-5 h-5 text-amber-400" />, desc: "طلبات سحب معلقة للمدرسين" },
-                  { title: "مسحوبات مكتملة ومحولة", val: summary.completed_withdrawals, icon: <Wallet className="w-5 h-5 text-sky-400" />, desc: "المبالغ المحولة بالفعل" },
+                  { title: "مسحوبات قيد الانتظار", val: summary.pending_withdrawals, icon: <Clock className="w-5 h-5 text-amber-400" />, desc: "طلب سحب معلق" },
+                  { title: "مسحوبات مكتملة ومحولة", val: summary.completed_withdrawals, icon: <Wallet className="w-5 h-5 text-sky-400" />, desc: "المبالغ المحولة للمدرسين" },
                 ].map((c, i) => (
                   <div key={i} className="bg-brand-card border border-[var(--border-color)] p-5 rounded-2xl text-right flex flex-col justify-between">
                     <div className="flex justify-between items-start">
@@ -621,7 +693,7 @@ export default function FinancialAnalytics() {
                       {c.icon}
                     </div>
                     <div className="mt-3">
-                      <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450">ج.م</span></span>
+                      <span className="text-lg font-black text-slate-100">{(c.val || 0).toLocaleString()} <span className="text-xs font-bold text-slate-450 font-mono">ج.م</span></span>
                       <p className="text-[9px] text-slate-450 mt-1 font-light">{c.desc}</p>
                     </div>
                   </div>
@@ -633,7 +705,7 @@ export default function FinancialAnalytics() {
                 {/* 1. Daily Revenue Chart */}
                 <div className="lg:col-span-2 bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl">
                   <h5 className="text-xs font-black text-slate-200 mb-4 flex justify-between items-center">
-                    <span className="text-[10px] text-slate-400 font-normal">عدد الأيام النشطة: {dailyChart.length} يوم</span>
+                    <span className="text-[10px] text-slate-400 font-normal">الأيام النشطة: {dailyChart.length} يوم</span>
                     <span>مخطط الإيرادات اليومية</span>
                   </h5>
                   <div className="h-64">
@@ -886,72 +958,74 @@ export default function FinancialAnalytics() {
           {activeTab === 'transactions' && (
             <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden text-right">
               <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-center">
-                <span className="text-xs text-slate-400 font-light">إجمالي المبيعات المفلترة: {totalTransactions} عملية</span>
-                <h5 className="font-bold text-sm text-slate-200">سجل المدفوعات والعمليات التفصيلية</h5>
+                <span className="text-xs text-slate-400 font-light">إجمالي العمليات المفلترة: {totalTransactions} عملية</span>
+                <h5 className="font-bold text-sm text-slate-200 font-arabic">سجل المدفوعات والعمليات الحسابية (Daily Revenue Timeline)</h5>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-350">
-                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)]">
+                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)] font-arabic">
                     <tr>
-                      <th className="px-6 py-4 text-right">التاريخ والوقت</th>
-                      <th className="px-6 py-4 text-right">العملية ID</th>
-                      <th className="px-6 py-4 text-right">اسم الطالب</th>
-                      <th className="px-6 py-4 text-right">كود الطالب</th>
-                      <th className="px-6 py-4 text-right">اسم المعلم</th>
-                      <th className="px-6 py-4 text-right">كود المعلم</th>
-                      <th className="px-6 py-4 text-right">نوع المنتج</th>
-                      <th className="px-6 py-4 text-right">اسم المنتج</th>
-                      <th className="px-6 py-4 text-right">السعر الأصلي</th>
-                      <th className="px-6 py-4 text-right">الخصم</th>
-                      <th className="px-6 py-4 text-right">القيمة المدفوعة</th>
-                      <th className="px-6 py-4 text-right">نصيب المعلم</th>
-                      <th className="px-6 py-4 text-right">نصيب المنصة</th>
-                      <th className="px-6 py-4 text-right">طريقة الدفع</th>
-                      <th className="px-6 py-4 text-right">معاملة المحفظة ID</th>
-                      <th className="px-6 py-4 text-right">حالة الشراء</th>
-                      <th className="px-6 py-4 text-center">الإجراءات</th>
+                      <th className="px-4 py-4 text-right">التاريخ والوقت</th>
+                      <th className="px-4 py-4 text-right">العملية ID</th>
+                      <th className="px-4 py-4 text-right">اسم الطالب</th>
+                      <th className="px-4 py-4 text-right">كود الطالب</th>
+                      <th className="px-4 py-4 text-right">اسم المعلم</th>
+                      <th className="px-4 py-4 text-right">كود المعلم</th>
+                      <th className="px-4 py-4 text-right">نوع المنتج</th>
+                      <th className="px-4 py-4 text-right">اسم المنتج</th>
+                      <th className="px-4 py-4 text-right">الكورس التابع</th>
+                      <th className="px-4 py-4 text-right">السعر الأصلي</th>
+                      <th className="px-4 py-4 text-right">الخصم</th>
+                      <th className="px-4 py-4 text-right">المبلغ المدفوع</th>
+                      <th className="px-4 py-4 text-right">نصيب المعلم</th>
+                      <th className="px-4 py-4 text-right">نصيب المنصة</th>
+                      <th className="px-4 py-4 text-right">طريقة الدفع</th>
+                      <th className="px-4 py-4 text-right">معاملة المحفظة ID</th>
+                      <th className="px-4 py-4 text-right">الحالة</th>
+                      <th className="px-4 py-4 text-center">الإجراءات</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--border-color)] font-light">
+                  <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
                     {transactions.length === 0 ? (
                       <tr>
-                        <td colSpan={17} className="py-8">
+                        <td colSpan={18} className="py-8 font-sans">
                           <EmptyState type="general" title="لا توجد عمليات بيع مطابقة للفلاتر النشطة حالياً." />
                         </td>
                       </tr>
                     ) : (
                       transactions.map((tr) => (
                         <tr key={tr.id} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
-                          <td className="px-6 py-4 whitespace-nowrap">{tr.created_at}</td>
-                          <td className="px-6 py-4 font-mono font-bold">#{tr.id}</td>
-                          <td className="px-6 py-4 font-bold">{tr.student.name}</td>
-                          <td className="px-6 py-4 font-mono">#{tr.student.id}</td>
-                          <td className="px-6 py-4">{tr.teacher.name}</td>
-                          <td className="px-6 py-4 font-mono">#{tr.teacher.id}</td>
-                          <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-bold">
+                          <td className="px-4 py-4 whitespace-nowrap text-slate-400">{tr.created_at}</td>
+                          <td className="px-4 py-4 font-bold">#{tr.id}</td>
+                          <td className="px-4 py-4 font-bold font-sans text-slate-200">{tr.student.name}</td>
+                          <td className="px-4 py-4 text-slate-450">#{tr.student.id}</td>
+                          <td className="px-4 py-4 font-sans text-slate-200">{tr.teacher.name}</td>
+                          <td className="px-4 py-4 text-slate-455">#{tr.teacher.id}</td>
+                          <td className="px-4 py-4 font-sans">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${tr.product_type === 'Course' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
                               {tr.product_type}
                             </span>
                           </td>
-                          <td className="px-6 py-4 font-semibold">{tr.product_name}</td>
-                          <td className="px-6 py-4 font-mono">{tr.original_price} ج.م</td>
-                          <td className="px-6 py-4 font-mono text-rose-450">-{tr.discount} ج.م</td>
-                          <td className="px-6 py-4 font-bold text-slate-100 font-mono">{tr.final_paid_amount} ج.م</td>
-                          <td className="px-6 py-4 text-emerald-400 font-mono">{tr.teacher_share} ج.م</td>
-                          <td className="px-6 py-4 text-indigo-400 font-mono">{tr.platform_share} ج.م</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {tr.payment_method === 'wallet' ? 'محفظة إلكترونية' : tr.payment_method === 'code' ? 'أكواد شحن' : tr.payment_method}
+                          <td className="px-4 py-4 font-sans font-semibold text-slate-300">{tr.product_name}</td>
+                          <td className="px-4 py-4 font-sans text-slate-400">{tr.course_name}</td>
+                          <td className="px-4 py-4">{tr.original_price} ج.م</td>
+                          <td className="px-4 py-4 text-rose-400">-{tr.discount} ج.م</td>
+                          <td className="px-4 py-4 font-bold text-slate-100">{tr.final_paid_amount} ج.م</td>
+                          <td className="px-4 py-4 text-emerald-400">{tr.teacher_share} ج.م</td>
+                          <td className="px-4 py-4 text-indigo-400">{tr.platform_share} ج.م</td>
+                          <td className="px-4 py-4 font-sans text-slate-400 whitespace-nowrap">
+                            {tr.payment_method === 'wallet' ? 'رصيد محفظة' : tr.payment_method === 'code' ? 'تفعيل كود' : tr.payment_method}
                           </td>
-                          <td className="px-6 py-4 font-mono">{tr.wallet_transaction_id ? `#${tr.wallet_transaction_id}` : 'N/A'}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${tr.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                          <td className="px-4 py-4">{tr.wallet_transaction_id ? `#${tr.wallet_transaction_id}` : 'N/A'}</td>
+                          <td className="px-4 py-4 font-sans">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${tr.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-450'}`}>
                               {tr.status === 'paid' ? 'مكتملة' : 'مسترجعة'}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-4 py-4 text-center font-sans">
                             <button
                               onClick={() => setSelectedTransaction(tr)}
-                              className="px-2.5 py-1.5 bg-slate-800 hover:bg-indigo-650 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                              className="px-2 py-1 bg-slate-800 hover:bg-indigo-650 text-slate-300 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
                             >
                               <Eye className="h-3.5 w-3.5" /> <span>تفاصيل</span>
                             </button>
@@ -969,15 +1043,15 @@ export default function FinancialAnalytics() {
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((p) => p - 1)}
-                    className="px-3 py-1.5 bg-slate-800 text-slate-350 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-800 text-slate-355 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
                   >
                     السابق
                   </button>
-                  <span className="text-slate-400">الصفحة {currentPage} من {lastPage}</span>
+                  <span className="text-slate-400 font-mono">الصفحة {currentPage} من {lastPage}</span>
                   <button
                     disabled={currentPage === lastPage}
                     onClick={() => setCurrentPage((p) => p + 1)}
-                    className="px-3 py-1.5 bg-slate-800 text-slate-350 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-800 text-slate-355 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-all cursor-pointer"
                   >
                     التالي
                   </button>
@@ -990,46 +1064,49 @@ export default function FinancialAnalytics() {
           {activeTab === 'daily' && (
             <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden text-right">
               <div className="p-6 border-b border-[var(--border-color)]">
-                <h5 className="font-bold text-sm text-slate-200">التقارير المالية اليومية للمنصة</h5>
+                <h5 className="font-bold text-sm text-slate-200 font-arabic">التقارير اليومية للحسابات (Platform Daily Closing Reports)</h5>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-350">
-                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)]">
+                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)] font-arabic">
                     <tr>
-                      <th className="px-6 py-4 text-right">التاريخ</th>
-                      <th className="px-6 py-4 text-right">الكورسات الكلية</th>
-                      <th className="px-6 py-4 text-right">حزم المحاضرات (Bundles)</th>
-                      <th className="px-6 py-4 text-right">المحاضرات المنفردة</th>
-                      <th className="px-6 py-4 text-right">الباقات الشهرية</th>
-                      <th className="px-6 py-4 text-right">مراجعات نهائية</th>
-                      <th className="px-6 py-4 text-right">مجموع عمليات البيع</th>
-                      <th className="px-6 py-4 text-right">الطلاب الجدد</th>
-                      <th className="px-6 py-4 text-right">أرباح المدرسين</th>
-                      <th className="px-6 py-4 text-right">صافي أرباح المنصة</th>
-                      <th className="px-6 py-4 text-right">إجمالي المبيعات</th>
+                      <th className="px-5 py-4 text-right">التاريخ</th>
+                      <th className="px-5 py-4 text-right font-sans">الأعلى مبيعاً (مدرس / مادة)</th>
+                      <th className="px-5 py-4 text-right font-sans">الكورس / الحزمة الأفضل</th>
+                      <th className="px-5 py-4 text-right">الطلاب الجدد</th>
+                      <th className="px-5 py-4 text-right">تفاصيل المبيعات اليومية</th>
+                      <th className="px-5 py-4 text-right">إيرادات المدرسين</th>
+                      <th className="px-5 py-4 text-right">أرباح المنصة</th>
+                      <th className="px-5 py-4 text-right">إجمالي الإيرادات اليومية</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--border-color)] font-light">
+                  <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
                     {dailyReports.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="py-8">
-                          <EmptyState type="general" title="لا توجد تقارير يومية مسجلة للفترة المحددة." />
+                        <td colSpan={8} className="py-8 font-sans">
+                          <EmptyState type="general" title="لا توجد تقارير حسابية يومية مسجلة." />
                         </td>
                       </tr>
                     ) : (
                       dailyReports.map((item, i) => (
                         <tr key={i} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
-                          <td className="px-6 py-4 font-bold whitespace-nowrap">{item.date}</td>
-                          <td className="px-6 py-4 font-mono">{item.courses_sold} كورس</td>
-                          <td className="px-6 py-4 font-mono">{item.bundles_sold} حزمة</td>
-                          <td className="px-6 py-4 font-mono">{item.standalone_sold} محاضرة</td>
-                          <td className="px-6 py-4 font-mono">{item.monthly_packages_sold} باقة</td>
-                          <td className="px-6 py-4 font-mono">{item.revision_packages_sold} مراجعة</td>
-                          <td className="px-6 py-4 font-bold font-mono">{item.purchases_count} عملية</td>
-                          <td className="px-6 py-4 font-semibold text-sky-400 font-mono">+{item.new_students_count} طالب</td>
-                          <td className="px-6 py-4 text-emerald-400 font-mono">{item.teachers_earnings.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 text-indigo-400 font-mono">{item.platform_earnings.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 font-black text-slate-100 bg-indigo-500/[0.01] font-mono">{item.total_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-5 py-4 font-bold whitespace-nowrap font-sans text-slate-200">{item.date}</td>
+                          <td className="px-5 py-4 font-sans text-slate-300">
+                            <p className="font-bold">{item.top_teacher}</p>
+                            <p className="text-[10px] text-slate-450">المادة: {item.top_subject}</p>
+                          </td>
+                          <td className="px-5 py-4 font-sans text-slate-300">
+                            <p className="font-bold">{item.top_course}</p>
+                            <p className="text-[10px] text-slate-450">الحزمة: {item.top_bundle}</p>
+                          </td>
+                          <td className="px-5 py-4 text-sky-400 font-bold font-sans">+{item.new_students_count} طالب</td>
+                          <td className="px-5 py-4 font-sans text-slate-400 text-[10px] leading-relaxed">
+                            <p>إجمالي المبيعات: {item.purchases_count} عملية</p>
+                            <p>كورسات: {item.courses_sold} | حزم: {item.bundles_sold} | باقات: {item.monthly_packages_sold} | مراجعات: {item.revision_packages_sold} | درس: {item.standalone_sold}</p>
+                          </td>
+                          <td className="px-5 py-4 text-emerald-400 font-bold">{item.teachers_earnings.toLocaleString()} ج.م</td>
+                          <td className="px-5 py-4 text-indigo-400 font-bold">{item.platform_earnings.toLocaleString()} ج.م</td>
+                          <td className="px-5 py-4 font-black text-slate-100 bg-indigo-500/[0.01]">{item.total_revenue.toLocaleString()} ج.م</td>
                         </tr>
                       ))
                     )}
@@ -1039,52 +1116,55 @@ export default function FinancialAnalytics() {
             </div>
           )}
 
-          {/* TAB 4: TEACHERS REVENUE TRACKING */}
+          {/* TAB 4: TEACHERS STATEMENT & REVENUE */}
           {activeTab === 'teachers' && (
             <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden text-right">
               <div className="p-6 border-b border-[var(--border-color)]">
-                <h5 className="font-bold text-sm text-slate-200">تحليلات الأرباح ومبيعات المعلمين بالتفصيل</h5>
+                <h5 className="font-bold text-sm text-slate-200 font-arabic">إيرادات المعلمين الحسابية (اضغط على معلم لعرض كشف الحساب البنكي والقيام بتسوية يدوية)</h5>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-slate-350">
-                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)]">
+                  <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)] font-arabic">
                     <tr>
                       <th className="px-6 py-4 text-right">اسم المعلم</th>
-                      <th className="px-6 py-4 text-right">المادة</th>
+                      <th className="px-6 py-4 text-right font-sans">المادة</th>
                       <th className="px-6 py-4 text-right">أرباح اليوم</th>
-                      <th className="px-6 py-4 text-right">أرباح هذا الأسبوع</th>
                       <th className="px-6 py-4 text-right">أرباح هذا الشهر</th>
-                      <th className="px-6 py-4 text-right">أرباح هذا العام</th>
-                      <th className="px-6 py-4 text-right">إجمالي المبيعات</th>
-                      <th className="px-6 py-4 text-right">متوسط المعاملة</th>
-                      <th className="px-6 py-4 text-right">الأكثر مبيعاً</th>
+                      <th className="px-6 py-4 text-right">عدد المبيعات</th>
                       <th className="px-6 py-4 text-right">سحوبات معلقة</th>
-                      <th className="px-6 py-4 text-right">مسحوبات مكتملة</th>
-                      <th className="px-6 py-4 text-right">المجموع التراكمي</th>
+                      <th className="px-6 py-4 text-right">مسحوبات مدفوعة</th>
+                      <th className="px-6 py-4 text-right">الأكثر مبيعاً</th>
+                      <th className="px-6 py-4 text-right">المجموع التراكمي للرصيد</th>
+                      <th className="px-6 py-4 text-center">كشف الحساب</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--border-color)] font-light">
+                  <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
                     {teacherReport.length === 0 ? (
                       <tr>
-                        <td colSpan={12} className="py-8">
-                          <EmptyState type="general" title="لا توجد بيانات مدرسين مسجلة على السيستم." />
+                        <td colSpan={10} className="py-8 font-sans">
+                          <EmptyState type="general" title="لا توجد بيانات مدرسين مسجلة." />
                         </td>
                       </tr>
                     ) : (
                       teacherReport.map((item, i) => (
                         <tr key={i} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
-                          <td className="px-6 py-4 font-bold">{item.teacher.name}</td>
-                          <td className="px-6 py-4 font-semibold text-indigo-400">{item.teacher.subject}</td>
-                          <td className="px-6 py-4 font-bold text-slate-100 font-mono">{item.today_revenue.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 font-mono">{item.week_revenue.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 font-mono">{item.month_revenue.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 font-mono">{item.year_revenue.toLocaleString()} ج.م</td>
-                          <td className="px-6 py-4 font-bold font-mono">{item.sales_count} مبيعة</td>
-                          <td className="px-6 py-4 font-mono">{item.avg_order_value} ج.م</td>
-                          <td className="px-6 py-4 text-slate-400 font-semibold">{item.top_selling_products}</td>
-                          <td className="px-6 py-4 text-amber-400 font-bold font-mono">{item.pending_payouts.toLocaleString()} ...</td>
-                          <td className="px-6 py-4 text-sky-400 font-mono">{item.completed_payouts.toLocaleString()} ...</td>
-                          <td className="px-6 py-4 font-black text-slate-100 bg-indigo-500/[0.01] font-mono">{item.total_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 font-bold font-sans text-slate-200">{item.teacher.name}</td>
+                          <td className="px-6 py-4 font-semibold text-indigo-400 font-sans">{item.teacher.subject}</td>
+                          <td className="px-6 py-4 font-bold text-slate-100">{item.today_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4">{item.month_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 font-sans font-bold">{item.sales_count} مبيعة</td>
+                          <td className="px-6 py-4 text-amber-400 font-bold">{item.pending_payouts.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 text-sky-400">{item.completed_payouts.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 text-slate-400 font-sans">{item.top_selling_products}</td>
+                          <td className="px-6 py-4 font-black text-slate-100 bg-indigo-500/[0.01]">{item.total_revenue.toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 text-center font-sans">
+                            <button
+                              onClick={() => fetchTeacherStatement(item.teacher.id)}
+                              className="px-2.5 py-1.5 bg-indigo-600/10 hover:bg-indigo-650 text-indigo-400 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                            >
+                              <FileText className="h-3.5 w-3.5" /> <span>كشف حساب</span>
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1094,10 +1174,10 @@ export default function FinancialAnalytics() {
             </div>
           )}
 
-          {/* TAB 5: STUDENT PURCHASE TRACKING */}
+          {/* TAB 5: STUDENT LEDGER TRACKING */}
           {activeTab === 'students' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4 rounded-2xl gap-4">
+              <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4 rounded-2xl gap-4 print:hidden">
                 <div className="relative flex-1 max-w-md">
                   <input
                     type="text"
@@ -1108,48 +1188,57 @@ export default function FinancialAnalytics() {
                   />
                   <Search className="absolute right-3.5 top-3 h-4 w-4 text-slate-400" />
                 </div>
-                <h5 className="font-bold text-sm text-slate-200">تحليلات مشتريات الطلاب وحجم الإنفاق</h5>
+                <h5 className="font-bold text-sm text-slate-200 font-arabic">تتبع مشتريات الطلاب (اضغط على كشف المعاملات لعرض دفتر الأستاذ للطالب)</h5>
               </div>
 
               <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden text-right">
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-slate-350">
-                    <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)]">
+                    <thead className="bg-[rgba(255,255,255,0.01)] text-[10px] uppercase font-bold text-slate-400 border-b border-[var(--border-color)] font-arabic">
                       <tr>
-                        <th className="px-6 py-4 text-right">الطالب</th>
+                        <th className="px-6 py-4 text-right">اسم الطالب</th>
                         <th className="px-6 py-4 text-right">البريد الإلكتروني</th>
                         <th className="px-6 py-4 text-right">الهاتف المحمول</th>
-                        <th className="px-6 py-4 text-right">آخر عملية شراء</th>
+                        <th className="px-6 py-4 text-right">آخر معاملة شراء</th>
                         <th className="px-6 py-4 text-right">المعلم المفضل</th>
                         <th className="px-6 py-4 text-right">المادة المفضلة</th>
-                        <th className="px-6 py-4 text-right">نوع المنتج المفضل</th>
+                        <th className="px-6 py-4 text-right">النوع الأفضل</th>
                         <th className="px-6 py-4 text-right">إجمالي المشتريات</th>
-                        <th className="px-6 py-4 text-right">إجمالي الإنفاق</th>
+                        <th className="px-6 py-4 text-right">إجمالي الإنفاق التراكمي</th>
+                        <th className="px-6 py-4 text-center">كشف الحساب</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--border-color)] font-light">
+                    <tbody className="divide-y divide-[var(--border-color)] font-light font-mono">
                       {studentReport.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="py-8">
+                          <td colSpan={10} className="py-8 font-sans">
                             <EmptyState type="general" title="لا توجد نتائج بحث مطابقة لحسابات الطلاب." />
                           </td>
                         </tr>
                       ) : (
                         studentReport.map((item, i) => (
                           <tr key={i} className="hover:bg-[rgba(255,255,255,0.01)] transition-all">
-                            <td className="px-6 py-4 font-bold">{item.student.name}</td>
-                            <td className="px-6 py-4 font-mono">{item.student.email}</td>
-                            <td className="px-6 py-4 font-mono">{item.student.phone || 'N/A'}</td>
-                            <td className="px-6 py-4 whitespace-nowrap">{item.last_purchase_date || 'N/A'}</td>
-                            <td className="px-6 py-4 text-indigo-400 font-semibold">{item.favorite_teacher}</td>
-                            <td className="px-6 py-4 text-pink-400 font-semibold">{item.favorite_subject}</td>
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-4 font-bold font-sans text-slate-200">{item.student.name}</td>
+                            <td className="px-6 py-4 font-mono text-slate-350">{item.student.email}</td>
+                            <td className="px-6 py-4 font-mono text-slate-350">{item.student.phone || 'N/A'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-slate-400 font-sans">{item.last_purchase_date || 'N/A'}</td>
+                            <td className="px-6 py-4 text-indigo-400 font-semibold font-sans">{item.favorite_teacher}</td>
+                            <td className="px-6 py-4 text-pink-400 font-semibold font-sans">{item.favorite_subject}</td>
+                            <td className="px-6 py-4 font-sans">
                               <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[9px] font-bold">
                                 {item.favorite_product_type}
                               </span>
                             </td>
-                            <td className="px-6 py-4 font-bold font-mono">{item.purchases_count} عملية</td>
-                            <td className="px-6 py-4 font-black text-slate-100 bg-indigo-500/[0.01] font-mono">{item.total_spending.toLocaleString()} ج.م</td>
+                            <td className="px-6 py-4 font-bold">{item.purchases_count} عملية</td>
+                            <td className="px-6 py-4 font-black text-slate-100 bg-indigo-500/[0.01]">{item.total_spending.toLocaleString()} ج.م</td>
+                            <td className="px-6 py-4 text-center font-sans">
+                              <button
+                                onClick={() => fetchStudentLedger(item.student.id)}
+                                className="px-2.5 py-1.5 bg-pink-650/10 hover:bg-pink-650 text-pink-400 hover:text-white rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 mx-auto"
+                              >
+                                <FileText className="h-3.5 w-3.5" /> <span>دفتر الأستاذ</span>
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -1158,7 +1247,7 @@ export default function FinancialAnalytics() {
                 </div>
 
                 {studentLastPage > 1 && (
-                  <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-xs">
+                  <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center text-xs print:hidden">
                     <button
                       disabled={studentPage === 1}
                       onClick={() => setStudentPage((p) => p - 1)}
@@ -1166,7 +1255,7 @@ export default function FinancialAnalytics() {
                     >
                       السابق
                     </button>
-                    <span className="text-slate-400">الصفحة {studentPage} من {studentLastPage}</span>
+                    <span className="text-slate-400 font-mono">الصفحة {studentPage} من {studentLastPage}</span>
                     <button
                       disabled={studentPage === studentLastPage}
                       onClick={() => setStudentPage((p) => p + 1)}
@@ -1182,9 +1271,9 @@ export default function FinancialAnalytics() {
         </>
       )}
 
-      {/* Transaction Details Modal (Drill down) */}
+      {/* Transaction Details Modal (Drill down tracing) */}
       {selectedTransaction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity print:hidden">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150 text-right">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/20">
@@ -1195,139 +1284,124 @@ export default function FinancialAnalytics() {
                 <X className="h-4 w-4" />
               </button>
               <div>
-                <h4 className="font-black text-sm text-slate-100">تفاصيل العملية والرقابة الحسابية</h4>
-                <p className="text-[10px] text-slate-400 mt-0.5">معرف المعاملة الفريد: #{selectedTransaction.id}</p>
+                <h4 className="font-black text-sm text-slate-100 font-arabic">سلسلة تدقيق تتبع المعاملة (Traceability Audit Trail)</h4>
+                <p className="text-[10px] text-slate-400 mt-0.5 font-mono">رقم الفاتورة: #{selectedTransaction.id}</p>
               </div>
             </div>
 
-            {/* Modal Body */}
+            {/* Modal Body (Trace Map) */}
             <div className="p-6 space-y-5 overflow-y-auto max-h-[72vh]">
-              {/* Student Information */}
-              <div className="space-y-2 border-b border-slate-800 pb-4">
-                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 justify-end">
-                  <span>بيانات الطالب المشتري</span>
-                  <Users className="h-3.5 w-3.5 text-indigo-400" />
-                </span>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">رقم كود الطالب (ID)</span>
-                    <p className="font-mono font-bold text-slate-300">#{selectedTransaction.student.id}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">اسم الطالب بالكامل</span>
-                    <p className="font-bold text-slate-200">{selectedTransaction.student.name}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">البريد الإلكتروني للغرض</span>
-                    <p className="font-mono text-slate-300">{selectedTransaction.student.email}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">رقم الهاتف المحمول</span>
-                    <p className="font-mono text-slate-300">{selectedTransaction.student.phone || 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Teacher Information */}
-              <div className="space-y-2 border-b border-slate-800 pb-4">
-                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 justify-end">
-                  <span>بيانات المعلم المنسوب</span>
-                  <Users className="h-3.5 w-3.5 text-emerald-400" />
-                </span>
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">كود المعلم (ID)</span>
-                    <p className="font-mono font-bold text-slate-300">#{selectedTransaction.teacher.id}</p>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">اسم المعلم المعتمد</span>
-                    <p className="font-bold text-slate-200">{selectedTransaction.teacher.name}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-[10px] text-slate-500 block">المادة الدراسية المسؤولة</span>
-                    <p className="text-slate-300 font-semibold">مادة {selectedTransaction.teacher.subject || 'غير محددة'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Purchased Product */}
-              <div className="space-y-2 border-b border-slate-800 pb-4">
-                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1.5 justify-end">
-                  <span>تفاصيل المحتوى والمنتج المشتري</span>
-                  <BookOpen className="h-3.5 w-3.5 text-indigo-400" />
-                </span>
-                <div className="bg-slate-950/35 border border-slate-850 p-4.5 rounded-2xl space-y-3 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="px-2.5 py-0.5 bg-indigo-500/10 text-indigo-400 rounded-lg text-[10px] font-black">
-                      {selectedTransaction.product_type}
-                    </span>
-                    <span className="text-slate-400 font-bold">نوع المنتج</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-bold text-slate-200">{selectedTransaction.product_name}</span>
-                    <span className="text-slate-450">اسم المنتج المشتري</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-300 font-medium">{selectedTransaction.course_name}</span>
-                    <span className="text-slate-450">اسم الكورس التابع له</span>
-                  </div>
-                  {selectedTransaction.bundle_name !== 'N/A' && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-300 font-medium">{selectedTransaction.bundle_name}</span>
-                      <span className="text-slate-450">اسم الحزمة / الباقة</span>
+              
+              {/* Chronological Audit Steps visual */}
+              <div className="relative border-r border-indigo-500/25 pr-6 mr-3 space-y-5">
+                
+                {/* Step 1: Student */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">1</span>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">بيانات الطالب المحاسبية</span>
+                    <div className="text-xs text-slate-300">
+                      <p className="font-bold text-slate-200">{selectedTransaction.student.name}</p>
+                      <p className="font-mono text-[10px] text-slate-450">كود الطالب ID: #{selectedTransaction.student.id} | هاتف: {selectedTransaction.student.phone || 'N/A'}</p>
+                      <p className="font-mono text-[10px] text-slate-450">{selectedTransaction.student.email}</p>
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                {/* Step 2: Purchased Product */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">2</span>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">المنتج والحيازة القانونية</span>
+                    <div className="text-xs text-slate-350 bg-slate-950/20 border border-slate-800 p-3 rounded-xl flex justify-between items-center">
+                      <span className="px-2 py-0.5 bg-indigo-500/10 text-indigo-400 text-[9px] font-bold rounded">{selectedTransaction.product_type}</span>
+                      <span className="font-bold text-slate-200">{selectedTransaction.product_name}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 3: Course */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">3</span>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">الكورس والمادة التابعة</span>
+                    <p className="text-xs text-slate-300 font-bold">{selectedTransaction.course_name}</p>
+                    {selectedTransaction.bundle_name !== 'N/A' && (
+                      <p className="text-[10px] text-slate-450 font-medium">الباقة المشتراة: {selectedTransaction.bundle_name}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Step 4: Teacher */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">4</span>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">المعلم المعتمد والتسوية المادية</span>
+                    <div className="text-xs text-slate-300">
+                      <p className="font-bold text-slate-200">{selectedTransaction.teacher.name}</p>
+                      <p className="text-[10px] text-slate-450">معرف المعلم: #{selectedTransaction.teacher.id} | مادة: {selectedTransaction.teacher.subject}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 5: Wallet Transaction */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">5</span>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">رابط قيد معاملات المحفظة (Wallet Ledger)</span>
+                    <div className="text-xs text-slate-300 bg-slate-950/20 border border-slate-800 p-3 rounded-xl">
+                      <div className="flex justify-between font-mono">
+                        <span className="text-slate-200">#{selectedTransaction.wallet_transaction_id || 'N/A'}</span>
+                        <span className="text-slate-400 font-sans">معرف معاملة المحفظة</span>
+                      </div>
+                      <div className="flex justify-between font-mono mt-1 text-[10px]">
+                        <span className="text-slate-250">{selectedTransaction.payment_method === 'wallet' ? 'رصيد المحفظة الإلكترونية' : 'أكواد شحن ورقية'}</span>
+                        <span className="text-slate-400 font-sans">طريقة الخصم والسداد</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 6: Revenue Split */}
+                <div className="relative">
+                  <span className="absolute -right-[31px] top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 ring-4 ring-slate-900 text-[8px] text-white font-bold">6</span>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-indigo-400 block font-arabic">تقسيم العائد والأرباح (Revenue Split)</span>
+                    <div className="bg-indigo-950/15 border border-indigo-950/30 p-4 rounded-xl space-y-2 text-xs font-mono text-slate-350">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-slate-200">{selectedTransaction.original_price} ج.م</span>
+                        <span className="font-sans">سعر البيع الأساسي</span>
+                      </div>
+                      <div className="flex justify-between text-rose-400">
+                        <span>-{selectedTransaction.discount} ج.م</span>
+                        <span className="font-sans">الخصومات الممنوحة</span>
+                      </div>
+                      <div className="flex justify-between border-t border-slate-800 pt-2 font-bold text-slate-100">
+                        <span>{selectedTransaction.final_paid_amount} ...</span>
+                        <span className="font-sans">المبلغ النهائي المسدد</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-400 pt-1">
+                        <span>{selectedTransaction.teacher_share} ...</span>
+                        <span className="font-sans">صافي نصيب المعلم</span>
+                      </div>
+                      <div className="flex justify-between text-indigo-400">
+                        <span>{selectedTransaction.platform_share} ...</span>
+                        <span className="font-sans">عمولة وصافي ربح المنصة</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Financial Details */}
-              <div className="space-y-3 bg-indigo-950/10 border border-indigo-950/25 p-5 rounded-2xl">
-                <span className="text-[10px] font-bold text-indigo-400 block">التوزيع المالي للعملية</span>
-                <div className="space-y-2.5 text-xs text-slate-350">
-                  <div className="flex justify-between font-mono">
-                    <span className="font-bold text-slate-250">{selectedTransaction.original_price} ج.م</span>
-                    <span className="text-slate-400">سعر البيع الأصلي للمنتج</span>
-                  </div>
-                  <div className="flex justify-between font-mono text-rose-450">
-                    <span>-{selectedTransaction.discount} ج.م</span>
-                    <span className="text-slate-450">قيمة الخصم الممنوحة</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-800/60 pt-2 font-bold text-slate-100 font-mono">
-                    <span>{selectedTransaction.final_paid_amount} ج.م</span>
-                    <span>المبلغ الفعلي المدفوع</span>
-                  </div>
-                  <div className="flex justify-between text-emerald-400 font-mono">
-                    <span>{selectedTransaction.teacher_share} / {selectedTransaction.final_paid_amount} ج.م</span>
-                    <span className="text-slate-400">نصيب أرباح المعلم</span>
-                  </div>
-                  <div className="flex justify-between text-indigo-400 font-mono">
-                    <span>{selectedTransaction.platform_share} / {selectedTransaction.final_paid_amount} ج.م</span>
-                    <span className="text-slate-400">نسبة أرباح المنصة</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Timelines and method */}
-              <div className="grid grid-cols-2 gap-4 text-xs pt-1">
+              {/* Timelines and status info */}
+              <div className="grid grid-cols-2 gap-4 text-xs pt-3 border-t border-slate-800 font-sans">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">طريقة السداد</span>
-                  <p className="text-slate-200 mt-1 font-bold">
-                    {selectedTransaction.payment_method === 'wallet' ? 'رصيد المحفظة الإلكترونية' : selectedTransaction.payment_method === 'code' ? 'تفعيل كود شحن ورقي' : selectedTransaction.payment_method}
-                  </p>
+                  <span className="text-[10px] font-bold text-slate-500 block">وقت وتاريخ الشراء</span>
+                  <p className="text-slate-300 mt-0.5 font-mono">{selectedTransaction.created_at}</p>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">أكواد الفواتير والمعاملات</span>
-                  <p className="text-slate-200 mt-1 font-mono">
-                    عملية محفظة ID: {selectedTransaction.wallet_transaction_id ? `#${selectedTransaction.wallet_transaction_id}` : 'N/A'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">وقت وتاريخ الشراء</span>
-                  <p className="text-slate-200 mt-1 font-mono">{selectedTransaction.created_at}</p>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 block">وقت التفعيل والحيازة</span>
-                  <p className="text-slate-200 mt-1 font-mono">{selectedTransaction.activation_time}</p>
+                  <span className="text-[10px] font-bold text-slate-500 block">وقت تفعيل الكورس</span>
+                  <p className="text-slate-300 mt-0.5 font-mono">{selectedTransaction.activation_time}</p>
                 </div>
               </div>
             </div>
@@ -1336,9 +1410,273 @@ export default function FinancialAnalytics() {
             <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end">
               <button
                 onClick={() => setSelectedTransaction(null)}
-                className="px-6 py-2 bg-slate-850 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+                className="px-6 py-2 bg-slate-850 hover:bg-slate-750 text-slate-300 text-xs font-bold rounded-2xl transition-all cursor-pointer font-sans"
               >
-                إغلاق النافذة
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Teacher Statement bank statement style modal */}
+      {selectedTeacherStatement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transition-opacity print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in duration-150 text-right">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/25">
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAdjustForm(!showAdjustForm)}
+                  className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                >
+                  <PlusCircle className="h-4 w-4" /> <span>إضافة تسوية مالية يدوية</span>
+                </button>
+                <button
+                  onClick={() => setSelectedTeacherStatement(null)}
+                  className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div>
+                <h4 className="font-black text-sm text-slate-100 font-arabic">كشف الحساب المالي والتسويات (Teacher Statement Ledger)</h4>
+                <p className="text-[10px] text-slate-450 font-sans">المعلم: {selectedTeacherStatement.teacher.name} | مادة {selectedTeacherStatement.teacher.subject}</p>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
+              
+              {/* Manual balance adjustment form */}
+              {showAdjustForm && (
+                <form onSubmit={handleTeacherAdjustment} className="bg-slate-950/40 border border-indigo-500/20 p-5 rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-4 duration-200">
+                  <h5 className="text-xs font-black text-indigo-400 flex items-center gap-1.5 justify-end">
+                    <span>إضافة تسوية رصيد يدوية للمعلم</span>
+                    <Coins className="h-4 w-4 text-indigo-400" />
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-right">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400">القيمة المالية (موجب لإضافة رصيد، سالب للخصم)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={adjustAmount}
+                        onChange={(e) => setAdjustAmount(e.target.value)}
+                        placeholder="مثال: 150 أو -50"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-mono"
+                      />
+                    </div>
+                    <div className="col-span-2 space-y-1">
+                      <label className="text-[10px] font-bold text-slate-400">وصف وسبب التسوية (يظهر في كشف الحساب)</label>
+                      <input
+                        type="text"
+                        required
+                        value={adjustDescription}
+                        onChange={(e) => setAdjustDescription(e.target.value)}
+                        placeholder="مثال: مكافأة مالية إضافية للشهر الحالي"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 text-right font-sans"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1 font-sans">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdjustForm(false)}
+                      className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-350 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isAdjustmentLoading}
+                      className="px-5 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isAdjustmentLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
+                      <span>حفظ وإجراء التسوية</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* Statement KPI Balance details */}
+              <div className="grid grid-cols-3 gap-4 border-b border-slate-800 pb-5 text-center font-mono">
+                <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
+                  <span className="text-[9px] font-bold text-slate-450 block font-sans">الرصيد الافتتاحي (Opening Balance)</span>
+                  <span className="text-lg font-black text-slate-300 mt-1 block">{selectedTeacherStatement.opening_balance.toLocaleString()} ج.م</span>
+                </div>
+                <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
+                  <span className="text-[9px] font-bold text-slate-450 block font-sans">إجمالي أرباح ومبيعات الفترة</span>
+                  <span className="text-lg font-black text-emerald-400 mt-1 block">+{selectedTeacherStatement.timeline.reduce((acc: number, val: any) => val.type !== 'Withdrawal' && val.amount > 0 ? acc + val.amount : acc, 0).toLocaleString()} ج.م</span>
+                </div>
+                <div className="bg-slate-950/15 border border-indigo-500/20 p-4 rounded-xl">
+                  <span className="text-[9px] font-bold text-indigo-400 block font-sans">الرصيد الحالي المستحق (Current Balance)</span>
+                  <span className="text-xl font-black text-indigo-300 mt-1 block">{selectedTeacherStatement.current_balance.toLocaleString()} ج.م</span>
+                </div>
+              </div>
+
+              {/* bank statement timeline table */}
+              <div className="overflow-hidden border border-slate-800 rounded-2xl bg-slate-950/15">
+                <div className="p-4 border-b border-slate-800 font-bold text-xs text-slate-300 font-arabic">سجل حركات الحساب المالي (Statement Timeline)</div>
+                <div className="overflow-x-auto max-h-[35vh]">
+                  <table className="w-full text-xs text-slate-350">
+                    <thead className="bg-slate-900 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 font-arabic">
+                      <tr>
+                        <th className="px-5 py-3 text-right">التاريخ والوقت</th>
+                        <th className="px-5 py-3 text-right">نوع الحركة</th>
+                        <th className="px-5 py-3 text-right font-sans">بيان المعاملة (الوصف)</th>
+                        <th className="px-5 py-3 text-right">القيمة</th>
+                        <th className="px-5 py-3 text-right">الرصيد التراكمي المتبقي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850 font-light font-mono">
+                      {selectedTeacherStatement.timeline.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center font-sans">
+                            <EmptyState type="general" title="لا توجد عمليات مسجلة للمعلم في هذه الفترة." />
+                          </td>
+                        </tr>
+                      ) : (
+                        selectedTeacherStatement.timeline.map((event: StatementEvent) => (
+                          <tr key={event.id} className="hover:bg-slate-900/40 transition-all">
+                            <td className="px-5 py-3 text-slate-400">{event.date}</td>
+                            <td className="px-5 py-3">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${
+                                event.type === 'Sale' 
+                                  ? 'bg-emerald-500/10 text-emerald-400' 
+                                  : event.type === 'Adjustment' 
+                                    ? 'bg-indigo-500/10 text-indigo-400' 
+                                    : event.type === 'Reversal'
+                                      ? 'bg-rose-500/10 text-rose-450'
+                                      : 'bg-amber-500/10 text-amber-400'
+                              }`}>
+                                {event.type === 'Sale' ? 'عملية بيع' : event.type === 'Adjustment' ? 'تسوية يدوية' : event.type === 'Reversal' ? 'عكس معاملة' : 'سحب مستحقات'}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 font-sans text-slate-350">{event.description}</td>
+                            <td className={`px-5 py-3 font-bold ${event.amount >= 0 ? 'text-emerald-400' : 'text-rose-450'}`}>
+                              {event.amount >= 0 ? '+' : ''}{event.amount.toLocaleString()} ج.م
+                            </td>
+                            <td className="px-5 py-3 font-bold text-slate-200">{event.running_balance.toLocaleString()} ج.م</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end font-sans">
+              <button
+                onClick={() => setSelectedTeacherStatement(null)}
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+              >
+                إغلاق كشف الحساب
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Student purchase ledger modal */}
+      {selectedStudentLedger && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transition-opacity print:hidden">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in duration-150 text-right">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/25">
+              <button
+                onClick={() => setSelectedStudentLedger(null)}
+                className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              <div>
+                <h4 className="font-black text-sm text-slate-100 font-arabic">دفتر أستاذ مشتريات الطالب (Student Purchase Ledger)</h4>
+                <p className="text-[10px] text-slate-450 font-sans">الطالب: {selectedStudentLedger.student.name} | بريد الكتروني: {selectedStudentLedger.student.email}</p>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
+              
+              {/* Ledger Summary Stats */}
+              <div className="grid grid-cols-2 gap-4 border-b border-slate-800 pb-5 text-center font-mono">
+                <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
+                  <span className="text-[9px] font-bold text-slate-450 block font-sans">عدد العمليات الكلي</span>
+                  <span className="text-lg font-black text-slate-300 mt-1 block">{selectedStudentLedger.ledger.length} عملية</span>
+                </div>
+                <div className="bg-slate-950/15 border border-slate-800 p-4 rounded-xl">
+                  <span className="text-[9px] font-bold text-slate-450 block font-sans">إجمالي قيمة المدفوعات والإنفاق</span>
+                  <span className="text-lg font-black text-indigo-400 mt-1 block">{(selectedStudentLedger.ledger.reduce((acc: number, val: any) => val.status === 'paid' ? acc + val.amount : acc, 0)).toLocaleString()} ج.م</span>
+                </div>
+              </div>
+
+              {/* Purchase Ledger timeline table */}
+              <div className="overflow-hidden border border-slate-800 rounded-2xl bg-slate-950/15">
+                <div className="p-4 border-b border-slate-800 font-bold text-xs text-slate-350 font-arabic">سجل الفواتير والمشتريات (Purchase Ledger)</div>
+                <div className="overflow-x-auto max-h-[35vh]">
+                  <table className="w-full text-xs text-slate-350">
+                    <thead className="bg-slate-900 text-[10px] uppercase font-bold text-slate-400 border-b border-slate-800 font-arabic">
+                      <tr>
+                        <th className="px-5 py-3 text-right">تاريخ المعاملة</th>
+                        <th className="px-5 py-3 text-right">نوع المنتج</th>
+                        <th className="px-5 py-3 text-right font-sans">اسم الكورس / المنتج</th>
+                        <th className="px-5 py-3 text-right font-sans">المعلم المنسوب</th>
+                        <th className="px-5 py-3 text-right">طريقة الدفع</th>
+                        <th className="px-5 py-3 text-right">السعر الأصلي</th>
+                        <th className="px-5 py-3 text-right">الخصم</th>
+                        <th className="px-5 py-3 text-right">المبلغ النهائي المدفوع</th>
+                        <th className="px-5 py-3 text-right">الحالة</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-850 font-light font-mono">
+                      {selectedStudentLedger.ledger.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-8 text-center font-sans">
+                            <EmptyState type="general" title="لا توجد مشتريات مسجلة لهذا الطالب." />
+                          </td>
+                        </tr>
+                      ) : (
+                        selectedStudentLedger.ledger.map((item: any) => (
+                          <tr key={item.id} className="hover:bg-slate-900/40 transition-all">
+                            <td className="px-5 py-3 text-slate-400 whitespace-nowrap">{item.date}</td>
+                            <td className="px-5 py-3 font-sans">
+                              <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded text-[9px] font-bold">
+                                {item.product_type}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3 font-sans text-slate-200 font-bold">{item.product_name}</td>
+                            <td className="px-5 py-3 font-sans text-slate-300">{item.teacher_name}</td>
+                            <td className="px-5 py-3 font-sans text-slate-400">{item.payment_method}</td>
+                            <td className="px-5 py-3">{item.original_price} ج.م</td>
+                            <td className="px-5 py-3 text-rose-400">-{item.discount} ...</td>
+                            <td className="px-5 py-3 font-bold text-slate-100">{item.amount} ج.م</td>
+                            <td className="px-5 py-3 font-sans">
+                              <span className={`px-2 py-0.5 rounded text-[8px] font-bold ${item.status === 'paid' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-450'}`}>
+                                {item.status === 'paid' ? 'نشطة ومكتملة' : 'مسترجعة ومعكوسة'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/20 flex justify-end font-sans">
+              <button
+                onClick={() => setSelectedStudentLedger(null)}
+                className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+              >
+                إغلاق دفتر الأستاذ
               </button>
             </div>
           </div>

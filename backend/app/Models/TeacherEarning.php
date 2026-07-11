@@ -22,6 +22,8 @@ class TeacherEarning extends Model
         'source',
         'status',
         'payout_id',
+        'notes',
+        'description',
     ];
 
     protected $casts = [

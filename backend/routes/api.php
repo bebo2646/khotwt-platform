@@ -264,6 +264,9 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::get('/admin/financial/teachers', [\App\Http\Controllers\FinancialController::class, 'teachersReport']);
                 Route::get('/admin/financial/students', [\App\Http\Controllers\FinancialController::class, 'studentsReport']);
                 Route::get('/admin/financial/export', [\App\Http\Controllers\FinancialController::class, 'export']);
+                Route::post('/admin/financial/teachers/{id}/adjust', [\App\Http\Controllers\FinancialController::class, 'adjustTeacherBalance']);
+                Route::get('/admin/financial/teachers/{id}/statement', [\App\Http\Controllers\FinancialController::class, 'teacherStatement']);
+                Route::get('/admin/financial/students/{id}/ledger', [\App\Http\Controllers\FinancialController::class, 'studentLedger']);
             });
 
             // Admins CRUD (Super Admin restricted inside controller as well)

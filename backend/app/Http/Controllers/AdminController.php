@@ -1534,6 +1534,87 @@ class AdminController extends Controller
                 'reference_id' => $refId,
             ]);
 
+            // Create Reversing Financial Entries for Audit Trail
+            $teacherId = $enrollment->course 
+                ? $enrollment->course->teacher_id 
+                : ($enrollment->package && $enrollment->package->course 
+                    ? $enrollment->package->course->teacher_id 
+                    : ($enrollment->lesson ? $enrollment->lesson->teacher_id : null));
+
+            if ($teacherId) {
+                $ph = \App\Models\PaymentHistory::where('student_id', $studentId)
+                    ->where('teacher_id', $teacherId)
+                    ->where('course_id', $enrollment->course_id)
+                    ->where('package_id', $enrollment->package_id)
+                    ->where('lesson_id', $enrollment->lesson_id)
+                    ->where('status', 'paid')
+                    ->latest()
+                    ->first();
+
+                if ($ph) {
+                    $ph->update(['status' => 'refunded']);
+
+                    $te = \App\Models\TeacherEarning::where('student_id', $studentId)
+                        ->where('teacher_id', $teacherId)
+                        ->where('course_id', $enrollment->course_id)
+                        ->where('package_id', $enrollment->package_id)
+                        ->where('lesson_id', $enrollment->lesson_id)
+                        ->latest()
+                        ->first();
+
+                    $pe = \App\Models\PlatformEarning::where('student_id', $studentId)
+                        ->where('teacher_id', $teacherId)
+                        ->where('course_id', $enrollment->course_id)
+                        ->where('package_id', $enrollment->package_id)
+                        ->where('lesson_id', $enrollment->lesson_id)
+                        ->latest()
+                        ->first();
+
+                    $teacherAmount = $te ? (float)$te->amount : round($amount * 0.8, 2);
+                    $platformAmount = $pe ? (float)$pe->amount : round($amount * 0.2, 2);
+
+                    // Reversing Payment History
+                    \App\Models\PaymentHistory::create([
+                        'student_id' => $studentId,
+                        'teacher_id' => $teacherId,
+                        'amount' => -$amount,
+                        'course_id' => $enrollment->course_id,
+                        'package_id' => $enrollment->package_id,
+                        'lesson_id' => $enrollment->lesson_id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'payment_method' => $ph->payment_method,
+                        'status' => 'refunded',
+                    ]);
+
+                    // Reversing Teacher Earning
+                    \App\Models\TeacherEarning::create([
+                        'teacher_id' => $teacherId,
+                        'amount' => -$teacherAmount,
+                        'course_id' => $enrollment->course_id,
+                        'package_id' => $enrollment->package_id,
+                        'lesson_id' => $enrollment->lesson_id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'student_id' => $studentId,
+                        'source' => 'reversal',
+                        'status' => 'completed',
+                        'description' => 'إلغاء واسترجاع عملية شراء ورصيد المحفظة',
+                    ]);
+
+                    // Reversing Platform Earning
+                    \App\Models\PlatformEarning::create([
+                        'teacher_id' => $teacherId,
+                        'amount' => -$platformAmount,
+                        'course_id' => $enrollment->course_id,
+                        'package_id' => $enrollment->package_id,
+                        'lesson_id' => $enrollment->lesson_id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'student_id' => $studentId,
+                        'source' => 'reversal',
+                        'description' => 'إلغاء واسترجاع عملية شراء ورصيد المحفظة',
+                    ]);
+                }
+            }
+
             // Save Refund Log
             \App\Models\RefundLog::create([
                 'student_id' => $studentId,

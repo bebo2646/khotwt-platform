@@ -343,7 +343,7 @@ class FinancialController extends Controller
                 'filtered_total' => (float)$totalRevenue,
                 'platform_net_profit' => (float)$totalPlatformEarnings,
                 'teachers_earnings' => (float)$totalTeacherEarnings,
-                'platform_commission' => (float)$totalPlatformEarnings, // Platform Earning is the Commission EGP amount
+                'platform_commission' => (float)$totalPlatformEarnings,
                 'average_commission_percentage' => $totalRevenue > 0 ? round(($totalPlatformEarnings / $totalRevenue) * 100, 2) : 0.00,
                 'pending_withdrawals' => (float)$pendingWithdrawals,
                 'completed_withdrawals' => (float)$completedWithdrawals,
@@ -392,8 +392,14 @@ class FinancialController extends Controller
             ->whereIn('teacher_id', $teacherIds)
             ->get();
 
-        $items = collect($paginator->items())->map(function($ph) use ($teacherEarnings, $platformEarnings) {
-            // Find shares matching Student, Teacher, Product details and Timestamp within 10 seconds (for exact N+1-free match)
+        // Trace and resolve exact WalletTransaction details for each student purchase
+        $wallets = \App\Models\Wallet::whereIn('student_id', $studentIds)->get()->keyBy('student_id');
+        $walletIds = $wallets->pluck('id')->toArray();
+        $walletTransactions = \App\Models\WalletTransaction::whereIn('wallet_id', $walletIds)
+            ->where('type', 'purchase')
+            ->get();
+
+        $items = collect($paginator->items())->map(function($ph) use ($teacherEarnings, $platformEarnings, $wallets, $walletTransactions) {
             $te = $teacherEarnings->first(function($e) use ($ph) {
                 return $e->student_id == $ph->student_id 
                     && $e->teacher_id == $ph->teacher_id
@@ -411,6 +417,22 @@ class FinancialController extends Controller
                     && $e->lesson_id == $ph->lesson_id
                     && abs(strtotime($e->created_at) - strtotime($ph->created_at)) < 15;
             });
+
+            // Match exact WalletTransaction ID
+            $wallet = $wallets->get($ph->student_id);
+            $wtId = null;
+            if ($wallet) {
+                $refId = $ph->course_id ?: ($ph->package_id ?: $ph->lesson_id);
+                $wt = $walletTransactions->first(function($t) use ($wallet, $ph, $refId) {
+                    return $t->wallet_id == $wallet->id
+                        && (float)$t->amount == (float)$ph->amount
+                        && $t->reference_id == $refId
+                        && abs(strtotime($t->created_at) - strtotime($ph->created_at)) < 15;
+                });
+                if ($wt) {
+                    $wtId = $wt->id;
+                }
+            }
 
             // Product Type resolution
             $productType = 'Course';
@@ -479,7 +501,7 @@ class FinancialController extends Controller
                 'teacher_share' => $te ? (float)$te->amount : round($ph->amount * 0.8, 2),
                 'platform_share' => $pe ? (float)$pe->amount : round($ph->amount * 0.2, 2),
                 'payment_method' => $ph->payment_method,
-                'wallet_transaction_id' => $te ? $te->id : null,
+                'wallet_transaction_id' => $wtId,
                 'status' => $ph->status,
                 'activation_time' => $activationTime
             ];
@@ -495,7 +517,7 @@ class FinancialController extends Controller
     }
 
     /**
-     * Day-by-day revenue mapping.
+     * Day-by-day closing reports.
      */
     public function dailyReport(Request $request)
     {
@@ -523,12 +545,79 @@ class FinancialController extends Controller
             ->orderBy('date', 'desc')
             ->get();
 
-        $dailyStats = $reports->map(function($rep) {
+        // Daily Top Aggregators in memory to avoid N+1 queries
+        $dailyTopTeachers = PaymentHistory::selectRaw("DATE(created_at) as date, teacher_id, SUM(amount) as total_amount")
+            ->groupBy('date', 'teacher_id')
+            ->orderByDesc('total_amount')
+            ->get()
+            ->groupBy('date');
+
+        $dailyTopCourses = PaymentHistory::whereNotNull('course_id')
+            ->whereNull('package_id')
+            ->whereNull('lesson_id')
+            ->selectRaw("DATE(created_at) as date, course_id, COUNT(*) as sales_count")
+            ->groupBy('date', 'course_id')
+            ->orderByDesc('sales_count')
+            ->get()
+            ->groupBy('date');
+
+        $dailyTopBundles = PaymentHistory::whereNotNull('package_id')
+            ->join('packages', 'payment_histories.package_id', '=', 'packages.id')
+            ->where('packages.type', 'bundle')
+            ->selectRaw("DATE(payment_histories.created_at) as date, payment_histories.package_id, COUNT(*) as sales_count")
+            ->groupBy('date', 'payment_histories.package_id')
+            ->orderByDesc('sales_count')
+            ->get()
+            ->groupBy('date');
+
+        $dailyTopSubjects = PaymentHistory::join('courses', 'payment_histories.course_id', '=', 'courses.id')
+            ->selectRaw("DATE(payment_histories.created_at) as date, courses.subject, SUM(payment_histories.amount) as total_amount")
+            ->groupBy('date', 'courses.subject')
+            ->orderByDesc('total_amount')
+            ->get()
+            ->groupBy('date');
+
+        $teacherNames = User::where('role', 'teacher')->pluck('name', 'id');
+        $courseTitles = Course::pluck('title', 'id');
+        $packageTitles = \App\Models\Package::pluck('title', 'id');
+
+        $dailyStats = $reports->map(function($rep) use (
+            $dailyTopTeachers, $dailyTopCourses, $dailyTopBundles, $dailyTopSubjects,
+            $teacherNames, $courseTitles, $packageTitles
+        ) {
             $dateStr = $rep->date;
             
             $teacherShare = TeacherEarning::whereDate('created_at', $dateStr)->sum('amount');
             $platformShare = PlatformEarning::whereDate('created_at', $dateStr)->sum('amount');
             $newStudents = User::where('role', 'student')->whereDate('created_at', $dateStr)->count();
+
+            // Resolve top metrics
+            $topTeacher = 'N/A';
+            $tList = $dailyTopTeachers->get($dateStr);
+            if ($tList && $tList->count() > 0) {
+                $tid = $tList->first()->teacher_id;
+                $topTeacher = $teacherNames->get($tid) ?: 'N/A';
+            }
+
+            $topCourse = 'N/A';
+            $cList = $dailyTopCourses->get($dateStr);
+            if ($cList && $cList->count() > 0) {
+                $cid = $cList->first()->course_id;
+                $topCourse = $courseTitles->get($cid) ?: 'N/A';
+            }
+
+            $topBundle = 'N/A';
+            $bList = $dailyTopBundles->get($dateStr);
+            if ($bList && $bList->count() > 0) {
+                $bid = $bList->first()->package_id;
+                $topBundle = $packageTitles->get($bid) ?: 'N/A';
+            }
+
+            $topSub = 'N/A';
+            $sList = $dailyTopSubjects->get($dateStr);
+            if ($sList && $sList->count() > 0) {
+                $topSub = $sList->first()->subject ?: 'N/A';
+            }
 
             return [
                 'date' => $dateStr,
@@ -542,6 +631,10 @@ class FinancialController extends Controller
                 'monthly_packages_sold' => (int)$rep->monthly_packages_sold,
                 'revision_packages_sold' => (int)$rep->revision_packages_sold,
                 'standalone_sold' => (int)$rep->standalone_sold,
+                'top_teacher' => $topTeacher,
+                'top_course' => $topCourse,
+                'top_bundle' => $topBundle,
+                'top_subject' => $topSub,
             ];
         });
 
@@ -549,7 +642,7 @@ class FinancialController extends Controller
     }
 
     /**
-     * Teacher detailed report (fully optimized without N+1).
+     * Teacher detailed report.
      */
     public function teachersReport(Request $request)
     {
@@ -560,7 +653,6 @@ class FinancialController extends Controller
         $teachers = User::where('role', 'teacher')->get();
         $teacherIds = $teachers->pluck('id')->toArray();
 
-        // 1. Get filtered time-frame stats for all teachers in 1 query
         $today = Carbon::today();
         $startOfWeek = Carbon::now()->startOfWeek();
         $startOfMonth = Carbon::now()->startOfMonth();
@@ -580,7 +672,6 @@ class FinancialController extends Controller
             ->get()
             ->keyBy('teacher_id');
 
-        // 2. Get payout stats for all teachers in 1 query
         $teacherPayoutStats = TeacherPayout::whereIn('teacher_id', $teacherIds)
             ->selectRaw("
                 teacher_id,
@@ -591,7 +682,7 @@ class FinancialController extends Controller
             ->get()
             ->keyBy('teacher_id');
 
-        // 3. Eager lookups for Top Selling Products per teacher
+        // Top Selling Products per teacher
         $courseSales = PaymentHistory::whereIn('teacher_id', $teacherIds)
             ->whereNotNull('course_id')
             ->whereNull('package_id')
@@ -615,7 +706,6 @@ class FinancialController extends Controller
             ->get()
             ->groupBy('teacher_id');
 
-        // Titles preloaded
         $courseTitles = Course::whereIn('teacher_id', $teacherIds)->pluck('title', 'id');
         $packageTitles = \App\Models\Package::pluck('title', 'id');
         $lessonTitles = \App\Models\Lesson::pluck('title', 'id');
@@ -633,7 +723,6 @@ class FinancialController extends Controller
             $stats = $teacherRevenueStats->get($teacher->id);
             $payouts = $teacherPayoutStats->get($teacher->id);
 
-            // Determine top selling product
             $topProduct = 'N/A';
             $maxSales = 0;
 
@@ -687,7 +776,7 @@ class FinancialController extends Controller
     }
 
     /**
-     * Student detailed purchase tracking (fully optimized).
+     * Student detailed purchase tracking.
      */
     public function studentsReport(Request $request)
     {
@@ -705,7 +794,7 @@ class FinancialController extends Controller
         $paginator = $query->paginate(20);
         $studentIds = collect($paginator->items())->pluck('id')->toArray();
 
-        // Query financial stats specifically for these 20 students
+        // Financial stats for pagination size
         $studentStats = PaymentHistory::whereIn('student_id', $studentIds)
             ->selectRaw("
                 student_id,
@@ -717,7 +806,6 @@ class FinancialController extends Controller
             ->get()
             ->keyBy('student_id');
 
-        // Favorite Teacher per student
         $favTeachers = PaymentHistory::whereIn('student_id', $studentIds)
             ->selectRaw('student_id, teacher_id, COUNT(*) as count')
             ->groupBy('student_id', 'teacher_id')
@@ -725,7 +813,6 @@ class FinancialController extends Controller
             ->get()
             ->groupBy('student_id');
 
-        // Favorite Subject per student
         $favSubjects = PaymentHistory::whereIn('payment_histories.student_id', $studentIds)
             ->join('courses', 'payment_histories.course_id', '=', 'courses.id')
             ->selectRaw('payment_histories.student_id, courses.subject, COUNT(*) as count')
@@ -734,7 +821,6 @@ class FinancialController extends Controller
             ->get()
             ->groupBy('student_id');
 
-        // Favorite Product Type per student
         $favProductTypes = PaymentHistory::whereIn('student_id', $studentIds)
             ->leftJoin('packages', 'payment_histories.package_id', '=', 'packages.id')
             ->selectRaw("
@@ -749,7 +835,6 @@ class FinancialController extends Controller
             ->get()
             ->keyBy('student_id');
 
-        // Preload teacher names for matching
         $teacherNames = User::where('role', 'teacher')->pluck('name', 'id');
 
         $data = collect($paginator->items())->map(function($student) use (
@@ -761,7 +846,6 @@ class FinancialController extends Controller
         ) {
             $stats = $studentStats->get($student->id);
             
-            // Favorite Teacher
             $favTeacherId = null;
             $tGroup = $favTeachers->get($student->id);
             if ($tGroup && $tGroup->count() > 0) {
@@ -769,14 +853,12 @@ class FinancialController extends Controller
             }
             $favTeacher = $favTeacherId ? ($teacherNames->get($favTeacherId) ?: 'N/A') : 'N/A';
 
-            // Favorite Subject
             $favSub = 'N/A';
             $sGroup = $favSubjects->get($student->id);
             if ($sGroup && $sGroup->count() > 0) {
                 $favSub = $sGroup->sortByDesc('count')->first()->subject ?: 'N/A';
             }
 
-            // Favorite Product Type
             $favType = 'N/A';
             $typeStats = $favProductTypes->get($student->id);
             if ($typeStats) {
@@ -815,6 +897,223 @@ class FinancialController extends Controller
             'current_page' => $paginator->currentPage(),
             'last_page' => $paginator->lastPage(),
             'total' => $paginator->total(),
+        ]);
+    }
+
+    /**
+     * Create manual adjustment for teacher balance.
+     */
+    public function adjustTeacherBalance(Request $request, $id)
+    {
+        $request->validate([
+            'amount' => 'required|numeric',
+            'description' => 'required|string|max:255',
+        ]);
+
+        $teacher = User::where('role', 'teacher')->findOrFail($id);
+
+        TeacherEarning::create([
+            'teacher_id' => $teacher->id,
+            'amount' => (float)$request->amount,
+            'source' => 'manual_adjustment',
+            'status' => 'completed',
+            'description' => $request->description,
+        ]);
+
+        return response()->json([
+            'message' => 'تم إضافة التسوية المالية اليدوية بنجاح.',
+        ]);
+    }
+
+    /**
+     * Detailed chronological financial statement for a teacher (bank statement style).
+     */
+    public function teacherStatement(Request $request, $id)
+    {
+        $teacher = User::where('role', 'teacher')->findOrFail($id);
+
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        // Opening Balance calculation
+        $openingBalance = 0.00;
+        if ($startDate) {
+            $prevEarnings = TeacherEarning::where('teacher_id', $teacher->id)
+                ->where('created_at', '<', Carbon::parse($startDate))
+                ->sum('amount');
+            $prevPayouts = TeacherPayout::where('teacher_id', $teacher->id)
+                ->where('status', 'completed')
+                ->where('payout_date', '<', Carbon::parse($startDate))
+                ->sum('amount');
+            $openingBalance = (float)$prevEarnings - (float)$prevPayouts;
+        }
+
+        // Apply filters to ledger collections
+        $earningsQuery = TeacherEarning::where('teacher_id', $teacher->id);
+        $payoutsQuery = TeacherPayout::where('teacher_id', $teacher->id);
+
+        if ($startDate) {
+            $earningsQuery->where('created_at', '>=', Carbon::parse($startDate));
+            $payoutsQuery->where('created_at', '>=', Carbon::parse($startDate));
+        }
+        if ($endDate) {
+            $earningsQuery->where('created_at', '<=', Carbon::parse($endDate));
+            $payoutsQuery->where('created_at', '<=', Carbon::parse($endDate));
+        }
+
+        $earnings = $earningsQuery->get();
+        $payouts = $payoutsQuery->get();
+
+        $events = collect();
+
+        foreach ($earnings as $e) {
+            $type = 'Sale';
+            $description = 'مبيعات منتج للطلاب';
+            
+            if ($e->source === 'manual_adjustment') {
+                $type = 'Adjustment';
+                $description = $e->description ?: 'تسوية يدوية مضافة من الإدارة';
+            } elseif ($e->source === 'reversal') {
+                $type = 'Reversal';
+                $description = 'إلغاء معاملة واسترجاع أرباح المعلم';
+            } elseif ($e->course_id) {
+                $course = Course::find($e->course_id);
+                $description = 'مبيعات كورس: ' . ($course ? $course->title : 'كورس');
+            } elseif ($e->package_id) {
+                $package = \App\Models\Package::find($e->package_id);
+                $description = 'مبيعات باقة: ' . ($package ? $package->title : 'باقة');
+            } elseif ($e->lesson_id) {
+                $lesson = \App\Models\Lesson::find($e->lesson_id);
+                $description = 'مبيعات محاضرة فردية: ' . ($lesson ? $lesson->title : 'محاضرة');
+            }
+
+            $events->push([
+                'id' => 'earn_' . $e->id,
+                'date' => $e->created_at->toDateTimeString(),
+                'timestamp' => $e->created_at->timestamp,
+                'type' => $type,
+                'description' => $description,
+                'amount' => (float)$e->amount,
+            ]);
+        }
+
+        foreach ($payouts as $p) {
+            $type = 'Withdrawal';
+            $description = 'سحب رصيد: ' . ($p->notes ?: 'تحويل نقدي للمستحقات');
+
+            $events->push([
+                'id' => 'payout_' . $p->id,
+                'date' => $p->created_at->toDateTimeString(),
+                'timestamp' => $p->created_at->timestamp,
+                'type' => $type,
+                'description' => $description,
+                'amount' => -((float)$p->amount),
+                'status' => $p->status,
+            ]);
+        }
+
+        // Sort chronologically and apply running balance
+        $sortedEvents = $events->sortBy('timestamp')->values();
+        $currentRunning = $openingBalance;
+        $timeline = [];
+        
+        foreach ($sortedEvents as $ev) {
+            // Apply payouts only if they are completed to represent active liquid withdrawals
+            if ($ev['type'] === 'Withdrawal' && isset($ev['status']) && $ev['status'] !== 'completed') {
+                // Pending payouts do not impact actual completed bank statement balance
+                $ev['running_balance'] = round($currentRunning, 2);
+            } else {
+                $currentRunning += $ev['amount'];
+                $ev['running_balance'] = round($currentRunning, 2);
+            }
+            $timeline[] = $ev;
+        }
+
+        $totalAllEarnings = TeacherEarning::where('teacher_id', $teacher->id)->sum('amount');
+        $totalAllPayouts = TeacherPayout::where('teacher_id', $teacher->id)->where('status', 'completed')->sum('amount');
+        $currentBalance = (float)$totalAllEarnings - (float)$totalAllPayouts;
+
+        return response()->json([
+            'teacher' => [
+                'id' => $teacher->id,
+                'name' => $teacher->name,
+                'subject' => $teacher->subject ?: 'N/A',
+            ],
+            'opening_balance' => round($openingBalance, 2),
+            'current_balance' => round($currentBalance, 2),
+            'timeline' => array_reverse($timeline),
+        ]);
+    }
+
+    /**
+     * Detailed ledger for a student purchase history.
+     */
+    public function studentLedger(Request $request, $id)
+    {
+        $student = User::where('role', 'student')->findOrFail($id);
+
+        $ledger = PaymentHistory::where('student_id', $student->id)
+            ->with(['course', 'package', 'lesson', 'teacher'])
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function($ph) {
+                $productType = 'Course';
+                $productName = $ph->course ? $ph->course->title : 'Unknown Course';
+
+                if ($ph->package_id) {
+                    if ($ph->package) {
+                        if ($ph->package->type === 'bundle') {
+                            $productType = 'Bundle';
+                        } elseif ($ph->package->type === 'month') {
+                            $productType = 'Monthly Package';
+                        } else {
+                            $productType = 'Revision Package';
+                        }
+                        $productName = $ph->package->title;
+                    } else {
+                        $productType = 'Package';
+                        $productName = 'Unknown Package';
+                    }
+                } elseif ($ph->lesson_id) {
+                    $productType = 'Standalone Lecture';
+                    $productName = $ph->lesson ? $ph->lesson->title : 'Unknown Lecture';
+                }
+
+                $originalPrice = (float)$ph->amount;
+                $discount = 0.00;
+                if ($ph->course) {
+                    $originalPrice = (float)$ph->course->price;
+                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
+                } elseif ($ph->package) {
+                    $originalPrice = (float)$ph->package->price;
+                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
+                } elseif ($ph->lesson) {
+                    $originalPrice = (float)$ph->lesson->price;
+                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
+                }
+
+                return [
+                    'id' => $ph->id,
+                    'date' => $ph->created_at->toDateTimeString(),
+                    'product_type' => $productType,
+                    'product_name' => $productName,
+                    'teacher_name' => $ph->teacher ? $ph->teacher->name : 'Deleted Teacher',
+                    'original_price' => $originalPrice,
+                    'discount' => $discount,
+                    'amount' => (float)$ph->amount,
+                    'payment_method' => $ph->payment_method === 'wallet' ? 'رصيد محفظة' : 'كود تفعيل',
+                    'status' => $ph->status,
+                ];
+            });
+
+        return response()->json([
+            'student' => [
+                'id' => $student->id,
+                'name' => $student->name,
+                'email' => $student->email,
+                'phone' => $student->phone,
+            ],
+            'ledger' => $ledger,
         ]);
     }
 
