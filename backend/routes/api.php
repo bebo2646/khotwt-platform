@@ -84,6 +84,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/packages/{package}/subscribe', [StudentController::class, 'subscribePackage']);
             Route::post('/lessons/{lesson}/subscribe', [StudentController::class, 'subscribeLesson']);
             Route::get('/student/lessons/{lesson}', [StudentController::class, 'lessonDetail']);
+            Route::get('/student/courses/{course}/lessons/{lesson}', [StudentController::class, 'lessonDetailInCourse']);
+            Route::get('/student/packages/{package}/lessons/{lesson}', [StudentController::class, 'lessonDetailInPackage']);
             Route::post('/videos/{video}/progress', [StudentController::class, 'updateVideoProgress']);
             Route::post('/pdfs/{pdf}/view', [StudentController::class, 'viewPdf']);
             Route::get('/student/pdfs/{pdf}', [StudentController::class, 'getPdfDetails']);

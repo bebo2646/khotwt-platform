@@ -877,6 +877,7 @@ class AdminController extends Controller
             'package_thumbnail' => 'nullable|string',
             'lesson_ids' => 'required|array',
             'lesson_ids.*' => 'exists:lessons,id',
+            'type' => 'required|string|in:bundle,month,revision',
         ]);
 
         return DB::transaction(function () use ($request, $package) {
@@ -886,6 +887,7 @@ class AdminController extends Controller
                 'description' => $request->description,
                 'cover_image' => $request->cover_image,
                 'package_thumbnail' => $request->package_thumbnail,
+                'type' => $request->type,
             ]);
 
             $package->lessons()->sync($request->lesson_ids);

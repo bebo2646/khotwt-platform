@@ -16,6 +16,7 @@ class Package extends Model
         'description',
         'cover_image',
         'package_thumbnail',
+        'type',
     ];
 
     protected $casts = [

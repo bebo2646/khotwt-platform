@@ -585,7 +585,7 @@ export default function CourseDetail() {
               <button
                 onClick={() => {
                   if (units.length > 0 && units[0].lessons.length > 0) {
-                    navigate(`/student/lessons/${units[0].lessons[0].id}`)
+                    navigate(`/student/lessons/${units[0].lessons[0].id}?course_id=${course.id}`)
                   }
                 }}
                 disabled={viewLimitExceeded}
@@ -620,7 +620,7 @@ export default function CourseDetail() {
             <p className="text-xs text-slate-400 font-light">توقفت عند الدقيقة {lastWatched.formatted_time}</p>
           </div>
           <button
-            onClick={() => navigate(`/student/lessons/${units[0].lessons[0].id}?play=${lastWatched.video_id}`)}
+            onClick={() => navigate(`/student/lessons/${units[0].lessons[0].id}?course_id=${course.id}&play=${lastWatched.video_id}`)}
             className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer"
           >
             [ متابعة المشاهدة ]
@@ -804,13 +804,13 @@ export default function CourseDetail() {
                                           {vid.duration_text && (
                                             <span className="text-[10px] text-slate-500">({vid.duration_text})</span>
                                           )}
-                                          {isEnrolled && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
+                                          {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
                                         </div>
                                         
                                         <div className="flex items-center gap-3">
-                                          {isEnrolled && !vid.is_locked ? (
+                                          {!vid.is_locked ? (
                                             <Link 
-                                              to={`/student/lessons/${lesson.id}?play=${vid.id}`}
+                                              to={`/student/lessons/${lesson.id}?play=${vid.id}${lesson.course_id ? `&course_id=${lesson.course_id}` : lesson.matching_package_id ? `&package_id=${lesson.matching_package_id}` : ''}`}
                                               onClick={(e) => e.stopPropagation()}
                                               className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                                             >
@@ -824,7 +824,7 @@ export default function CourseDetail() {
                                       </div>
 
                                       {/* Video Info Panel */}
-                                      {expandedContentItems[`video-${vid.id}`] && isEnrolled && vid.progress && (
+                                      {expandedContentItems[`video-${vid.id}`] && !vid.is_locked && vid.progress && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                                           <div className="flex items-center gap-2">
                                             <span className="text-slate-500">⏳ مدة الفيديو:</span>
@@ -875,13 +875,13 @@ export default function CourseDetail() {
                                         <div className="flex items-center gap-2.5">
                                           <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                                           <span className="font-semibold text-slate-200">📄 فتح الملف: {pdf.title}</span>
-                                          {isEnrolled && pdf.progress && renderStatusBadge(pdf.progress.status, 'pdf')}
+                                          {!pdf.is_locked && pdf.progress && renderStatusBadge(pdf.progress.status, 'pdf')}
                                         </div>
                                         
                                         <div className="flex items-center gap-3">
-                                          {isEnrolled && !pdf.is_locked ? (
+                                          {!pdf.is_locked ? (
                                              <Link 
-                                               to={`/student/pdf/${pdf.id}`}
+                                               to={`/student/pdf/${pdf.id}${lesson.course_id ? `?course_id=${lesson.course_id}` : lesson.matching_package_id ? `?package_id=${lesson.matching_package_id}` : ''}`}
                                                onClick={(e) => e.stopPropagation()}
                                                className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                                              >
@@ -895,7 +895,7 @@ export default function CourseDetail() {
                                       </div>
 
                                       {/* PDF Info Panel */}
-                                      {expandedContentItems[`pdf-${pdf.id}`] && isEnrolled && pdf.progress && (
+                                      {expandedContentItems[`pdf-${pdf.id}`] && !pdf.is_locked && pdf.progress && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                                           <div className="flex items-center gap-2">
                                             <span className="text-slate-500">📖 عدد الصفحات:</span>
@@ -946,13 +946,13 @@ export default function CourseDetail() {
                                             {ex.time_limit_minutes && (
                                               <span className="text-[10px] text-slate-500">({ex.time_limit_minutes} دقيقة)</span>
                                             )}
-                                            {isEnrolled && ex.progress && renderStatusBadge(ex.progress.status, typeLabel)}
+                                            {!ex.is_locked && ex.progress && renderStatusBadge(ex.progress.status, typeLabel)}
                                           </div>
                                           
                                           <div className="flex items-center gap-3">
-                                            {isEnrolled && !ex.is_locked ? (
+                                            {!ex.is_locked ? (
                                               <Link 
-                                                to={`/student/exams/${ex.id}`}
+                                                to={`/student/exams/${ex.id}${lesson.course_id ? `?course_id=${lesson.course_id}` : lesson.matching_package_id ? `?package_id=${lesson.matching_package_id}` : ''}`}
                                                 onClick={(e) => e.stopPropagation()}
                                                 className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
                                                   isHomework 
@@ -970,7 +970,7 @@ export default function CourseDetail() {
                                         </div>
 
                                         {/* Exam Info Panel */}
-                                        {expandedContentItems[`exam-${ex.id}`] && isEnrolled && ex.progress && (
+                                        {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && ex.progress && (
                                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                                             {isHomework && (
                                               <div className="flex items-center gap-2">

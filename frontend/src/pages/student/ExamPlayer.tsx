@@ -1,5 +1,5 @@
 import React from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
@@ -39,6 +39,9 @@ interface ExamInfo {
 export default function ExamPlayer() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const courseId = searchParams.get('course_id')
+  const packageId = searchParams.get('package_id')
 
   // States
   const [exam, setExam] = React.useState<ExamInfo | null>(null)
@@ -65,7 +68,11 @@ export default function ExamPlayer() {
   const [focusedIndex, setFocusedIndex] = React.useState(0)
 
   React.useEffect(() => {
-    API.get(`/exams/${id}`)
+    const params: any = {}
+    if (courseId) params.course_id = courseId
+    if (packageId) params.package_id = packageId
+
+    API.get(`/exams/${id}`, { params })
       .then((res) => {
         setExam(res.data.exam)
         setQuestions(res.data.questions)

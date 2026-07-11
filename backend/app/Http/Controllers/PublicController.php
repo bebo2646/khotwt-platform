@@ -330,6 +330,8 @@ class PublicController extends Controller
                 $isStudent = true;
                 $isEnrolled = Enrollment::where('student_id', $user->id)
                     ->where('course_id', $courseId)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
                     ->exists();
 
                 if ($isEnrolled) {
@@ -405,18 +407,71 @@ class PublicController extends Controller
                 'id' => $unit->id,
                 'title' => $unit->title,
                 'order' => $unit->order,
-                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails) {
+                'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $courseId) {
+                    $matchingPackageId = null;
+                    $hasLessonAccess = false;
+                    $ownsCourse = false;
+                    $ownsLessonDirect = false;
+
+                    $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
+
+                    if ($user && $user->isStudent()) {
+                        // 1. Check Course ownership
+                        $ownsCourse = Enrollment::where('student_id', $user->id)
+                            ->where('course_id', $courseId)
+                            ->whereNull('package_id')
+                            ->whereNull('lesson_id')
+                            ->exists();
+
+                        if ($ownsCourse) {
+                            $hasLessonAccess = true;
+                        } else {
+                            // 2. Check direct lesson ownership
+                            $ownsLessonDirect = Enrollment::where('student_id', $user->id)
+                                ->where('lesson_id', $lesson->id)
+                                ->exists();
+
+                            if ($ownsLessonDirect) {
+                                $hasLessonAccess = true;
+                            } else {
+                                // 3. Check Package ownership
+                                $ownedPackageEnrollment = Enrollment::where('student_id', $user->id)
+                                    ->whereNotNull('package_id')
+                                    ->whereIn('package_id', function($subQuery) use ($lesson) {
+                                        $subQuery->select('package_id')
+                                            ->from('package_lessons')
+                                            ->where('lesson_id', $lesson->id);
+                                    })
+                                    ->first();
+
+                                if ($ownedPackageEnrollment) {
+                                    $hasLessonAccess = true;
+                                    $matchingPackageId = $ownedPackageEnrollment->package_id;
+                                }
+                            }
+                        }
+                    } elseif ($user && ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id))) {
+                        $hasLessonAccess = true;
+                        $ownsCourse = true;
+                    }
+
                     $lessonData = [
                         'id' => $lesson->id,
                         'title' => $lesson->title,
                         'description' => $lesson->description,
                         'order' => $lesson->order,
+                        'owns_course' => $ownsCourse,
+                        'owns_lesson_direct' => $ownsLessonDirect,
+                        'matching_package_id' => $matchingPackageId,
+                        'course_id' => $ownsCourse ? $courseId : null,
                     ];
 
                     $isLocked = false;
-                    $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
                     if ($user && $user->isStudent()) {
-                        $isLocked = $lesson->isLockedForStudent($user->id);
+                        // Locked if previous lesson is not completed (only in Course context)
+                        $isLocked = !$hasLessonAccess || ($ownsCourse && $lesson->isLockedForStudent($user->id));
+                    } else {
+                        $isLocked = !$hasLessonAccess;
                     }
                     $lessonData['is_locked'] = $isLocked;
 
@@ -425,7 +480,29 @@ class PublicController extends Controller
                     $lessonData['pdfs_count'] = $lesson->pdfs()->count();
                     $lessonData['exams_count'] = $lesson->exams()->count();
 
-                    $secured = $isEnrolled && !$isLocked && !$viewLimitExceeded;
+                    $hasLessonAccess = false;
+                    if ($user && $user->isStudent()) {
+                        $hasLessonAccess = Enrollment::where('student_id', $user->id)
+                            ->where(function($q) use ($courseId, $lesson) {
+                                // Full course access
+                                $q->where(function($q2) use ($courseId) {
+                                    $q2->where('course_id', $courseId)->whereNull('package_id')->whereNull('lesson_id');
+                                })
+                                // Direct lesson access
+                                ->orWhere('lesson_id', $lesson->id)
+                                // Package access
+                                ->orWhereIn('package_id', function($subQuery) use ($lesson) {
+                                    $subQuery->select('package_id')
+                                        ->from('package_lessons')
+                                        ->where('lesson_id', $lesson->id);
+                                });
+                            })
+                            ->exists();
+                    } elseif ($user && ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id))) {
+                        $hasLessonAccess = true;
+                    }
+
+                    $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
                     $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $viewLimitDetails) {
                         $videoSecured = $secured && !($course->availability === 'center' && $isStudent);

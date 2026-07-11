@@ -76,6 +76,8 @@ export default function LessonViewer() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const preSelectedVideoId = searchParams.get('play')
+  const courseId = searchParams.get('course_id')
+  const packageId = searchParams.get('package_id')
 
   const { user } = useAuthStore()
   const containerRef = React.useRef<HTMLDivElement | null>(null)
@@ -202,7 +204,12 @@ export default function LessonViewer() {
   // Fetch lesson contents
   const fetchLessonData = () => {
     setLoading(true)
-    API.get(`/student/lessons/${id}`)
+    const params: any = {}
+    if (preSelectedVideoId) params.play = preSelectedVideoId
+    if (courseId) params.course_id = courseId
+    if (packageId) params.package_id = packageId
+
+    API.get(`/student/lessons/${id}`, { params })
       .then((res) => {
         if (res.data.is_views_exceeded) {
           setViewLimitExceeded(true)
@@ -359,6 +366,8 @@ export default function LessonViewer() {
         watched_segments: segments,
         session_id: watchSessionIdRef.current,
         session_watch_time: Math.floor(sessionWatchTimeRef.current),
+        course_id: courseId ? Number(courseId) : undefined,
+        package_id: packageId ? Number(packageId) : undefined,
       };
 
       console.log('Saving progress', payload);
@@ -927,6 +936,8 @@ export default function LessonViewer() {
           watched_seconds: totalSecs,
           last_position_seconds: current,
           watched_segments: merged,
+          course_id: courseId ? Number(courseId) : undefined,
+          package_id: packageId ? Number(packageId) : undefined,
         };
         
         console.log('Saving progress', payload);
@@ -1281,7 +1292,7 @@ export default function LessonViewer() {
 
                         <div className="flex gap-2 pt-2">
                           <button
-                            onClick={() => navigate(`/student/pdf/${pdf.id}`)}
+                            onClick={() => navigate(`/student/pdf/${pdf.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`)}
                             className="px-3 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                           >
                             عرض في المنصة
@@ -1354,7 +1365,7 @@ export default function LessonViewer() {
                             </button>
                           ) : (
                             <Link
-                              to={`/student/exams/${exam.id}`}
+                              to={`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`}
                               className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all"
                             >
                               ابدأ الاختبار

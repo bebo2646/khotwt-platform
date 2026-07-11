@@ -1,5 +1,5 @@
 import React from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize2, Minimize2, Download, FileText, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import API from '../../services/api'
 import { Skeleton } from '../../components/ui/Skeleton'
@@ -21,6 +21,9 @@ interface LessonData {
 export default function PdfViewerPage() {
   const { pdfId } = useParams<{ pdfId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const courseId = searchParams.get('course_id')
+  const packageId = searchParams.get('package_id')
 
   // State
   const [pdf, setPdf] = React.useState<PdfData | null>(null)
@@ -43,7 +46,11 @@ export default function PdfViewerPage() {
     setLoading(true)
     setError(null)
 
-    API.get(`/student/pdfs/${pdfId}`)
+    const params: any = {}
+    if (courseId) params.course_id = courseId
+    if (packageId) params.package_id = packageId
+
+    API.get(`/student/pdfs/${pdfId}`, { params })
       .then((res) => {
         setPdf(res.data.pdf)
         setLesson(res.data.lesson)

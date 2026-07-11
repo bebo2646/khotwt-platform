@@ -367,6 +367,7 @@ class StudentController extends Controller
         $alreadyEnrolled = Enrollment::where('student_id', $user->id)
             ->where('course_id', $courseId)
             ->whereNull('package_id')
+            ->whereNull('lesson_id')
             ->exists();
 
         if ($alreadyEnrolled) {
@@ -1046,43 +1047,13 @@ class StudentController extends Controller
         $lesson = \App\Models\Lesson::with('unit.course')->findOrFail($lessonId);
         $courseId = $lesson->unit->course_id;
 
-        // Check if already enrolled in the course (full access)
-        $alreadyEnrolledFull = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
-            ->whereNull('package_id')
-            ->whereNull('lesson_id')
-            ->exists();
-
-        if ($alreadyEnrolledFull) {
-            return response()->json(['message' => 'أنت مشترك بالفعل في الكورس بالكامل.'], 422);
-        }
-
-        // Check if already purchased this lesson
+        // Check if already purchased this standalone lesson
         $alreadyPurchasedLesson = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
             ->where('lesson_id', $lessonId)
             ->exists();
 
         if ($alreadyPurchasedLesson) {
-            return response()->json(['message' => 'أنت مشترك بالفعل في هذه المحاضرة.'], 422);
-        }
-
-        // Check if they have access via package
-        $isEnrolledInPackage = false;
-        $enrollments = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
-            ->get();
-        
-        $enrolledPackageIds = $enrollments->pluck('package_id')->filter()->toArray();
-        if (!empty($enrolledPackageIds)) {
-            $isEnrolledInPackage = DB::table('package_lessons')
-                ->where('lesson_id', $lessonId)
-                ->whereIn('package_id', $enrolledPackageIds)
-                ->exists();
-        }
-
-        if ($isEnrolledInPackage) {
-            return response()->json(['message' => 'أنت مشترك بالفعل في هذه المحاضرة عبر باقة مجمعة.'], 422);
+            return response()->json(['message' => 'أنت مشترك بالفعل في هذه المحاضرة كمنتج مستقل.'], 422);
         }
 
         $capacityCheck = $this->checkTeacherCapacity($user->id, $lesson->unit->course->teacher_id);
@@ -1159,6 +1130,23 @@ class StudentController extends Controller
      */
     public function lessonDetail(Request $request, $lessonId)
     {
+        $courseId = $request->query('course_id') ?: $request->input('course_id');
+        $packageId = $request->query('package_id') ?: $request->input('package_id');
+        return $this->getLessonDetailWithContext($request, $lessonId, $courseId, $packageId);
+    }
+
+    public function lessonDetailInCourse(Request $request, $courseId, $lessonId)
+    {
+        return $this->getLessonDetailWithContext($request, $lessonId, $courseId, null);
+    }
+
+    public function lessonDetailInPackage(Request $request, $packageId, $lessonId)
+    {
+        return $this->getLessonDetailWithContext($request, $lessonId, null, $packageId);
+    }
+
+    protected function getLessonDetailWithContext(Request $request, $lessonId, $courseIdParam = null, $packageIdParam = null)
+    {
         $user = $request->user();
         $lesson = \App\Models\Lesson::with(['unit.course'])->findOrFail($lessonId);
         $course = $lesson->unit->course;
@@ -1188,15 +1176,46 @@ class StudentController extends Controller
                 }
             }
 
-            $isEnrolled = Enrollment::where('student_id', $user->id)
-                ->where('course_id', $course->id)
-                ->exists();
-            if (!$isEnrolled) {
-                return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لمشاهدة المحتوى.'], 403);
+            $hasAccess = false;
+
+            if ($courseIdParam) {
+                // Check if they own the Full Course product
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('course_id', $courseIdParam)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
+                    ->exists();
+                // Ensure the lesson belongs to this course
+                if ($hasAccess && $lesson->unit) {
+                    $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                } else {
+                    $hasAccess = false;
+                }
+            } elseif ($packageIdParam) {
+                // Check if they own the Package product (Bundle, Month, Revision)
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('package_id', $packageIdParam)
+                    ->exists();
+                // Ensure the lesson is part of this package
+                if ($hasAccess) {
+                    $hasAccess = \DB::table('package_lessons')
+                        ->where('package_id', $packageIdParam)
+                        ->where('lesson_id', $lesson->id)
+                        ->exists();
+                }
+            } else {
+                // Standalone Lecture: check if they own the lesson directly
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('lesson_id', $lesson->id)
+                    ->exists();
             }
 
-            // Check if student has exceeded view limit
-            if ($course->hasExceededViewLimitForStudent($user->id)) {
+            if (!$hasAccess) {
+                return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذه المحاضرة. يرجى الاشتراك أولاً.'], 403);
+            }
+
+            // Check if student has exceeded view limit (only in Course context)
+            if ($courseIdParam && $course->hasExceededViewLimitForStudent($user->id)) {
                 $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
                 return response()->json([
                     'is_views_exceeded' => true,
@@ -1220,7 +1239,7 @@ class StudentController extends Controller
                 ]);
             }
 
-            if ($lesson->isLockedForStudent($user->id)) {
+            if ($courseIdParam && $lesson->isLockedForStudent($user->id)) {
                 return response()->json([
                     'message' => 'يجب إكمال متطلبات الدرس السابق أولاً (مشاهدة المحاضرات وحل الواجب).',
                     'is_locked' => true
@@ -1326,11 +1345,50 @@ class StudentController extends Controller
 
         $user = $request->user();
         $video = Video::findOrFail($videoId);
+        $lesson = $video->lesson;
 
-        // Check if student has exceeded view limit
-        if ($user->isStudent() && $video->lesson && $video->lesson->unit) {
-            $course = $video->lesson->unit->course;
-            if ($course && $course->hasExceededViewLimitForStudent($user->id)) {
+        if ($user->isStudent()) {
+            if (!$lesson || !$lesson->unit) {
+                return response()->json(['message' => 'المحاضرة غير صالحة.'], 404);
+            }
+
+            $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
+            $packageIdParam = $request->input('package_id') ?: $request->query('package_id');
+
+            $hasAccess = false;
+
+            if ($courseIdParam) {
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('course_id', $courseIdParam)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
+                    ->exists();
+                if ($hasAccess) {
+                    $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                }
+            } elseif ($packageIdParam) {
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('package_id', $packageIdParam)
+                    ->exists();
+                if ($hasAccess) {
+                    $hasAccess = \DB::table('package_lessons')
+                        ->where('package_id', $packageIdParam)
+                        ->where('lesson_id', $lesson->id)
+                        ->exists();
+                }
+            } else {
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->where('lesson_id', $lesson->id)
+                    ->exists();
+            }
+
+            if (!$hasAccess) {
+                return response()->json(['message' => 'غير مصرح لك بمشاهدة هذا الفيديو أو تحديث تقدمه.'], 403);
+            }
+
+            // Check if student has exceeded view limit (only in Course context)
+            $course = $lesson->unit->course;
+            if ($courseIdParam && $course && $course->hasExceededViewLimitForStudent($user->id)) {
                 // Allow the student to continue their current active playback session
                 $sessionId = $request->input('session_id');
                 $sessionExists = false;
@@ -1536,12 +1594,40 @@ class StudentController extends Controller
         }
         $courseId = $lesson->unit->course_id;
 
-        $isEnrolled = \App\Models\Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
-            ->exists();
+        $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
+        $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
-        if (!$isEnrolled) {
-            return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لمشاهدة الملف.'], 403);
+        $hasAccess = false;
+
+        if ($courseIdParam) {
+            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
+                ->where('course_id', $courseIdParam)
+                ->whereNull('package_id')
+                ->whereNull('lesson_id')
+                ->exists();
+            if ($hasAccess && $lesson->unit) {
+                $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+            } else {
+                $hasAccess = false;
+            }
+        } elseif ($packageIdParam) {
+            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
+                ->where('package_id', $packageIdParam)
+                ->exists();
+            if ($hasAccess) {
+                $hasAccess = \DB::table('package_lessons')
+                    ->where('package_id', $packageIdParam)
+                    ->where('lesson_id', $lesson->id)
+                    ->exists();
+            }
+        } else {
+            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
+                ->where('lesson_id', $lesson->id)
+                ->exists();
+        }
+
+        if (!$hasAccess) {
+            return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذا الملف. يرجى الاشتراك أولاً.'], 403);
         }
 
         $progress = \App\Models\StudentPdfProgress::firstOrCreate(
@@ -1658,17 +1744,45 @@ class StudentController extends Controller
         $lesson = $exam->lesson;
         $courseId = $lesson->unit->course_id;
 
-        $isEnrolled = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
-            ->exists();
+        $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
+        $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
-        if (!$isEnrolled) {
-            return response()->json(['message' => 'يجب عليك الاشتراك في الكورس لحل الامتحان.'], 403);
+        $hasAccess = false;
+
+        if ($courseIdParam) {
+            $hasAccess = Enrollment::where('student_id', $user->id)
+                ->where('course_id', $courseIdParam)
+                ->whereNull('package_id')
+                ->whereNull('lesson_id')
+                ->exists();
+            if ($hasAccess && $lesson->unit) {
+                $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+            } else {
+                $hasAccess = false;
+            }
+        } elseif ($packageIdParam) {
+            $hasAccess = Enrollment::where('student_id', $user->id)
+                ->where('package_id', $packageIdParam)
+                ->exists();
+            if ($hasAccess) {
+                $hasAccess = \DB::table('package_lessons')
+                    ->where('package_id', $packageIdParam)
+                    ->where('lesson_id', $lesson->id)
+                    ->exists();
+            }
+        } else {
+            $hasAccess = Enrollment::where('student_id', $user->id)
+                ->where('lesson_id', $lesson->id)
+                ->exists();
         }
 
-        // Check if student has exceeded course views
+        if (!$hasAccess) {
+            return response()->json(['message' => 'غير مصرح لك بأداء هذا الامتحان. يرجى الاشتراك أولاً.'], 403);
+        }
+
+        // Check if student has exceeded course views (only in Course context)
         $course = $lesson ? $lesson->unit->course : null;
-        if ($course && $course->hasExceededViewLimitForStudent($user->id)) {
+        if ($courseIdParam && $course && $course->hasExceededViewLimitForStudent($user->id)) {
             return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
@@ -2464,15 +2578,26 @@ class StudentController extends Controller
             return response()->json(['message' => 'هذا الامتحان مجاني ولا يتطلب شراء.'], 422);
         }
 
-        // Check if student is enrolled in the course first
-        $lesson = $exam->lesson;
-        $courseId = $lesson->unit->course_id;
-        $isEnrolled = Enrollment::where('student_id', $user->id)
-            ->where('course_id', $courseId)
+        // Check if student has access to the lesson (either course, package, or lesson level)
+        $hasAccess = Enrollment::where('student_id', $user->id)
+            ->where(function($q) use ($courseId, $lesson) {
+                // Course level
+                $q->where(function($q2) use ($courseId) {
+                    $q2->where('course_id', $courseId)->whereNull('package_id')->whereNull('lesson_id');
+                })
+                // Lesson level
+                ->orWhere('lesson_id', $lesson->id)
+                // Package level (if the package contains the lesson)
+                ->orWhereIn('package_id', function($subQuery) use ($lesson) {
+                    $subQuery->select('package_id')
+                        ->from('package_lessons')
+                        ->where('lesson_id', $lesson->id);
+                });
+            })
             ->exists();
 
-        if (!$isEnrolled) {
-            return response()->json(['message' => 'يجب عليك الاشتراك في الكورس أولاً.'], 403);
+        if (!$hasAccess) {
+            return response()->json(['message' => 'يجب عليك الاشتراك في الكورس أو الباقة أو المحاضرة أولاً.'], 403);
         }
 
         // Check if already purchased
