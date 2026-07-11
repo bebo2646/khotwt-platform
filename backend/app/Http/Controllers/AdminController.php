@@ -2328,6 +2328,37 @@ class AdminController extends Controller
     }
 
     /**
+     * Export the database as JSON backup (Admin only).
+     */
+    public function exportDatabase(Request $request)
+    {
+        $tables = [
+            'users', 'courses', 'units', 'lessons', 'packages', 'package_lessons',
+            'videos', 'pdfs', 'exams', 'questions', 'student_exams', 'student_answers',
+            'wallets', 'wallet_transactions', 'purchase_codes', 'enrollments',
+            'video_progresses', 'student_pdf_progresses', 'exam_purchases', 'refund_logs',
+            'teacher_payouts', 'teacher_earnings', 'platform_earnings', 'payment_histories',
+            'purchase_audit_logs', 'notifications', 'notification_reads', 'sessions',
+            'password_reset_tokens'
+        ];
+
+        $dump = [];
+        foreach ($tables as $table) {
+            if (\Schema::hasTable($table)) {
+                $dump[$table] = \DB::table($table)->get()->toArray();
+            }
+        }
+
+        $json = json_encode($dump, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        $filename = 'backup_' . date('Y_m_d_His') . '.json';
+
+        return response($json, 200, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
      * Reset the academic year (Admin only).
      */
     public function resetAcademicYear(Request $request)

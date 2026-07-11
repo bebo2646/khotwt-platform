@@ -2,7 +2,7 @@ import React from 'react'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { useConfigStore } from '../../store/configStore'
-import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2 } from 'lucide-react'
+import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2, Eye } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
 import { getCourseDisplayPrice } from '../../utils/pricing'
@@ -1395,6 +1395,14 @@ export default function ManageCourses() {
                         </div>
 
                         <div className="flex gap-2 pt-2 border-t border-[var(--border-color)]">
+                          <button
+                            onClick={() => {
+                              window.open(`/courses/${selectedCourse.id}?package_id=${pkg.id}&preview=true`, '_blank')
+                            }}
+                            className="flex-1 py-1.5 bg-emerald-500/10 hover:bg-emerald-600 text-emerald-500 hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Eye className="h-3.5 w-3.5" /> <span>معاينة</span>
+                          </button>
                           <button
                             onClick={() => {
                               setEditPackageMode(pkg)

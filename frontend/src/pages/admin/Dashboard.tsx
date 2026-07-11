@@ -61,6 +61,8 @@ export default function Dashboard() {
   // Academic Reset states
   const [resetConfirmationText, setResetConfirmationText] = React.useState('')
   const [resettingYear, setResettingYear] = React.useState(false)
+  const [isBackupDownloaded, setIsBackupDownloaded] = React.useState(false)
+  const [downloadingBackup, setDownloadingBackup] = React.useState(false)
 
   // Package admin states
   const [showPackageForm, setShowPackageForm] = React.useState(false)
@@ -141,6 +143,28 @@ export default function Dashboard() {
     loadDashboardData()
   }, [loadDashboardData])
 
+  const handleDownloadBackup = async () => {
+    setDownloadingBackup(true)
+    try {
+      const response = await API.get('/admin/export-database', { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `backup_${new Date().toISOString().slice(0,10)}_${Date.now()}.json`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      
+      setIsBackupDownloaded(true)
+      useModalStore.getState().showToast('تم تحميل نسخة احتياطية كاملة بنجاح! يمكنك الآن المتابعة للتهيئة.', 'success')
+    } catch (err) {
+      console.error(err)
+      useModalStore.getState().showToast('فشل تحميل النسخة الاحتياطية. يرجى المحاولة لاحقاً.', 'error')
+    } finally {
+      setDownloadingBackup(false)
+    }
+  }
+
   const handleAcademicYearReset = async () => {
     if (resetConfirmationText !== 'RESET ACADEMIC YEAR') return;
 
@@ -156,6 +180,7 @@ export default function Dashboard() {
           })
           useModalStore.getState().showToast(res.data.message || 'تمت تهيئة السنة الدراسية بنجاح.', 'success')
           setResetConfirmationText('')
+          setIsBackupDownloaded(false)
           loadDashboardData()
         } catch (err: any) {
           useModalStore.getState().showToast(err.response?.data?.message || 'فشل تهيئة السنة الدراسية.', 'error')
@@ -983,27 +1008,57 @@ export default function Dashboard() {
               </p>
             </div>
 
-            <div className="space-y-4 max-w-md text-right">
-              <label className="text-xs font-semibold text-slate-300 block">
-                لتأكيد تهيئة السنة الدراسية الجديدة، يرجى كتابة عبارة <span className="text-rose-400 font-bold select-all">RESET ACADEMIC YEAR</span> في الحقل أدناه:
-              </label>
-              <input
-                type="text"
-                value={resetConfirmationText}
-                onChange={(e) => setResetConfirmationText(e.target.value)}
-                placeholder="RESET ACADEMIC YEAR"
-                className="w-full bg-[rgba(255,255,255,0.02)] border border-rose-500/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-center font-bold tracking-wider"
-              />
-              
-              <button
-                type="button"
-                onClick={handleAcademicYearReset}
-                disabled={resetConfirmationText !== 'RESET ACADEMIC YEAR' || resettingYear}
-                className="w-full sm:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                {resettingYear ? 'جاري تهيئة المنصة...' : 'بدء تهيئة السنة الدراسية'}
-              </button>
-            </div>
+            {!isBackupDownloaded ? (
+              <div className="space-y-4 max-w-md text-right">
+                <p className="text-xs text-amber-400 font-bold border border-amber-500/20 p-4 rounded-xl bg-amber-500/5">
+                  للأمان وحماية البيانات من الفقدان غير القابل للاسترداد، يجب تحميل نسخة احتياطية من قاعدة البيانات أولاً قبل تفعيل خيار التهيئة.
+                </p>
+                
+                <button
+                  type="button"
+                  onClick={handleDownloadBackup}
+                  disabled={downloadingBackup}
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto"
+                >
+                  {downloadingBackup ? 'جاري تصدير وتحميل قاعدة البيانات...' : 'تنزيل نسخة احتياطية كاملة لقاعدة البيانات'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-md text-right">
+                <p className="text-xs text-emerald-400 font-bold border border-emerald-500/20 p-4 rounded-xl bg-emerald-500/5">
+                  تم تحميل نسخة احتياطية كاملة بنجاح! يمكنك الآن كتابة تأكيد التهيئة أدناه.
+                </p>
+
+                <label className="text-xs font-semibold text-slate-300 block font-bold">
+                  لتأكيد تهيئة السنة الدراسية الجديدة، يرجى كتابة عبارة <span className="text-rose-400 font-bold select-all">RESET ACADEMIC YEAR</span> في الحقل أدناه:
+                </label>
+                <input
+                  type="text"
+                  value={resetConfirmationText}
+                  onChange={(e) => setResetConfirmationText(e.target.value)}
+                  placeholder="RESET ACADEMIC YEAR"
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-rose-500/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-center font-bold tracking-wider"
+                />
+                
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAcademicYearReset}
+                    disabled={resetConfirmationText !== 'RESET ACADEMIC YEAR' || resettingYear}
+                    className="px-6 py-3 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {resettingYear ? 'جاري تهيئة المنصة...' : 'بدء تهيئة السنة الدراسية'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsBackupDownloaded(false)}
+                    className="px-4 py-3 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] hover:border-slate-500 text-slate-300 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+                  >
+                    رجوع
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
