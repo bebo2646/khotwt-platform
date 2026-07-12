@@ -687,25 +687,21 @@ export default function CourseDetail() {
     )
   }
 
-  const displayUnitsCount = course?.is_bundle 
-    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.length : 0), 0)
-    : units.length;
+  const displayUnitsCount = units.length;
 
-  const displayLessonsCount = course?.is_bundle
-    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.length : 0), 0) : 0), 0)
-    : units.reduce((acc: number, u: any) => acc + u.lessons.length, 0);
+  const displayLessonsCount = units.reduce((acc: number, u: any) => acc + (u.lessons ? u.lessons.length : 0), 0);
 
-  const displayVideosCount = course?.is_bundle
-    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.videos ? l.videos.length : (l.videos_count || 0)), 0) : 0), 0) : 0), 0)
-    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.videos_count || 0), 0), 0);
+  const displayVideosCount = units.reduce((acc: number, u: any) => 
+    acc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.videos ? l.videos.length : (l.videos_count || 0)), 0) : 0), 0
+  );
 
-  const displayPdfsCount = course?.is_bundle
-    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.pdfs ? l.pdfs.length : 0), 0) : 0), 0) : 0), 0)
-    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.pdfs ? l.pdfs.length : 0), 0), 0);
+  const displayPdfsCount = units.reduce((acc: number, u: any) => 
+    acc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.pdfs ? l.pdfs.length : (l.pdfs_count || 0)), 0) : 0), 0
+  );
 
-  const displayExamsCount = course?.is_bundle
-    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.exams ? l.exams.length : 0), 0) : 0), 0) : 0), 0)
-    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.exams ? l.exams.length : 0), 0), 0);
+  const displayExamsCount = units.reduce((acc: number, u: any) => 
+    acc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.exams ? l.exams.length : (l.exams_count || 0)), 0) : 0), 0
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
