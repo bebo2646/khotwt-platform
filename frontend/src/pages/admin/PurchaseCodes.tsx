@@ -13,7 +13,8 @@ interface PurchaseCodeItem {
   credit_amount?: string | null
   amount: string
   course?: {
-    title: string
+    title: string;
+    is_bundle?: boolean | number | string;
   } | null
   package?: {
     title: string
@@ -32,6 +33,7 @@ interface PurchaseCodeItem {
 interface CourseItem {
   id: number
   title: string
+  is_bundle?: boolean | number | string
 }
 
 interface TeacherItem {
@@ -178,7 +180,8 @@ export default function PurchaseCodes() {
       const codeType = c.code_type || c.type
       const typeStr = codeType === 'wallet' ? 'شحن محفظة' : (codeType === 'teacher' ? 'رصيد معلم' : 'اشتراك كورس')
       const amtStr = (codeType === 'wallet' || codeType === 'teacher') ? (c.amount || c.credit_amount) : '0.00'
-      const courseStr = c.course?.title ? `"${c.course.title}"` : 'لا يوجد'
+      const isBundle = c.course && (c.course.is_bundle === true || c.course.is_bundle === 1 || c.course.is_bundle === '1')
+      const courseStr = c.course?.title ? (isBundle ? `"📦 ${c.course.title} (كورس مجمع)"` : `"${c.course.title}"`) : 'لا يوجد'
       const teachStr = c.teacher?.name ? `"${c.teacher.name}"` : 'لا يوجد'
       const statusStr = c.is_redeemed ? 'مستعمل' : 'متاح'
       return `${c.code},${typeStr},${amtStr},${courseStr},${teachStr},${statusStr}\n`
@@ -341,7 +344,10 @@ export default function PurchaseCodes() {
                     {/* Associated Course / Teacher / Package */}
                     <td className="p-4 sm:p-6 text-slate-300 font-medium max-w-xs truncate">
                       {c.type === 'course' && c.course ? (
-                        <span>كورس: {c.course.title}</span>
+                        <span>
+                          {(c.course.is_bundle === true || c.course.is_bundle === 1 || c.course.is_bundle === '1') ? '📦 كورس مجمع: ' : '📘 كورس: '}
+                          {c.course.title}
+                        </span>
                       ) : c.type === 'course' && c.package ? (
                         <span>باقة: {c.package.title}</span>
                       ) : c.teacher?.name ? (
@@ -479,9 +485,14 @@ export default function PurchaseCodes() {
                         className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
                       >
                         <option value="">اختر الكورس...</option>
-                        {courses.map((c) => (
-                          <option key={c.id} value={c.id}>{c.title}</option>
-                        ))}
+                        {courses.map((c) => {
+                          const isBundle = c.is_bundle === true || c.is_bundle === 1 || c.is_bundle === '1';
+                          return (
+                            <option key={c.id} value={c.id}>
+                              {isBundle ? `📦 ${c.title} (كورس مجمع)` : `📘 ${c.title}`}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   ) : (
