@@ -422,16 +422,19 @@ class PublicController extends Controller
                 $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
 
                 $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
+                    ->where('course_id', $course->id)
                     ->whereIn('video_id', $videoIds)
                     ->get()
                     ->keyBy('video_id');
 
                 $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
+                    ->where('course_id', $course->id)
                     ->whereIn('pdf_id', $pdfIds)
                     ->get()
                     ->keyBy('pdf_id');
 
                 $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+                    ->where('course_id', $course->id)
                     ->whereIn('exam_id', $examIds)
                     ->get()
                     ->groupBy('exam_id');
@@ -692,12 +695,17 @@ class PublicController extends Controller
                 $isEnrolled = $courseEnroll || $packageEnroll || $lessonEnroll;
 
                 if ($isEnrolled) {
-                    if ($course->hasExceededViewLimitForStudent($user->id)) {
+                    $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
+                    $contextCourseId = $courseIdParam ?: $courseId;
+
+                    $contextCourse = \App\Models\Course::find($contextCourseId);
+                    if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
                         $viewLimitExceeded = true;
                     }
 
                     // Find last watched video position for "متابعة المشاهدة"
                     $lastWatched = VideoProgress::where('student_id', $user->id)
+                        ->where('course_id', $contextCourseId)
                         ->whereHas('video.lesson.unit', function ($q) use ($courseId) {
                             $q->where('course_id', $courseId);
                         })
@@ -729,6 +737,9 @@ class PublicController extends Controller
         $viewLimitDetails = null;
 
         if ($user && $user->isStudent()) {
+            $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
+            $contextCourseId = $courseIdParam ?: $courseId;
+
             // Find all videos, pdfs, and exams in this course
             $lessonIds = \App\Models\Lesson::whereHas('unit', function ($q) use ($courseId) {
                 $q->where('course_id', $courseId);
@@ -739,22 +750,31 @@ class PublicController extends Controller
             $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
 
             $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $packageId)
                 ->whereIn('video_id', $videoIds)
                 ->get()
                 ->keyBy('video_id');
 
             $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $packageId)
                 ->whereIn('pdf_id', $pdfIds)
                 ->get()
                 ->keyBy('pdf_id');
 
             $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $packageId)
                 ->whereIn('exam_id', $examIds)
                 ->get()
                 ->groupBy('exam_id');
 
             if ($isEnrolled) {
-                $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+                $contextCourse = \App\Models\Course::find($contextCourseId);
+                if ($contextCourse) {
+                    $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
+                }
             }
         }
 

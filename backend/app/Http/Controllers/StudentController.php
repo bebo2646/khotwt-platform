@@ -1358,9 +1358,24 @@ class StudentController extends Controller
         $exams = Exam::where('lesson_id', $lessonId)->get();
 
         // Get progress for each video
-        $videosWithProgress = $videos->map(function ($video) use ($user) {
+        $videosWithProgress = $videos->map(function ($video) use ($user, $courseIdParam, $packageIdParam, $lesson) {
+            $contextCourseId = null;
+            $contextPackageId = null;
+            $contextLessonId = null;
+
+            if ($courseIdParam) {
+                $contextCourseId = $courseIdParam;
+            } elseif ($packageIdParam) {
+                $contextPackageId = $packageIdParam;
+            } else {
+                $contextLessonId = $lesson->id;
+            }
+
             $progress = VideoProgress::where('student_id', $user->id)
                 ->where('video_id', $video->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $contextPackageId)
+                ->where('lesson_id', $contextLessonId)
                 ->first();
 
             return [
@@ -1382,9 +1397,24 @@ class StudentController extends Controller
         });
 
         // Get exam submissions for this student
-        $examsWithAttempts = $exams->map(function ($exam) use ($user) {
+        $examsWithAttempts = $exams->map(function ($exam) use ($user, $courseIdParam, $packageIdParam, $lesson) {
+            $contextCourseId = null;
+            $contextPackageId = null;
+            $contextLessonId = null;
+
+            if ($courseIdParam) {
+                $contextCourseId = $courseIdParam;
+            } elseif ($packageIdParam) {
+                $contextPackageId = $packageIdParam;
+            } else {
+                $contextLessonId = $lesson->id;
+            }
+
             $lastAttempt = StudentExam::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $contextPackageId)
+                ->where('lesson_id', $contextLessonId)
                 ->latest()
                 ->first();
 
@@ -1608,7 +1638,13 @@ class StudentController extends Controller
             $viewsUsedAfter = $viewLimitRecordAfter ? $viewLimitRecordAfter->views_used : 0;
 
             // Recalculate remaining views
-            $limitDetails = $video->lesson->unit->course->getStudentViewLimitDetails($user->id);
+            $contextCourse = null;
+            if ($courseIdParam) {
+                $contextCourse = \App\Models\Course::find($courseIdParam);
+            } elseif ($video->lesson && $video->lesson->unit) {
+                $contextCourse = $video->lesson->unit->course;
+            }
+            $limitDetails = $contextCourse ? $contextCourse->getStudentViewLimitDetails($user->id) : null;
             $remainingViews = $limitDetails ? $limitDetails['remaining'] : null;
 
             // Temporary logging for audit and debugging
@@ -1627,9 +1663,24 @@ class StudentController extends Controller
         
         $lastPosition = $request->last_position_seconds;
         
+        $contextCourseId = null;
+        $contextPackageId = null;
+        $contextLessonId = null;
+
+        if ($courseIdParam) {
+            $contextCourseId = $courseIdParam;
+        } elseif ($packageIdParam) {
+            $contextPackageId = $packageIdParam;
+        } else {
+            $contextLessonId = $lesson ? $lesson->id : null;
+        }
+
         // Find existing progress record
         $progress = VideoProgress::where('student_id', $user->id)
             ->where('video_id', $videoId)
+            ->where('course_id', $contextCourseId)
+            ->where('package_id', $contextPackageId)
+            ->where('lesson_id', $contextLessonId)
             ->first();
 
         // Process segments
@@ -1660,6 +1711,9 @@ class StudentController extends Controller
             [
                 'student_id' => $user->id,
                 'video_id' => $videoId,
+                'course_id' => $contextCourseId,
+                'package_id' => $contextPackageId,
+                'lesson_id' => $contextLessonId,
             ],
             [
                 'watched_seconds' => max($finalWatchedSeconds, $progress ? $progress->watched_seconds : 0),
@@ -1672,8 +1726,16 @@ class StudentController extends Controller
         );
 
         $viewLimitDetails = null;
-        if ($user->isStudent() && $video->lesson && $video->lesson->unit) {
-            $viewLimitDetails = $video->lesson->unit->course->getStudentViewLimitDetails($user->id);
+        if ($user->isStudent()) {
+            $contextCourse = null;
+            if ($courseIdParam) {
+                $contextCourse = \App\Models\Course::find($courseIdParam);
+            } elseif ($video->lesson && $video->lesson->unit) {
+                $contextCourse = $video->lesson->unit->course;
+            }
+            if ($contextCourse) {
+                $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
+            }
         }
         $progress->view_limit_details = $viewLimitDetails;
 
@@ -1687,12 +1749,31 @@ class StudentController extends Controller
     {
         $user = $request->user();
         $pdf = \App\Models\Pdf::findOrFail($pdfId);
+        $lesson = $pdf->lesson;
+
+        $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
+        $packageIdParam = $request->input('package_id') ?: $request->query('package_id');
+
+        $contextCourseId = null;
+        $contextPackageId = null;
+        $contextLessonId = null;
+
+        if ($courseIdParam) {
+            $contextCourseId = $courseIdParam;
+        } elseif ($packageIdParam) {
+            $contextPackageId = $packageIdParam;
+        } else {
+            $contextLessonId = $lesson ? $lesson->id : null;
+        }
 
         // Record or update PDF progress
         $progress = \App\Models\StudentPdfProgress::firstOrCreate(
             [
                 'student_id' => $user->id,
                 'pdf_id' => $pdf->id,
+                'course_id' => $contextCourseId,
+                'package_id' => $contextPackageId,
+                'lesson_id' => $contextLessonId,
             ],
             [
                 'open_count' => 0,
@@ -1784,10 +1865,25 @@ class StudentController extends Controller
             return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذا الملف. يرجى الاشتراك أولاً.'], 403);
         }
 
+        $contextCourseId = null;
+        $contextPackageId = null;
+        $contextLessonId = null;
+
+        if ($courseIdParam) {
+            $contextCourseId = $courseIdParam;
+        } elseif ($packageIdParam) {
+            $contextPackageId = $packageIdParam;
+        } else {
+            $contextLessonId = $lesson ? $lesson->id : null;
+        }
+
         $progress = \App\Models\StudentPdfProgress::firstOrCreate(
             [
                 'student_id' => $user->id,
                 'pdf_id' => $pdf->id,
+                'course_id' => $contextCourseId,
+                'package_id' => $contextPackageId,
+                'lesson_id' => $contextLessonId,
             ],
             [
                 'open_count' => 0,
@@ -2014,12 +2110,27 @@ class StudentController extends Controller
             }
         }
 
+        $contextCourseId = null;
+        $contextPackageId = null;
+        $contextLessonId = null;
+
+        if ($courseIdParam) {
+            $contextCourseId = $courseIdParam;
+        } elseif ($packageIdParam) {
+            $contextPackageId = $packageIdParam;
+        } else {
+            $contextLessonId = $lesson ? $lesson->id : null;
+        }
+
         // Check or create started attempt
         $attempt = StudentExam::firstOrCreate(
             [
                 'student_id' => $user->id,
                 'exam_id' => $examId,
                 'status' => 'started',
+                'course_id' => $contextCourseId,
+                'package_id' => $contextPackageId,
+                'lesson_id' => $contextLessonId,
             ],
             [
                 'score' => null,
@@ -2428,6 +2539,25 @@ class StudentController extends Controller
                 })->with('videos')->get();
             }
 
+            $contextCourseId = null;
+            $contextPackageId = null;
+            $contextLessonId = null;
+
+            if ($enrollment->package_id) {
+                $contextPackageId = $enrollment->package_id;
+            } elseif ($enrollment->course_id) {
+                $contextCourseId = $enrollment->course_id;
+            } elseif ($enrollment->lesson_id) {
+                $contextLessonId = $enrollment->lesson_id;
+            }
+
+            // Filter progress records to only include this subscription context
+            $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
+                return $r->course_id == $contextCourseId 
+                    && $r->package_id == $contextPackageId 
+                    && $r->lesson_id == $contextLessonId;
+            })->keyBy('video_id');
+
             // Gather all video IDs
             $videoIds = [];
             if ($isBundle || $isBundledCourse) {
@@ -2452,7 +2582,7 @@ class StudentController extends Controller
             $watchedSeconds = 0;
 
             if ($totalVideos > 0) {
-                $courseProgress = $progressRecords->only($videoIds);
+                $courseProgress = $matchingProgress->only($videoIds);
                 $completedVideos = $courseProgress->where('completed', true)->count();
                 $sumPercentage = $courseProgress->sum('watched_percentage');
                 $progress = min(100, round($sumPercentage / $totalVideos));
@@ -2462,7 +2592,7 @@ class StudentController extends Controller
                     foreach ($bundleLessons as $lesson) {
                         foreach ($lesson->videos as $video) {
                             $totalDuration += $video->duration_seconds;
-                            $prog = $progressRecords->get($video->id);
+                            $prog = $matchingProgress->get($video->id);
                             if ($prog) {
                                 $watchedSeconds += $prog->watched_seconds;
                             }
@@ -2473,7 +2603,7 @@ class StudentController extends Controller
                         foreach ($unit->lessons as $lesson) {
                             foreach ($lesson->videos as $video) {
                                 $totalDuration += $video->duration_seconds;
-                                $prog = $progressRecords->get($video->id);
+                                $prog = $matchingProgress->get($video->id);
                                 if ($prog) {
                                     $watchedSeconds += $prog->watched_seconds;
                                 }
@@ -2538,39 +2668,76 @@ class StudentController extends Controller
         // Overall progress percentage
         $overallProgress = 0;
         if ($totalVideosCount > 0) {
-            $allVideoIds = [];
+            $totalSumPercentage = 0;
+            $allVideosSummedCount = 0;
             foreach ($enrollments as $enrollment) {
+                $course = $enrollment->course;
+                $isBundle = false;
+                $bundleLessons = collect();
+                
                 if ($enrollment->package && $enrollment->package->type === 'bundle') {
+                    $isBundle = true;
                     $bundleLessons = $enrollment->package->lessons()->with('videos')->get();
-                    foreach ($bundleLessons as $lesson) {
-                        foreach ($lesson->videos as $video) {
-                            $allVideoIds[] = $video->id;
-                        }
-                    }
-                    continue;
                 }
 
-                $course = $enrollment->course;
-                if (!$course) {
+                if (!$course && !$isBundle) {
                     if ($enrollment->package) {
                         $course = $enrollment->package->course;
                     } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
                         $course = $enrollment->lesson->unit->course;
                     }
                 }
-                if (!$course) continue;
-                foreach ($course->units as $unit) {
-                    foreach ($unit->lessons as $lesson) {
+                if (!$course && !$isBundle) continue;
+
+                $isBundledCourse = false;
+                if ($course && $course->is_bundle) {
+                    $isBundledCourse = true;
+                    $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
+                    $bundleLessons = \App\Models\Lesson::whereIn('unit_id', function($q) use ($childIds) {
+                        $q->select('id')->from('units')->whereIn('course_id', $childIds);
+                    })->with('videos')->get();
+                }
+
+                $contextCourseId = null;
+                $contextPackageId = null;
+                $contextLessonId = null;
+
+                if ($enrollment->package_id) {
+                    $contextPackageId = $enrollment->package_id;
+                } elseif ($enrollment->course_id) {
+                    $contextCourseId = $enrollment->course_id;
+                } elseif ($enrollment->lesson_id) {
+                    $contextLessonId = $enrollment->lesson_id;
+                }
+
+                $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
+                    return $r->course_id == $contextCourseId 
+                        && $r->package_id == $contextPackageId 
+                        && $r->lesson_id == $contextLessonId;
+                })->keyBy('video_id');
+
+                $videoIds = [];
+                if ($isBundle || $isBundledCourse) {
+                    foreach ($bundleLessons as $lesson) {
                         foreach ($lesson->videos as $video) {
-                            $allVideoIds[] = $video->id;
+                            $videoIds[] = $video->id;
+                        }
+                    }
+                } else {
+                    foreach ($course->units as $unit) {
+                        foreach ($unit->lessons as $lesson) {
+                            foreach ($lesson->videos as $video) {
+                                $videoIds[] = $video->id;
+                            }
                         }
                     }
                 }
+
+                $courseProgress = $matchingProgress->only($videoIds);
+                $totalSumPercentage += $courseProgress->sum('watched_percentage');
+                $allVideosSummedCount += count($videoIds);
             }
-            $totalSumPercentage = VideoProgress::where('student_id', $user->id)
-                ->whereIn('video_id', $allVideoIds)
-                ->sum('watched_percentage');
-            $overallProgress = min(100, round($totalSumPercentage / max(1, count($allVideoIds))));
+            $overallProgress = min(100, round($totalSumPercentage / max(1, $allVideosSummedCount)));
         } elseif (count($enrollments) > 0) {
             $overallProgress = 100;
         }
@@ -2760,6 +2927,25 @@ class StudentController extends Controller
             }
             if (!$course) continue;
 
+            $contextCourseId = null;
+            $contextPackageId = null;
+            $contextLessonId = null;
+
+            if ($enrollment->package_id) {
+                $contextPackageId = $enrollment->package_id;
+            } elseif ($enrollment->course_id) {
+                $contextCourseId = $enrollment->course_id;
+            } elseif ($enrollment->lesson_id) {
+                $contextLessonId = $enrollment->lesson_id;
+            }
+
+            // Filter progress records to only include this subscription context
+            $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
+                return $r->course_id == $contextCourseId 
+                    && $r->package_id == $contextPackageId 
+                    && $r->lesson_id == $contextLessonId;
+            })->keyBy('video_id');
+
             $videoIds = [];
             if ($course->is_bundle) {
                 $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
@@ -2785,7 +2971,7 @@ class StudentController extends Controller
             $completedVideos = 0;
 
             if ($totalVideos > 0) {
-                $courseProgress = $progressRecords->only($videoIds);
+                $courseProgress = $matchingProgress->only($videoIds);
                 $completedVideos = $courseProgress->where('completed', true)->count();
                 $sumPercentage = $courseProgress->sum('watched_percentage');
 
