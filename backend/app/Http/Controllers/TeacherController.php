@@ -578,6 +578,7 @@ class TeacherController extends Controller
                     'title' => $c->title,
                     'students_count' => $c->students_count,
                     'avg_progress' => $avgProgress,
+                    'is_bundle' => (bool)$c->is_bundle,
                 ];
             });
 
@@ -705,12 +706,17 @@ class TeacherController extends Controller
         return response()->json($course);
     }
 
-    /**
-     * Delete Course.
-     */
     public function deleteCourse(Request $request, $id)
     {
         $course = $this->verifyCourseTeacher($request, $id);
+
+        $isLinked = \DB::table('course_bundle_items')->where('child_id', $id)->exists();
+        if ($isLinked) {
+            return response()->json([
+                'message' => "هذا الكورس مستخدم داخل كورس مجمع.\nلا يمكن حذفه قبل إزالة الربط."
+            ], 400);
+        }
+
         $course->delete();
 
         return response()->json(['message' => 'تم حذف الكورس بنجاح.']);
@@ -2438,23 +2444,61 @@ class TeacherController extends Controller
         ]);
 
         // Ensure we do not link the bundled course to itself
-        $childIds = array_filter($request->child_ids, function($id) use ($courseId) {
-            return (int)$id !== (int)$courseId;
-        });
+        foreach ($request->child_ids as $id) {
+            if ((int)$id === (int)$courseId) {
+                return response()->json([
+                    'message' => 'لا يمكن ربط الكورس المجمع بنفسه.'
+                ], 422);
+            }
+        }
 
-        // Validate that all linked courses belong to the same grade
+        $childIds = $request->child_ids;
+
+        // Validate that all linked courses belong to the same grade, subject, teacher, and are not bundled courses
         if (!empty($childIds)) {
             $childCourses = \App\Models\Course::whereIn('id', $childIds)->get();
+            
+            // 1. Prevent Circular References (cannot select bundled courses as child)
+            foreach ($childCourses as $child) {
+                if ($child->is_bundle === true || (int)$child->is_bundle === 1 || $child->is_bundle === '1') {
+                    return response()->json([
+                        'message' => 'لا يمكن إضافة كورس مجمع ككورس فرعي داخل كورس مجمع آخر.'
+                    ], 422);
+                }
+            }
+
+            // 2. Validate Teacher (all child courses must belong to the same teacher)
+            $teacherIds = $childCourses->pluck('teacher_id')->unique();
+            if ($teacherIds->count() > 1 || ((int)$teacherIds->first() !== (int)$course->teacher_id)) {
+                return response()->json([
+                    'message' => 'يجب أن تنتمي جميع الكورسات المحددة لنفس المعلم.'
+                ], 422);
+            }
+
+            // 3. Validate Grade (all child courses must belong to the same grade)
             $grades = $childCourses->pluck('grade')->unique()->filter();
             if ($grades->count() > 1) {
                 return response()->json([
                     'message' => 'لا يمكن إنشاء كورس مجمع من كورسات تنتمي إلى مراحل دراسية مختلفة.'
                 ], 422);
             }
+
+            // 4. Validate Subject (all child courses must belong to the same subject)
+            $subjects = $childCourses->pluck('subject')->unique()->filter();
+            if ($subjects->count() > 1) {
+                return response()->json([
+                    'message' => 'لا يمكن إنشاء كورس مجمع من مواد دراسية مختلفة.'
+                ], 422);
+            }
+
+            // Save inherited grade and subject
             if ($grades->count() === 1) {
                 $course->grade = $grades->first();
-                $course->save();
             }
+            if ($subjects->count() === 1) {
+                $course->subject = $subjects->first();
+            }
+            $course->save();
         }
 
         $course->childCourses()->sync($childIds);

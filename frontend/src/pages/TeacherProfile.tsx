@@ -33,6 +33,8 @@ interface CourseItem {
   discount_value?: number | null
   final_price?: number | null
   availability?: 'online' | 'center' | 'both'
+  lessons_count?: number
+  is_bundle?: boolean | number | string
 }
 
 interface PackageItem {
@@ -371,6 +373,8 @@ export default function TeacherProfile() {
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
                     availability={course.availability}
+                    lessonsCount={course.lessons_count}
+                    isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                   />
                 ))}
               </div>

@@ -17,7 +17,7 @@ interface CourseItem {
   grade: string
   subject: string
   students_count: number
-  is_bundle?: boolean
+  is_bundle?: boolean | number | string
   enable_discount?: boolean
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
@@ -255,14 +255,21 @@ export default function ManageCourses() {
   const handleLinkCourses = async () => {
     if (!selectedCourse) return
 
-    // Validate that all selected child courses belong to the same grade
-    const selectedGrades = courses
-      .filter((c) => selectedLinkCourseIds.includes(c.id))
-      .map((c) => c.grade);
-    const uniqueGrades = Array.from(new Set(selectedGrades));
+    const selectedChildCourses = courses.filter((c) => selectedLinkCourseIds.includes(c.id))
 
+    // 1. Validate Grade (all selected child courses belong to the same grade)
+    const selectedGrades = selectedChildCourses.map((c) => c.grade)
+    const uniqueGrades = Array.from(new Set(selectedGrades))
     if (uniqueGrades.length > 1) {
       useModalStore.getState().showToast('لا يمكن إنشاء كورس مجمع من كورسات تنتمي إلى مراحل دراسية مختلفة.', 'error')
+      return
+    }
+
+    // 2. Validate Subject (all selected child courses belong to the same subject)
+    const selectedSubjects = selectedChildCourses.map((c) => c.subject)
+    const uniqueSubjects = Array.from(new Set(selectedSubjects))
+    if (uniqueSubjects.length > 1) {
+      useModalStore.getState().showToast('لا يمكن إنشاء كورس مجمع من مواد دراسية مختلفة.', 'error')
       return
     }
 
@@ -431,9 +438,10 @@ export default function ManageCourses() {
           setSelectedCourse(null)
           fetchCourses()
           useModalStore.getState().showToast('تم حذف الكورس بنجاح.', 'success')
-        } catch (err) {
+        } catch (err: any) {
           console.error(err)
-          useModalStore.getState().showToast('فشل حذف الكورس.', 'error')
+          const errorMsg = err.response?.data?.message || 'فشل حذف الكورس.'
+          useModalStore.getState().showToast(errorMsg, 'error')
         } finally {
           setLoading(false)
         }
@@ -1167,7 +1175,14 @@ export default function ManageCourses() {
                       }`}
                     >
                       <div className="space-y-1">
-                        <div className="text-sm font-semibold">{course.title}</div>
+                        <div className="text-sm font-semibold flex items-center gap-1.5 flex-wrap">
+                          <span>{course.title}</span>
+                          {(course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1') && (
+                            <span className="px-2 py-0.5 bg-brand-primary/15 border border-brand-primary/30 rounded text-[9px] font-bold text-brand-primary shrink-0">
+                              📦 كورس مجمع
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-450 font-light flex gap-2 items-center flex-wrap">
                           {(() => {
                             const pricing = getCourseDisplayPrice(course)
@@ -2421,7 +2436,7 @@ export default function ManageCourses() {
 
             <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1">
               {courses
-                .filter((c) => !c.is_bundle && c.id !== selectedCourse?.id)
+                .filter((c) => !(c.is_bundle === true || c.is_bundle === 1 || c.is_bundle === '1') && c.id !== selectedCourse?.id)
                 .map((course) => {
                   const isChecked = selectedLinkCourseIds.includes(course.id)
                   return (

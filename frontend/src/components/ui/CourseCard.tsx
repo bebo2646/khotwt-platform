@@ -24,6 +24,7 @@ interface CourseCardProps {
   finalPrice?: string | number
   grade?: string
   availability?: 'online' | 'center' | 'both'
+  isBundle?: boolean
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -64,6 +65,7 @@ export default function CourseCard({
   finalPrice = 0,
   grade,
   availability,
+  isBundle = false,
 }: CourseCardProps) {
   const pricing = getCourseDisplayPrice({
     price,
@@ -87,6 +89,11 @@ export default function CourseCard({
         
         {/* Subject, Grade & Availability Overlay Badges */}
         <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end z-10">
+          {isBundle && (
+            <div className="px-3 py-1 bg-brand-primary text-white rounded-full text-[10px] font-black tracking-wide border border-brand-primary/20 shadow-md">
+              📦 كورس مجمع
+            </div>
+          )}
           <div className="px-3 py-1 bg-black/80 text-white rounded-full text-[10px] font-black tracking-wide border border-white/10">
             {SUBJECTS_TRANSLATION[subject] || subject}
           </div>

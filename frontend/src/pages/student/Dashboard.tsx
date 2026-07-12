@@ -131,6 +131,7 @@ interface AvailableCourse {
   }
   grade?: string
   availability?: 'online' | 'center' | 'both'
+  is_bundle?: boolean | number | string
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -681,6 +682,7 @@ export default function StudentDashboard() {
                     finalPrice={course.final_price ?? undefined}
                     grade={course.grade}
                     availability={course.availability}
+                    isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                   />
                 ))}
               </div>
@@ -720,6 +722,7 @@ export default function StudentDashboard() {
                   finalPrice={course.final_price ?? undefined}
                   grade={course.grade}
                   availability={course.availability}
+                  isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                 />
               ))}
             </div>
@@ -758,6 +761,7 @@ export default function StudentDashboard() {
                   finalPrice={course.final_price ?? undefined}
                   grade={course.grade}
                   availability={course.availability}
+                  isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                 />
               ))}
             </div>

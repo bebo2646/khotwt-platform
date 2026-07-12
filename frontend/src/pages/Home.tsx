@@ -35,6 +35,8 @@ interface CourseItem {
     subject: string
   }
   availability?: 'online' | 'center' | 'both'
+  lessons_count?: number
+  is_bundle?: boolean | number | string
 }
 
 interface TeacherItem {
@@ -414,6 +416,8 @@ export default function Home() {
                     discountValue={course.discount_value ?? undefined}
                     finalPrice={course.final_price ?? undefined}
                     availability={course.availability}
+                    lessonsCount={course.lessons_count}
+                    isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                   />
                 ))}
               </div>
@@ -462,6 +466,8 @@ export default function Home() {
                 discountValue={course.discount_value ?? undefined}
                 finalPrice={course.final_price ?? undefined}
                 availability={course.availability}
+                lessonsCount={course.lessons_count}
+                isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
               />
             ))}
           </div>

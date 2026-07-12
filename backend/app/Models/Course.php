@@ -67,7 +67,7 @@ class Course extends Model
         'is_bundle' => 'boolean',
     ];
 
-    protected $appends = ['final_price'];
+    protected $appends = ['final_price', 'units_count', 'lessons_count', 'pdfs_count', 'exams_count'];
 
     public function getFinalPriceAttribute()
     {
@@ -83,7 +83,16 @@ class Course extends Model
 
     public function getCoverImageAttribute($value)
     {
-        if (empty($value) || $value === 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500') {
+        $isEmpty = empty($value) || $value === 'null' || $value === 'undefined';
+
+        if (($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') && $isEmpty) {
+            $firstChild = $this->childCourses()->first();
+            if ($firstChild) {
+                return $firstChild->cover_image;
+            }
+        }
+
+        if ($isEmpty || $value === 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500') {
             $firstVideo = \App\Models\Video::whereHas('lesson.unit', function ($query) {
                 $query->where('course_id', $this->id);
             })->whereNotNull('thumbnail_path')->where('thumbnail_path', '!=', '')->first();
@@ -92,7 +101,7 @@ class Course extends Model
                 return $firstVideo->thumbnail_path;
             }
         }
-        return $value ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500';
+        return $isEmpty ? 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500' : $value;
     }
 
     public function teacher()
@@ -223,5 +232,64 @@ class Course extends Model
     {
         $details = $this->getStudentViewLimitDetails($studentId);
         return $details['is_blocked'];
+    }
+    public function getUnitsCountAttribute()
+    {
+        if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
+            return $this->childCourses()->get()->reduce(function ($carry, $child) {
+                return $carry + $child->units_count;
+            }, 0);
+        }
+        if (isset($this->attributes['units_count'])) {
+            return (int)$this->attributes['units_count'];
+        }
+        return $this->units()->count();
+    }
+
+    public function getLessonsCountAttribute()
+    {
+        if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
+            return $this->childCourses()->get()->reduce(function ($carry, $child) {
+                return $carry + $child->lessons_count;
+            }, 0);
+        }
+        if (isset($this->attributes['lessons_count'])) {
+            return (int)$this->attributes['lessons_count'];
+        }
+        return $this->lessons()->count();
+    }
+
+    public function getPdfsCountAttribute()
+    {
+        if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
+            return $this->childCourses()->get()->reduce(function ($carry, $child) {
+                return $carry + $child->pdfs_count;
+            }, 0);
+        }
+        if (isset($this->attributes['pdfs_count'])) {
+            return (int)$this->attributes['pdfs_count'];
+        }
+        return \App\Models\Pdf::whereIn('lesson_id', function ($query) {
+            $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
+                $sub->select('id')->from('units')->where('course_id', $this->id);
+            });
+        })->count();
+    }
+
+    public function getExamsCountAttribute()
+    {
+        if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
+            return $this->childCourses()->get()->reduce(function ($carry, $child) {
+                return $carry + $child->exams_count;
+            }, 0);
+        }
+        if (isset($this->attributes['exams_count'])) {
+            return (int)$this->attributes['exams_count'];
+        }
+        return \App\Models\Exam::whereIn('lesson_id', function ($query) {
+            $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
+                $sub->select('id')->from('units')->where('course_id', $this->id);
+            });
+        })->count();
     }
 }

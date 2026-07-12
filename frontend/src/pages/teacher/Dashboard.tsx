@@ -99,7 +99,7 @@ interface DashboardStats {
   packages?: PackageItem[]
   enrollments_chart?: { month: string, count: number }[]
   revenue_chart?: { month: string, total: string }[]
-  course_performance?: { id: number, title: string, students_count: number, avg_progress: number }[]
+  course_performance?: { id: number, title: string, students_count: number, avg_progress: number, is_bundle?: boolean | number | string }[]
 }
 
 export default function Dashboard() {
@@ -757,7 +757,14 @@ export default function Dashboard() {
                           <div key={c.id} className="py-2.5 flex justify-between items-center text-xs">
                             <div className="flex items-center gap-2">
                               <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                              <span className="font-semibold text-slate-350">{c.title}</span>
+                              <span className="font-semibold text-slate-350 flex items-center gap-1.5 flex-wrap">
+                                <span>{c.title}</span>
+                                {(c.is_bundle === true || c.is_bundle === 1 || c.is_bundle === '1') && (
+                                  <span className="px-2 py-0.5 bg-brand-primary/15 border border-brand-primary/30 rounded text-[9px] font-bold text-brand-primary shrink-0">
+                                    📦 كورس مجمع
+                                  </span>
+                                )}
+                              </span>
                             </div>
                             <span className="font-bold text-slate-200">{c.students_count} مشترك</span>
                           </div>

@@ -26,6 +26,8 @@ interface CourseItem {
     subject: string
   }
   availability?: 'online' | 'center' | 'both'
+  lessons_count?: number
+  is_bundle?: boolean | number | string
 }
 
 const GRADES = [
@@ -341,6 +343,8 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                       finalPrice={course.final_price ?? undefined}
                       grade={course.grade}
                       availability={course.availability}
+                      lessonsCount={course.lessons_count}
+                      isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                     />
                   ))}
                 </div>
@@ -385,6 +389,8 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     finalPrice={course.final_price ?? undefined}
                     grade={course.grade}
                     availability={course.availability}
+                    lessonsCount={course.lessons_count}
+                    isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
                   />
                 ))}
               </div>

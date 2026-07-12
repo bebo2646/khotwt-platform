@@ -1414,6 +1414,13 @@ class AdminController extends Controller
     {
         $course = Course::findOrFail($id);
         
+        $isLinked = \DB::table('course_bundle_items')->where('child_id', $id)->exists();
+        if ($isLinked) {
+            return response()->json([
+                'message' => "هذا الكورس مستخدم داخل كورس مجمع.\nلا يمكن حذفه قبل إزالة الربط."
+            ], 400);
+        }
+
         $adminName = $request->user()->name;
         $courseTitle = $course->title;
         $ipAddress = $request->ip();

@@ -29,6 +29,7 @@ interface CourseItem {
   subject: string
   is_published: boolean
   students_count: number
+  is_bundle?: boolean | number | string
   teacher: {
     id: number
     name: string
@@ -265,7 +266,14 @@ export default function CoursesList() {
                           alt={c.title}
                           className="h-10 w-16 object-cover rounded border border-[var(--border-color)] bg-slate-800"
                         />
-                        <div className="text-slate-200 line-clamp-1">{c.title}</div>
+                        <div className="text-slate-200 line-clamp-1 flex items-center gap-1.5 flex-wrap">
+                          <span>{c.title}</span>
+                          {(c.is_bundle === true || c.is_bundle === 1 || c.is_bundle === '1') && (
+                            <span className="px-2 py-0.5 bg-brand-primary/15 border border-brand-primary/30 rounded text-[9px] font-bold text-brand-primary shrink-0">
+                              📦 كورس مجمع
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 

@@ -367,6 +367,14 @@ export default function CourseDetail() {
     ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.videos ? l.videos.length : (l.videos_count || 0)), 0) : 0), 0) : 0), 0)
     : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.videos_count || 0), 0), 0);
 
+  const displayPdfsCount = course?.is_bundle
+    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.pdfs ? l.pdfs.length : 0), 0) : 0), 0) : 0), 0)
+    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.pdfs ? l.pdfs.length : 0), 0), 0);
+
+  const displayExamsCount = course?.is_bundle
+    ? childCourses.reduce((acc: number, c: any) => acc + (c.units ? c.units.reduce((uAcc: number, u: any) => uAcc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.exams ? l.exams.length : 0), 0) : 0), 0) : 0), 0)
+    : units.reduce((acc: number, u: any) => acc + u.lessons.reduce((accL: number, l: any) => accL + (l.exams ? l.exams.length : 0), 0), 0);
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
@@ -466,22 +474,26 @@ export default function CourseDetail() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-6 border-t border-[var(--border-color)]">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-6 border-t border-[var(--border-color)]">
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">الأسابيع (الوحدات)</span>
-              <span className="text-lg font-black text-slate-200">{displayUnitsCount} أسابيع</span>
+              <span className="text-sm sm:text-base font-black text-slate-200">{displayUnitsCount}</span>
             </div>
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">المحاضرات</span>
-              <span className="text-lg font-black text-slate-200">
-                {displayLessonsCount} محاضرة
-              </span>
+              <span className="text-sm sm:text-base font-black text-slate-200">{displayLessonsCount}</span>
             </div>
             <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
-              <span className="text-[10px] text-slate-400 block font-bold mb-1">إجمالي الفيديوهات</span>
-              <span className="text-lg font-black text-slate-200">
-                {displayVideosCount} فيديو
-              </span>
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">الفيديوهات</span>
+              <span className="text-sm sm:text-base font-black text-slate-200">{displayVideosCount}</span>
+            </div>
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">الملفات (PDF)</span>
+              <span className="text-sm sm:text-base font-black text-slate-200">{displayPdfsCount}</span>
+            </div>
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+              <span className="text-[10px] text-slate-400 block font-bold mb-1">الامتحانات والواجبات</span>
+              <span className="text-sm sm:text-base font-black text-slate-200">{displayExamsCount}</span>
             </div>
           </div>
 
