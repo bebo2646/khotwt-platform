@@ -1230,11 +1230,6 @@ class StudentController extends Controller
             $parentBundle = \App\Models\Course::find($packageIdParam);
         }
 
-        if ($parentBundle && $parentBundle->is_bundle) {
-            $lesson->unit->course->title = $parentBundle->title;
-            $lesson->unit->course->id = $parentBundle->id;
-        }
-
         // Check course access for student
         if ($user->role === 'student') {
             $teacherSubscription = \App\Models\TeacherSubscription::where('teacher_id', $course->teacher_id)->first();
@@ -1281,6 +1276,18 @@ class StudentController extends Controller
                             ->where('child_id', $lesson->unit->course_id)
                             ->exists();
                     }
+                } else {
+                    // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
+                    $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
+                    $hasAccess = Enrollment::where('student_id', $user->id)
+                        ->whereNull('package_id')
+                        ->whereNull('lesson_id')
+                        ->whereIn('course_id', function($q) use ($targetChildCourseId) {
+                            $q->select('parent_id')
+                              ->from('course_bundle_items')
+                              ->where('child_id', $targetChildCourseId);
+                        })
+                        ->exists();
                 }
             } elseif ($packageIdParam) {
                 // Check if they own the Package product (Bundle, Month, Revision)
@@ -1410,6 +1417,11 @@ class StudentController extends Controller
             $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
         }
 
+        if ($parentBundle && $parentBundle->is_bundle) {
+            $lesson->unit->course->title = $parentBundle->title;
+            $lesson->unit->course->id = $parentBundle->id;
+        }
+
         return response()->json([
             'lesson' => $lesson,
             'videos' => $videosWithProgress,
@@ -1467,6 +1479,18 @@ class StudentController extends Controller
                             ->where('child_id', $lesson->unit->course_id)
                             ->exists();
                     }
+                } else {
+                    // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
+                    $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
+                    $hasAccess = Enrollment::where('student_id', $user->id)
+                        ->whereNull('package_id')
+                        ->whereNull('lesson_id')
+                        ->whereIn('course_id', function($q) use ($targetChildCourseId) {
+                            $q->select('parent_id')
+                              ->from('course_bundle_items')
+                              ->where('child_id', $targetChildCourseId);
+                        })
+                        ->exists();
                 }
             } elseif ($packageIdParam) {
                 $hasAccess = Enrollment::where('student_id', $user->id)
@@ -1706,11 +1730,6 @@ class StudentController extends Controller
             $parentBundle = \App\Models\Course::find($packageIdParam);
         }
 
-        if ($parentBundle && $parentBundle->is_bundle) {
-            $lesson->unit->course->title = $parentBundle->title;
-            $lesson->unit->course->id = $parentBundle->id;
-        }
-
         $hasAccess = false;
 
         if ($courseIdParam) {
@@ -1732,6 +1751,18 @@ class StudentController extends Controller
                         ->where('child_id', $lesson->unit->course_id)
                         ->exists();
                 }
+            } else {
+                // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
+                $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
+                $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
+                    ->whereIn('course_id', function($q) use ($targetChildCourseId) {
+                        $q->select('parent_id')
+                          ->from('course_bundle_items')
+                          ->where('child_id', $targetChildCourseId);
+                    })
+                    ->exists();
             }
         } elseif ($packageIdParam) {
             $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
@@ -1792,6 +1823,11 @@ class StudentController extends Controller
                     \Illuminate\Support\Facades\Log::warning("Failed to check Google Drive link: " . $e->getMessage());
                 }
             }
+        }
+
+        if ($parentBundle && $parentBundle->is_bundle) {
+            $lesson->unit->course->title = $parentBundle->title;
+            $lesson->unit->course->id = $parentBundle->id;
         }
 
         return response()->json([
@@ -1891,6 +1927,18 @@ class StudentController extends Controller
                         ->where('child_id', $lesson->unit->course_id)
                         ->exists();
                 }
+            } else {
+                // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
+                $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
+                $hasAccess = Enrollment::where('student_id', $user->id)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
+                    ->whereIn('course_id', function($q) use ($targetChildCourseId) {
+                        $q->select('parent_id')
+                          ->from('course_bundle_items')
+                          ->where('child_id', $targetChildCourseId);
+                    })
+                    ->exists();
             }
         } elseif ($packageIdParam) {
             $hasAccess = Enrollment::where('student_id', $user->id)

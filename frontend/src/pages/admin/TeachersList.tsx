@@ -71,6 +71,7 @@ interface TeacherItem {
 const SUBJECTS_TRANSLATION: Record<string, string> = {
   chemistry: 'الكيمياء',
   physics: 'الفيزياء',
+  integrated_science: 'علوم متكاملة',
   biology: 'الأحياء',
   math: 'الرياضيات',
   science: 'العلوم',
@@ -81,6 +82,7 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
 const SUBJECTS = [
   { key: 'chemistry', val: 'الكيمياء' },
   { key: 'physics', val: 'الفيزياء' },
+  { key: 'integrated_science', val: 'علوم متكاملة' },
   { key: 'biology', val: 'الأحياء' },
   { key: 'math', val: 'الرياضيات' },
   { key: 'science', val: 'العلوم' },
@@ -209,6 +211,12 @@ export default function TeachersList() {
   const [name, setName] = React.useState('')
   const [phone, setPhone] = React.useState('')
   const [subject, setSubject] = React.useState('')
+  const [selectedSubjects, setSelectedSubjects] = React.useState<string[]>([])
+
+  const getSubjectTranslation = (subjectStr: string) => {
+    if (!subjectStr) return '';
+    return subjectStr.split(',').map(s => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ');
+  };
   const [experience, setExperience] = React.useState('')
   const [bio, setBio] = React.useState('')
   const [selectedGrades, setSelectedGrades] = React.useState<string[]>([])
@@ -269,6 +277,10 @@ export default function TeachersList() {
 
   const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (selectedSubjects.length === 0) {
+      useModalStore.getState().showToast('يجب تحديد مادة علمية واحدة على الأقل.', 'warning')
+      return
+    }
     if (selectedGrades.length === 0) {
       useModalStore.getState().showToast('يجب تحديد مرحلة دراسية واحدة على الأقل.', 'warning')
       return
@@ -278,7 +290,7 @@ export default function TeachersList() {
     const payload = {
       name,
       phone,
-      subject,
+      subject: selectedSubjects.join(','),
       experience,
       bio,
       grades: selectedGrades,
@@ -336,6 +348,7 @@ export default function TeachersList() {
     setName(t.name)
     setPhone(t.phone)
     setSubject(t.subject)
+    setSelectedSubjects(t.subject ? t.subject.split(',').map(s => s.trim()) : [])
     setExperience(t.experience)
     setBio(t.bio)
     setSelectedGrades(t.grades || [])
@@ -455,6 +468,7 @@ export default function TeachersList() {
     setName('')
     setPhone('')
     setSubject('')
+    setSelectedSubjects([])
     setExperience('')
     setBio('')
     setSelectedGrades([])
@@ -468,7 +482,7 @@ export default function TeachersList() {
       const matchName = t.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                         t.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         t.phone.includes(searchTerm);
-      const matchSubject = !selectedSubject || t.subject === selectedSubject;
+      const matchSubject = !selectedSubject || (t.subject ? t.subject.split(',').map(s => s.trim()).includes(selectedSubject) : false);
       
       const planName = t.teacher_subscription?.plan?.name || 'Starter';
       const matchPlan = !selectedPlan || planName.toLowerCase() === selectedPlan.toLowerCase();
@@ -743,7 +757,7 @@ export default function TeachersList() {
 
                         {/* Subject & Phone */}
                         <td className="p-4">
-                          <div className="font-bold text-[var(--primary-color)]">{SUBJECTS_TRANSLATION[t.subject] || t.subject}</div>
+                          <div className="font-bold text-[var(--primary-color)]">{getSubjectTranslation(t.subject)}</div>
                           <div className="text-[10px] text-[var(--text-secondary)] font-light mt-0.5">{t.phone}</div>
                         </td>
 
@@ -874,7 +888,7 @@ export default function TeachersList() {
                       <p className="text-xs text-[var(--text-secondary)]">{t.email}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] bg-[var(--primary-color)]/10 text-[var(--primary-color)] px-2 py-0.5 rounded font-bold">
-                          {SUBJECTS_TRANSLATION[t.subject] || t.subject}
+                          {getSubjectTranslation(t.subject)}
                         </span>
                         <button
                           onClick={() => handleToggleStatus(t)}
@@ -1043,19 +1057,33 @@ export default function TeachersList() {
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">المادة العلمية المقررة</label>
-                <select
-                  required
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
-                >
-                  <option value="">اختر المادة العلمية...</option>
-                  {SUBJECTS.map((s) => (
-                    <option key={s.key} value={s.key}>{s.val}</option>
-                  ))}
-                </select>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold block text-slate-300">اختر المواد العلمية للمعلم:</label>
+                <div className="grid grid-cols-2 gap-2 border border-[var(--border-color)] p-4 rounded-2xl bg-[rgba(0,0,0,0.05)]">
+                  {SUBJECTS.map((s) => {
+                    const isChecked = selectedSubjects.includes(s.key)
+                    return (
+                      <button
+                        type="button"
+                        key={s.key}
+                        onClick={() => {
+                          setSelectedSubjects(prev =>
+                            prev.includes(s.key)
+                              ? prev.filter(x => x !== s.key)
+                              : [...prev, s.key]
+                          )
+                        }}
+                        className={`p-2.5 text-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                          isChecked
+                            ? 'border-brand-primary bg-brand-primary/5 text-slate-100'
+                            : 'border-[var(--border-color)] text-slate-400 hover:bg-[rgba(255,255,255,0.02)]'
+                        }`}
+                      >
+                        {s.val}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -1262,7 +1290,7 @@ export default function TeachersList() {
                       {teachers
                         .filter((t) => t.id !== deleteTeacherItem.id)
                         .map((t) => (
-                          <option key={t.id} value={t.id}>{t.name} ({SUBJECTS_TRANSLATION[t.subject] || t.subject})</option>
+                          <option key={t.id} value={t.id}>{t.name} ({getSubjectTranslation(t.subject)})</option>
                         ))}
                     </select>
                   </div>
@@ -1322,7 +1350,7 @@ export default function TeachersList() {
                   />
                   <div className="space-y-1 text-center sm:text-right">
                     <h4 className="font-black text-base text-slate-200">{teacherProfileData.teacher.name}</h4>
-                    <div className="text-xs text-brand-primary font-bold">مدرس {SUBJECTS_TRANSLATION[teacherProfileData.teacher.subject] || teacherProfileData.teacher.subject}</div>
+                    <div className="text-xs text-brand-primary font-bold">مدرس {getSubjectTranslation(teacherProfileData.teacher.subject)}</div>
                     <div className="text-[10px] text-slate-400">{teacherProfileData.teacher.email} | {teacherProfileData.teacher.phone}</div>
                   </div>
                 </div>

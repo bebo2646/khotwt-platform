@@ -32,7 +32,7 @@ class SitemapController extends Controller
         ];
 
         // Add subjects
-        $subjects = ['chemistry', 'physics', 'biology', 'math', 'science', 'arabic', 'english'];
+        $subjects = ['chemistry', 'physics', 'integrated_science', 'biology', 'math', 'science', 'arabic', 'english'];
         foreach ($subjects as $subject) {
             $urls[] = "/subject/{$subject}";
         }

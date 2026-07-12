@@ -405,7 +405,7 @@ class FinancialController extends Controller
         // 5. Duplicate Payments Alert (same student, same product, within 2 minutes)
         $duplicatePaymentsCandidates = PaymentHistory::select('student_id', 'course_id', 'package_id', 'lesson_id', DB::raw('COUNT(*) as count'))
             ->groupBy('student_id', 'course_id', 'package_id', 'lesson_id')
-            ->having('count', '>', 1)
+            ->havingRaw('COUNT(*) > 1')
             ->limit(5)
             ->get();
 
@@ -450,7 +450,7 @@ class FinancialController extends Controller
         // 6. Duplicate Wallet Transactions Alert (same wallet, same amount, same type, within 2 minutes)
         $duplicateWalletCandidates = \App\Models\WalletTransaction::select('wallet_id', 'amount', 'type', DB::raw('COUNT(*) as count'))
             ->groupBy('wallet_id', 'amount', 'type')
-            ->having('count', '>', 1)
+            ->havingRaw('COUNT(*) > 1')
             ->limit(5)
             ->get();
 

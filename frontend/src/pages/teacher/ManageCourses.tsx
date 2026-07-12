@@ -72,6 +72,7 @@ const GRADES = [
 const SUBJECTS = [
   { key: 'chemistry', val: 'الكيمياء' },
   { key: 'physics', val: 'الفيزياء' },
+  { key: 'integrated_science', val: 'علوم متكاملة' },
   { key: 'biology', val: 'الأحياء' },
   { key: 'math', val: 'الرياضيات' },
   { key: 'science', val: 'العلوم' },

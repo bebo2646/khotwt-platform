@@ -56,12 +56,18 @@ interface PackageItem {
 const SUBJECTS_TRANSLATION: Record<string, string> = {
   chemistry: 'الكيمياء',
   physics: 'الفيزياء',
+  integrated_science: 'علوم متكاملة',
   biology: 'الأحياء',
   math: 'الرياضيات',
   science: 'العلوم',
   arabic: 'اللغة العربية',
   english: 'اللغة الإنجليزية',
 }
+
+const getSubjectTranslation = (subjectStr: string) => {
+  if (!subjectStr) return '';
+  return subjectStr.split(',').map(s => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ');
+};
 
 const GRADES_TRANSLATION: Record<string, string> = {
   first_preparatory: 'الصف الأول الإعدادي',
@@ -133,9 +139,9 @@ export default function TeacherProfile() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
-        title={`${teacher.name} | مدرس ${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}`}
-        description={`تعلم ال${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject} مع ${teacher.name} من خلال محاضرات واختبارات تفاعلية ومتابعة مستمرة على منصة خطوتك.`}
-        keywords={`${teacher.name}, مدرس ${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}, كورسات ${teacher.name}, منصة خطوتك`}
+        title={`${teacher.name} | مدرس ${getSubjectTranslation(teacher.subject)}`}
+        description={`تعلم ال${getSubjectTranslation(teacher.subject)} مع ${teacher.name} من خلال محاضرات واختبارات تفاعلية ومتابعة مستمرة على منصة خطوتك.`}
+        keywords={`${teacher.name}, مدرس ${getSubjectTranslation(teacher.subject)}, كورسات ${teacher.name}, منصة خطوتك`}
         ogImage={teacher.avatar}
         schema={{
           "@context": "https://schema.org",
@@ -143,7 +149,7 @@ export default function TeacherProfile() {
             {
               "@type": "Person",
               "name": teacher.name,
-              "jobTitle": `مدرس ${SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}`,
+              "jobTitle": `مدرس ${getSubjectTranslation(teacher.subject)}`,
               "image": teacher.avatar ? (teacher.avatar.startsWith('http') ? teacher.avatar : `https://elm-platform.com${teacher.avatar}`) : `https://elm-platform.com/og-image.jpg`,
               "url": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/teachers/${teacher.slug || teacher.id}`,
               "description": teacher.bio || `صفحة المدرس الشخصية على منصة خطوتك`
@@ -209,10 +215,19 @@ export default function TeacherProfile() {
                 <ShieldCheck className="h-5 w-5 text-brand-primary shrink-0" />
               </div>
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mt-1">
-                <p className="text-sm font-bold">
-                  <Link to={`/subject/${teacher.subject}`} className="text-brand-primary hover:underline transition-all">
-                    مدرس {SUBJECTS_TRANSLATION[teacher.subject] || teacher.subject}
-                  </Link>
+                <p className="text-sm font-bold flex flex-wrap gap-1 items-center">
+                  {teacher.subject?.split(',').map((subStr, idx) => {
+                    const sub = subStr.trim();
+                    const isLast = idx === teacher.subject.split(',').length - 1;
+                    return (
+                      <React.Fragment key={sub}>
+                        <Link to={`/subject/${sub}`} className="text-brand-primary hover:underline transition-all">
+                          مدرس {SUBJECTS_TRANSLATION[sub] || sub}
+                        </Link>
+                        {!isLast && <span className="text-slate-400 mx-1">و</span>}
+                      </React.Fragment>
+                    );
+                  })}
                 </p>
                 {teacher.teaching_mode === 'online' && (
                   <span className="px-2.5 py-0.5 bg-green-500/10 border border-green-500/30 text-[10px] text-green-400 font-black rounded-full flex items-center gap-1">

@@ -42,6 +42,7 @@ const GRADES = [
 const SUBJECTS = [
   { key: 'chemistry', val: 'الكيمياء' },
   { key: 'physics', val: 'الفيزياء' },
+  { key: 'integrated_science', val: 'علوم متكاملة' },
   { key: 'biology', val: 'الأحياء' },
   { key: 'math', val: 'الرياضيات' },
   { key: 'science', val: 'العلوم' },
@@ -70,6 +71,7 @@ const GRADE_MAP: Record<string, string> = {
 const SUBJECT_MAP: Record<string, string> = {
   'chemistry': 'chemistry',
   'physics': 'physics',
+  'integrated_science': 'integrated_science',
   'biology': 'biology',
   'math': 'math',
   'science': 'science',

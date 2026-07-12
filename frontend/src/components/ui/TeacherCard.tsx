@@ -19,6 +19,7 @@ interface TeacherCardProps {
 const SUBJECTS_TRANSLATION: Record<string, string> = {
   chemistry: 'الكيمياء',
   physics: 'الفيزياء',
+  integrated_science: 'علوم متكاملة',
   biology: 'الأحياء',
   math: 'الرياضيات',
   science: 'العلوم',
@@ -38,7 +39,9 @@ export default function TeacherCard({
   slug,
   teaching_mode,
 }: TeacherCardProps) {
-  const displaySubject = SUBJECTS_TRANSLATION[subject] || subject
+  const displaySubject = subject
+    ? subject.split(',').map((s) => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ')
+    : ''
 
   let teachingModeBadge = null;
   if (teaching_mode === 'online') {

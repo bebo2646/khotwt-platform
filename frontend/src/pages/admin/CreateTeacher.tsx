@@ -20,6 +20,7 @@ import {
 const SUBJECTS = [
   { key: 'chemistry', val: 'الكيمياء' },
   { key: 'physics', val: 'الفيزياء' },
+  { key: 'integrated_science', val: 'علوم متكاملة' },
   { key: 'biology', val: 'الأحياء' },
   { key: 'math', val: 'الرياضيات' },
   { key: 'science', val: 'العلوم' },
@@ -52,7 +53,7 @@ export default function CreateTeacher() {
   const [phone, setPhone] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
-  const [subject, setSubject] = React.useState('')
+  const [selectedSubjects, setSelectedSubjects] = React.useState<string[]>([])
   const [experience, setExperience] = React.useState('')
   const [bio, setBio] = React.useState('')
   const [selectedGrades, setSelectedGrades] = React.useState<string[]>([])
@@ -195,8 +196,22 @@ export default function CreateTeacher() {
     })
   }
 
+  const handleSubjectToggle = (subjectKey: string) => {
+    setSelectedSubjects((prev) => {
+      if (prev.includes(subjectKey)) {
+        return prev.filter((s) => s !== subjectKey)
+      } else {
+        return [...prev, subjectKey]
+      }
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (selectedSubjects.length === 0) {
+      useModalStore.getState().showToast('يرجى تحديد مادة علمية واحدة على الأقل.', 'warning')
+      return
+    }
     if (selectedGrades.length === 0) {
       useModalStore.getState().showToast('يرجى تحديد مرحلة دراسية واحدة على الأقل.', 'warning')
       return
@@ -208,7 +223,7 @@ export default function CreateTeacher() {
       email: email || undefined,
       phone,
       password: password || undefined,
-      subject,
+      subject: selectedSubjects.join(','),
       experience,
       bio,
       grades: selectedGrades,
@@ -396,19 +411,29 @@ export default function CreateTeacher() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">المادة العلمية <span className="text-red-500">*</span></label>
-                <select
-                  required
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
-                >
-                  <option value="">اختر المادة...</option>
-                  {SUBJECTS.map((s) => (
-                    <option key={s.key} value={s.key}>{s.val}</option>
-                  ))}
-                </select>
+              <div className="md:col-span-2 space-y-3">
+                <label className="text-xs font-semibold block text-[var(--text-color)]/90">
+                  اختر المواد العلمية للمعلم <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {SUBJECTS.map((s) => {
+                    const isChecked = selectedSubjects.includes(s.key)
+                    return (
+                      <button
+                        type="button"
+                        key={s.key}
+                        onClick={() => handleSubjectToggle(s.key)}
+                        className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
+                          isChecked
+                            ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
+                            : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
+                        }`}
+                      >
+                        {s.val}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <div className="space-y-1">

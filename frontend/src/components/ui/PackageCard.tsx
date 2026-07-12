@@ -23,6 +23,7 @@ interface PackageCardProps {
 const SUBJECTS_TRANSLATION: Record<string, string> = {
   chemistry: 'الكيمياء',
   physics: 'الفيزياء',
+  integrated_science: 'علوم متكاملة',
   biology: 'الأحياء',
   math: 'الرياضيات',
   science: 'العلوم',

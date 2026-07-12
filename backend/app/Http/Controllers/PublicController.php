@@ -92,8 +92,12 @@ class PublicController extends Controller
                 })
                 // Or matching explicit profile subject & grade fields
                 ->orWhere(function ($query) use ($grade, $subject) {
-                    $query->where('subject', $subject)
-                        ->whereJsonContains('grades', $grade);
+                    $query->where(function ($sq) use ($subject) {
+                        $sq->where('subject', $subject)
+                           ->orWhere('subject', 'LIKE', $subject . ',%')
+                           ->orWhere('subject', 'LIKE', '%,' . $subject)
+                           ->orWhere('subject', 'LIKE', '%,' . $subject . ',%');
+                    })->whereJsonContains('grades', $grade);
                 });
             })
             ->withCount(['courses as published_courses_count' => function ($query) {
@@ -379,7 +383,14 @@ class PublicController extends Controller
                     $isEnrolled = true;
                 } elseif ($user->isStudent()) {
                     $isEnrolled = Enrollment::where('student_id', $user->id)
-                        ->where('course_id', $course->id)
+                        ->where(function($q) use ($course) {
+                            $q->where('course_id', $course->id)
+                              ->orWhereIn('course_id', function($sub) use ($course) {
+                                  $sub->select('parent_id')
+                                      ->from('course_bundle_items')
+                                      ->where('child_id', $course->id);
+                              });
+                        })
                         ->whereNull('package_id')
                         ->whereNull('lesson_id')
                         ->exists();
@@ -462,21 +473,25 @@ class PublicController extends Controller
 
                             $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
-                            $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $viewLimitDetails) {
+                            $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $lesson, $user) {
                                 $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
                                 
                                 $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
                                 
-                                $viewsUsed = $viewLimitDetails ? (int)$viewLimitDetails['views_used'] : 0;
+                                // Fetch the actual course of the lesson for view limit tracking!
+                                $physicalCourse = $lesson->unit->course;
+                                $physicalLimitDetails = $user ? $physicalCourse->getStudentViewLimitDetails($user->id) : null;
+
+                                $viewsUsed = $physicalLimitDetails ? (int)$physicalLimitDetails['views_used'] : 0;
                                 $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
                                 $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
                                 $completed = $progress ? (bool)$progress->completed : false;
                                 $lastPosition = $progress ? (int)$progress->last_position_seconds : 0;
                                 $lastWatchedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
 
-                                $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
-                                $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
-                                $viewsRemaining = $limitEnabled ? (int)$viewLimitDetails['remaining_views'] : -1;
+                                $limitEnabled = $physicalLimitDetails && $physicalLimitDetails['limit_enabled'];
+                                $totalAllowed = $limitEnabled ? (int)$physicalLimitDetails['total_allowed_views'] : -1;
+                                $viewsRemaining = $limitEnabled ? (int)$physicalLimitDetails['remaining_views'] : -1;
 
                                 if ($completed) {
                                     $status = 'completed';
@@ -636,7 +651,14 @@ class PublicController extends Controller
                 $isStudent = true;
                 
                 $courseEnroll = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseId)
+                    ->where(function($q) use ($courseId) {
+                        $q->where('course_id', $courseId)
+                          ->orWhereIn('course_id', function($sub) use ($courseId) {
+                              $sub->select('parent_id')
+                                  ->from('course_bundle_items')
+                                  ->where('child_id', $courseId);
+                          });
+                    })
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
@@ -751,9 +773,16 @@ class PublicController extends Controller
                     $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
 
                     if ($user && $user->isStudent()) {
-                        // 1. Check Course ownership
+                        // 1. Check Course ownership (direct or via bundle)
                         $ownsCourse = Enrollment::where('student_id', $user->id)
-                            ->where('course_id', $courseId)
+                            ->where(function($q) use ($courseId) {
+                                $q->where('course_id', $courseId)
+                                  ->orWhereIn('course_id', function($sub) use ($courseId) {
+                                      $sub->select('parent_id')
+                                          ->from('course_bundle_items')
+                                          ->where('child_id', $courseId);
+                                  });
+                            })
                             ->whereNull('package_id')
                             ->whereNull('lesson_id')
                             ->exists();
