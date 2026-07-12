@@ -1,5 +1,5 @@
 import React from 'react'
-import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
@@ -161,6 +161,7 @@ interface LastWatched {
 export default function CourseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isLoggedIn, user, updateUser } = useAuthStore()
   const [searchParams, setSearchParams] = useSearchParams()
   const packageId = searchParams.get('package_id')
@@ -567,11 +568,18 @@ export default function CourseDetail() {
   const fetchDetails = React.useCallback(() => {
     const params = new URLSearchParams()
     if (packageId) params.append('package_id', packageId)
-    if (lessonId) params.append('lesson_id', lessonId)
+
+    console.log({
+        pathname: location.pathname,
+        paramsId: id,
+        search: searchParams.toString(),
+        currentCourse: course?.id
+    });
 
     API.get(`/courses/${id}?${params.toString()}`)
       .then((res) => {
         setCourse(res.data.course)
+        console.log("Course after update:", res.data.course.id);
         setUnits(res.data.units || [])
         setChildCourses(res.data.child_courses || [])
         setPackages(res.data.packages || [])

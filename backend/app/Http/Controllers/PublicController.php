@@ -459,9 +459,9 @@ class PublicController extends Controller
                             $isLocked = !$hasLessonAccess;
                             $lessonData['is_locked'] = $isLocked;
 
-                            $lessonData['videos_count'] = $lesson->videos()->count();
-                            $lessonData['pdfs_count'] = $lesson->pdfs()->count();
-                            $lessonData['exams_count'] = $lesson->exams()->count();
+                            $lessonData['videos_count'] = $lesson->videos->count();
+                            $lessonData['pdfs_count'] = $lesson->pdfs->count();
+                            $lessonData['exams_count'] = $lesson->exams->count();
 
                             $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
@@ -797,9 +797,9 @@ class PublicController extends Controller
                     $lessonData['is_locked'] = $isLocked;
 
                     // Attach content counts to visitor
-                    $lessonData['videos_count'] = $lesson->videos()->count();
-                    $lessonData['pdfs_count'] = $lesson->pdfs()->count();
-                    $lessonData['exams_count'] = $lesson->exams()->count();
+                    $lessonData['videos_count'] = $lesson->videos->count();
+                    $lessonData['pdfs_count'] = $lesson->pdfs->count();
+                    $lessonData['exams_count'] = $lesson->exams->count();
 
                     $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
