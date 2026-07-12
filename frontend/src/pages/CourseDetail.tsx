@@ -110,6 +110,8 @@ interface UnitItem {
   title: string
   order: number
   lessons: LessonItem[]
+  child_course_id?: number | null
+  child_course_title?: string | null
 }
 
 interface PackageItem {
@@ -1000,7 +1002,6 @@ export default function CourseDetail() {
                       شراء الباقة
                     </button>
                   </div>
-
                 </div>
               );
             })}
@@ -1026,88 +1027,56 @@ export default function CourseDetail() {
             <h3 className="font-black text-sm sm:text-base text-amber-500">هذا الكورس مخصص لطلاب السنتر</h3>
             <p className="text-xs text-slate-300 font-light leading-relaxed">{availabilityMessage}</p>
           </div>
-        ) : course?.is_bundle ? (
-          childCourses.length === 0 ? (
-            <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
-              لا توجد كورسات مضافة في هذا الكورس المجمع حتى الآن.
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {childCourses.map((child) => (
-                <div key={child.id} className="space-y-4">
-                <div className="bg-brand-primary/10 border border-brand-primary/20 p-4.5 rounded-2xl flex items-center justify-between">
-                    <span className="text-sm font-black text-brand-primary">📚 كورس: {child.title}</span>
-                    <span className="text-[10px] text-slate-400 font-bold">{child.units?.length || 0} وحدات مضافة</span>
-                  </div>
-                  
-                  <div className="space-y-4 mr-2 border-r border-dashed border-[var(--border-color)]/60 pr-2">
-                    {!child.units || child.units.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-550 font-light">لا توجد محاضرات في هذا الكورس بعد.</div>
-                    ) : (
-                      child.units.map((unit: any) => {
-                        const isExpanded = !!expandedUnits[unit.id]
-                        return (
-                          <div key={unit.id} className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
-                            {/* Unit Title Header */}
-                            <button
-                              onClick={() => toggleUnit(unit.id)}
-                              className="w-full flex items-center justify-between p-5 text-right font-bold text-xs sm:text-sm cursor-pointer hover:bg-slate-900/10 transition-colors"
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-[10px] font-black rounded-lg">الأسبوع {unit.order}</span>
-                                <span className="text-slate-100 font-bold">{unit.title}</span>
-                              </div>
-                              <ChevronDown className={`h-4.5 w-4.5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                            </button>
-
-                            {/* Lessons list details */}
-                            {isExpanded && (
-                              <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
-                                {renderLessonsList(unit.lessons)}
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
         ) : units.length === 0 ? (
           <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
             لم يقم المدرس بنشر أي وحدات دراسية لهذا الكورس حتى الآن.
           </div>
         ) : (
-          <div className="space-y-4">
-            {units.map((unit) => {
-              const isExpanded = !!expandedUnits[unit.id]
-              return (
-                <div key={unit.id} className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
-                  
-                  {/* Unit Title Header */}
-                  <button
-                    onClick={() => toggleUnit(unit.id)}
-                    className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
-                      <span className="text-slate-100 font-black">{unit.title}</span>
-                    </div>
-                    <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                  </button>
+          <div className="space-y-6">
+            {(() => {
+              let lastChildCourseId: number | null = null;
+              return units.map((unit) => {
+                const showCourseHeader = unit.child_course_id && unit.child_course_id !== lastChildCourseId;
+                if (unit.child_course_id) {
+                  lastChildCourseId = unit.child_course_id;
+                }
+                const isExpanded = !!expandedUnits[unit.id]
 
-                  {/* Lessons list details */}
-                  {isExpanded && (
-                    <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
-                      {renderLessonsList(unit.lessons)}
-                    </div>
-                  )}
+                return (
+                  <div key={unit.id} className="space-y-4">
+                    {showCourseHeader && (
+                      <div className="pt-6 pb-2 border-b border-[var(--border-color)]">
+                        <h3 className="text-sm font-black text-brand-primary flex items-center gap-2">
+                          <span>📚</span>
+                          <span>كورس: {unit.child_course_title}</span>
+                        </h3>
+                      </div>
+                    )}
+                    
+                    <div className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
+                      {/* Unit Title Header */}
+                      <button
+                        onClick={() => toggleUnit(unit.id)}
+                        className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+                          <span className="text-slate-100 font-black">{unit.title}</span>
+                        </div>
+                        <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                      </button>
 
-                </div>
-              )
-            })}
+                      {/* Lessons list details */}
+                      {isExpanded && (
+                        <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
+                          {renderLessonsList(unit.lessons)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            })()}
           </div>
         )}
       </div>

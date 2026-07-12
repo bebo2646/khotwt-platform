@@ -427,13 +427,15 @@ class PublicController extends Controller
             }
 
             $bundleId = $course->id;
-            $formatUnits = function ($units) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
-                return $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
+            $formatUnits = function ($units) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
+                return $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
                     return [
                         'id' => $unit->id,
                         'title' => $unit->title,
                         'order' => $unit->order,
-                        'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
+                        'child_course_id' => $unit->child_course_id ?? null,
+                        'child_course_title' => $unit->child_course_title ?? null,
+                        'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
                             $matchingPackageId = null;
                             $hasLessonAccess = $isEnrolled;
                             $ownsCourse = $isEnrolled;
@@ -560,21 +562,19 @@ class PublicController extends Controller
                 });
             };
 
-            $formattedChildCourses = $childCourses->map(function ($child) use ($formatUnits) {
-                return [
-                    'id' => $child->id,
-                    'title' => $child->title,
-                    'cover_image' => $child->cover_image,
-                    'subject' => $child->subject,
-                    'grade' => $child->grade,
-                    'units' => $formatUnits($child->units),
-                ];
-            });
+            $flatUnits = collect();
+            foreach ($childCourses as $child) {
+                foreach ($child->units as $unit) {
+                    $unit->child_course_id = $child->id;
+                    $unit->child_course_title = $child->title;
+                    $flatUnits->push($unit);
+                }
+            }
 
             return response()->json([
                 'course' => $course,
-                'child_courses' => $formattedChildCourses,
-                'units' => [],
+                'child_courses' => [],
+                'units' => $formatUnits($flatUnits),
                 'packages' => [],
                 'is_enrolled' => $isEnrolled,
                 'last_watched' => null,
