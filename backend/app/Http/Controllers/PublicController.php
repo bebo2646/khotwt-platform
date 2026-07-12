@@ -441,15 +441,15 @@ class PublicController extends Controller
             }
 
             $bundleId = $course->id;
-            $formatUnits = function ($units) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
-                return $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
+            $formatUnits = function ($units) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId, $user) {
+                return $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId, $user) {
                     return [
                         'id' => $unit->id,
                         'title' => $unit->title,
                         'order' => $unit->order,
                         'child_course_id' => $unit->child_course_id ?? null,
                         'child_course_title' => $unit->child_course_title ?? null,
-                        'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId) {
+                        'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $viewLimitExceeded, $bundleId, $user) {
                             $matchingPackageId = null;
                             $hasLessonAccess = $isEnrolled;
                             $ownsCourse = $isEnrolled;
