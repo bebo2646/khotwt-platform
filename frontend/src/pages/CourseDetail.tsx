@@ -231,6 +231,264 @@ export default function CourseDetail() {
     );
   }
 
+  const renderLessonsList = (unitLessons: any[]) => {
+    if (!unitLessons || unitLessons.length === 0) {
+      return (
+        <div className="p-5 text-xs text-slate-500 font-light text-center">لا توجد محاضرات في هذه الوحدة حالياً.</div>
+      )
+    }
+
+    return unitLessons.map((lesson: any) => {
+      const hasContent = (lesson.videos && lesson.videos.length > 0) ||
+                         (lesson.pdfs && lesson.pdfs.length > 0) ||
+                         (lesson.exams && lesson.exams.length > 0);
+      
+      return (
+        <div key={lesson.id} className="p-5 space-y-4 transition-all hover:bg-slate-900/10">
+          {/* Lesson Header */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h4 className="font-bold text-xs sm:text-sm text-slate-200 text-right">{lesson.title}</h4>
+              {lesson.description && (
+                <p className="text-[10px] sm:text-xs text-slate-400 font-light leading-relaxed text-right">
+                  {lesson.description}
+                </p>
+              )}
+            </div>
+            
+            {isEnrolled ? (
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${course?.id}`)}
+                  className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <span>بدء الدراسة</span>
+                  <ArrowLeft className="h-3 w-3" />
+                </button>
+                {!lesson.is_locked ? (
+                  <CheckCircle className="h-5 w-5 text-brand-success shrink-0" />
+                ) : (
+                  <Lock className="h-4 w-4 text-slate-500 shrink-0" />
+                )}
+              </div>
+            ) : (
+              <Lock className="h-4 w-4 text-slate-500 shrink-0" />
+            )}
+          </div>
+
+          {/* Lesson Contents Nested List */}
+          {hasContent && (
+            <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-4 pt-2 text-right">
+              {/* Videos */}
+              {lesson.videos && lesson.videos.map((vid: any) => (
+                <div key={vid.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
+                  
+                  {/* Video Header / Trigger */}
+                  <div 
+                    onClick={() => toggleContentItem(`video-${vid.id}`)}
+                    className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none font-sans"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Play className="h-3.5 w-3.5 text-brand-primary shrink-0" />
+                      <span className="font-semibold text-slate-200">▶ مشاهدة الفيديو: {vid.title}</span>
+                      {vid.duration_text && (
+                        <span className="text-[10px] text-slate-500">({vid.duration_text})</span>
+                      )}
+                      {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      {!vid.is_locked ? (
+                        <Link 
+                          to={`/student/lessons/${lesson.id}?play=${vid.id}&course_id=${course?.id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                        >
+                          تشغيل
+                        </Link>
+                      ) : (
+                        <Lock className="h-3 w-3 text-slate-600" />
+                      )}
+                      <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`video-${vid.id}`] ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+
+                  {/* Video Info Panel */}
+                  {expandedContentItems[`video-${vid.id}`] && !vid.is_locked && vid.progress && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">⏳ مدة الفيديو:</span>
+                        <span className="font-bold text-slate-100">{vid.duration_text || `${Math.round((vid.duration_seconds || 0) / 60)} دقيقة`}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">👁️ المشاهدات المسموح بها:</span>
+                        <span className="font-bold text-slate-100 text-right">
+                          {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_allowed}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">📈 المشاهدات المستخدمة:</span>
+                        <span className="font-bold text-slate-100">{vid.progress.views_used}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">🔐 المشاهدات المتبقية:</span>
+                        <span className="font-bold text-slate-100 text-right">
+                          {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_remaining}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">⏱️ إجمالي وقت المشاهدة:</span>
+                        <span className="font-bold text-slate-100">{Math.round(vid.progress.watched_seconds / 60)} دقيقة</span>
+                      </div>
+                      {vid.progress.last_watched_at && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">📅 آخر مشاهدة:</span>
+                          <span className="font-bold text-slate-100 truncate" title={new Date(vid.progress.last_watched_at).toLocaleString('ar-EG')}>
+                            {new Date(vid.progress.last_watched_at).toLocaleDateString('ar-EG')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* PDFs */}
+              {lesson.pdfs && lesson.pdfs.map((pdf: any) => (
+                <div key={pdf.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
+                  
+                  {/* PDF Header / Trigger */}
+                  <div 
+                    onClick={() => toggleContentItem(`pdf-${pdf.id}`)}
+                    className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="font-semibold text-slate-200">📄 فتح الملف: {pdf.title}</span>
+                      {!pdf.is_locked && pdf.progress && renderStatusBadge(pdf.progress.status, 'pdf')}
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      {!pdf.is_locked ? (
+                         <Link 
+                           to={`/student/pdf/${pdf.id}?course_id=${course?.id}`}
+                           onClick={(e) => e.stopPropagation()}
+                           className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                         >
+                           عرض الملف
+                         </Link>
+                      ) : (
+                        <Lock className="h-3 w-3 text-slate-600" />
+                      )}
+                      <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`pdf-${pdf.id}`] ? 'rotate-180' : ''}`} />
+                    </div>
+                  </div>
+
+                  {/* PDF Info Panel */}
+                  {expandedContentItems[`pdf-${pdf.id}`] && !pdf.is_locked && pdf.progress && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">📖 عدد الصفحات:</span>
+                        <span className="font-bold text-slate-100">{pdf.page_count || '-'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">💾 حجم الملف:</span>
+                        <span className="font-bold text-slate-100">{pdf.file_size || '-'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">👁️ عدد مرات الفتح:</span>
+                        <span className="font-bold text-slate-100">{pdf.progress.open_count}</span>
+                      </div>
+                      {pdf.progress.last_opened_at && (
+                        <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
+                          <span className="text-slate-500">📅 آخر مرة تم فتحه:</span>
+                          <span className="font-bold text-slate-100" title={new Date(pdf.progress.last_opened_at).toLocaleString('ar-EG')}>
+                            {new Date(pdf.progress.last_opened_at).toLocaleDateString('ar-EG')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Exams */}
+              {lesson.exams && lesson.exams.map((ex: any) => {
+                const isHomework = ex.type === 'homework';
+                return (
+                  <div key={ex.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
+                    
+                    {/* Exam Header / Trigger */}
+                    <div 
+                      onClick={() => toggleContentItem(`exam-${ex.id}`)}
+                      className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        {isHomework ? (
+                          <ClipboardList className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                        ) : (
+                          <HelpCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                        )}
+                        <span className="font-semibold text-slate-200">
+                          {isHomework ? "📝 الواجب: " : "🧪 الامتحان: "} {ex.title}
+                        </span>
+                        {!ex.is_locked && ex.progress && renderStatusBadge(ex.progress.status, isHomework ? 'homework' : 'exam')}
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        {!ex.is_locked ? (
+                          ex.progress?.status === 'completed' ? (
+                            <Link 
+                              to={`/student/exams/${ex.id}/result?course_id=${course?.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 py-1 bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border border-brand-success/20 hover:border-brand-success/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                            >
+                              عرض النتيجة
+                            </Link>
+                          ) : (
+                            <Link 
+                              to={`/student/exams/${ex.id}?course_id=${course?.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/20 hover:border-amber-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
+                            >
+                              {ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'}
+                            </Link>
+                          )
+                        ) : (
+                          <Lock className="h-3 w-3 text-slate-600" />
+                        )}
+                        <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
+                      </div>
+                    </div>
+
+                    {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && ex.progress && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">⏱️ مدة الامتحان:</span>
+                          <span className="font-bold text-slate-100">{ex.duration_minutes || 'غير محدد'} دقيقة</span>
+                        </div>
+                        {ex.progress.score !== null && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">🏆 الدرجة المحققة:</span>
+                            <span className="font-bold text-slate-100">{ex.progress.score}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">🔄 المحاولات:</span>
+                          <span className="font-bold text-slate-100">{ex.progress.attempts_count}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    });
+  }
+
   const fetchDetails = React.useCallback(() => {
     const params = new URLSearchParams()
     if (packageId) params.append('package_id', packageId)
@@ -777,7 +1035,7 @@ export default function CourseDetail() {
             <div className="space-y-8">
               {childCourses.map((child) => (
                 <div key={child.id} className="space-y-4">
-                  <div className="bg-brand-primary/10 border border-brand-primary/20 p-4.5 rounded-2xl flex items-center justify-between">
+                <div className="bg-brand-primary/10 border border-brand-primary/20 p-4.5 rounded-2xl flex items-center justify-between">
                     <span className="text-sm font-black text-brand-primary">📚 كورس: {child.title}</span>
                     <span className="text-[10px] text-slate-400 font-bold">{child.units?.length || 0} وحدات مضافة</span>
                   </div>
@@ -805,67 +1063,7 @@ export default function CourseDetail() {
                             {/* Lessons list details */}
                             {isExpanded && (
                               <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
-                                {!unit.lessons || unit.lessons.length === 0 ? (
-                                  <div className="p-5 text-xs text-slate-500 font-light text-center">لا توجد محاضرات في هذه الوحدة حالياً.</div>
-                                ) : (
-                                  unit.lessons.map((lesson: any) => {
-                                    const hasContent = (lesson.videos && lesson.videos.length > 0) ||
-                                                       (lesson.pdfs && lesson.pdfs.length > 0) ||
-                                                       (lesson.exams && lesson.exams.length > 0);
-                                    
-                                    return (
-                                      <div key={lesson.id} className="p-5 space-y-4 transition-all hover:bg-slate-900/10">
-                                        {/* Lesson Header */}
-                                        <div className="flex items-start justify-between gap-4">
-                                          <div className="space-y-1">
-                                            <h4 className="font-bold text-xs sm:text-sm text-slate-200">{lesson.title}</h4>
-                                            {lesson.description && (
-                                              <p className="text-[10px] sm:text-xs text-slate-400 font-light leading-relaxed">
-                                                {lesson.description}
-                                              </p>
-                                            )}
-                                          </div>
-                                          
-                                          {isEnrolled ? (
-                                            <button
-                                              onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${course?.id}`)}
-                                              className="px-3.5 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
-                                            >
-                                              <span>بدء الدراسة</span>
-                                              <ArrowLeft className="h-3 w-3" />
-                                            </button>
-                                          ) : (
-                                            <Lock className="h-4 w-4 text-slate-500 shrink-0" />
-                                          )}
-                                        </div>
-
-                                        {/* Lesson contents */}
-                                        {hasContent && (
-                                          <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-3 pt-2">
-                                            {lesson.videos && lesson.videos.length > 0 && (
-                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                                                <span>🎥</span>
-                                                <span>فيديو شرح: {lesson.videos.map((v: any) => v.title).join('، ')}</span>
-                                              </div>
-                                            )}
-                                            {lesson.pdfs && lesson.pdfs.length > 0 && (
-                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                                                <span>📄</span>
-                                                <span>مذكرة / ملف PDF: {lesson.pdfs.map((p: any) => p.title).join('، ')}</span>
-                                              </div>
-                                            )}
-                                            {lesson.exams && lesson.exams.length > 0 && (
-                                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                                                <span>📝</span>
-                                                <span>امتحان / واجب: {lesson.exams.map((e: any) => e.title).join('، ')}</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    )
-                                  })
-                                )}
+                                {renderLessonsList(unit.lessons)}
                               </div>
                             )}
                           </div>
@@ -903,288 +1101,7 @@ export default function CourseDetail() {
                   {/* Lessons list details */}
                   {isExpanded && (
                     <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
-                      {unit.lessons.length === 0 ? (
-                        <div className="p-6 text-xs text-slate-500 font-light text-center">لا توجد محاضرات في هذه الوحدة حالياً.</div>
-                      ) : (
-                        unit.lessons.map((lesson) => {
-                          const hasContent = (lesson.videos && lesson.videos.length > 0) ||
-                                             (lesson.pdfs && lesson.pdfs.length > 0) ||
-                                             (lesson.exams && lesson.exams.length > 0);
-                          
-                          return (
-                            <div key={lesson.id} className="p-6 space-y-4 transition-all hover:bg-slate-900/10">
-                              {/* Lesson Header */}
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="space-y-1">
-                                  <h4 className="font-bold text-xs sm:text-sm text-slate-200">{lesson.title}</h4>
-                                  {lesson.description && (
-                                    <p className="text-[10px] sm:text-xs text-slate-400 font-light leading-relaxed">
-                                      {lesson.description}
-                                    </p>
-                                  )}
-                                </div>
-                                
-                                {isEnrolled && !lesson.is_locked ? (
-                                  <CheckCircle className="h-5 w-5 text-brand-success shrink-0" />
-                                ) : (
-                                  <Lock className="h-4 w-4 text-slate-500 shrink-0" />
-                                )}
-                              </div>
-
-                              {/* Lesson Contents Nested List */}
-                              {hasContent && (
-                                <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-4 pt-2">
-                                  
-                                  {/* Videos */}
-                                  {lesson.videos && lesson.videos.map((vid) => (
-                                    <div key={vid.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
-                                      
-                                      {/* Video Header / Trigger */}
-                                      <div 
-                                        onClick={() => toggleContentItem(`video-${vid.id}`)}
-                                        className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
-                                      >
-                                        <div className="flex items-center gap-2.5">
-                                          <Play className="h-3.5 w-3.5 text-brand-primary shrink-0" />
-                                          <span className="font-semibold text-slate-200">▶ مشاهدة الفيديو: {vid.title}</span>
-                                          {vid.duration_text && (
-                                            <span className="text-[10px] text-slate-500">({vid.duration_text})</span>
-                                          )}
-                                          {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-3">
-                                          {!vid.is_locked ? (
-                                            <Link 
-                                              to={`/student/lessons/${lesson.id}?play=${vid.id}${packageId ? `&package_id=${packageId}` : (lessonId ? `&lesson_id=${lessonId}` : (lesson.course_id ? `&course_id=${lesson.course_id}` : ''))}`}
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                                            >
-                                              تشغيل
-                                            </Link>
-                                          ) : (
-                                            <Lock className="h-3 w-3 text-slate-600" />
-                                          )}
-                                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`video-${vid.id}`] ? 'rotate-180' : ''}`} />
-                                        </div>
-                                      </div>
-
-                                      {/* Video Info Panel */}
-                                      {expandedContentItems[`video-${vid.id}`] && !vid.is_locked && vid.progress && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">⏳ مدة الفيديو:</span>
-                                            <span className="font-bold text-slate-100">{vid.duration_text || `${Math.round((vid.duration_seconds || 0) / 60)} دقيقة`}</span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">👁️ المشاهدات المسموح بها:</span>
-                                            <span className="font-bold text-slate-100">
-                                              {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_allowed}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">📈 المشاهدات المستخدمة:</span>
-                                            <span className="font-bold text-slate-100">{vid.progress.views_used}</span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">🔐 المشاهدات المتبقية:</span>
-                                            <span className="font-bold text-slate-100">
-                                              {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_remaining}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">⏱️ إجمالي وقت المشاهدة:</span>
-                                            <span className="font-bold text-slate-100">{Math.round(vid.progress.watched_seconds / 60)} دقيقة</span>
-                                          </div>
-                                          {vid.progress.last_watched_at && (
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">📅 آخر مشاهدة:</span>
-                                              <span className="font-bold text-slate-100 truncate" title={new Date(vid.progress.last_watched_at).toLocaleString('ar-EG')}>
-                                                {new Date(vid.progress.last_watched_at).toLocaleDateString('ar-EG')}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-
-                                  {/* PDFs */}
-                                  {lesson.pdfs && lesson.pdfs.map((pdf) => (
-                                    <div key={pdf.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
-                                      
-                                      {/* PDF Header / Trigger */}
-                                      <div 
-                                        onClick={() => toggleContentItem(`pdf-${pdf.id}`)}
-                                        className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
-                                      >
-                                        <div className="flex items-center gap-2.5">
-                                          <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                                          <span className="font-semibold text-slate-200">📄 فتح الملف: {pdf.title}</span>
-                                          {!pdf.is_locked && pdf.progress && renderStatusBadge(pdf.progress.status, 'pdf')}
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-3">
-                                          {!pdf.is_locked ? (
-                                             <Link 
-                                               to={`/student/pdf/${pdf.id}${packageId ? `?package_id=${packageId}` : (lessonId ? `?lesson_id=${lessonId}` : (lesson.course_id ? `?course_id=${lesson.course_id}` : ''))}`}
-                                               onClick={(e) => e.stopPropagation()}
-                                               className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                                             >
-                                               عرض الملف
-                                             </Link>
-                                          ) : (
-                                            <Lock className="h-3 w-3 text-slate-600" />
-                                          )}
-                                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`pdf-${pdf.id}`] ? 'rotate-180' : ''}`} />
-                                        </div>
-                                      </div>
-
-                                      {/* PDF Info Panel */}
-                                      {expandedContentItems[`pdf-${pdf.id}`] && !pdf.is_locked && pdf.progress && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">📖 عدد الصفحات:</span>
-                                            <span className="font-bold text-slate-100">{pdf.page_count || '-'}</span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">💾 حجم الملف:</span>
-                                            <span className="font-bold text-slate-100">{pdf.file_size || '-'}</span>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="text-slate-500">👁️ عدد مرات الفتح:</span>
-                                            <span className="font-bold text-slate-100">{pdf.progress.open_count}</span>
-                                          </div>
-                                          {pdf.progress.last_opened_at && (
-                                            <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
-                                              <span className="text-slate-500">📅 آخر مرة تم فتحه:</span>
-                                              <span className="font-bold text-slate-100" title={new Date(pdf.progress.last_opened_at).toLocaleString('ar-EG')}>
-                                                {new Date(pdf.progress.last_opened_at).toLocaleDateString('ar-EG')}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-
-                                  {/* Exams & Homeworks */}
-                                  {lesson.exams && lesson.exams.map((ex) => {
-                                    const isHomework = ex.type === 'homework';
-                                    const typeLabel = isHomework ? 'homework' : 'exam';
-                                    return (
-                                      <div key={ex.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
-                                        
-                                        {/* Exam Header / Trigger */}
-                                        <div 
-                                          onClick={() => toggleContentItem(`exam-${ex.id}`)}
-                                          className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
-                                        >
-                                          <div className="flex items-center gap-2.5">
-                                            {isHomework ? (
-                                              <ClipboardList className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
-                                            ) : (
-                                              <HelpCircle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                                            )}
-                                            <span className="font-semibold text-slate-200">
-                                              {isHomework ? "📝 الواجب: " : "🧪 الامتحان: "} {ex.title}
-                                            </span>
-                                            {ex.time_limit_minutes && (
-                                              <span className="text-[10px] text-slate-500">({ex.time_limit_minutes} دقيقة)</span>
-                                            )}
-                                            {!ex.is_locked && ex.progress && renderStatusBadge(ex.progress.status, typeLabel)}
-                                          </div>
-                                          
-                                          <div className="flex items-center gap-3">
-                                            {!ex.is_locked ? (
-                                              <Link 
-                                                to={`/student/exams/${ex.id}${packageId ? `?package_id=${packageId}` : (lessonId ? `?lesson_id=${lessonId}` : (lesson.course_id ? `?course_id=${lesson.course_id}` : ''))}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
-                                                  isHomework 
-                                                    ? "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/20 hover:border-indigo-500/45"
-                                                    : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
-                                                }`}
-                                              >
-                                                ابدأ الحل
-                                              </Link>
-                                            ) : (
-                                              <Lock className="h-3 w-3 text-slate-600" />
-                                            )}
-                                            <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
-                                          </div>
-                                        </div>
-
-                                        {/* Exam Info Panel */}
-                                        {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && ex.progress && (
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
-                                            {isHomework && (
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-slate-500">📝 نوع الواجب:</span>
-                                                <span className="font-bold text-slate-100">
-                                                  {ex.homework_type === 'bubble_sheet' ? 'Bubble Sheet' : 'MCQ / عادي'}
-                                                </span>
-                                              </div>
-                                            )}
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">❓ عدد الأسئلة:</span>
-                                              <span className="font-bold text-slate-100">{ex.questions_count}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">💯 الدرجة الكلية:</span>
-                                              <span className="font-bold text-slate-100">{ex.max_score} درجة</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">🎯 درجة النجاح:</span>
-                                              <span className="font-bold text-slate-100">{ex.passing_score} درجة</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">⏱️ الزمن المحدد:</span>
-                                              <span className="font-bold text-slate-100">
-                                                {ex.time_limit_minutes ? `${ex.time_limit_minutes} دقيقة` : 'غير محدد'}
-                                              </span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">🔄 المحاولات المسموح بها:</span>
-                                              <span className="font-bold text-slate-100">{ex.max_attempts || 'محاولة واحدة'}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">📈 المحاولات المستخدمة:</span>
-                                              <span className="font-bold text-slate-100">{ex.progress.attempts_used}</span>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <span className="text-slate-500">🔐 المحاولات المتبقية:</span>
-                                              <span className="font-bold text-slate-100">{ex.progress.attempts_remaining}</span>
-                                            </div>
-                                            {ex.open_date && (
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-slate-500">📅 تاريخ الفتح:</span>
-                                                <span className="font-bold text-slate-100">{ex.open_date}</span>
-                                              </div>
-                                            )}
-                                            {ex.close_date && (
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-slate-500">📅 تاريخ الإغلاق:</span>
-                                                <span className="font-bold text-slate-100">{ex.close_date}</span>
-                                              </div>
-                                            )}
-                                            {ex.progress.score !== null && (
-                                              <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
-                                                <span className="text-indigo-400 font-bold">⭐ الدرجة الحالية:</span>
-                                                <span className="font-black text-indigo-300">{ex.progress.score} / {ex.max_score}</span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })
-                      )}
+                      {renderLessonsList(unit.lessons)}
                     </div>
                   )}
 

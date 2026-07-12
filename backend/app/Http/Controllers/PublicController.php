@@ -386,15 +386,201 @@ class PublicController extends Controller
                 }
             }
 
+            $isStudent = $user && $user->isStudent();
+            $viewLimitExceeded = false;
+            $viewLimitDetails = null;
+            if ($user && $user->isStudent() && $isEnrolled) {
+                if ($course->hasExceededViewLimitForStudent($user->id)) {
+                    $viewLimitExceeded = true;
+                }
+                $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+            }
+
+            // Fetch progresses if student
+            $videoProgresses = [];
+            $pdfProgresses = [];
+            $examAttempts = [];
+            if ($user && $user->isStudent()) {
+                $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
+                $lessonIds = \App\Models\Lesson::whereIn('unit_id', function ($q) use ($childIds) {
+                    $q->select('id')->from('units')->whereIn('course_id', $childIds);
+                })->pluck('id');
+
+                $videoIds = \App\Models\Video::whereIn('lesson_id', $lessonIds)->pluck('id');
+                $pdfIds = \App\Models\Pdf::whereIn('lesson_id', $lessonIds)->pluck('id');
+                $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
+
+                $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
+                    ->whereIn('video_id', $videoIds)
+                    ->get()
+                    ->keyBy('video_id');
+
+                $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
+                    ->whereIn('pdf_id', $pdfIds)
+                    ->get()
+                    ->keyBy('pdf_id');
+
+                $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+                    ->whereIn('exam_id', $examIds)
+                    ->get()
+                    ->groupBy('exam_id');
+            }
+
+            $bundleId = $course->id;
+            $formatUnits = function ($units) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
+                return $units->map(function ($unit) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
+                    return [
+                        'id' => $unit->id,
+                        'title' => $unit->title,
+                        'order' => $unit->order,
+                        'lessons' => $unit->lessons->map(function ($lesson) use ($isEnrolled, $course, $isStudent, $viewLimitExceeded, $videoProgresses, $pdfProgresses, $examAttempts, $viewLimitDetails, $bundleId) {
+                            $matchingPackageId = null;
+                            $hasLessonAccess = $isEnrolled;
+                            $ownsCourse = $isEnrolled;
+                            $ownsLessonDirect = false;
+
+                            $lessonData = [
+                                'id' => $lesson->id,
+                                'title' => $lesson->title,
+                                'description' => $lesson->description,
+                                'order' => $lesson->order,
+                                'owns_course' => $ownsCourse,
+                                'owns_lesson_direct' => $ownsLessonDirect,
+                                'matching_package_id' => $matchingPackageId,
+                                'package_id' => null,
+                                'course_id' => $bundleId,
+                            ];
+
+                            $isLocked = !$hasLessonAccess;
+                            $lessonData['is_locked'] = $isLocked;
+
+                            $lessonData['videos_count'] = $lesson->videos()->count();
+                            $lessonData['pdfs_count'] = $lesson->pdfs()->count();
+                            $lessonData['exams_count'] = $lesson->exams()->count();
+
+                            $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
+
+                            $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $viewLimitDetails) {
+                                $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
+                                
+                                $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
+                                
+                                $viewsUsed = $viewLimitDetails ? (int)$viewLimitDetails['views_used'] : 0;
+                                $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
+                                $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
+                                $completed = $progress ? (bool)$progress->completed : false;
+                                $lastPosition = $progress ? (int)$progress->last_position_seconds : 0;
+                                $lastWatchedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
+
+                                $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
+                                $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
+                                $viewsRemaining = $limitEnabled ? (int)$viewLimitDetails['remaining_views'] : -1;
+
+                                if ($completed) {
+                                    $status = 'completed';
+                                } elseif ($watchedPercentage > 0) {
+                                    $status = 'in_progress';
+                                } else {
+                                    $status = 'not_started';
+                                }
+
+                                return [
+                                    'id' => $video->id,
+                                    'title' => $video->title,
+                                    'duration_seconds' => $video->duration_seconds,
+                                    'duration_text' => $video->duration_text,
+                                    'is_locked' => !$videoSecured,
+                                    'video_url' => $videoSecured ? $video->video_url : null,
+                                    'bunny_id' => $videoSecured ? $video->bunny_id : null,
+                                    'progress' => [
+                                        'views_used' => $viewsUsed,
+                                        'watched_seconds' => $watchedSeconds,
+                                        'watched_percentage' => $watchedPercentage,
+                                        'completed' => $completed,
+                                        'last_position_seconds' => $lastPosition,
+                                        'last_watched_at' => $lastWatchedAt,
+                                        'views_allowed' => $totalAllowed,
+                                        'views_remaining' => $viewsRemaining,
+                                        'status' => $status,
+                                    ]
+                                ];
+                            });
+
+                            $lessonData['pdfs'] = $lesson->pdfs->map(function ($pdf) use ($secured, $pdfProgresses) {
+                                $progress = isset($pdfProgresses[$pdf->id]) ? $pdfProgresses[$pdf->id] : null;
+                                $openCount = $progress ? (int)$progress->open_count : 0;
+                                $lastOpenedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
+
+                                return [
+                                    'id' => $pdf->id,
+                                    'title' => $pdf->title,
+                                    'file_path' => $secured ? $pdf->file_path : null,
+                                    'file_size' => $pdf->file_size,
+                                    'page_count' => $pdf->page_count,
+                                    'is_locked' => !$secured,
+                                    'progress' => [
+                                        'open_count' => $openCount,
+                                        'last_opened_at' => $lastOpenedAt,
+                                        'status' => $openCount > 0 ? 'completed' : 'not_started',
+                                    ]
+                                ];
+                            });
+
+                            $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured, $examAttempts) {
+                                $attempts = isset($examAttempts[$exam->id]) ? $examAttempts[$exam->id] : collect();
+                                $completedAttempt = $attempts->where('status', 'completed')->first();
+                                $inProgressAttempt = $attempts->where('status', 'started')->first();
+
+                                $status = 'not_started';
+                                $score = null;
+                                if ($completedAttempt) {
+                                    $status = 'completed';
+                                    $score = $completedAttempt->score;
+                                } elseif ($inProgressAttempt) {
+                                    $status = 'in_progress';
+                                }
+
+                                return [
+                                    'id' => $exam->id,
+                                    'title' => $exam->title,
+                                    'type' => $exam->type,
+                                    'duration_minutes' => $exam->duration_minutes,
+                                    'is_locked' => !$secured,
+                                    'progress' => [
+                                        'status' => $status,
+                                        'score' => $score,
+                                        'attempts_count' => $attempts->count(),
+                                    ]
+                                ];
+                            });
+
+                            return $lessonData;
+                        })
+                    ];
+                });
+            };
+
+            $formattedChildCourses = $childCourses->map(function ($child) use ($formatUnits) {
+                return [
+                    'id' => $child->id,
+                    'title' => $child->title,
+                    'cover_image' => $child->cover_image,
+                    'subject' => $child->subject,
+                    'grade' => $child->grade,
+                    'units' => $formatUnits($child->units),
+                ];
+            });
+
             return response()->json([
                 'course' => $course,
-                'child_courses' => $childCourses,
+                'child_courses' => $formattedChildCourses,
                 'units' => [],
                 'packages' => [],
                 'is_enrolled' => $isEnrolled,
                 'last_watched' => null,
                 'availability_message' => null,
-                'view_limit_exceeded' => false,
+                'view_limit_exceeded' => $viewLimitExceeded,
+                'view_limit_details' => $viewLimitDetails,
             ]);
         }
 
