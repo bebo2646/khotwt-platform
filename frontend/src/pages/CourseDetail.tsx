@@ -10,6 +10,7 @@ import { getCourseDisplayPrice } from '../utils/pricing'
 import LessonViewer from './student/LessonViewer'
 import ExamPlayer from './student/ExamPlayer'
 import ExamResults from './student/ExamResults'
+import { formatDurationArabic } from '../utils/video'
 
 interface CourseItem {
   id: number
@@ -336,8 +337,8 @@ export default function CourseDetail() {
                     <div className="flex items-center gap-2.5">
                       <Play className="h-3.5 w-3.5 text-brand-primary shrink-0" />
                       <span className="font-semibold text-slate-200">▶ مشاهدة الفيديو: {vid.title}</span>
-                      {vid.duration_text && (
-                        <span className="text-[10px] text-slate-500">({vid.duration_text})</span>
+                      {(vid.duration_seconds || vid.duration_text) && (
+                        <span className="text-[10px] text-slate-500">({formatDurationArabic(vid.duration_seconds || 0)})</span>
                       )}
                       {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
                     </div>
@@ -373,7 +374,7 @@ export default function CourseDetail() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">⏳ مدة الفيديو:</span>
-                        <span className="font-bold text-slate-100">{vid.duration_text || `${Math.round((vid.duration_seconds || 0) / 60)} دقيقة`}</span>
+                        <span className="font-bold text-slate-100">{formatDurationArabic(vid.duration_seconds || 0)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">👁️ المشاهدات المسموح بها:</span>

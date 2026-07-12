@@ -4,7 +4,7 @@ import API from '../../services/api'
 import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, ShieldAlert, MonitorPlay, CheckSquare, Wallet, Maximize, Minimize, Lock } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
-import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl } from '../../utils/video'
+import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl, formatDurationArabic } from '../../utils/video'
 import { useAuthStore } from '../../store/authStore'
 
 declare global {
@@ -1535,7 +1535,7 @@ export default function LessonViewer({
                          <div className="flex justify-between items-start w-full gap-2">
                            <div className="space-y-0.5 text-right">
                              <div className="text-xs font-bold line-clamp-2 leading-relaxed">{vid.title}</div>
-                             <div className="text-[10px] text-slate-500 font-medium">مدة الفيديو: {Math.floor(vid.duration_seconds / 60)} دقيقة</div>
+                             <div className="text-[10px] text-slate-500 font-medium">مدة الفيديو: {formatDurationArabic(vid.duration_seconds || 0)}</div>
                            </div>
                            {(vid.progress?.completed || (isActive && progressPercentage >= 90)) ? (
                              <CheckCircle2 className="h-4 w-4 text-brand-success shrink-0 mt-0.5" />

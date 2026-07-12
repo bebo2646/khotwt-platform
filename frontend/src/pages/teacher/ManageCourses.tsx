@@ -7,6 +7,7 @@ import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Fo
 import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
 import { getCourseDisplayPrice } from '../../utils/pricing'
+import { formatDurationArabic } from '../../utils/video'
 
 interface CourseItem {
   id: number
@@ -1432,7 +1433,7 @@ export default function ManageCourses() {
                                                   <div className="space-y-0.5">
                                                     <h4 className="font-bold text-[11px] text-slate-200 truncate">{video.title}</h4>
                                                     <div className="text-[9px] text-slate-400 font-light space-y-0.5">
-                                                      <div>المدة: {Math.floor(video.duration_seconds / 60)}:{(video.duration_seconds % 60).toString().padStart(2, '0')} دقيقة</div>
+                                                      <div>المدة: {formatDurationArabic(video.duration_seconds || 0)}</div>
                                                       <div>تاريخ الرفع: {new Date(video.created_at).toLocaleDateString('ar-EG')}</div>
                                                       <div className="flex items-center gap-1 mt-0.5">
                                                         <span className="text-slate-500">الحالة:</span>

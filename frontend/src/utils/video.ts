@@ -30,3 +30,25 @@ export function getYoutubeEmbedUrl(url: string): string {
 
   return `https://www.youtube.com/embed/${match[1]}`;
 }
+
+/**
+ * Formats duration in seconds to a consistent, user-friendly Arabic format.
+ */
+export function formatDurationArabic(seconds: number): string {
+  if (!seconds || seconds <= 0) return '0 ثانية';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  const parts: string[] = [];
+  if (hrs > 0) {
+    parts.push(`${hrs} ساعة`);
+  }
+  if (mins > 0) {
+    parts.push(`${mins} دقيقة`);
+  }
+  if (secs > 0 || parts.length === 0) {
+    parts.push(`${secs} ثانية`);
+  }
+  return parts.join(' و ');
+}

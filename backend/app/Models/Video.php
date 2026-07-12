@@ -30,7 +30,7 @@ class Video extends Model
     {
         $seconds = intval($seconds);
         if ($seconds <= 0) {
-            return "0 seconds";
+            return "0 ثانية";
         }
         $hours = floor($seconds / 3600);
         $minutes = floor(($seconds % 3600) / 60);
@@ -38,16 +38,16 @@ class Video extends Model
 
         $parts = [];
         if ($hours > 0) {
-            $parts[] = $hours . " " . ($hours == 1 ? "hour" : "hours");
+            $parts[] = $hours . " ساعة";
         }
         if ($minutes > 0) {
-            $parts[] = $minutes . " " . ($minutes == 1 ? "minute" : "minutes");
+            $parts[] = $minutes . " دقيقة";
         }
         if ($secs > 0 || empty($parts)) {
-            $parts[] = $secs . " " . ($secs == 1 ? "second" : "seconds");
+            $parts[] = $secs . " ثانية";
         }
 
-        return implode(" ", $parts);
+        return implode(" و ", $parts);
     }
 
     public function getDurationTextAttribute()

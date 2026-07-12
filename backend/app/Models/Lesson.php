@@ -44,6 +44,11 @@ class Lesson extends Model
         return $this->hasMany(Exam::class);
     }
 
+    public function getDurationTextAttribute($value)
+    {
+        return Video::formatSecondsToWords($this->duration_seconds);
+    }
+
     public function packages()
     {
         return $this->belongsToMany(Package::class, 'package_lessons');
