@@ -12,9 +12,9 @@ class StudentAccessService
     /**
      * Resolves the active Enrollment record that grants the student access.
      * This checks direct enrollment in the course/package/lesson first,
-     * and falls back to check parent bundle enrollments if it's a child course.
+     * and falls back to check parent bundle enrollments if it's a child course and a bundle context is active.
      */
-    public static function resolveEnrollmentContext($studentId, $courseId, $packageId = null, $lessonId = null)
+    public static function resolveEnrollmentContext($studentId, $courseId, $packageId = null, $lessonId = null, $bundleId = null)
     {
         if (!$studentId) {
             return null;
@@ -32,15 +32,16 @@ class StudentAccessService
             }
         }
 
-        // 2. Parent bundle enrollment (if course is requested)
-        if ($courseId) {
-            $parentBundleIds = DB::table('course_bundle_items')
+        // 2. Parent bundle enrollment (if authorized via bundle context)
+        // ONLY allow bundle enrollment fallback if $bundleId is explicitly provided and is a bundle that contains $courseId
+        if ($courseId && $bundleId) {
+            $isChildOfBundle = DB::table('course_bundle_items')
+                ->where('parent_id', $bundleId)
                 ->where('child_id', $courseId)
-                ->pluck('parent_id')
-                ->toArray();
-            if (!empty($parentBundleIds)) {
+                ->exists();
+            if ($isChildOfBundle) {
                 $enrollment = Enrollment::where('student_id', $studentId)
-                    ->whereIn('course_id', $parentBundleIds)
+                    ->where('course_id', $bundleId)
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->first();
@@ -74,7 +75,7 @@ class StudentAccessService
         if ($lessonId && !$courseId) {
             $lesson = Lesson::with('unit')->find($lessonId);
             if ($lesson && $lesson->unit) {
-                return self::resolveEnrollmentContext($studentId, $lesson->unit->course_id, null, $lessonId);
+                return self::resolveEnrollmentContext($studentId, $lesson->unit->course_id, null, $lessonId, $bundleId);
             }
         }
 
@@ -85,9 +86,9 @@ class StudentAccessService
      * Resolves the subscription context keys (course_id, package_id, lesson_id)
      * that should be used as the single source of truth (SSOT) to track progress.
      */
-    public static function resolveProgressContext($studentId, $courseId, $packageId = null, $lessonId = null)
+    public static function resolveProgressContext($studentId, $courseId, $packageId = null, $lessonId = null, $bundleId = null)
     {
-        $enrollment = self::resolveEnrollmentContext($studentId, $courseId, $packageId, $lessonId);
+        $enrollment = self::resolveEnrollmentContext($studentId, $courseId, $packageId, $lessonId, $bundleId);
         if ($enrollment) {
             return [
                 'course_id' => $enrollment->course_id,
@@ -107,8 +108,9 @@ class StudentAccessService
     /**
      * Check if student is authorized to access the course/package/lesson.
      */
-    public static function hasAccess($studentId, $courseId, $packageId = null, $lessonId = null)
+    public static function hasAccess($studentId, $courseId, $packageId = null, $lessonId = null, $bundleId = null)
     {
-        return self::resolveEnrollmentContext($studentId, $courseId, $packageId, $lessonId) !== null;
+        return self::resolveEnrollmentContext($studentId, $courseId, $packageId, $lessonId, $bundleId) !== null;
     }
 }
+

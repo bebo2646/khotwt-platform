@@ -642,7 +642,42 @@ class PublicController extends Controller
             } elseif ($user->isStudent()) {
                 $isStudent = true;
                 
-                $isEnrolled = \App\Services\StudentAccessService::hasAccess($user->id, $courseId, $packageId, $requestLessonId);
+                // Direct course enrollment
+                $courseEnroll = \App\Models\Enrollment::where('student_id', $user->id)
+                    ->where('course_id', $courseId)
+                    ->whereNull('package_id')
+                    ->whereNull('lesson_id')
+                    ->exists();
+
+                // Direct package enrollment (if package is active)
+                $packageEnroll = false;
+                if ($packageId) {
+                    $packageEnroll = \App\Models\Enrollment::where('student_id', $user->id)
+                        ->where('package_id', $packageId)
+                        ->exists();
+                } else {
+                    $allCoursePackageIds = \App\Models\Package::where('course_id', $courseId)->pluck('id');
+                    $packageEnroll = \App\Models\Enrollment::where('student_id', $user->id)
+                        ->whereIn('package_id', $allCoursePackageIds)
+                        ->exists();
+                }
+
+                // Direct lesson enrollment (if lesson is active)
+                $lessonEnroll = false;
+                if ($requestLessonId) {
+                    $lessonEnroll = \App\Models\Enrollment::where('student_id', $user->id)
+                        ->where('lesson_id', $requestLessonId)
+                        ->exists();
+                } else {
+                    $allCourseLessonIds = \App\Models\Lesson::whereHas('unit', function($q) use ($courseId) {
+                        $q->where('course_id', $courseId);
+                    })->pluck('id');
+                    $lessonEnroll = \App\Models\Enrollment::where('student_id', $user->id)
+                        ->whereIn('lesson_id', $allCourseLessonIds)
+                        ->exists();
+                }
+
+                $isEnrolled = $courseEnroll || $packageEnroll || $lessonEnroll;
 
                 if ($isEnrolled) {
                     $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $courseId, $packageId, $requestLessonId);

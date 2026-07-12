@@ -1591,7 +1591,7 @@ export default function LessonViewer({
       )}
 
       {/* Platform PDF Viewer Modal */}
-      {activePdf !== null && (
+      {activePdf !== null && !isEmbedded && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/90" onClick={() => setActivePdf(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden z-10 text-right">

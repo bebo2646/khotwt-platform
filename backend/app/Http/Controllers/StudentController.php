@@ -1258,13 +1258,13 @@ class StudentController extends Controller
                 }
             }
 
-            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $course->id, $packageIdParam, $lesson->id);
+            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $course->id, $packageIdParam, $lesson->id, $courseIdParam);
 
             if (!$hasAccess) {
                 return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذه المحاضرة. يرجى الاشتراك أولاً.'], 403);
             }
 
-            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $course->id, $packageIdParam, $lesson->id);
+            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $course->id, $packageIdParam, $lesson->id, $courseIdParam);
             $contextCourseId = $context['course_id'];
             $contextPackageId = $context['package_id'];
             $contextLessonId = $context['lesson_id'];
@@ -1422,12 +1422,12 @@ class StudentController extends Controller
             $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
             $packageIdParam = $request->input('package_id') ?: $request->query('package_id');
 
-            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
             if (!$hasAccess) {
                 return response()->json(['message' => 'غير مصرح لك بمشاهدة هذا الفيديو أو تحديث تقدمه.'], 403);
             }
 
-            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
             $contextCourseId = $context['course_id'];
             $contextPackageId = $context['package_id'];
             $contextLessonId = $context['lesson_id'];
@@ -1678,13 +1678,13 @@ class StudentController extends Controller
             $parentBundle = \App\Models\Course::find($packageIdParam);
         }
 
-        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
 
         if (!$hasAccess) {
             return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذا الملف. يرجى الاشتراك أولاً.'], 403);
         }
 
-        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
         $contextCourseId = $context['course_id'];
         $contextPackageId = $context['package_id'];
         $contextLessonId = $context['lesson_id'];
@@ -1814,13 +1814,13 @@ class StudentController extends Controller
         $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
         $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
-        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
 
         if (!$hasAccess) {
             return response()->json(['message' => 'غير مصرح لك بأداء هذا الامتحان. يرجى الاشتراك أولاً.'], 403);
         }
 
-        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
         $contextCourseId = $context['course_id'];
         $contextPackageId = $context['package_id'];
         $contextLessonId = $context['lesson_id'];
@@ -2832,7 +2832,7 @@ class StudentController extends Controller
             return response()->json(['message' => 'هذا الامتحان مجاني ولا يتطلب شراء.'], 422);
         }
 
-        // Check if student has access to the lesson (either course, package, or lesson level)
+        // Check if student has access to the lesson (either course, package, lesson, or parent bundle level)
         $hasAccess = Enrollment::where('student_id', $user->id)
             ->where(function($q) use ($courseId, $lesson) {
                 // Course level
@@ -2846,6 +2846,12 @@ class StudentController extends Controller
                     $subQuery->select('package_id')
                         ->from('package_lessons')
                         ->where('lesson_id', $lesson->id);
+                })
+                // Parent bundle level
+                ->orWhereIn('course_id', function($subQuery) use ($courseId) {
+                    $subQuery->select('parent_id')
+                        ->from('course_bundle_items')
+                        ->where('child_id', $courseId);
                 });
             })
             ->exists();

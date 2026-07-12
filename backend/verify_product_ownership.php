@@ -98,6 +98,7 @@ try {
     // Create Bundle (Package) containing Lectures 2, 3, 4, 5
     $bundle = Package::create([
         'course_id' => $course->id,
+        'teacher_id' => $teacher->id,
         'title' => 'E2E Special Chemistry Bundle (L2-L5)',
         'price' => 150.00,
         'type' => 'bundle',
