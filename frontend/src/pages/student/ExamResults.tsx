@@ -53,8 +53,13 @@ const TYPE_TRANSLATION: Record<string, string> = {
   monthly_exam: 'امتحان شهري',
 }
 
-export default function ExamResults() {
-  const { id } = useParams()
+interface ExamResultsProps {
+  overrideExamId?: number
+}
+
+export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
+  const { id: routeId } = useParams()
+  const id = overrideExamId ? overrideExamId.toString() : routeId
   const [attempts, setAttempts] = React.useState<AttemptItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [selectedAttempt, setSelectedAttempt] = React.useState<AttemptItem | null>(null)

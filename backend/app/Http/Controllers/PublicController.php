@@ -636,14 +636,7 @@ class PublicController extends Controller
                 $isStudent = true;
                 
                 $courseEnroll = Enrollment::where('student_id', $user->id)
-                    ->where(function($query) use ($courseId) {
-                        $query->where('course_id', $courseId)
-                            ->orWhereIn('course_id', function($sub) use ($courseId) {
-                                $sub->select('parent_id')
-                                    ->from('course_bundle_items')
-                                    ->where('child_id', $courseId);
-                            });
-                    })
+                    ->where('course_id', $courseId)
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
@@ -767,21 +760,6 @@ class PublicController extends Controller
 
                         if ($ownsCourse) {
                             $hasLessonAccess = true;
-                        } else {
-                            // Check if student owns a bundled course containing this course
-                            $ownsBundle = Enrollment::where('student_id', $user->id)
-                                ->whereNull('package_id')
-                                ->whereNull('lesson_id')
-                                ->whereIn('course_id', function($subQuery) use ($courseId) {
-                                    $subQuery->select('parent_id')
-                                        ->from('course_bundle_items')
-                                        ->where('child_id', $courseId);
-                                })
-                                ->exists();
-                            if ($ownsBundle) {
-                                $ownsCourse = true;
-                                $hasLessonAccess = true;
-                            }
                         }
 
                         if (!$hasLessonAccess) {

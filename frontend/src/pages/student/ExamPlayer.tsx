@@ -36,11 +36,20 @@ interface ExamInfo {
   enable_copy_protection?: boolean
 }
 
-export default function ExamPlayer() {
-  const { id } = useParams()
+interface ExamPlayerProps {
+  overrideExamId?: number
+  overrideCourseId?: number
+  onCompleted?: () => void
+  onClose?: () => void
+}
+
+export default function ExamPlayer({ overrideExamId, overrideCourseId, onCompleted, onClose }: ExamPlayerProps = {}) {
+  const { id: routeId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const courseId = searchParams.get('course_id')
+  
+  const id = overrideExamId ? overrideExamId.toString() : routeId
+  const courseId = overrideCourseId ? overrideCourseId.toString() : searchParams.get('course_id')
   const packageId = searchParams.get('package_id')
 
   // States
@@ -98,7 +107,8 @@ export default function ExamPlayer() {
           })
         } else {
           useModalStore.getState().showToast(err.response?.data?.message || 'فشل تحميل بيانات الامتحان. ربما لست مشتركاً بالكورس أو انتهت الصلاحية.', 'error')
-          navigate(-1)
+          if (onClose) onClose()
+          else navigate(-1)
         }
       })
       .finally(() => setLoading(false))
@@ -341,7 +351,8 @@ export default function ExamPlayer() {
             if (document.fullscreenElement) {
               document.exitFullscreen().catch(() => {})
             }
-            navigate(`/student/exams/${exam.id}/result`)
+            if (onCompleted) onCompleted()
+            else navigate(`/student/exams/${exam.id}/result`)
           }
         })
       } else if (remaining === 1) {
@@ -411,7 +422,8 @@ export default function ExamPlayer() {
       })
       
       useModalStore.getState().showToast('تم تسليم إجاباتك بنجاح!', 'success')
-      navigate(`/student/exams/${exam?.id}/result`)
+      if (onCompleted) onCompleted()
+      else navigate(`/student/exams/${exam?.id}/result`)
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.message || 'حدث خطأ أثناء إرسال الإجابات. يرجى المحاولة مجدداً.'
@@ -473,7 +485,8 @@ export default function ExamPlayer() {
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {})
         }
-        navigate(-1)
+        if (onClose) onClose()
+        else navigate(-1)
       }
     })
   }
@@ -521,7 +534,7 @@ export default function ExamPlayer() {
             )}
           </div>
 
-          <button onClick={() => navigate(-1)} className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all cursor-pointer">
+          <button onClick={() => onClose ? onClose() : navigate(-1)} className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all cursor-pointer">
             العودة للخلف
           </button>
         </motion.div>
@@ -537,7 +550,7 @@ export default function ExamPlayer() {
     return (
       <div className="min-h-screen bg-background flex flex-col justify-center items-center p-6 text-center">
         <h2 className="text-xl font-bold text-slate-200">عذراً، لم نعثر على معلومات الامتحان المطلوب أو لا توجد أسئلة مضافة.</h2>
-        <button onClick={() => navigate(-1)} className="mt-4 px-6 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl cursor-pointer">
+        <button onClick={() => onClose ? onClose() : navigate(-1)} className="mt-4 px-6 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl cursor-pointer">
           العودة للخلف
         </button>
       </div>
@@ -590,7 +603,7 @@ export default function ExamPlayer() {
 
           <div className="flex gap-4 items-center justify-end pt-4">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => onClose ? onClose() : navigate(-1)}
               className="px-6 py-3 bg-brand-surface hover:bg-background border border-border-color text-slate-300 rounded-2xl text-xs font-bold transition-all cursor-pointer"
             >
               العودة للخلف

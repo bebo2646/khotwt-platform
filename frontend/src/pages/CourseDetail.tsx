@@ -3,10 +3,13 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
-import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, ArrowLeft, Video, BookOpen, HelpCircle, ClipboardList, Clock, Eye, Award } from 'lucide-react'
+import { ChevronDown, Play, FileText, CheckCircle, Lock, Wallet, Calendar, ArrowRight, ArrowLeft, Video, BookOpen, HelpCircle, ClipboardList, Clock, Eye, Award, X } from 'lucide-react'
 import SEO from '../components/SEO'
 import PurchaseModal from '../components/PurchaseModal'
 import { getCourseDisplayPrice } from '../utils/pricing'
+import LessonViewer from './student/LessonViewer'
+import ExamPlayer from './student/ExamPlayer'
+import ExamResults from './student/ExamResults'
 
 interface CourseItem {
   id: number
@@ -157,9 +160,13 @@ export default function CourseDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { isLoggedIn, user, updateUser } = useAuthStore()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const packageId = searchParams.get('package_id')
   const lessonId = searchParams.get('lesson_id')
+  const videoId = searchParams.get('video_id')
+  const pdfId = searchParams.get('pdf_id')
+  const examId = searchParams.get('exam_id')
+  const showResult = searchParams.get('show_result') === 'true'
 
   // States
   const [course, setCourse] = React.useState<CourseItem | null>(null)
@@ -261,7 +268,43 @@ export default function CourseDetail() {
             {isEnrolled ? (
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${course?.id}`)}
+                  onClick={() => {
+                    if (lesson.videos && lesson.videos.length > 0) {
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.set('video_id', lesson.videos[0].id.toString());
+                        next.set('lesson_id', lesson.id.toString());
+                        next.delete('pdf_id');
+                        next.delete('exam_id');
+                        next.delete('show_result');
+                        return next;
+                      });
+                    } else if (lesson.pdfs && lesson.pdfs.length > 0) {
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.set('pdf_id', lesson.pdfs[0].id.toString());
+                        next.set('lesson_id', lesson.id.toString());
+                        next.delete('video_id');
+                        next.delete('exam_id');
+                        next.delete('show_result');
+                        return next;
+                      });
+                    } else if (lesson.exams && lesson.exams.length > 0) {
+                      setSearchParams((prev) => {
+                        const next = new URLSearchParams(prev);
+                        next.set('exam_id', lesson.exams[0].id.toString());
+                        next.set('lesson_id', lesson.id.toString());
+                        if (lesson.exams[0].progress?.status === 'completed') {
+                          next.set('show_result', 'true');
+                        } else {
+                          next.delete('show_result');
+                        }
+                        next.delete('video_id');
+                        next.delete('pdf_id');
+                        return next;
+                      });
+                    }
+                  }}
                   className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
                 >
                   <span>بدء الدراسة</span>
@@ -301,13 +344,23 @@ export default function CourseDetail() {
                     
                     <div className="flex items-center gap-3">
                       {!vid.is_locked ? (
-                        <Link 
-                          to={`/student/lessons/${lesson.id}?play=${vid.id}&course_id=${course?.id}`}
-                          onClick={(e) => e.stopPropagation()}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set('video_id', vid.id.toString());
+                              next.set('lesson_id', lesson.id.toString());
+                              next.delete('pdf_id');
+                              next.delete('exam_id');
+                              next.delete('show_result');
+                              return next;
+                            });
+                          }}
                           className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                         >
                           تشغيل
-                        </Link>
+                        </button>
                       ) : (
                         <Lock className="h-3 w-3 text-slate-600" />
                       )}
@@ -372,13 +425,23 @@ export default function CourseDetail() {
                     
                     <div className="flex items-center gap-3">
                       {!pdf.is_locked ? (
-                         <Link 
-                           to={`/student/pdf/${pdf.id}?course_id=${course?.id}`}
-                           onClick={(e) => e.stopPropagation()}
+                         <button
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setSearchParams((prev) => {
+                               const next = new URLSearchParams(prev);
+                               next.set('pdf_id', pdf.id.toString());
+                               next.set('lesson_id', lesson.id.toString());
+                               next.delete('video_id');
+                               next.delete('exam_id');
+                               next.delete('show_result');
+                               return next;
+                             });
+                           }}
                            className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
                          >
                            عرض الملف
-                         </Link>
+                         </button>
                       ) : (
                         <Lock className="h-3 w-3 text-slate-600" />
                       )}
@@ -439,23 +502,31 @@ export default function CourseDetail() {
                       
                       <div className="flex items-center gap-3">
                         {!ex.is_locked ? (
-                          ex.progress?.status === 'completed' ? (
-                            <Link 
-                              to={`/student/exams/${ex.id}/result?course_id=${course?.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-3 py-1 bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border border-brand-success/20 hover:border-brand-success/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                            >
-                              عرض النتيجة
-                            </Link>
-                          ) : (
-                            <Link 
-                              to={`/student/exams/${ex.id}?course_id=${course?.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border border-amber-500/20 hover:border-amber-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                            >
-                              {ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'}
-                            </Link>
-                          )
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSearchParams((prev) => {
+                                const next = new URLSearchParams(prev);
+                                next.set('exam_id', ex.id.toString());
+                                next.set('lesson_id', lesson.id.toString());
+                                if (ex.progress?.status === 'completed') {
+                                  next.set('show_result', 'true');
+                                } else {
+                                  next.delete('show_result');
+                                }
+                                next.delete('video_id');
+                                next.delete('pdf_id');
+                                return next;
+                              });
+                            }}
+                            className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                              ex.progress?.status === 'completed'
+                                ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
+                                : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                            }`}
+                          >
+                            {ex.progress?.status === 'completed' ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن')}
+                          </button>
                         ) : (
                           <Lock className="h-3 w-3 text-slate-600" />
                         )}
@@ -1005,6 +1076,130 @@ export default function CourseDetail() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Dynamic Content Viewer Area */}
+      {isEnrolled && (videoId || pdfId || examId) && (
+        <div className="space-y-4 text-right my-8" dir="rtl">
+          
+          {/* Viewer Header */}
+          <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4.5 rounded-3xl shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-primary"></span>
+              </span>
+              <span className="font-black text-sm text-slate-100">عارض المحاضرة النشطة</span>
+            </div>
+            <button
+              onClick={() => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete('video_id');
+                  next.delete('pdf_id');
+                  next.delete('exam_id');
+                  next.delete('lesson_id');
+                  next.delete('show_result');
+                  return next;
+                });
+              }}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+            >
+              <X className="h-4 w-4" />
+              <span>إغلاق العارض</span>
+            </button>
+          </div>
+
+          {/* Embedded Viewer Element */}
+          <div className="w-full bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6">
+            {videoId && (
+              <LessonViewer
+                overrideLessonId={Number(lessonId)}
+                overrideCourseId={course?.id}
+                isEmbedded={true}
+                initialVideoId={Number(videoId)}
+                onClose={() => {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('video_id');
+                    next.delete('pdf_id');
+                    next.delete('exam_id');
+                    next.delete('lesson_id');
+                    next.delete('show_result');
+                    return next;
+                  });
+                }}
+              />
+            )}
+
+            {pdfId && (
+              <LessonViewer
+                overrideLessonId={Number(lessonId)}
+                overrideCourseId={course?.id}
+                isEmbedded={true}
+                initialPdfId={Number(pdfId)}
+                onClose={() => {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('video_id');
+                    next.delete('pdf_id');
+                    next.delete('exam_id');
+                    next.delete('lesson_id');
+                    next.delete('show_result');
+                    return next;
+                  });
+                }}
+              />
+            )}
+
+            {examId && (
+              showResult ? (
+                <div className="space-y-4">
+                  <div className="flex justify-end p-2">
+                    <button
+                      onClick={() => {
+                        setSearchParams((prev) => {
+                          const next = new URLSearchParams(prev);
+                          next.set('exam_id', examId);
+                          next.set('lesson_id', lessonId || '');
+                          next.delete('show_result');
+                          return next;
+                        });
+                      }}
+                      className="px-4 py-2 bg-brand-primary text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      إعادة المحاولة / بدء الاختبار
+                    </button>
+                  </div>
+                  <ExamResults
+                    overrideExamId={Number(examId)}
+                  />
+                </div>
+              ) : (
+                <ExamPlayer
+                  overrideExamId={Number(examId)}
+                  overrideCourseId={course?.id}
+                  onCompleted={() => {
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.set('show_result', 'true');
+                      return next;
+                    });
+                  }}
+                  onClose={() => {
+                    setSearchParams((prev) => {
+                      const next = new URLSearchParams(prev);
+                      next.delete('exam_id');
+                      next.delete('lesson_id');
+                      next.delete('show_result');
+                      return next;
+                    });
+                  }}
+                />
+              )
+            )}
           </div>
         </div>
       )}

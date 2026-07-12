@@ -1263,28 +1263,24 @@ class StudentController extends Controller
             $hasAccess = false;
 
             if ($courseIdParam) {
-                // Check if they own the Full Course product OR own the parent Bundle
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where(function($query) use ($courseIdParam) {
-                        $query->where('course_id', $courseIdParam)
-                            ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
-                                $sub->select('parent_id')
-                                    ->from('course_bundle_items')
-                                    ->where('child_id', $courseIdParam);
-                            });
-                    })
+                // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
+                $directEnrollment = Enrollment::where('student_id', $user->id)
+                    ->where('course_id', $courseIdParam)
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
-                // Ensure the lesson belongs to this course OR belongs to a child course of the bundle
-                if ($hasAccess && $lesson->unit) {
-                    $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
-                        \DB::table('course_bundle_items')
+
+                if ($directEnrollment) {
+                    // Case A: courseIdParam is the physical course of the lesson
+                    if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
+                        $hasAccess = true;
+                    } else {
+                        // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
+                        $hasAccess = \DB::table('course_bundle_items')
                             ->where('parent_id', $courseIdParam)
                             ->where('child_id', $lesson->unit->course_id)
                             ->exists();
-                } else {
-                    $hasAccess = false;
+                    }
                 }
             } elseif ($packageIdParam) {
                 // Check if they own the Package product (Bundle, Month, Revision)
@@ -1453,24 +1449,24 @@ class StudentController extends Controller
             $hasAccess = false;
 
             if ($courseIdParam) {
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where(function($query) use ($courseIdParam) {
-                        $query->where('course_id', $courseIdParam)
-                            ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
-                                $sub->select('parent_id')
-                                    ->from('course_bundle_items')
-                                    ->where('child_id', $courseIdParam);
-                            });
-                    })
+                // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
+                $directEnrollment = Enrollment::where('student_id', $user->id)
+                    ->where('course_id', $courseIdParam)
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
-                if ($hasAccess) {
-                    $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
-                        \DB::table('course_bundle_items')
+
+                if ($directEnrollment) {
+                    // Case A: courseIdParam is the physical course of the lesson
+                    if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
+                        $hasAccess = true;
+                    } else {
+                        // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
+                        $hasAccess = \DB::table('course_bundle_items')
                             ->where('parent_id', $courseIdParam)
                             ->where('child_id', $lesson->unit->course_id)
                             ->exists();
+                    }
                 }
             } elseif ($packageIdParam) {
                 $hasAccess = Enrollment::where('student_id', $user->id)
@@ -1718,26 +1714,24 @@ class StudentController extends Controller
         $hasAccess = false;
 
         if ($courseIdParam) {
-            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
-                ->where(function($query) use ($courseIdParam) {
-                    $query->where('course_id', $courseIdParam)
-                        ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
-                            $sub->select('parent_id')
-                                ->from('course_bundle_items')
-                                ->where('child_id', $courseIdParam);
-                        });
-                })
+            // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
+            $directEnrollment = \App\Models\Enrollment::where('student_id', $user->id)
+                ->where('course_id', $courseIdParam)
                 ->whereNull('package_id')
                 ->whereNull('lesson_id')
                 ->exists();
-            if ($hasAccess && $lesson->unit) {
-                $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
-                    \DB::table('course_bundle_items')
+
+            if ($directEnrollment) {
+                // Case A: courseIdParam is the physical course of the lesson
+                if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
+                    $hasAccess = true;
+                } else {
+                    // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
+                    $hasAccess = \DB::table('course_bundle_items')
                         ->where('parent_id', $courseIdParam)
                         ->where('child_id', $lesson->unit->course_id)
                         ->exists();
-            } else {
-                $hasAccess = false;
+                }
             }
         } elseif ($packageIdParam) {
             $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
@@ -1879,26 +1873,24 @@ class StudentController extends Controller
         $hasAccess = false;
 
         if ($courseIdParam) {
-            $hasAccess = Enrollment::where('student_id', $user->id)
-                ->where(function($query) use ($courseIdParam) {
-                    $query->where('course_id', $courseIdParam)
-                        ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
-                            $sub->select('parent_id')
-                                ->from('course_bundle_items')
-                                ->where('child_id', $courseIdParam);
-                        });
-                })
+            // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
+            $directEnrollment = Enrollment::where('student_id', $user->id)
+                ->where('course_id', $courseIdParam)
                 ->whereNull('package_id')
                 ->whereNull('lesson_id')
                 ->exists();
-            if ($hasAccess && $lesson->unit) {
-                $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
-                    \DB::table('course_bundle_items')
+
+            if ($directEnrollment) {
+                // Case A: courseIdParam is the physical course of the lesson
+                if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
+                    $hasAccess = true;
+                } else {
+                    // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
+                    $hasAccess = \DB::table('course_bundle_items')
                         ->where('parent_id', $courseIdParam)
                         ->where('child_id', $lesson->unit->course_id)
                         ->exists();
-            } else {
-                $hasAccess = false;
+                }
             }
         } elseif ($packageIdParam) {
             $hasAccess = Enrollment::where('student_id', $user->id)

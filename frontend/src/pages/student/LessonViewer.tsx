@@ -75,12 +75,30 @@ interface LessonItem {
   is_locked?: boolean
 }
 
-export default function LessonViewer() {
-  const { id } = useParams()
+interface LessonViewerProps {
+  overrideLessonId?: number
+  overrideCourseId?: number
+  isEmbedded?: boolean
+  initialVideoId?: number
+  initialPdfId?: number
+  onClose?: () => void
+}
+
+export default function LessonViewer({
+  overrideLessonId,
+  overrideCourseId,
+  isEmbedded = false,
+  initialVideoId,
+  initialPdfId,
+  onClose
+}: LessonViewerProps = {}) {
+  const { id: routeId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const preSelectedVideoId = searchParams.get('play')
-  const courseId = searchParams.get('course_id')
+  
+  const id = overrideLessonId ? overrideLessonId.toString() : routeId
+  const preSelectedVideoId = initialVideoId ? initialVideoId.toString() : searchParams.get('play')
+  const courseId = overrideCourseId ? overrideCourseId.toString() : searchParams.get('course_id')
   const packageId = searchParams.get('package_id')
 
   const { user } = useAuthStore()
@@ -235,7 +253,13 @@ export default function LessonViewer() {
         setExams(res.data.exams)
 
         // Determine active video: either from query params or first in list
-        if (res.data.videos.length > 0) {
+        if (initialPdfId && res.data.pdfs.length > 0) {
+          const match = res.data.pdfs.find((p: PdfItem) => p.id === initialPdfId)
+          if (match) {
+            setActivePdf(match)
+            setActiveTab('pdfs')
+          }
+        } else if (res.data.videos.length > 0) {
           const match = res.data.videos.find((v: VideoItem) => v.id.toString() === preSelectedVideoId)
           const defaultVideo = match || res.data.videos[0]
           
@@ -257,6 +281,10 @@ export default function LessonViewer() {
           const initialEmbedUrl = getEmbedUrl(defaultVideo)
           setVideoEmbedUrl(initialEmbedUrl)
           console.log('[YouTube Player Debug] fetchLessonData - Set initial embed URL:', initialEmbedUrl)
+          
+          if (preSelectedVideoId || !initialPdfId) {
+            setActiveTab('videos')
+          }
         } else {
           setActiveVideo(null)
           setVideoEmbedUrl('')
@@ -271,7 +299,11 @@ export default function LessonViewer() {
           setLesson(err.response.data.lesson)
         } else {
           // Redirect back on permission block
-          navigate(`/courses`)
+          if (isEmbedded && onClose) {
+            onClose()
+          } else {
+            navigate(`/courses`)
+          }
         }
       })
       .finally(() => setLoading(false))
@@ -1007,26 +1039,28 @@ export default function LessonViewer() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <div className={isEmbedded ? "w-full space-y-6" : "max-w-7xl mx-auto px-4 py-8 space-y-8"}>
       
       {/* Back button & title */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs text-slate-400">
-            <span>{lesson.unit.course.title}</span>
-            <span>/</span>
-            <span>{lesson.unit.title}</span>
+      {!isEmbedded && (
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs text-slate-400">
+              <span>{lesson.unit.course.title}</span>
+              <span>/</span>
+              <span>{lesson.unit.title}</span>
+            </div>
+            <h1 className="text-2xl font-black">{lesson.title}</h1>
           </div>
-          <h1 className="text-2xl font-black">{lesson.title}</h1>
-        </div>
 
-        <Link
-          to={packageId ? `/course/${packageId}` : `/course/${lesson.unit.course_id}`}
-          className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl hover:bg-[rgba(255,255,255,0.06)] flex items-center gap-1.5 w-fit"
-        >
-          <ArrowLeft className="h-4 w-4" /> العودة لصفحة الكورس
-        </Link>
-      </div>
+          <Link
+            to={packageId ? `/course/${packageId}` : `/course/${lesson.unit.course_id}`}
+            className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl hover:bg-[rgba(255,255,255,0.06)] flex items-center gap-1.5 w-fit"
+          >
+            <ArrowLeft className="h-4 w-4" /> العودة لصفحة الكورس
+          </Link>
+        </div>
+      )}
 
       {/* Main viewer grid */}
       {viewLimitExceeded ? (
@@ -1075,10 +1109,10 @@ export default function LessonViewer() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={isEmbedded ? "w-full space-y-6" : "grid grid-cols-1 lg:grid-cols-3 gap-8"}>
         
         {/* Playback content column */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className={isEmbedded ? "w-full space-y-6" : "lg:col-span-2 space-y-6"}>
           
           {/* Video Player Display */}
           {activeTab === 'videos' && activeVideo && (
@@ -1261,62 +1295,98 @@ export default function LessonViewer() {
 
           {/* PDF files list view */}
           {activeTab === 'pdfs' && (
-            <div className="bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl space-y-6">
-              <h3 className="font-bold text-base">مرفقات وأوراق عمل المحاضرة</h3>
-              
-              {pdfs.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-sm font-light">لا توجد مذكرات أو ملفات PDF مرفقة.</div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {pdfs.map((pdf) => (
-                    <div key={pdf.id} className="flex gap-4 p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-3xl hover:border-brand-primary/30 transition-all group">
-                      {/* Preview / Icon */}
-                      <div className="w-16 h-20 shrink-0 bg-brand-surface border border-[var(--border-color)] rounded-xl overflow-hidden flex items-center justify-center relative">
-                        {pdf.preview_path ? (
-                          <img src={pdf.preview_path} alt={pdf.title} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
-                        ) : (
-                          <FileText className="h-8 w-8 text-brand-primary animate-pulse" />
-                        )}
-                        <div className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded text-[7px] font-black uppercase">PDF</div>
-                      </div>
+            activePdf ? (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4 rounded-3xl">
+                  <span className="font-bold text-sm">{activePdf.title}</span>
+                  <button 
+                    onClick={() => setActivePdf(null)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-350 hover:text-slate-200 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    العودة لقائمة الملفات
+                  </button>
+                </div>
+                <div className="aspect-[3/4] md:aspect-[4/3] w-full bg-slate-950 rounded-3xl overflow-hidden relative border border-[var(--border-color)]" style={{ height: '600px' }}>
+                  {(() => {
+                    const isGoogle = activePdf.file_path.includes('drive.google.com') || activePdf.file_path.includes('docs.google.com');
+                    let embedUrl = activePdf.file_path;
+                    if (isGoogle) {
+                      const match = activePdf.file_path.match(/\/d\/([a-zA-Z0-9-_]+)/);
+                      if (match && match[1]) {
+                        embedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+                      }
+                    } else {
+                      embedUrl = `${activePdf.file_path}#page=1`;
+                    }
+                    return (
+                      <iframe 
+                        src={embedUrl}
+                        className="w-full h-full border-none bg-slate-900"
+                        title={activePdf.title}
+                        allow="fullscreen"
+                      />
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl space-y-6">
+                <h3 className="font-bold text-base">مرفقات وأوراق عمل المحاضرة</h3>
+                
+                {pdfs.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 text-sm font-light">لا توجد مذكرات أو ملفات PDF مرفقة.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {pdfs.map((pdf) => (
+                      <div key={pdf.id} className="flex gap-4 p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-3xl hover:border-brand-primary/30 transition-all group">
+                        {/* Preview / Icon */}
+                        <div className="w-16 h-20 shrink-0 bg-brand-surface border border-[var(--border-color)] rounded-xl overflow-hidden flex items-center justify-center relative">
+                          {pdf.preview_path ? (
+                            <img src={pdf.preview_path} alt={pdf.title} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" />
+                          ) : (
+                            <FileText className="h-8 w-8 text-brand-primary animate-pulse" />
+                          )}
+                          <div className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded text-[7px] font-black uppercase">PDF</div>
+                        </div>
 
-                      {/* Details */}
-                      <div className="flex-grow flex flex-col justify-between text-right">
-                        <div className="space-y-1">
-                          <h4 className="font-bold text-xs text-slate-100 line-clamp-1">{pdf.title}</h4>
-                          <div className="flex gap-3 text-[10px] text-slate-400 font-medium">
-                            {pdf.page_count && (
-                              <span>عدد الصفحات: {pdf.page_count}</span>
-                            )}
-                            {pdf.file_size && (
-                              <span>الحجم: {pdf.file_size}</span>
-                            )}
+                        {/* Details */}
+                        <div className="flex-grow flex flex-col justify-between text-right">
+                          <div className="space-y-1">
+                            <h4 className="font-bold text-xs text-slate-100 line-clamp-1">{pdf.title}</h4>
+                            <div className="flex gap-3 text-[10px] text-slate-400 font-medium">
+                              {pdf.page_count && (
+                                <span>عدد الصفحات: {pdf.page_count}</span>
+                              )}
+                              {pdf.file_size && (
+                                <span>الحجم: {pdf.file_size}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                            <button
+                              onClick={() => setActivePdf(pdf)}
+                              className="px-3 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              عرض في المنصة
+                            </button>
+                            <a
+                              href={pdf.file_path}
+                              download
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-3 py-1.5 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                            >
+                              <span>تحميل مباشر</span>
+                            </a>
                           </div>
                         </div>
-
-                        <div className="flex gap-2 pt-2">
-                          <button
-                            onClick={() => navigate(`/student/pdf/${pdf.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`)}
-                            className="px-3 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-bold transition-all cursor-pointer"
-                          >
-                            عرض في المنصة
-                          </button>
-                          <a
-                            href={pdf.file_path}
-                            download
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-3 py-1.5 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-slate-300 hover:text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
-                          >
-                            <span>تحميل مباشر</span>
-                          </a>
-                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
           )}
 
           {/* Exams list view */}
@@ -1387,7 +1457,8 @@ export default function LessonViewer() {
         </div>
 
         {/* Sidebar / Tabs list column */}
-        <div className="space-y-6">
+        {!isEmbedded && (
+          <div className="space-y-6">
           
           {/* Remaining views card */}
           {viewLimitDetails && viewLimitDetails.limit_enabled && (
@@ -1514,6 +1585,7 @@ export default function LessonViewer() {
           )}
 
         </div>
+        )}
 
       </div>
       )}
