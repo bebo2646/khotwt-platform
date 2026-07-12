@@ -591,7 +591,7 @@ class PublicController extends Controller
 
             return response()->json([
                 'course' => $course,
-                'child_courses' => [],
+                'child_courses' => $childCourses,
                 'units' => $formatUnits($flatUnits),
                 'packages' => [],
                 'is_enrolled' => $isEnrolled,
