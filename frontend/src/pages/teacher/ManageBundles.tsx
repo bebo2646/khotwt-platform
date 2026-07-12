@@ -124,7 +124,7 @@ export default function ManageBundles() {
     formData.append('file', file)
     setUploadingCover(true)
     try {
-      const res = await API.post('/teacher/videos/signed-upload', formData, {
+      const res = await API.post('/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       setCoverImage(res.data.url)
