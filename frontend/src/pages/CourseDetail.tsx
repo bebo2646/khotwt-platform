@@ -704,6 +704,7 @@ export default function CourseDetail() {
     acc + (u.lessons ? u.lessons.reduce((lAcc: number, l: any) => lAcc + (l.exams ? l.exams.length : (l.exams_count || 0)), 0) : 0), 0
   );
 
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
@@ -1253,7 +1254,9 @@ export default function CourseDetail() {
                         className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+                          {!course.is_bundle && (
+                            <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+                          )}
                           <span className="text-slate-100 font-black">{unit.title}</span>
                         </div>
                         <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />

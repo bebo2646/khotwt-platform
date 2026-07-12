@@ -14,6 +14,9 @@ class VideoProgress extends Model
     protected $fillable = [
         'student_id',
         'video_id',
+        'course_id',
+        'package_id',
+        'lesson_id',
         'watched_seconds',
         'watched_percentage',
         'completed',

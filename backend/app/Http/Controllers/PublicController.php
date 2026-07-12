@@ -382,18 +382,7 @@ class PublicController extends Controller
                 if ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id)) {
                     $isEnrolled = true;
                 } elseif ($user->isStudent()) {
-                    $isEnrolled = Enrollment::where('student_id', $user->id)
-                        ->where(function($q) use ($course) {
-                            $q->where('course_id', $course->id)
-                              ->orWhereIn('course_id', function($sub) use ($course) {
-                                  $sub->select('parent_id')
-                                      ->from('course_bundle_items')
-                                      ->where('child_id', $course->id);
-                              });
-                        })
-                        ->whereNull('package_id')
-                        ->whereNull('lesson_id')
-                        ->exists();
+                    $isEnrolled = \App\Services\StudentAccessService::hasAccess($user->id, $course->id);
                 }
             }
 
@@ -653,50 +642,13 @@ class PublicController extends Controller
             } elseif ($user->isStudent()) {
                 $isStudent = true;
                 
-                $courseEnroll = Enrollment::where('student_id', $user->id)
-                    ->where(function($q) use ($courseId) {
-                        $q->where('course_id', $courseId)
-                          ->orWhereIn('course_id', function($sub) use ($courseId) {
-                              $sub->select('parent_id')
-                                  ->from('course_bundle_items')
-                                  ->where('child_id', $courseId);
-                          });
-                    })
-                    ->whereNull('package_id')
-                    ->whereNull('lesson_id')
-                    ->exists();
-
-                $packageEnroll = false;
-                if ($packageId) {
-                    $packageEnroll = Enrollment::where('student_id', $user->id)
-                        ->where('package_id', $packageId)
-                        ->exists();
-                } else {
-                    $allCoursePackageIds = \App\Models\Package::where('course_id', $courseId)->pluck('id');
-                    $packageEnroll = Enrollment::where('student_id', $user->id)
-                        ->whereIn('package_id', $allCoursePackageIds)
-                        ->exists();
-                }
-
-                $lessonEnroll = false;
-                if ($requestLessonId) {
-                    $lessonEnroll = Enrollment::where('student_id', $user->id)
-                        ->where('lesson_id', $requestLessonId)
-                        ->exists();
-                } else {
-                    $allCourseLessonIds = \App\Models\Lesson::whereHas('unit', function($q) use ($courseId) {
-                        $q->where('course_id', $courseId);
-                    })->pluck('id');
-                    $lessonEnroll = Enrollment::where('student_id', $user->id)
-                        ->whereIn('lesson_id', $allCourseLessonIds)
-                        ->exists();
-                }
-
-                $isEnrolled = $courseEnroll || $packageEnroll || $lessonEnroll;
+                $isEnrolled = \App\Services\StudentAccessService::hasAccess($user->id, $courseId, $packageId, $requestLessonId);
 
                 if ($isEnrolled) {
-                    $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
-                    $contextCourseId = $courseIdParam ?: $courseId;
+                    $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $courseId, $packageId, $requestLessonId);
+                    $contextCourseId = $context['course_id'];
+                    $contextPackageId = $context['package_id'];
+                    $contextLessonId = $context['lesson_id'];
 
                     $contextCourse = \App\Models\Course::find($contextCourseId);
                     if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
@@ -706,6 +658,8 @@ class PublicController extends Controller
                     // Find last watched video position for "متابعة المشاهدة"
                     $lastWatched = VideoProgress::where('student_id', $user->id)
                         ->where('course_id', $contextCourseId)
+                        ->where('package_id', $contextPackageId)
+                        ->where('lesson_id', $contextLessonId)
                         ->whereHas('video.lesson.unit', function ($q) use ($courseId) {
                             $q->where('course_id', $courseId);
                         })
@@ -791,36 +745,17 @@ class PublicController extends Controller
                     $ownsLessonDirect = false;
 
                     $user = \Illuminate\Support\Facades\Auth::guard('sanctum')->user();
-
+                    
                     if ($user && $user->isStudent()) {
-                        // 1. Check Course ownership (direct or via bundle)
-                        $ownsCourse = Enrollment::where('student_id', $user->id)
-                            ->where(function($q) use ($courseId) {
-                                $q->where('course_id', $courseId)
-                                  ->orWhereIn('course_id', function($sub) use ($courseId) {
-                                      $sub->select('parent_id')
-                                          ->from('course_bundle_items')
-                                          ->where('child_id', $courseId);
-                                  });
-                            })
-                            ->whereNull('package_id')
-                            ->whereNull('lesson_id')
-                            ->exists();
+                        $hasLessonAccess = \App\Services\StudentAccessService::hasAccess($user->id, $courseId, $packageId, $lesson->id);
+                        $ownsCourse = \App\Services\StudentAccessService::hasAccess($user->id, $courseId);
 
-                        if ($ownsCourse) {
-                            $hasLessonAccess = true;
-                        }
-
-                        if (!$hasLessonAccess) {
-                            // 2. Check direct lesson ownership
+                        if (!$ownsCourse) {
                             $ownsLessonDirect = Enrollment::where('student_id', $user->id)
                                 ->where('lesson_id', $lesson->id)
                                 ->exists();
 
-                            if ($ownsLessonDirect) {
-                                $hasLessonAccess = true;
-                            } else {
-                                // 3. Check Package ownership
+                            if (!$ownsLessonDirect) {
                                 $ownedPackageEnrollment = Enrollment::where('student_id', $user->id)
                                     ->whereNotNull('package_id')
                                     ->whereIn('package_id', function($subQuery) use ($lesson) {
@@ -831,7 +766,6 @@ class PublicController extends Controller
                                     ->first();
 
                                 if ($ownedPackageEnrollment) {
-                                    $hasLessonAccess = true;
                                     $matchingPackageId = $ownedPackageEnrollment->package_id;
                                 }
                             }
@@ -866,28 +800,6 @@ class PublicController extends Controller
                     $lessonData['videos_count'] = $lesson->videos()->count();
                     $lessonData['pdfs_count'] = $lesson->pdfs()->count();
                     $lessonData['exams_count'] = $lesson->exams()->count();
-
-                    $hasLessonAccess = false;
-                    if ($user && $user->isStudent()) {
-                        $hasLessonAccess = Enrollment::where('student_id', $user->id)
-                            ->where(function($q) use ($courseId, $lesson) {
-                                // Full course access
-                                $q->where(function($q2) use ($courseId) {
-                                    $q2->where('course_id', $courseId)->whereNull('package_id')->whereNull('lesson_id');
-                                })
-                                // Direct lesson access
-                                ->orWhere('lesson_id', $lesson->id)
-                                // Package access
-                                ->orWhereIn('package_id', function($subQuery) use ($lesson) {
-                                    $subQuery->select('package_id')
-                                        ->from('package_lessons')
-                                        ->where('lesson_id', $lesson->id);
-                                });
-                            })
-                            ->exists();
-                    } elseif ($user && ($user->isAdmin() || ($user->isTeacher() && $course->teacher_id === $user->id))) {
-                        $hasLessonAccess = true;
-                    }
 
                     $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 

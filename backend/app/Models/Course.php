@@ -67,7 +67,7 @@ class Course extends Model
         'is_bundle' => 'boolean',
     ];
 
-    protected $appends = ['final_price', 'units_count', 'lessons_count', 'pdfs_count', 'exams_count'];
+    protected $appends = ['final_price', 'units_count', 'lessons_count', 'pdfs_count', 'exams_count', 'videos_count'];
 
     public function getFinalPriceAttribute()
     {
@@ -287,6 +287,23 @@ class Course extends Model
             return (int)$this->attributes['exams_count'];
         }
         return \App\Models\Exam::whereIn('lesson_id', function ($query) {
+            $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
+                $sub->select('id')->from('units')->where('course_id', $this->id);
+            });
+        })->count();
+    }
+
+    public function getVideosCountAttribute()
+    {
+        if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
+            return $this->childCourses()->get()->reduce(function ($carry, $child) {
+                return $carry + $child->videos_count;
+            }, 0);
+        }
+        if (isset($this->attributes['videos_count'])) {
+            return (int)$this->attributes['videos_count'];
+        }
+        return \App\Models\Video::whereIn('lesson_id', function ($query) {
             $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
                 $sub->select('id')->from('units')->where('course_id', $this->id);
             });

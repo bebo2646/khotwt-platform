@@ -16,6 +16,7 @@ export function ConfirmModal() {
   const { confirmOpen, confirmOptions, closeConfirm } = useModalStore()
 
   React.useEffect(() => {
+    (window as any).useModalStore = useModalStore;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && confirmOpen) {
         closeConfirm()
@@ -236,7 +237,7 @@ export function ToastContainer() {
   const { toasts, removeToast } = useModalStore()
 
   return (
-    <div className="fixed top-6 left-4 right-4 md:left-6 md:right-auto md:w-96 md:max-w-sm z-[2000] flex flex-col gap-3 w-auto pointer-events-none" dir="rtl">
+    <div className="fixed top-6 left-4 right-4 md:left-6 md:right-auto md:w-96 md:max-w-sm z-[100000] flex flex-col gap-3 w-auto pointer-events-none" dir="rtl">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div

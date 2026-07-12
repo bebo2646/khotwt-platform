@@ -14,6 +14,9 @@ class StudentPdfProgress extends Model
     protected $fillable = [
         'student_id',
         'pdf_id',
+        'course_id',
+        'package_id',
+        'lesson_id',
         'open_count',
         'last_opened_at',
     ];

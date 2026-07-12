@@ -1230,7 +1230,10 @@ class StudentController extends Controller
             $parentBundle = \App\Models\Course::find($packageIdParam);
         }
 
-        // Check course access for student
+        $contextCourseId = null;
+        $contextPackageId = null;
+        $contextLessonId = null;
+
         if ($user->role === 'student') {
             $teacherSubscription = \App\Models\TeacherSubscription::where('teacher_id', $course->teacher_id)->first();
             if ($teacherSubscription) {
@@ -1255,66 +1258,21 @@ class StudentController extends Controller
                 }
             }
 
-            $hasAccess = false;
-
-            if ($courseIdParam) {
-                // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
-                $directEnrollment = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseIdParam)
-                    ->whereNull('package_id')
-                    ->whereNull('lesson_id')
-                    ->exists();
-
-                if ($directEnrollment) {
-                    // Case A: courseIdParam is the physical course of the lesson
-                    if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
-                        $hasAccess = true;
-                    } else {
-                        // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
-                        $hasAccess = \DB::table('course_bundle_items')
-                            ->where('parent_id', $courseIdParam)
-                            ->where('child_id', $lesson->unit->course_id)
-                            ->exists();
-                    }
-                } else {
-                    // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
-                    $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
-                    $hasAccess = Enrollment::where('student_id', $user->id)
-                        ->whereNull('package_id')
-                        ->whereNull('lesson_id')
-                        ->whereIn('course_id', function($q) use ($targetChildCourseId) {
-                            $q->select('parent_id')
-                              ->from('course_bundle_items')
-                              ->where('child_id', $targetChildCourseId);
-                        })
-                        ->exists();
-                }
-            } elseif ($packageIdParam) {
-                // Check if they own the Package product (Bundle, Month, Revision)
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('package_id', $packageIdParam)
-                    ->exists();
-                // Ensure the lesson is part of this package
-                if ($hasAccess) {
-                    $hasAccess = \DB::table('package_lessons')
-                        ->where('package_id', $packageIdParam)
-                        ->where('lesson_id', $lesson->id)
-                        ->exists();
-                }
-            } else {
-                // Standalone Lecture: check if they own the lesson directly
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('lesson_id', $lesson->id)
-                    ->exists();
-            }
+            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $course->id, $packageIdParam, $lesson->id);
 
             if (!$hasAccess) {
                 return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذه المحاضرة. يرجى الاشتراك أولاً.'], 403);
             }
 
+            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $course->id, $packageIdParam, $lesson->id);
+            $contextCourseId = $context['course_id'];
+            $contextPackageId = $context['package_id'];
+            $contextLessonId = $context['lesson_id'];
+
             // Check if student has exceeded view limit (only in Course context)
-            if ($courseIdParam && $course->hasExceededViewLimitForStudent($user->id)) {
-                $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+            $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $course;
+            if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
+                $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
                 return response()->json([
                     'is_views_exceeded' => true,
                     'message' => 'لقد استنفدت عدد المشاهدات المسموح بها لهذا الكورس.',
@@ -1324,8 +1282,8 @@ class StudentController extends Controller
                         'unit' => [
                             'title' => $lesson->unit->title,
                             'course' => [
-                                'title' => $course->title,
-                                'id' => $course->id
+                                    'title' => $course->title,
+                                    'id' => $course->id
                             ],
                             'course_id' => $course->id
                         ]
@@ -1358,19 +1316,7 @@ class StudentController extends Controller
         $exams = Exam::where('lesson_id', $lessonId)->get();
 
         // Get progress for each video
-        $videosWithProgress = $videos->map(function ($video) use ($user, $courseIdParam, $packageIdParam, $lesson) {
-            $contextCourseId = null;
-            $contextPackageId = null;
-            $contextLessonId = null;
-
-            if ($courseIdParam) {
-                $contextCourseId = $courseIdParam;
-            } elseif ($packageIdParam) {
-                $contextPackageId = $packageIdParam;
-            } else {
-                $contextLessonId = $lesson->id;
-            }
-
+        $videosWithProgress = $videos->map(function ($video) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
             $progress = VideoProgress::where('student_id', $user->id)
                 ->where('video_id', $video->id)
                 ->where('course_id', $contextCourseId)
@@ -1397,19 +1343,7 @@ class StudentController extends Controller
         });
 
         // Get exam submissions for this student
-        $examsWithAttempts = $exams->map(function ($exam) use ($user, $courseIdParam, $packageIdParam, $lesson) {
-            $contextCourseId = null;
-            $contextPackageId = null;
-            $contextLessonId = null;
-
-            if ($courseIdParam) {
-                $contextCourseId = $courseIdParam;
-            } elseif ($packageIdParam) {
-                $contextPackageId = $packageIdParam;
-            } else {
-                $contextLessonId = $lesson->id;
-            }
-
+        $examsWithAttempts = $exams->map(function ($exam) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
             $lastAttempt = StudentExam::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
                 ->where('course_id', $contextCourseId)
@@ -1488,63 +1422,19 @@ class StudentController extends Controller
             $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
             $packageIdParam = $request->input('package_id') ?: $request->query('package_id');
 
-            $hasAccess = false;
-
-            if ($courseIdParam) {
-                // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
-                $directEnrollment = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseIdParam)
-                    ->whereNull('package_id')
-                    ->whereNull('lesson_id')
-                    ->exists();
-
-                if ($directEnrollment) {
-                    // Case A: courseIdParam is the physical course of the lesson
-                    if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
-                        $hasAccess = true;
-                    } else {
-                        // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
-                        $hasAccess = \DB::table('course_bundle_items')
-                            ->where('parent_id', $courseIdParam)
-                            ->where('child_id', $lesson->unit->course_id)
-                            ->exists();
-                    }
-                } else {
-                    // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
-                    $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
-                    $hasAccess = Enrollment::where('student_id', $user->id)
-                        ->whereNull('package_id')
-                        ->whereNull('lesson_id')
-                        ->whereIn('course_id', function($q) use ($targetChildCourseId) {
-                            $q->select('parent_id')
-                              ->from('course_bundle_items')
-                              ->where('child_id', $targetChildCourseId);
-                        })
-                        ->exists();
-                }
-            } elseif ($packageIdParam) {
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('package_id', $packageIdParam)
-                    ->exists();
-                if ($hasAccess) {
-                    $hasAccess = \DB::table('package_lessons')
-                        ->where('package_id', $packageIdParam)
-                        ->where('lesson_id', $lesson->id)
-                        ->exists();
-                }
-            } else {
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('lesson_id', $lesson->id)
-                    ->exists();
-            }
-
+            $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
             if (!$hasAccess) {
                 return response()->json(['message' => 'غير مصرح لك بمشاهدة هذا الفيديو أو تحديث تقدمه.'], 403);
             }
 
+            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+            $contextCourseId = $context['course_id'];
+            $contextPackageId = $context['package_id'];
+            $contextLessonId = $context['lesson_id'];
+
             // Check if student has exceeded view limit (only in Course context)
-            $course = $lesson->unit->course;
-            if ($courseIdParam && $course && $course->hasExceededViewLimitForStudent($user->id)) {
+            $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $course;
+            if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
                 // Allow the student to continue their current active playback session
                 $sessionId = $request->input('session_id');
                 $sessionExists = false;
@@ -1558,6 +1448,11 @@ class StudentController extends Controller
                     return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
                 }
             }
+        } else {
+            $contextCourseId = null;
+            $contextPackageId = $packageIdParam;
+            $contextLessonId = $lesson ? $lesson->id : null;
+            $contextCourse = $course;
         }
 
         // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
@@ -1568,14 +1463,12 @@ class StudentController extends Controller
         $sessionWatchTime = $request->input('session_watch_time', 0);
         
         if ($sessionId && $user->isStudent() && $video->lesson && $video->lesson->unit) {
-            $courseId = $video->lesson->unit->course_id;
-            
             $session = \App\Models\VideoViewSession::firstOrCreate([
                 'session_id' => $sessionId,
             ], [
                 'student_id' => $user->id,
                 'video_id' => $video->id,
-                'course_id' => $courseId,
+                'course_id' => $contextCourseId,
                 'watch_time' => 0,
                 'counted' => false,
             ]);
@@ -1594,7 +1487,7 @@ class StudentController extends Controller
             
             // Get views count before update
             $viewLimitRecord = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
-                ->where('course_id', $courseId)
+                ->where('course_id', $contextCourseId)
                 ->first();
             $viewsUsedBefore = $viewLimitRecord ? $viewLimitRecord->views_used : 0;
 
@@ -1617,10 +1510,10 @@ class StudentController extends Controller
                     })
                     ->exists();
 
-                if (!$alreadyCountedSession && !$alreadyCompletedProgress) {
+                if (!$alreadyCountedSession && !$alreadyCompletedProgress && $contextCourseId) {
                     $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
                         'student_id' => $user->id,
-                        'course_id' => $courseId,
+                        'course_id' => $contextCourseId,
                     ], [
                         'views_used' => 0,
                         'max_views_override' => null,
@@ -1633,17 +1526,11 @@ class StudentController extends Controller
 
             // Get views count after update
             $viewLimitRecordAfter = \App\Models\StudentCourseViewLimit::where('student_id', $user->id)
-                ->where('course_id', $courseId)
+                ->where('course_id', $contextCourseId)
                 ->first();
             $viewsUsedAfter = $viewLimitRecordAfter ? $viewLimitRecordAfter->views_used : 0;
 
             // Recalculate remaining views
-            $contextCourse = null;
-            if ($courseIdParam) {
-                $contextCourse = \App\Models\Course::find($courseIdParam);
-            } elseif ($video->lesson && $video->lesson->unit) {
-                $contextCourse = $video->lesson->unit->course;
-            }
             $limitDetails = $contextCourse ? $contextCourse->getStudentViewLimitDetails($user->id) : null;
             $remainingViews = $limitDetails ? $limitDetails['remaining'] : null;
 
@@ -1662,18 +1549,6 @@ class StudentController extends Controller
         }
         
         $lastPosition = $request->last_position_seconds;
-        
-        $contextCourseId = null;
-        $contextPackageId = null;
-        $contextLessonId = null;
-
-        if ($courseIdParam) {
-            $contextCourseId = $courseIdParam;
-        } elseif ($packageIdParam) {
-            $contextPackageId = $packageIdParam;
-        } else {
-            $contextLessonId = $lesson ? $lesson->id : null;
-        }
 
         // Find existing progress record
         $progress = VideoProgress::where('student_id', $user->id)
@@ -1726,16 +1601,8 @@ class StudentController extends Controller
         );
 
         $viewLimitDetails = null;
-        if ($user->isStudent()) {
-            $contextCourse = null;
-            if ($courseIdParam) {
-                $contextCourse = \App\Models\Course::find($courseIdParam);
-            } elseif ($video->lesson && $video->lesson->unit) {
-                $contextCourse = $video->lesson->unit->course;
-            }
-            if ($contextCourse) {
-                $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
-            }
+        if ($user->isStudent() && $contextCourse) {
+            $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
         }
         $progress->view_limit_details = $viewLimitDetails;
 
@@ -1811,71 +1678,16 @@ class StudentController extends Controller
             $parentBundle = \App\Models\Course::find($packageIdParam);
         }
 
-        $hasAccess = false;
-
-        if ($courseIdParam) {
-            // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
-            $directEnrollment = \App\Models\Enrollment::where('student_id', $user->id)
-                ->where('course_id', $courseIdParam)
-                ->whereNull('package_id')
-                ->whereNull('lesson_id')
-                ->exists();
-
-            if ($directEnrollment) {
-                // Case A: courseIdParam is the physical course of the lesson
-                if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
-                    $hasAccess = true;
-                } else {
-                    // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
-                    $hasAccess = \DB::table('course_bundle_items')
-                        ->where('parent_id', $courseIdParam)
-                        ->where('child_id', $lesson->unit->course_id)
-                        ->exists();
-                }
-            } else {
-                // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
-                $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
-                $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
-                    ->whereNull('package_id')
-                    ->whereNull('lesson_id')
-                    ->whereIn('course_id', function($q) use ($targetChildCourseId) {
-                        $q->select('parent_id')
-                          ->from('course_bundle_items')
-                          ->where('child_id', $targetChildCourseId);
-                    })
-                    ->exists();
-            }
-        } elseif ($packageIdParam) {
-            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
-                ->where('package_id', $packageIdParam)
-                ->exists();
-            if ($hasAccess) {
-                $hasAccess = \DB::table('package_lessons')
-                    ->where('package_id', $packageIdParam)
-                    ->where('lesson_id', $lesson->id)
-                    ->exists();
-            }
-        } else {
-            $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
-                ->where('lesson_id', $lesson->id)
-                ->exists();
-        }
+        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
 
         if (!$hasAccess) {
             return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى هذا الملف. يرجى الاشتراك أولاً.'], 403);
         }
 
-        $contextCourseId = null;
-        $contextPackageId = null;
-        $contextLessonId = null;
-
-        if ($courseIdParam) {
-            $contextCourseId = $courseIdParam;
-        } elseif ($packageIdParam) {
-            $contextPackageId = $packageIdParam;
-        } else {
-            $contextLessonId = $lesson ? $lesson->id : null;
-        }
+        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $contextCourseId = $context['course_id'];
+        $contextPackageId = $context['package_id'];
+        $contextLessonId = $context['lesson_id'];
 
         $progress = \App\Models\StudentPdfProgress::firstOrCreate(
             [
@@ -2002,63 +1814,20 @@ class StudentController extends Controller
         $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
         $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
-        $hasAccess = false;
-
-        if ($courseIdParam) {
-            // 1. Check if the user is enrolled directly in the requested courseIdParam (could be a normal course or a bundle)
-            $directEnrollment = Enrollment::where('student_id', $user->id)
-                ->where('course_id', $courseIdParam)
-                ->whereNull('package_id')
-                ->whereNull('lesson_id')
-                ->exists();
-
-            if ($directEnrollment) {
-                // Case A: courseIdParam is the physical course of the lesson
-                if ($lesson->unit && $lesson->unit->course_id == $courseIdParam) {
-                    $hasAccess = true;
-                } else {
-                    // Case B: courseIdParam is a bundle, and the lesson belongs to one of its child courses
-                    $hasAccess = \DB::table('course_bundle_items')
-                        ->where('parent_id', $courseIdParam)
-                        ->where('child_id', $lesson->unit->course_id)
-                        ->exists();
-                }
-            } else {
-                // Check if they are enrolled in any bundle containing this courseIdParam (or containing the lesson's physical course)
-                $targetChildCourseId = $lesson->unit ? $lesson->unit->course_id : $courseIdParam;
-                $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->whereNull('package_id')
-                    ->whereNull('lesson_id')
-                    ->whereIn('course_id', function($q) use ($targetChildCourseId) {
-                        $q->select('parent_id')
-                          ->from('course_bundle_items')
-                          ->where('child_id', $targetChildCourseId);
-                    })
-                    ->exists();
-            }
-        } elseif ($packageIdParam) {
-            $hasAccess = Enrollment::where('student_id', $user->id)
-                ->where('package_id', $packageIdParam)
-                ->exists();
-            if ($hasAccess) {
-                $hasAccess = \DB::table('package_lessons')
-                    ->where('package_id', $packageIdParam)
-                    ->where('lesson_id', $lesson->id)
-                    ->exists();
-            }
-        } else {
-            $hasAccess = Enrollment::where('student_id', $user->id)
-                ->where('lesson_id', $lesson->id)
-                ->exists();
-        }
+        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
 
         if (!$hasAccess) {
             return response()->json(['message' => 'غير مصرح لك بأداء هذا الامتحان. يرجى الاشتراك أولاً.'], 403);
         }
 
+        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id);
+        $contextCourseId = $context['course_id'];
+        $contextPackageId = $context['package_id'];
+        $contextLessonId = $context['lesson_id'];
+
         // Check if student has exceeded course views (only in Course context)
-        $course = $lesson ? $lesson->unit->course : null;
-        if ($courseIdParam && $course && $course->hasExceededViewLimitForStudent($user->id)) {
+        $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $lesson->unit->course;
+        if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
             return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
@@ -2108,18 +1877,6 @@ class StudentController extends Controller
                     'price' => $exam->price,
                 ], 402);
             }
-        }
-
-        $contextCourseId = null;
-        $contextPackageId = null;
-        $contextLessonId = null;
-
-        if ($courseIdParam) {
-            $contextCourseId = $courseIdParam;
-        } elseif ($packageIdParam) {
-            $contextPackageId = $packageIdParam;
-        } else {
-            $contextLessonId = $lesson ? $lesson->id : null;
         }
 
         // Check or create started attempt

@@ -14,6 +14,9 @@ class StudentExam extends Model
     protected $fillable = [
         'student_id',
         'exam_id',
+        'course_id',
+        'package_id',
+        'lesson_id',
         'score',
         'status', // started, submitted, graded
         'teacher_feedback',
