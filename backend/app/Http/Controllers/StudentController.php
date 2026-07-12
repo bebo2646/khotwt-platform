@@ -1223,6 +1223,18 @@ class StudentController extends Controller
         $lesson = \App\Models\Lesson::with(['unit.course'])->findOrFail($lessonId);
         $course = $lesson->unit->course;
 
+        $parentBundle = null;
+        if ($courseIdParam) {
+            $parentBundle = \App\Models\Course::find($courseIdParam);
+        } elseif ($packageIdParam) {
+            $parentBundle = \App\Models\Course::find($packageIdParam);
+        }
+
+        if ($parentBundle && $parentBundle->is_bundle) {
+            $lesson->unit->course->title = $parentBundle->title;
+            $lesson->unit->course->id = $parentBundle->id;
+        }
+
         // Check course access for student
         if ($user->role === 'student') {
             $teacherSubscription = \App\Models\TeacherSubscription::where('teacher_id', $course->teacher_id)->first();
@@ -1238,10 +1250,10 @@ class StudentController extends Controller
                             'unit' => [
                                 'title' => $lesson->unit->title,
                                 'course' => [
-                                    'title' => $course->title,
-                                    'id' => $course->id
+                                    'title' => $lesson->unit->course->title,
+                                    'id' => $lesson->unit->course->id
                                 ],
-                                'course_id' => $course->id
+                                'course_id' => $lesson->unit->course->id
                             ]
                         ]
                     ], 403);
@@ -1251,15 +1263,26 @@ class StudentController extends Controller
             $hasAccess = false;
 
             if ($courseIdParam) {
-                // Check if they own the Full Course product
+                // Check if they own the Full Course product OR own the parent Bundle
                 $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseIdParam)
+                    ->where(function($query) use ($courseIdParam) {
+                        $query->where('course_id', $courseIdParam)
+                            ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
+                                $sub->select('parent_id')
+                                    ->from('course_bundle_items')
+                                    ->where('child_id', $courseIdParam);
+                            });
+                    })
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
-                // Ensure the lesson belongs to this course
+                // Ensure the lesson belongs to this course OR belongs to a child course of the bundle
                 if ($hasAccess && $lesson->unit) {
-                    $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                    $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
+                        \DB::table('course_bundle_items')
+                            ->where('parent_id', $courseIdParam)
+                            ->where('child_id', $lesson->unit->course_id)
+                            ->exists();
                 } else {
                     $hasAccess = false;
                 }
@@ -1431,12 +1454,23 @@ class StudentController extends Controller
 
             if ($courseIdParam) {
                 $hasAccess = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseIdParam)
+                    ->where(function($query) use ($courseIdParam) {
+                        $query->where('course_id', $courseIdParam)
+                            ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
+                                $sub->select('parent_id')
+                                    ->from('course_bundle_items')
+                                    ->where('child_id', $courseIdParam);
+                            });
+                    })
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();
                 if ($hasAccess) {
-                    $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                    $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
+                        \DB::table('course_bundle_items')
+                            ->where('parent_id', $courseIdParam)
+                            ->where('child_id', $lesson->unit->course_id)
+                            ->exists();
                 }
             } elseif ($packageIdParam) {
                 $hasAccess = Enrollment::where('student_id', $user->id)
@@ -1669,16 +1703,39 @@ class StudentController extends Controller
         $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
         $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
+        $parentBundle = null;
+        if ($courseIdParam) {
+            $parentBundle = \App\Models\Course::find($courseIdParam);
+        } elseif ($packageIdParam) {
+            $parentBundle = \App\Models\Course::find($packageIdParam);
+        }
+
+        if ($parentBundle && $parentBundle->is_bundle) {
+            $lesson->unit->course->title = $parentBundle->title;
+            $lesson->unit->course->id = $parentBundle->id;
+        }
+
         $hasAccess = false;
 
         if ($courseIdParam) {
             $hasAccess = \App\Models\Enrollment::where('student_id', $user->id)
-                ->where('course_id', $courseIdParam)
+                ->where(function($query) use ($courseIdParam) {
+                    $query->where('course_id', $courseIdParam)
+                        ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
+                            $sub->select('parent_id')
+                                ->from('course_bundle_items')
+                                ->where('child_id', $courseIdParam);
+                        });
+                })
                 ->whereNull('package_id')
                 ->whereNull('lesson_id')
                 ->exists();
             if ($hasAccess && $lesson->unit) {
-                $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
+                    \DB::table('course_bundle_items')
+                        ->where('parent_id', $courseIdParam)
+                        ->where('child_id', $lesson->unit->course_id)
+                        ->exists();
             } else {
                 $hasAccess = false;
             }
@@ -1823,12 +1880,23 @@ class StudentController extends Controller
 
         if ($courseIdParam) {
             $hasAccess = Enrollment::where('student_id', $user->id)
-                ->where('course_id', $courseIdParam)
+                ->where(function($query) use ($courseIdParam) {
+                    $query->where('course_id', $courseIdParam)
+                        ->orWhereIn('course_id', function($sub) use ($courseIdParam) {
+                            $sub->select('parent_id')
+                                ->from('course_bundle_items')
+                                ->where('child_id', $courseIdParam);
+                        });
+                })
                 ->whereNull('package_id')
                 ->whereNull('lesson_id')
                 ->exists();
             if ($hasAccess && $lesson->unit) {
-                $hasAccess = ($lesson->unit->course_id == $courseIdParam);
+                $hasAccess = ($lesson->unit->course_id == $courseIdParam) || 
+                    \DB::table('course_bundle_items')
+                        ->where('parent_id', $courseIdParam)
+                        ->where('child_id', $lesson->unit->course_id)
+                        ->exists();
             } else {
                 $hasAccess = false;
             }
@@ -2468,9 +2536,16 @@ class StudentController extends Controller
         }
 
         // Recent lessons within enrolled courses
-        $enrolledCourseIds = Enrollment::where('student_id', $user->id)
+        $directEnrolledCourseIds = Enrollment::where('student_id', $user->id)
             ->whereNotNull('course_id')
-            ->pluck('course_id')
+            ->pluck('course_id');
+
+        $bundleChildCourseIds = \DB::table('course_bundle_items')
+            ->whereIn('parent_id', $directEnrolledCourseIds)
+            ->pluck('child_id');
+
+        $enrolledCourseIds = $directEnrolledCourseIds
+            ->union($bundleChildCourseIds)
             ->union(
                 Package::whereIn('id', Enrollment::where('student_id', $user->id)->whereNotNull('package_id')->pluck('package_id'))
                     ->pluck('course_id')

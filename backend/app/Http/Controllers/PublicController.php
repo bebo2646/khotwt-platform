@@ -450,7 +450,14 @@ class PublicController extends Controller
                 $isStudent = true;
                 
                 $courseEnroll = Enrollment::where('student_id', $user->id)
-                    ->where('course_id', $courseId)
+                    ->where(function($query) use ($courseId) {
+                        $query->where('course_id', $courseId)
+                            ->orWhereIn('course_id', function($sub) use ($courseId) {
+                                $sub->select('parent_id')
+                                    ->from('course_bundle_items')
+                                    ->where('child_id', $courseId);
+                            });
+                    })
                     ->whereNull('package_id')
                     ->whereNull('lesson_id')
                     ->exists();

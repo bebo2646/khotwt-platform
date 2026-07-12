@@ -828,7 +828,7 @@ export default function CourseDetail() {
                                           
                                           {isEnrolled ? (
                                             <button
-                                              onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${child.id}&package_id=${course?.id}`)}
+                                              onClick={() => navigate(`/student/lessons/${lesson.id}?course_id=${course?.id}`)}
                                               className="px-3.5 py-1.5 bg-brand-primary/15 hover:bg-brand-primary text-brand-primary hover:text-white rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
                                             >
                                               <span>بدء الدراسة</span>

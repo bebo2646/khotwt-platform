@@ -62,6 +62,11 @@ class Lesson extends Model
         $enrollments = Enrollment::where('student_id', $studentId)
             ->where(function($query) use ($courseId) {
                 $query->where('course_id', $courseId)
+                    ->orWhereIn('course_id', function($sub) use ($courseId) {
+                        $sub->select('parent_id')
+                            ->from('course_bundle_items')
+                            ->where('child_id', $courseId);
+                    })
                     ->orWhereIn('package_id', function($sub) use ($courseId) {
                         $sub->select('id')->from('packages')->where('course_id', $courseId);
                     })
