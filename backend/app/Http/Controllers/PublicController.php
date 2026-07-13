@@ -468,7 +468,7 @@ class PublicController extends Controller
                                 
                                 // Fetch the actual course of the lesson for view limit tracking!
                                 $physicalCourse = $lesson->unit->course;
-                                $physicalLimitDetails = $user ? $physicalCourse->getStudentViewLimitDetails($user->id) : null;
+                                $physicalLimitDetails = $user ? $course->getStudentViewLimitDetails($user->id) : null;
 
                                 $progress = null;
                                 if ($user && $physicalLimitDetails) {

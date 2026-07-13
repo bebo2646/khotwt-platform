@@ -2444,7 +2444,7 @@ class StudentController extends Controller
             $watchedSeconds = 0;
 
             if ($totalVideos > 0) {
-                $courseProgress = $matchingProgress->only($videoIds);
+                $courseProgress = $matchingProgress;
                 $completedVideos = $courseProgress->where('completed', true)->count();
                 $sumPercentage = $courseProgress->sum('watched_percentage');
                 $progress = min(100, round($sumPercentage / $totalVideos));
@@ -2589,9 +2589,13 @@ class StudentController extends Controller
                     }
                 }
 
-                $matchingProgress = $progressRecords->only($videoIds);
+                $matchingProgress = $progressRecords->filter(function ($prog) use ($videoIds, $contextCourseId, $contextPackageId) {
+                    return in_array($prog->video_id, $videoIds) &&
+                           $prog->course_id == $contextCourseId &&
+                           $prog->package_id == $contextPackageId;
+                })->keyBy('video_id');
 
-                $courseProgress = $matchingProgress->only($videoIds);
+                $courseProgress = $matchingProgress;
                 $totalSumPercentage += $courseProgress->sum('watched_percentage');
                 $allVideosSummedCount += count($videoIds);
             }
@@ -2746,35 +2750,39 @@ class StudentController extends Controller
         $lastWatched = null;
         if ($latestProgress && $latestProgress->video && $latestProgress->video->lesson && $latestProgress->video->lesson->unit && $latestProgress->video->lesson->unit->course) {
             $video = $latestProgress->video;
-            $course = $video->lesson->unit->course;
             
-            // Resolve correct context from enrollment to make sure we keep any package_id
-            $enrollment = Enrollment::where('student_id', $user->id)
-                ->where(function ($q) use ($course) {
-                    $q->where('course_id', $course->id)
-                      ->orWhereIn('package_id', function ($pq) use ($course) {
-                          $pq->select('parent_id')->from('course_bundle_items')->where('child_id', $course->id);
-                      });
-                })
-                ->first();
+            // Resolve the actual context course from VideoProgress
+            $contextCourse = $latestProgress->course_id ? \App\Models\Course::find($latestProgress->course_id) : $video->lesson->unit->course;
+            
+            if ($contextCourse) {
+                // Find the enrollment that corresponds to the VideoProgress context
+                $enrollmentQuery = Enrollment::where('student_id', $user->id);
+                if ($latestProgress->package_id) {
+                    $enrollmentQuery->where('package_id', $latestProgress->package_id);
+                } else {
+                    $enrollmentQuery->where('course_id', $contextCourse->id)
+                                    ->whereNull('package_id');
+                }
+                $enrollment = $enrollmentQuery->first();
 
-            $packageId = $enrollment ? $enrollment->package_id : null;
-            $purchaseType = $enrollment ? ($enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course')) : 'course';
+                $packageId = $enrollment ? $enrollment->package_id : null;
+                $purchaseType = $enrollment ? ($enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course')) : 'course';
 
-            $lastWatched = [
-                'course_id' => $course->id,
-                'course_title' => $course->title,
-                'course_cover' => $course->cover_image,
-                'video_id' => $video->id,
-                'video_title' => $video->title,
-                'watched_seconds' => $latestProgress->watched_seconds,
-                'duration_seconds' => $video->duration_seconds,
-                'progress_percentage' => $latestProgress->watched_percentage,
-                'lesson_id' => $video->lesson_id,
-                'package_id' => $packageId,
-                'purchase_type' => $purchaseType,
-                'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم',
-            ];
+                $lastWatched = [
+                    'course_id' => $contextCourse->id,
+                    'course_title' => $contextCourse->title,
+                    'course_cover' => $contextCourse->cover_image,
+                    'video_id' => $video->id,
+                    'video_title' => $video->title,
+                    'watched_seconds' => $latestProgress->watched_seconds,
+                    'duration_seconds' => $video->duration_seconds,
+                    'progress_percentage' => $latestProgress->watched_percentage,
+                    'lesson_id' => $video->lesson_id,
+                    'package_id' => $packageId,
+                    'purchase_type' => $purchaseType,
+                    'teacher_name' => $contextCourse->teacher ? $contextCourse->teacher->name : ($video->lesson->unit->course->teacher ? $video->lesson->unit->course->teacher->name : 'معلم'),
+                ];
+            }
         } else {
             // Fallback: get the latest enrolled course and its first video
             $latestEnrollment = Enrollment::with(['course.teacher', 'course.units.lessons.videos'])

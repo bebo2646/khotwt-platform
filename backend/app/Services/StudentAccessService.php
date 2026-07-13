@@ -20,19 +20,7 @@ class StudentAccessService
             return null;
         }
 
-        // 1. Direct course enrollment
-        if ($courseId) {
-            $enrollment = Enrollment::where('student_id', $studentId)
-                ->where('course_id', $courseId)
-                ->whereNull('package_id')
-                ->whereNull('lesson_id')
-                ->first();
-            if ($enrollment) {
-                return $enrollment;
-            }
-        }
-
-        // 2. Parent bundle enrollment (if authorized via bundle context)
+        // 1. Parent bundle enrollment (if authorized via bundle context)
         // ONLY allow bundle enrollment fallback if $bundleId is explicitly provided and is a bundle that contains $courseId
         if ($courseId && $bundleId) {
             $isChildOfBundle = DB::table('course_bundle_items')
@@ -48,6 +36,18 @@ class StudentAccessService
                 if ($enrollment) {
                     return $enrollment;
                 }
+            }
+        }
+
+        // 2. Direct course enrollment
+        if ($courseId) {
+            $enrollment = Enrollment::where('student_id', $studentId)
+                ->where('course_id', $courseId)
+                ->whereNull('package_id')
+                ->whereNull('lesson_id')
+                ->first();
+            if ($enrollment) {
+                return $enrollment;
             }
         }
 

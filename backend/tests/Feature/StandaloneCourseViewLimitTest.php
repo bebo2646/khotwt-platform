@@ -317,4 +317,158 @@ class StandaloneCourseViewLimitTest extends TestCase
             ->first();
         $this->assertEquals(1, $bundleLimitAfter->views_used);
     }
+
+    public function test_dashboard_isolates_progress_and_continue_learning_under_both_enrollments(): void
+    {
+        // 1. Create a Teacher
+        $teacher = User::create([
+            'name' => 'Teacher Test 3',
+            'email' => 'teacher_test_limit3_' . rand(100, 999) . '@test.com',
+            'password' => bcrypt('password'),
+            'role' => 'teacher',
+            'status' => 'active',
+            'subject' => 'chemistry',
+            'grades' => ['first_secondary']
+        ]);
+
+        // 2. Create a Student
+        $student = User::create([
+            'name' => 'Student Test 3',
+            'email' => 'student_test_limit3_' . rand(100, 999) . '@test.com',
+            'password' => bcrypt('password'),
+            'role' => 'student',
+            'status' => 'active'
+        ]);
+
+        // 3. Create standalone Course #1
+        $course1 = Course::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Course 1 Standalone 3',
+            'price' => 100.00,
+            'grade' => 'first_secondary',
+            'subject' => 'chemistry',
+            'is_published' => true,
+            'is_bundle' => false,
+            'view_limit_enabled' => true,
+            'max_views' => 3
+        ]);
+
+        // 4. Create Bundle Course
+        $bundleCourse = Course::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Bundle Course 3',
+            'price' => 250.00,
+            'grade' => 'first_secondary',
+            'subject' => 'chemistry',
+            'is_published' => true,
+            'is_bundle' => true,
+            'view_limit_enabled' => true,
+            'max_views' => 3
+        ]);
+
+        // Link Course #1 to Bundle
+        $bundleCourse->childCourses()->attach($course1->id);
+
+        // 5. Create Unit, Lesson, and Video in Course #1
+        $unit = Unit::create([
+            'course_id' => $course1->id,
+            'title' => 'Unit 1',
+            'order' => 1
+        ]);
+
+        $lesson = Lesson::create([
+            'unit_id' => $unit->id,
+            'title' => 'Lesson 1',
+            'order' => 1
+        ]);
+
+        $video = Video::create([
+            'lesson_id' => $lesson->id,
+            'title' => 'Video 1',
+            'bunny_stream_id' => 'bunny_123',
+            'duration_seconds' => 1000
+        ]);
+
+        // 6. Setup enrollments (both Standalone and Bundle)
+        $standaloneEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'course_id' => $course1->id,
+            'enrolled_at' => now()
+        ]);
+
+        $bundleEnrollment = Enrollment::create([
+            'student_id' => $student->id,
+            'course_id' => $bundleCourse->id,
+            'enrolled_at' => now()
+        ]);
+
+        // 7. Create progress for standalone (e.g. 10% progress)
+        $standaloneProgress = VideoProgress::create([
+            'student_id' => $student->id,
+            'video_id' => $video->id,
+            'course_id' => $course1->id,
+            'package_id' => null,
+            'lesson_id' => $lesson->id,
+            'watched_seconds' => 100,
+            'watched_percentage' => 10.0,
+            'completed' => false,
+            'views_count' => 1,
+            'watched_segments' => []
+        ]);
+        $standaloneProgress->updated_at = now()->subMinutes(10);
+        $standaloneProgress->save();
+
+        // 8. Create progress for bundle (e.g. 90% progress, updated more recently)
+        $bundleProgress = VideoProgress::create([
+            'student_id' => $student->id,
+            'video_id' => $video->id,
+            'course_id' => $bundleCourse->id,
+            'package_id' => null,
+            'lesson_id' => $lesson->id,
+            'watched_seconds' => 900,
+            'watched_percentage' => 90.0,
+            'completed' => true,
+            'views_count' => 1,
+            'watched_segments' => []
+        ]);
+        $bundleProgress->updated_at = now();
+        $bundleProgress->save();
+
+        // 9. Fetch student dashboard
+        $response = $this->actingAs($student)
+             ->getJson("/api/student/dashboard");
+
+        $response->assertStatus(200);
+        $data = $response->json();
+
+        // Verify we have both courses on the dashboard
+        $courses = $data['courses'];
+        $this->assertCount(2, $courses);
+
+        $standaloneItem = collect($courses)->firstWhere('id', $course1->id);
+        $bundleItem = collect($courses)->firstWhere('id', $bundleCourse->id);
+
+        $this->assertNotNull($standaloneItem);
+        $this->assertNotNull($bundleItem);
+
+        // Verify isolated progress values
+        $this->assertEquals(10, $standaloneItem['progress_percentage']);
+        $this->assertEquals(90, $bundleItem['progress_percentage']);
+
+        // Verify continue learning points to the latest context (Bundle Course, since its progress was updated last)
+        $this->assertEquals($bundleCourse->id, $data['last_watched']['course_id']);
+        $this->assertEquals('course', $data['last_watched']['purchase_type']);
+
+        // 10. Now make standalone progress updated more recently
+        $standaloneProgress->updated_at = now()->addMinutes(5);
+        $standaloneProgress->save();
+
+        $response2 = $this->actingAs($student)
+             ->getJson("/api/student/dashboard");
+        $data2 = $response2->json();
+
+        // Verify continue learning now points to Standalone Course
+        $this->assertEquals($course1->id, $data2['last_watched']['course_id']);
+        $this->assertEquals('course', $data2['last_watched']['purchase_type']);
+    }
 }
