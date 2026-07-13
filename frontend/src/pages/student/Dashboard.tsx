@@ -2,6 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
+import { formatWatchedTimeArabic } from '../../utils/video'
 import { 
   BookOpen, 
   Wallet, 
@@ -513,7 +514,7 @@ export default function StudentDashboard() {
                     <div className="p-6 pt-0 border-t border-border-color/50 space-y-4 bg-brand-surface/20">
                       <div className="space-y-2 pt-4">
                         <div className="flex justify-between items-center text-[10px] font-black text-text-secondary">
-                          <span>شاهدت: {watchedMin} د من {durationMin} د</span>
+                          <span>شاهدت: {formatWatchedTimeArabic(course.watched_seconds)} من {formatWatchedTimeArabic(course.total_duration_seconds)}</span>
                           <span className="text-brand-primary">{percentage}%</span>
                         </div>
                         

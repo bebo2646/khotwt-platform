@@ -1461,12 +1461,21 @@ export default function LessonViewer({
           <div className="space-y-6">
           
           {/* Remaining views card */}
-          {viewLimitDetails && viewLimitDetails.limit_enabled && (
+          {viewLimitDetails && (
             <div className="bg-brand-card border border-[var(--border-color)] p-4 rounded-3xl text-right space-y-1">
-              <span className="text-[10px] text-slate-400 block">المشاهدات المتبقية:</span>
-              <span className="text-base font-black text-brand-primary">
-                {viewLimitDetails.is_unlimited ? 'غير محدود' : `${viewLimitDetails.remaining_views ?? viewLimitDetails.remaining} من ${viewLimitDetails.total_allowed_views ?? viewLimitDetails.max_views}`}
-              </span>
+              {!viewLimitDetails.limit_enabled || viewLimitDetails.is_unlimited ? (
+                <>
+                  <span className="text-[10px] text-slate-400 block">عدد المشاهدات:</span>
+                  <span className="text-base font-black text-brand-primary">غير محدود</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] text-slate-400 block">المشاهدات المتبقية:</span>
+                  <span className="text-base font-black text-brand-primary">
+                    {`${viewLimitDetails.remaining_views ?? viewLimitDetails.remaining} من ${viewLimitDetails.total_allowed_views ?? viewLimitDetails.max_views}`}
+                  </span>
+                </>
+              )}
             </div>
           )}
 

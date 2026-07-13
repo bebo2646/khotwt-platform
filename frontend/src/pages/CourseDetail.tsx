@@ -10,7 +10,7 @@ import { getCourseDisplayPrice } from '../utils/pricing'
 import LessonViewer from './student/LessonViewer'
 import ExamPlayer from './student/ExamPlayer'
 import ExamResults from './student/ExamResults'
-import { formatDurationArabic } from '../utils/video'
+import { formatDurationArabic, formatWatchedTimeArabic } from '../utils/video'
 
 interface CourseItem {
   id: number
@@ -379,16 +379,16 @@ export default function CourseDetail() {
                         <span className="font-bold text-slate-100">{formatDurationArabic(vid.duration_seconds || 0)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-500">👁️ المشاهدات المسموح بها:</span>
+                        <span className="text-slate-500">{vid.progress.views_allowed === -1 ? '👁️ عدد المشاهدات:' : '👁️ المشاهدات المسموح بها:'}</span>
                         <span className="font-bold text-slate-100 text-right">
                           {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_allowed}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${vid.progress.views_allowed === -1 ? 'hidden' : ''}`}>
                         <span className="text-slate-500">📈 المشاهدات المستخدمة:</span>
                         <span className="font-bold text-slate-100">{vid.progress.views_used}</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${vid.progress.views_allowed === -1 ? 'hidden' : ''}`}>
                         <span className="text-slate-500">🔐 المشاهدات المتبقية:</span>
                         <span className="font-bold text-slate-100 text-right">
                           {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_remaining}
@@ -396,7 +396,7 @@ export default function CourseDetail() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">⏱️ إجمالي وقت المشاهدة:</span>
-                        <span className="font-bold text-slate-100">{Math.round(vid.progress.watched_seconds / 60)} دقيقة</span>
+                        <span className="font-bold text-slate-100">{formatWatchedTimeArabic(vid.progress.watched_seconds)}</span>
                       </div>
                       {vid.progress.last_watched_at && (
                         <div className="flex items-center gap-2">
@@ -423,7 +423,7 @@ export default function CourseDetail() {
                     <div className="flex items-center gap-2.5">
                       <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
                       <span className="font-semibold text-slate-200">📄 فتح الملف: {pdf.title}</span>
-                      {!pdf.is_locked && pdf.progress && renderStatusBadge(pdf.progress.status, 'pdf')}
+                      {!pdf.is_locked && pdf.progress && pdf.progress.status !== 'not_started' && renderStatusBadge(pdf.progress.status, 'pdf')}
                     </div>
                     
                     <div className="flex items-center gap-3">
@@ -939,8 +939,8 @@ export default function CourseDetail() {
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-6 border-t border-[var(--border-color)]">
-            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
+          <div className={`grid grid-cols-2 ${course.is_bundle ? 'md:grid-cols-4' : 'md:grid-cols-5'} gap-4 pt-6 border-t border-[var(--border-color)]`}>
+            <div className={`p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center ${course.is_bundle ? 'hidden' : ''}`}>
               <span className="text-[10px] text-slate-400 block font-bold mb-1">الأسابيع (الوحدات)</span>
               <span className="text-sm sm:text-base font-black text-slate-200">{displayUnitsCount}</span>
             </div>
@@ -1284,7 +1284,7 @@ export default function CourseDetail() {
                 if (unit.child_course_id) {
                   lastChildCourseId = unit.child_course_id;
                 }
-                const isExpanded = !!expandedUnits[unit.id]
+                const isExpanded = course.is_bundle ? true : !!expandedUnits[unit.id]
 
                 return (
                   <div key={unit.id} className="space-y-4">
@@ -1297,11 +1297,11 @@ export default function CourseDetail() {
                       </div>
                     )}
                     
-                    <div className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
+                    <div className={course.is_bundle ? "" : "border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300"}>
                       {/* Unit Title Header */}
                       <button
                         onClick={() => toggleUnit(unit.id)}
-                        className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
+                        className={`w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors ${course.is_bundle ? 'hidden' : ''}`}
                       >
                         <div className="flex items-center gap-3">
                           {!course.is_bundle && (

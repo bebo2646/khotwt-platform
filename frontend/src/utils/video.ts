@@ -52,3 +52,34 @@ export function formatDurationArabic(seconds: number): string {
   }
   return parts.join(' و ');
 }
+
+/**
+ * Formats watched time in seconds to a consistent, user-friendly Arabic format.
+ */
+export function formatWatchedTimeArabic(seconds: number): string {
+  if (seconds === undefined || seconds === null || seconds <= 0) return '0 ثانية';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  const parts: string[] = [];
+  
+  if (hrs > 0) {
+    parts.push(`${hrs} ساعة`);
+  }
+  
+  if (mins > 0) {
+    if (mins >= 3 && mins <= 10) {
+      parts.push(`${mins} دقائق`);
+    } else {
+      parts.push(`${mins} دقيقة`);
+    }
+  }
+  
+  if (hrs === 0 && mins === 0) {
+    parts.push(`${secs} ثانية`);
+  }
+
+  return parts.join(' و ');
+}
+

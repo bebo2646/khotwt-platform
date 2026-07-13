@@ -411,7 +411,6 @@ class PublicController extends Controller
                 $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
 
                 $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
-                    ->where('course_id', $course->id)
                     ->whereIn('video_id', $videoIds)
                     ->get()
                     ->keyBy('video_id');
@@ -692,9 +691,6 @@ class PublicController extends Controller
 
                     // Find last watched video position for "متابعة المشاهدة"
                     $lastWatched = VideoProgress::where('student_id', $user->id)
-                        ->where('course_id', $contextCourseId)
-                        ->where('package_id', $contextPackageId)
-                        ->where('lesson_id', $contextLessonId)
                         ->whereHas('video.lesson.unit', function ($q) use ($courseId) {
                             $q->where('course_id', $courseId);
                         })
@@ -739,8 +735,6 @@ class PublicController extends Controller
             $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
 
             $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
-                ->where('course_id', $contextCourseId)
-                ->where('package_id', $packageId)
                 ->whereIn('video_id', $videoIds)
                 ->get()
                 ->keyBy('video_id');

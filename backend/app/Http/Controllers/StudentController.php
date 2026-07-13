@@ -1319,9 +1319,6 @@ class StudentController extends Controller
         $videosWithProgress = $videos->map(function ($video) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
             $progress = VideoProgress::where('student_id', $user->id)
                 ->where('video_id', $video->id)
-                ->where('course_id', $contextCourseId)
-                ->where('package_id', $contextPackageId)
-                ->where('lesson_id', $contextLessonId)
                 ->first();
 
             return [
@@ -1491,9 +1488,12 @@ class StudentController extends Controller
                 ->first();
             $viewsUsedBefore = $viewLimitRecord ? $viewLimitRecord->views_used : 0;
 
+            $shouldIncrementViewsCount = false;
             if ($session->watch_time >= $threshold && !$session->counted) {
                 $session->counted = true;
                 $session->save();
+                
+                $shouldIncrementViewsCount = true;
 
                 // Check if this video has already been counted for the student (no duplicates across sessions/refreshes)
                 $alreadyCountedSession = \App\Models\VideoViewSession::where('student_id', $user->id)
@@ -1553,9 +1553,6 @@ class StudentController extends Controller
         // Find existing progress record
         $progress = VideoProgress::where('student_id', $user->id)
             ->where('video_id', $videoId)
-            ->where('course_id', $contextCourseId)
-            ->where('package_id', $contextPackageId)
-            ->where('lesson_id', $contextLessonId)
             ->first();
 
         // Process segments
@@ -1571,12 +1568,9 @@ class StudentController extends Controller
         // Calculate percentage strictly from actual unique watched seconds
         $percentage = min(100.00, round(($finalWatchedSeconds / $duration) * 100, 2));
 
-        $viewsCount = $progress ? $progress->views_count : 1;
-        if ($progress) {
-            // If user restarts the video (position goes back to near start after being far along)
-            if ($lastPosition < 10 && $progress->last_position_seconds > 60) {
-                $viewsCount++;
-            }
+        $viewsCount = $progress ? $progress->views_count : 0;
+        if (isset($shouldIncrementViewsCount) && $shouldIncrementViewsCount) {
+            $viewsCount++;
         }
 
         // Completion must happen only when progress >= 90 based on unique watched segments
@@ -1586,11 +1580,11 @@ class StudentController extends Controller
             [
                 'student_id' => $user->id,
                 'video_id' => $videoId,
+            ],
+            [
                 'course_id' => $contextCourseId,
                 'package_id' => $contextPackageId,
                 'lesson_id' => $contextLessonId,
-            ],
-            [
                 'watched_seconds' => max($finalWatchedSeconds, $progress ? $progress->watched_seconds : 0),
                 'watched_percentage' => max($percentage, $progress ? $progress->watched_percentage : 0.00),
                 'completed' => $completed || ($progress && $progress->completed),
@@ -2308,13 +2302,6 @@ class StudentController extends Controller
                 $contextLessonId = $enrollment->lesson_id;
             }
 
-            // Filter progress records to only include this subscription context
-            $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
-                return $r->course_id == $contextCourseId 
-                    && $r->package_id == $contextPackageId 
-                    && $r->lesson_id == $contextLessonId;
-            })->keyBy('video_id');
-
             // Gather all video IDs
             $videoIds = [];
             if ($isBundle || $isBundledCourse) {
@@ -2332,6 +2319,9 @@ class StudentController extends Controller
                     }
                 }
             }
+
+            // Filter progress records to only include this subscription context
+            $matchingProgress = $progressRecords->only($videoIds);
 
             $totalVideos = count($videoIds);
             $completedVideos = 0;
@@ -2467,12 +2457,6 @@ class StudentController extends Controller
                     $contextLessonId = $enrollment->lesson_id;
                 }
 
-                $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
-                    return $r->course_id == $contextCourseId 
-                        && $r->package_id == $contextPackageId 
-                        && $r->lesson_id == $contextLessonId;
-                })->keyBy('video_id');
-
                 $videoIds = [];
                 if ($isBundle || $isBundledCourse) {
                     foreach ($bundleLessons as $lesson) {
@@ -2489,6 +2473,8 @@ class StudentController extends Controller
                         }
                     }
                 }
+
+                $matchingProgress = $progressRecords->only($videoIds);
 
                 $courseProgress = $matchingProgress->only($videoIds);
                 $totalSumPercentage += $courseProgress->sum('watched_percentage');
@@ -2696,13 +2682,6 @@ class StudentController extends Controller
                 $contextLessonId = $enrollment->lesson_id;
             }
 
-            // Filter progress records to only include this subscription context
-            $matchingProgress = $progressRecords->filter(function ($r) use ($contextCourseId, $contextPackageId, $contextLessonId) {
-                return $r->course_id == $contextCourseId 
-                    && $r->package_id == $contextPackageId 
-                    && $r->lesson_id == $contextLessonId;
-            })->keyBy('video_id');
-
             $videoIds = [];
             if ($course->is_bundle) {
                 $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
@@ -2723,6 +2702,9 @@ class StudentController extends Controller
                     }
                 }
             }
+
+            // Filter progress records to only include this subscription context
+            $matchingProgress = $progressRecords->only($videoIds);
 
             $totalVideos = count($videoIds);
             $completedVideos = 0;
