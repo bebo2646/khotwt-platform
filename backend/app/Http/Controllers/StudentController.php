@@ -1316,15 +1316,21 @@ class StudentController extends Controller
         $exams = Exam::where('lesson_id', $lessonId)->get();
 
         $viewLimitDetails = null;
-        if ($user->isStudent() && $course) {
-            $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+        if ($user->isStudent() && $contextCourse) {
+            $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
         }
 
         // Get progress for each video
         $videosWithProgress = $videos->map(function ($video) use ($user, $contextCourseId, $contextPackageId, $contextLessonId, $viewLimitDetails) {
-            $progress = VideoProgress::where('student_id', $user->id)
+            $progressQuery = VideoProgress::where('student_id', $user->id)
                 ->where('video_id', $video->id)
-                ->first();
+                ->where('course_id', $contextCourseId);
+            if ($contextPackageId) {
+                $progressQuery->where('package_id', $contextPackageId);
+            } else {
+                $progressQuery->whereNull('package_id');
+            }
+            $progress = $progressQuery->first();
 
             $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
             $totalAllowed = $limitEnabled ? (int)($viewLimitDetails['base_limit'] + $viewLimitDetails['extra_views']) : -1;
@@ -1460,9 +1466,15 @@ class StudentController extends Controller
             
             $isExceeded = false;
             if ($limitEnabled && $totalAllowed !== -1) {
-                $existingProgress = \App\Models\VideoProgress::where('student_id', $user->id)
+                $existingProgressQuery = \App\Models\VideoProgress::where('student_id', $user->id)
                     ->where('video_id', $video->id)
-                    ->first();
+                    ->where('course_id', $contextCourseId);
+                if ($contextPackageId) {
+                    $existingProgressQuery->where('package_id', $contextPackageId);
+                } else {
+                    $existingProgressQuery->whereNull('package_id');
+                }
+                $existingProgress = $existingProgressQuery->first();
                 $viewsUsed = $existingProgress ? (int)$existingProgress->views_count : 0;
                 if ($viewsUsed >= $totalAllowed) {
                     $isExceeded = true;
@@ -1542,13 +1554,20 @@ class StudentController extends Controller
                     // Check if this video has already been counted for the student (no duplicates across sessions/refreshes)
                     $alreadyCountedSession = \App\Models\VideoViewSession::where('student_id', $user->id)
                         ->where('video_id', $video->id)
+                        ->where('course_id', $contextCourseId)
                         ->where('counted', true)
                         ->where('session_id', '!=', $session->session_id)
                         ->exists();
 
-                    $alreadyCompletedProgress = \App\Models\VideoProgress::where('student_id', $user->id)
+                    $alreadyCompletedProgressQuery = \App\Models\VideoProgress::where('student_id', $user->id)
                         ->where('video_id', $video->id)
-                        ->where(function ($q) use ($threshold) {
+                        ->where('course_id', $contextCourseId);
+                    if ($contextPackageId) {
+                        $alreadyCompletedProgressQuery->where('package_id', $contextPackageId);
+                    } else {
+                        $alreadyCompletedProgressQuery->whereNull('package_id');
+                    }
+                    $alreadyCompletedProgress = $alreadyCompletedProgressQuery->where(function ($q) use ($threshold) {
                             $q->where('completed', true)
                               ->orWhere('watched_seconds', '>=', $threshold);
                         })
@@ -1596,9 +1615,15 @@ class StudentController extends Controller
         $lastPosition = $request->last_position_seconds;
 
         // Find existing progress record
-        $progress = VideoProgress::where('student_id', $user->id)
+        $progressQuery = VideoProgress::where('student_id', $user->id)
             ->where('video_id', $videoId)
-            ->first();
+            ->where('course_id', $contextCourseId);
+        if ($contextPackageId) {
+            $progressQuery->where('package_id', $contextPackageId);
+        } else {
+            $progressQuery->whereNull('package_id');
+        }
+        $progress = $progressQuery->first();
 
         // Process segments
         $incomingSegments = $request->input('watched_segments', []);
@@ -1625,6 +1650,8 @@ class StudentController extends Controller
             [
                 'student_id' => $user->id,
                 'video_id' => $videoId,
+                'course_id' => $contextCourseId,
+                'package_id' => $contextPackageId,
             ],
             [
                 'course_id' => $contextCourseId,
@@ -2340,8 +2367,7 @@ class StudentController extends Controller
 
         // Pre-fetch progress records to eliminate nested N+1 queries
         $progressRecords = VideoProgress::where('student_id', $user->id)
-            ->get()
-            ->keyBy('video_id');
+            ->get();
 
         $coursesData = [];
         $totalVideosCount = 0;
@@ -2406,7 +2432,11 @@ class StudentController extends Controller
             }
 
             // Filter progress records to only include this subscription context
-            $matchingProgress = $progressRecords->only($videoIds);
+            $matchingProgress = $progressRecords->filter(function ($prog) use ($videoIds, $contextCourseId, $contextPackageId) {
+                return in_array($prog->video_id, $videoIds) &&
+                       $prog->course_id == $contextCourseId &&
+                       $prog->package_id == $contextPackageId;
+            })->keyBy('video_id');
 
             $totalVideos = count($videoIds);
             $completedVideos = 0;
@@ -2813,8 +2843,7 @@ class StudentController extends Controller
 
         // Pre-fetch progress records to eliminate nested N+1 queries
         $progressRecords = VideoProgress::where('student_id', $user->id)
-            ->get()
-            ->keyBy('video_id');
+            ->get();
 
         $coursesData = [];
         $totalVideosCount = 0;
@@ -2866,7 +2895,11 @@ class StudentController extends Controller
             }
 
             // Filter progress records to only include this subscription context
-            $matchingProgress = $progressRecords->only($videoIds);
+            $matchingProgress = $progressRecords->filter(function ($prog) use ($videoIds, $contextCourseId, $contextPackageId) {
+                return in_array($prog->video_id, $videoIds) &&
+                       $prog->course_id == $contextCourseId &&
+                       $prog->package_id == $contextPackageId;
+            })->keyBy('video_id');
 
             $totalVideos = count($videoIds);
             $completedVideos = 0;

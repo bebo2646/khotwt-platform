@@ -154,22 +154,28 @@ class Course extends Model
         // 1. Resolve context course (if student is enrolled via a bundle, use the bundle course)
         $contextCourse = $this;
         
+        // Prioritize direct/standalone enrollment for this course
         $enrollment = \App\Models\Enrollment::where('student_id', $studentId)
-            ->where(function ($q) {
-                // If direct course enrollment
-                $q->where('course_id', $this->id)
-                  // Or if enrolled via a bundle package
-                  ->orWhereIn('package_id', function ($pq) {
-                      $pq->select('id')->from('packages')->where('type', 'bundle')->whereIn('id', function($cbi) {
-                          $cbi->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
-                      });
-                  })
-                  // Or if enrolled via bundle course directly
-                  ->orWhereIn('course_id', function ($cq) {
-                      $cq->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
-                  });
-            })
+            ->where('course_id', $this->id)
             ->first();
+
+        if (!$enrollment) {
+            // Fall back to bundle enrollment
+            $enrollment = \App\Models\Enrollment::where('student_id', $studentId)
+                ->where(function ($q) {
+                    // Or if enrolled via a bundle package
+                    $q->whereIn('package_id', function ($pq) {
+                        $pq->select('id')->from('packages')->where('type', 'bundle')->whereIn('id', function($cbi) {
+                            $cbi->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
+                        });
+                    })
+                    // Or if enrolled via bundle course directly
+                    ->orWhereIn('course_id', function ($cq) {
+                        $cq->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
+                    });
+                })
+                ->first();
+        }
 
         if ($enrollment) {
             if ($enrollment->package && $enrollment->package->type === 'bundle' && $enrollment->package->course) {
@@ -201,7 +207,9 @@ class Course extends Model
                 // Backward compatibility
                 'max_views' => -1,
                 'remaining' => -1,
-                'exceeded' => false
+                'exceeded' => false,
+                'context_course_id' => $contextCourse->id,
+                'context_package_id' => $enrollment ? $enrollment->package_id : null,
             ];
         }
 
@@ -252,7 +260,9 @@ class Course extends Model
                 'is_blocked' => false,
                 'max_views' => -1,
                 'remaining' => -1,
-                'exceeded' => false
+                'exceeded' => false,
+                'context_course_id' => $contextCourse->id,
+                'context_package_id' => $enrollment ? $enrollment->package_id : null,
             ];
         }
 
@@ -260,9 +270,17 @@ class Course extends Model
         $maxAllowedPerVideo = $baseLimit + $extraViews;
         $totalAllowedCourse = $videoCount * $maxAllowedPerVideo;
         
-        $viewsUsedCourse = \App\Models\VideoProgress::where('student_id', $studentId)
+        $viewsUsedQuery = \App\Models\VideoProgress::where('student_id', $studentId)
             ->whereIn('video_id', $videoIds)
-            ->sum('views_count');
+            ->where('course_id', $contextCourse->id);
+
+        if ($enrollment && $enrollment->package_id) {
+            $viewsUsedQuery->where('package_id', $enrollment->package_id);
+        } else {
+            $viewsUsedQuery->whereNull('package_id');
+        }
+
+        $viewsUsedCourse = $viewsUsedQuery->sum('views_count');
 
         $remaining = max(0, $totalAllowedCourse - $viewsUsedCourse);
         $isBlocked = ($totalAllowedCourse > 0) && ($viewsUsedCourse >= $totalAllowedCourse);
@@ -279,7 +297,9 @@ class Course extends Model
             // Backward compatibility
             'max_views' => $totalAllowedCourse,
             'remaining' => $remaining,
-            'exceeded' => $isBlocked
+            'exceeded' => $isBlocked,
+            'context_course_id' => $contextCourse->id,
+            'context_package_id' => $enrollment ? $enrollment->package_id : null,
         ];
     }
 

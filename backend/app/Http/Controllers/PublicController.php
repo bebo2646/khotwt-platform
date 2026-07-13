@@ -412,8 +412,7 @@ class PublicController extends Controller
 
                 $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
                     ->whereIn('video_id', $videoIds)
-                    ->get()
-                    ->keyBy('video_id');
+                    ->get();
 
                 $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
                     ->where('course_id', $course->id)
@@ -467,11 +466,20 @@ class PublicController extends Controller
                             $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $lesson, $user) {
                                 $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
                                 
-                                $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
-                                
                                 // Fetch the actual course of the lesson for view limit tracking!
                                 $physicalCourse = $lesson->unit->course;
                                 $physicalLimitDetails = $user ? $physicalCourse->getStudentViewLimitDetails($user->id) : null;
+
+                                $progress = null;
+                                if ($user && $physicalLimitDetails) {
+                                    $ctxCourseId = $physicalLimitDetails['context_course_id'];
+                                    $ctxPackageId = $physicalLimitDetails['context_package_id'];
+                                    $progress = $videoProgresses->first(function ($p) use ($video, $ctxCourseId, $ctxPackageId) {
+                                        return $p->video_id === $video->id &&
+                                               $p->course_id == $ctxCourseId &&
+                                               $p->package_id == $ctxPackageId;
+                                    });
+                                }
 
                                 // Video-specific views used and remaining
                                 $limitEnabled = $physicalLimitDetails && $physicalLimitDetails['limit_enabled'];
@@ -725,7 +733,11 @@ class PublicController extends Controller
 
         if ($user && $user->isStudent()) {
             $courseIdParam = $request->input('course_id') ?: $request->query('course_id');
-            $contextCourseId = $courseIdParam ?: $courseId;
+            
+            // Resolve progress context
+            $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $courseId, $packageId, $requestLessonId);
+            $contextCourseId = $context['course_id'];
+            $contextPackageId = $context['package_id'];
 
             // Find all videos, pdfs, and exams in this course
             $lessonIds = \App\Models\Lesson::whereHas('unit', function ($q) use ($courseId) {
@@ -736,24 +748,41 @@ class PublicController extends Controller
             $pdfIds = \App\Models\Pdf::whereIn('lesson_id', $lessonIds)->pluck('id');
             $examIds = \App\Models\Exam::whereIn('lesson_id', $lessonIds)->pluck('id');
 
-            $videoProgresses = \App\Models\VideoProgress::where('student_id', $user->id)
+            $videoProgressQuery = \App\Models\VideoProgress::where('student_id', $user->id)
                 ->whereIn('video_id', $videoIds)
-                ->get()
-                ->keyBy('video_id');
+                ->where('course_id', $contextCourseId);
+            
+            if ($contextPackageId) {
+                $videoProgressQuery->where('package_id', $contextPackageId);
+            } else {
+                $videoProgressQuery->whereNull('package_id');
+            }
 
-            $pdfProgresses = \App\Models\StudentPdfProgress::where('student_id', $user->id)
-                ->where('course_id', $contextCourseId)
-                ->where('package_id', $packageId)
-                ->whereIn('pdf_id', $pdfIds)
-                ->get()
-                ->keyBy('pdf_id');
+            $videoProgresses = $videoProgressQuery->get()->keyBy('video_id');
 
-            $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+            $pdfProgressQuery = \App\Models\StudentPdfProgress::where('student_id', $user->id)
                 ->where('course_id', $contextCourseId)
-                ->where('package_id', $packageId)
-                ->whereIn('exam_id', $examIds)
-                ->get()
-                ->groupBy('exam_id');
+                ->whereIn('pdf_id', $pdfIds);
+            
+            if ($contextPackageId) {
+                $pdfProgressQuery->where('package_id', $contextPackageId);
+            } else {
+                $pdfProgressQuery->whereNull('package_id');
+            }
+
+            $pdfProgresses = $pdfProgressQuery->get()->keyBy('pdf_id');
+
+            $examAttemptsQuery = \App\Models\StudentExam::where('student_id', $user->id)
+                ->where('course_id', $contextCourseId)
+                ->whereIn('exam_id', $examIds);
+            
+            if ($contextPackageId) {
+                $examAttemptsQuery->where('package_id', $contextPackageId);
+            } else {
+                $examAttemptsQuery->whereNull('package_id');
+            }
+
+            $examAttempts = $examAttemptsQuery->get()->groupBy('exam_id');
 
             if ($isEnrolled) {
                 $contextCourse = \App\Models\Course::find($contextCourseId);
