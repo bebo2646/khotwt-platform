@@ -16,6 +16,7 @@ import {
   AlertCircle, 
   CheckCircle2, 
   ChevronRight,
+  ChevronLeft,
   TrendingUp,
   User,
   Mail,
@@ -89,6 +90,22 @@ export default function ProfileDashboard() {
   const [data, setData] = React.useState<ProfileStatsData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [walletTransactions, setWalletTransactions] = React.useState<any[]>([])
+
+  const [coursesIndex, setCoursesIndex] = React.useState(0)
+  const [visibleSlides, setVisibleSlides] = React.useState(2)
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setVisibleSlides(1)
+      } else {
+        setVisibleSlides(2)
+      }
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   const transactionsWithRollingBalance = React.useMemo(() => {
     const sorted = [...walletTransactions].reverse();
@@ -372,55 +389,91 @@ export default function ProfileDashboard() {
 
       </div>
 
-      {/* 2. Enrolled Courses */}
+      {/* 2. Enrolled Courses Achievements Slider */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-brand-primary" />
-          <span>متابعة إنجاز الكورسات</span>
-        </h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+            <BookOpen className="h-5 w-5 text-brand-primary" />
+            <span>متابعة إنجاز الكورسات</span>
+          </h2>
+          {courses.length > visibleSlides && (
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCoursesIndex(prev => Math.max(0, prev - 1))}
+                disabled={coursesIndex === 0}
+                className="p-2 bg-slate-900/60 border border-[var(--border-color)] hover:border-brand-primary/45 rounded-xl text-slate-300 hover:text-white transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                title="السابق"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+              <button 
+                onClick={() => setCoursesIndex(prev => Math.min(courses.length - visibleSlides, prev + 1))}
+                disabled={coursesIndex >= courses.length - visibleSlides}
+                className="p-2 bg-slate-900/60 border border-[var(--border-color)] hover:border-brand-primary/45 rounded-xl text-slate-300 hover:text-white transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                title="التالي"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
         
         {courses.length === 0 ? (
           <div className="bg-brand-card border border-[var(--border-color)] rounded-2xl p-8 text-center text-slate-400 text-xs font-light">
             أنت غير مشترك في أي كورسات حالياً.
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {courses.map((course) => (
-              <div key={course.id} className="bg-brand-card border border-[var(--border-color)] rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4 hover:border-brand-primary/20 transition-all">
-                <div className="w-full sm:w-28 h-20 bg-slate-800 rounded-xl overflow-hidden shrink-0">
-                  <img 
-                    src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
-                    alt={course.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-grow space-y-3 w-full">
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-200 line-clamp-1">{course.title}</h3>
-                      <span className="text-[10px] text-slate-400 font-medium">المعلم: {course.teacher_name}</span>
+          <div className="overflow-hidden rounded-2xl w-full">
+            <div 
+              className="flex transition-transform duration-500 ease-out"
+              style={{
+                transform: `translateX(${coursesIndex * (100 / visibleSlides)}%)`,
+                width: `${(courses.length / visibleSlides) * 100}%`
+              }}
+            >
+              {courses.map((course) => (
+                <div 
+                  key={course.id} 
+                  style={{ width: `${100 / courses.length}%` }}
+                  className="px-2"
+                >
+                  <div className="bg-brand-card border border-[var(--border-color)] rounded-2xl p-5 flex flex-col sm:flex-row items-center gap-4 hover:border-brand-primary/25 transition-all h-full">
+                    <div className="w-full sm:w-28 h-20 bg-slate-800 rounded-xl overflow-hidden shrink-0">
+                      <img 
+                        src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+                        alt={course.title}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    <span className="text-[10px] bg-brand-primary/10 text-brand-primary font-bold px-2 py-0.5 rounded-full shrink-0">
-                      {course.progress_percentage}% مكتمل
-                    </span>
-                  </div>
+                    <div className="flex-grow space-y-3 w-full">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-200 line-clamp-1">{course.title}</h3>
+                          <span className="text-[10px] text-slate-400 font-medium">المعلم: {course.teacher_name}</span>
+                        </div>
+                        <span className="text-[10px] bg-brand-primary/10 text-brand-primary font-bold px-2 py-0.5 rounded-full shrink-0">
+                          {course.progress_percentage}% مكتمل
+                        </span>
+                      </div>
 
-                  {/* Progress Line */}
-                  <div className="space-y-1.5">
-                    <div className="w-full bg-slate-800 rounded-full h-1.5">
-                      <div 
-                        className="bg-brand-primary h-1.5 rounded-full transition-all" 
-                        style={{ width: `${course.progress_percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex justify-between items-center text-[10px] text-slate-400 font-light">
-                      <span>محاضرات مكتملة: {course.completed_lectures}</span>
-                      <span>متبقية: {course.remaining_lectures}</span>
+                      {/* Progress Line */}
+                      <div className="space-y-1.5">
+                        <div className="w-full bg-slate-850 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-brand-primary h-1.5 rounded-full transition-all duration-500" 
+                            style={{ width: `${course.progress_percentage}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-light">
+                          <span>محاضرات مكتملة: {course.completed_lectures}</span>
+                          <span>متبقية: {course.remaining_lectures}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>

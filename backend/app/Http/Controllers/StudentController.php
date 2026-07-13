@@ -2741,85 +2741,112 @@ class StudentController extends Controller
                 ];
             });
 
-        // Get the single latest VideoProgress record
-        $latestProgress = VideoProgress::with(['video.lesson.unit.course.teacher'])
+        // Get all enrollments for the student
+        $enrollments = Enrollment::with([
+            'course.teacher',
+            'course.units.lessons.videos',
+            'package.course.teacher',
+            'package.course.units.lessons.videos',
+            'lesson.unit.course.teacher',
+            'lesson.unit.course.units.lessons.videos'
+        ])
             ->where('student_id', $user->id)
-            ->latest('updated_at')
-            ->first();
+            ->latest()
+            ->get();
 
-        $lastWatched = null;
-        if ($latestProgress && $latestProgress->video && $latestProgress->video->lesson && $latestProgress->video->lesson->unit && $latestProgress->video->lesson->unit->course) {
-            $video = $latestProgress->video;
-            
-            // Resolve the actual context course from VideoProgress
-            $contextCourse = $latestProgress->course_id ? \App\Models\Course::find($latestProgress->course_id) : $video->lesson->unit->course;
-            
-            if ($contextCourse) {
-                // Find the enrollment that corresponds to the VideoProgress context
-                $enrollmentQuery = Enrollment::where('student_id', $user->id);
-                if ($latestProgress->package_id) {
-                    $enrollmentQuery->where('package_id', $latestProgress->package_id);
-                } else {
-                    $enrollmentQuery->where('course_id', $contextCourse->id)
-                                    ->whereNull('package_id');
+        $lastWatchedItems = [];
+
+        foreach ($enrollments as $enrollment) {
+            $course = $enrollment->course;
+            if (!$course) {
+                if ($enrollment->package) {
+                    $course = $enrollment->package->course;
+                } elseif ($enrollment->lesson && $enrollment->lesson->unit) {
+                    $course = $enrollment->lesson->unit->course;
                 }
-                $enrollment = $enrollmentQuery->first();
+            }
+            if (!$course) continue;
 
-                $packageId = $enrollment ? $enrollment->package_id : null;
-                $purchaseType = $enrollment ? ($enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course')) : 'course';
+            $contextCourseId = $enrollment->course_id;
+            $contextPackageId = $enrollment->package_id;
 
-                $lastWatched = [
-                    'course_id' => $contextCourse->id,
-                    'course_title' => $contextCourse->title,
-                    'course_cover' => $contextCourse->cover_image,
+            // Get the latest VideoProgress record for this context
+            $latestProgress = VideoProgress::with(['video.lesson'])
+                ->where('student_id', $user->id)
+                ->where('course_id', $contextCourseId)
+                ->where('package_id', $contextPackageId)
+                ->latest('updated_at')
+                ->first();
+
+            if ($latestProgress && $latestProgress->video && $latestProgress->video->lesson) {
+                $video = $latestProgress->video;
+                $purchaseType = $enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course');
+
+                $lastWatchedItems[] = [
+                    'course_id' => $course->id,
+                    'course_title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
+                    'course_cover' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : $course->cover_image,
                     'video_id' => $video->id,
                     'video_title' => $video->title,
                     'watched_seconds' => $latestProgress->watched_seconds,
                     'duration_seconds' => $video->duration_seconds,
                     'progress_percentage' => $latestProgress->watched_percentage,
                     'lesson_id' => $video->lesson_id,
-                    'package_id' => $packageId,
+                    'package_id' => $enrollment->package_id,
                     'purchase_type' => $purchaseType,
-                    'teacher_name' => $contextCourse->teacher ? $contextCourse->teacher->name : ($video->lesson->unit->course->teacher ? $video->lesson->unit->course->teacher->name : 'معلم'),
+                    'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم',
                 ];
-            }
-        } else {
-            // Fallback: get the latest enrolled course and its first video
-            $latestEnrollment = Enrollment::with(['course.teacher', 'course.units.lessons.videos'])
-                ->where('student_id', $user->id)
-                ->latest()
-                ->first();
-
-            if ($latestEnrollment && $latestEnrollment->course) {
-                $course = $latestEnrollment->course;
+            } else {
+                // Fallback: get the first video of this course
                 $firstVideo = null;
-                foreach ($course->units as $unit) {
-                    foreach ($unit->lessons as $lesson) {
+                if ($course->is_bundle) {
+                    $childIds = \DB::table('course_bundle_items')->where('parent_id', $course->id)->pluck('child_id')->toArray();
+                    $bundleLessons = \App\Models\Lesson::whereIn('unit_id', function($q) use ($childIds) {
+                        $q->select('id')->from('units')->whereIn('course_id', $childIds);
+                    })->with('videos')->get();
+                    foreach ($bundleLessons as $lesson) {
                         if ($lesson->videos->count() > 0) {
                             $firstVideo = $lesson->videos->first();
-                            break 2;
+                            break;
+                        }
+                    }
+                } else {
+                    foreach ($course->units as $unit) {
+                        foreach ($unit->lessons as $lesson) {
+                            if ($lesson->videos->count() > 0) {
+                                $firstVideo = $lesson->videos->first();
+                                break 2;
+                            }
                         }
                     }
                 }
 
                 if ($firstVideo) {
-                    $lastWatched = [
+                    $purchaseType = $enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course');
+                    $lastWatchedItems[] = [
                         'course_id' => $course->id,
-                        'course_title' => $course->title,
-                        'course_cover' => $course->cover_image,
+                        'course_title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
+                        'course_cover' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : $course->cover_image,
                         'video_id' => $firstVideo->id,
                         'video_title' => $firstVideo->title,
                         'watched_seconds' => 0,
                         'duration_seconds' => $firstVideo->duration_seconds,
                         'progress_percentage' => 0,
                         'lesson_id' => $firstVideo->lesson_id,
-                        'package_id' => $latestEnrollment->package_id,
-                        'purchase_type' => $latestEnrollment->package_id ? 'package' : ($latestEnrollment->lesson_id ? 'lesson' : 'course'),
+                        'package_id' => $enrollment->package_id,
+                        'purchase_type' => $purchaseType,
                         'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم',
                     ];
                 }
             }
         }
+
+        // Deduplicate the items to make sure we don't have multiple cards for the same course and package
+        $lastWatchedItems = collect($lastWatchedItems)->unique(function ($item) {
+            return ($item['course_id'] ?? '') . '-' . ($item['package_id'] ?? '');
+        })->values()->all();
+
+        $lastWatched = $lastWatchedItems;
 
         return response()->json([
             'wallet_balance' => $walletBalance,
@@ -2913,7 +2940,7 @@ class StudentController extends Controller
             $completedVideos = 0;
 
             if ($totalVideos > 0) {
-                $courseProgress = $matchingProgress->only($videoIds);
+                $courseProgress = $matchingProgress;
                 $completedVideos = $courseProgress->where('completed', true)->count();
                 $sumPercentage = $courseProgress->sum('watched_percentage');
 
@@ -2925,8 +2952,17 @@ class StudentController extends Controller
             $totalVideosCount += $totalVideos;
             $completedVideosCount += $completedVideos;
 
+            $courseIdKey = $course->id;
+            if ($enrollment->package && $enrollment->package->type === 'bundle') {
+                $courseIdKey = 'bundle-' . $enrollment->package_id;
+            } elseif ($enrollment->package) {
+                $courseIdKey = 'package-' . $enrollment->package_id;
+            } elseif ($enrollment->lesson_id) {
+                $courseIdKey = 'lesson-' . $enrollment->lesson_id;
+            }
+
             $coursesData[] = [
-                'id' => $course->id,
+                'id' => $courseIdKey,
                 'title' => $enrollment->package ? $enrollment->package->title : ($enrollment->lesson ? $enrollment->lesson->title : $course->title),
                 'cover_image' => ($enrollment->package && $enrollment->package->package_thumbnail) ? $enrollment->package->package_thumbnail : ($course->cover_image ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'),
                 'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
@@ -2935,6 +2971,8 @@ class StudentController extends Controller
                 'remaining_lectures' => max(0, $totalVideos - $completedVideos),
             ];
         }
+
+        $coursesData = collect($coursesData)->unique('id')->values()->all();
 
         // 2. Exams history
         $examsHistory = StudentExam::with(['exam.lesson.unit.course'])

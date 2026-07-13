@@ -53,7 +53,20 @@ interface CourseProgress {
 interface DashboardData {
   wallet_balance: string
   courses: CourseProgress[]
-  last_watched?: {
+  last_watched?: Array<{
+    course_id: number
+    course_title: string
+    course_cover?: string | null
+    video_id: number
+    video_title: string
+    watched_seconds: number
+    duration_seconds: number
+    progress_percentage: number
+    lesson_id: number
+    package_id?: number | null
+    purchase_type: string
+    teacher_name: string
+  }> | {
     course_id: number
     course_title: string
     course_cover?: string | null
@@ -478,7 +491,7 @@ export default function StudentDashboard() {
         {/* ====================================
             3. CONTINUE LEARNING (My Current Enrolled Courses)
             ==================================== */}
-        {dbData?.last_watched && (
+        {dbData?.last_watched && (Array.isArray(dbData.last_watched) ? dbData.last_watched : [dbData.last_watched]).filter(Boolean).length > 0 && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
@@ -487,55 +500,60 @@ export default function StudentDashboard() {
               </h2>
             </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="max-w-2xl"
-            >
-              <div 
-                className="group bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-3xl overflow-hidden flex flex-col md:flex-row transition-all duration-350 hover:border-brand-primary/30 shadow-xl"
-              >
-                <div className="md:w-2/5 aspect-video md:aspect-auto bg-brand-surface relative overflow-hidden shrink-0">
-                  <img 
-                    src={dbData.last_watched.course_cover || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
-                    alt={dbData.last_watched.course_title} 
-                    className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
-                  />
-                </div>
-                
-                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2 text-right" dir="rtl">
-                    <span className="text-[10px] text-brand-primary font-bold block">مدرس المادة: {dbData.last_watched.teacher_name}</span>
-                    <h3 className="font-black text-base text-foreground leading-relaxed line-clamp-1">{dbData.last_watched.course_title}</h3>
-                    <p className="text-xs text-slate-450 font-medium leading-relaxed">{dbData.last_watched.video_title}</p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-[10px] font-black text-text-secondary">
-                      <span>شاهدت: {formatWatchedTimeArabic(dbData.last_watched.watched_seconds)} من {formatWatchedTimeArabic(dbData.last_watched.duration_seconds)}</span>
-                      <span className="text-brand-primary">{Math.round(dbData.last_watched.progress_percentage)}%</span>
-                    </div>
-                    
-                    <div className="w-full bg-background/50 rounded-full h-2 overflow-hidden border border-border-color">
-                      <div 
-                        style={{ width: `${dbData.last_watched.progress_percentage}%` }}
-                        className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full transition-all duration-500" 
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {(Array.isArray(dbData.last_watched) ? dbData.last_watched : [dbData.last_watched]).filter(Boolean).map((item, idx) => (
+                <motion.div 
+                  key={`${item.course_id}-${item.package_id}-${idx}`}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full"
+                >
+                  <div 
+                    className="group bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-3xl overflow-hidden flex flex-col sm:flex-row transition-all duration-350 hover:border-brand-primary/30 shadow-xl h-full"
+                  >
+                    <div className="sm:w-2/5 aspect-video sm:aspect-auto bg-brand-surface relative overflow-hidden shrink-0">
+                      <img 
+                        src={item.course_cover || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+                        alt={item.course_title} 
+                        className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
                       />
                     </div>
+                    
+                    <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-2 text-right" dir="rtl">
+                        <span className="text-[10px] text-brand-primary font-bold block">مدرس المادة: {item.teacher_name}</span>
+                        <h3 className="font-black text-sm text-slate-200 leading-relaxed line-clamp-1">{item.course_title}</h3>
+                        <p className="text-[11px] text-slate-450 font-medium leading-relaxed line-clamp-1">{item.video_title}</p>
+                      </div>
 
-                    <div className="flex justify-end pt-1">
-                      <Link 
-                        to={`/course/${dbData.last_watched.course_id}?video_id=${dbData.last_watched.video_id}&lesson_id=${dbData.last_watched.lesson_id}${dbData.last_watched.package_id ? `&package_id=${dbData.last_watched.package_id}` : ''}`} 
-                        className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all duration-200 flex items-center gap-1.5"
-                      >
-                        <span>متابعة المشاهدة</span>
-                        <Play className="h-3.5 w-3.5 fill-current" />
-                      </Link>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-[10px] font-black text-text-secondary">
+                          <span>شاهدت: {formatWatchedTimeArabic(item.watched_seconds)} من {formatWatchedTimeArabic(item.duration_seconds)}</span>
+                          <span className="text-brand-primary">{Math.round(item.progress_percentage)}%</span>
+                        </div>
+                        
+                        <div className="w-full bg-background/50 rounded-full h-1.5 overflow-hidden border border-border-color">
+                          <div 
+                            style={{ width: `${item.progress_percentage}%` }}
+                            className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full transition-all duration-500" 
+                          />
+                        </div>
+
+                        <div className="flex justify-end pt-1">
+                          <Link 
+                            to={`/course/${item.course_id}?video_id=${item.video_id}&lesson_id=${item.lesson_id}${item.package_id ? `&package_id=${item.package_id}` : ''}`} 
+                            className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-[10px] font-black shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all duration-200 flex items-center gap-1.5"
+                          >
+                            <span>متابعة المشاهدة</span>
+                            <Play className="h-3 w-3 fill-current" />
+                          </Link>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </motion.div>
+                </motion.div>
+              ))}
+            </div>
           </div>
         )}
 

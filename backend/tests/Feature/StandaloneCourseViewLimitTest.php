@@ -455,20 +455,17 @@ class StandaloneCourseViewLimitTest extends TestCase
         $this->assertEquals(10, $standaloneItem['progress_percentage']);
         $this->assertEquals(90, $bundleItem['progress_percentage']);
 
-        // Verify continue learning points to the latest context (Bundle Course, since its progress was updated last)
-        $this->assertEquals($bundleCourse->id, $data['last_watched']['course_id']);
-        $this->assertEquals('course', $data['last_watched']['purchase_type']);
+        // Verify continue learning returns cards for both enrollments
+        $lastWatchedList = $data['last_watched'];
+        $this->assertIsArray($lastWatchedList);
+        $this->assertCount(2, $lastWatchedList);
 
-        // 10. Now make standalone progress updated more recently
-        $standaloneProgress->updated_at = now()->addMinutes(5);
-        $standaloneProgress->save();
+        $standaloneWatched = collect($lastWatchedList)->firstWhere('course_id', $course1->id);
+        $bundleWatched = collect($lastWatchedList)->firstWhere('course_id', $bundleCourse->id);
 
-        $response2 = $this->actingAs($student)
-             ->getJson("/api/student/dashboard");
-        $data2 = $response2->json();
-
-        // Verify continue learning now points to Standalone Course
-        $this->assertEquals($course1->id, $data2['last_watched']['course_id']);
-        $this->assertEquals('course', $data2['last_watched']['purchase_type']);
+        $this->assertNotNull($standaloneWatched);
+        $this->assertNotNull($bundleWatched);
+        $this->assertEquals(10, $standaloneWatched['progress_percentage']);
+        $this->assertEquals(90, $bundleWatched['progress_percentage']);
     }
 }
