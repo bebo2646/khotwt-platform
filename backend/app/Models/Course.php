@@ -151,13 +151,41 @@ class Course extends Model
 
     public function getStudentViewLimitDetails($studentId)
     {
+        // 1. Resolve context course (if student is enrolled via a bundle, use the bundle course)
+        $contextCourse = $this;
+        
+        $enrollment = \App\Models\Enrollment::where('student_id', $studentId)
+            ->where(function ($q) {
+                // If direct course enrollment
+                $q->where('course_id', $this->id)
+                  // Or if enrolled via a bundle package
+                  ->orWhereIn('package_id', function ($pq) {
+                      $pq->select('id')->from('packages')->where('type', 'bundle')->whereIn('id', function($cbi) {
+                          $cbi->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
+                      });
+                  })
+                  // Or if enrolled via bundle course directly
+                  ->orWhereIn('course_id', function ($cq) {
+                      $cq->select('parent_id')->from('course_bundle_items')->where('child_id', $this->id);
+                  });
+            })
+            ->first();
+
+        if ($enrollment) {
+            if ($enrollment->package && $enrollment->package->type === 'bundle' && $enrollment->package->course) {
+                $contextCourse = $enrollment->package->course;
+            } elseif ($enrollment->course && $enrollment->course->is_bundle) {
+                $contextCourse = $enrollment->course;
+            }
+        }
+
         $settings = PlatformSetting::first();
         $globalLimitEnabled = $settings ? (bool)$settings->view_limit_enabled : false;
         $globalDefaultLimit = $settings ? (int)$settings->default_max_views : 10;
         $configuredThreshold = $settings ? (int)$settings->video_threshold_seconds : 300;
 
-        $limitEnabled = $this->view_limit_enabled !== null 
-            ? (bool)$this->view_limit_enabled 
+        $limitEnabled = $contextCourse->view_limit_enabled !== null 
+            ? (bool)$contextCourse->view_limit_enabled 
             : $globalLimitEnabled;
 
         if (!$limitEnabled) {
@@ -179,7 +207,7 @@ class Course extends Model
 
         $limitRecord = StudentCourseViewLimit::firstOrCreate([
             'student_id' => $studentId,
-            'course_id' => $this->id,
+            'course_id' => $contextCourse->id,
         ], [
             'views_used' => 0,
             'max_views_override' => null,
@@ -188,43 +216,70 @@ class Course extends Model
 
         $baseLimit = ($limitRecord && $limitRecord->max_views_override !== null)
             ? (int)$limitRecord->max_views_override
-            : ($this->max_views !== null ? (int)$this->max_views : $globalDefaultLimit);
+            : ($contextCourse->max_views !== null ? (int)$contextCourse->max_views : $globalDefaultLimit);
 
-        if (($limitRecord && $limitRecord->max_views_override === -1) || $this->max_views === -1) {
+        $isUnlimited = (($limitRecord && $limitRecord->max_views_override === -1) || $contextCourse->max_views === -1);
+
+        // Gather all video IDs for this course/bundle
+        $videoIds = [];
+        if ($contextCourse->is_bundle || $contextCourse->is_bundle === 1 || $contextCourse->is_bundle === '1') {
+            $childIds = \DB::table('course_bundle_items')->where('parent_id', $contextCourse->id)->pluck('child_id')->toArray();
+            $videoIds = \App\Models\Video::whereIn('lesson_id', function($q) use ($childIds) {
+                $q->select('id')->from('lessons')->whereIn('unit_id', function($uq) use ($childIds) {
+                    $uq->select('id')->from('units')->whereIn('course_id', $childIds);
+                });
+            })->pluck('id')->toArray();
+        } else {
+            $videoIds = \App\Models\Video::whereIn('lesson_id', function($q) {
+                $q->select('id')->from('lessons')->whereIn('unit_id', function($uq) {
+                    $uq->select('id')->from('units')->where('course_id', $this->id);
+                });
+            })->pluck('id')->toArray();
+        }
+
+        $videoCount = count($videoIds);
+        $extraViews = $limitRecord ? (int)$limitRecord->extra_views : 0;
+
+        if ($isUnlimited) {
             return [
                 'limit_enabled' => true,
                 'base_limit' => $baseLimit,
-                'extra_views' => $limitRecord ? (int)$limitRecord->extra_views : 0,
+                'extra_views' => $extraViews,
                 'total_allowed_views' => -1,
                 'views_used' => 0,
                 'remaining_views' => -1,
                 'is_unlimited' => true,
                 'is_blocked' => false,
-                // Backward compatibility
                 'max_views' => -1,
                 'remaining' => -1,
                 'exceeded' => false
             ];
         }
 
-        $viewsUsed = $limitRecord ? (int)$limitRecord->views_used : 0;
-        $extraViews = $limitRecord ? (int)$limitRecord->extra_views : 0;
-        $maxAllowed = $baseLimit + $extraViews;
-        $remaining = max(0, $maxAllowed - $viewsUsed);
+        // Aggregate across all videos in the course
+        $maxAllowedPerVideo = $baseLimit + $extraViews;
+        $totalAllowedCourse = $videoCount * $maxAllowedPerVideo;
+        
+        $viewsUsedCourse = \App\Models\VideoProgress::where('student_id', $studentId)
+            ->whereIn('video_id', $videoIds)
+            ->sum('views_count');
+
+        $remaining = max(0, $totalAllowedCourse - $viewsUsedCourse);
+        $isBlocked = ($totalAllowedCourse > 0) && ($viewsUsedCourse >= $totalAllowedCourse);
 
         return [
             'limit_enabled' => true,
             'base_limit' => $baseLimit,
             'extra_views' => $extraViews,
-            'total_allowed_views' => $maxAllowed,
-            'views_used' => $viewsUsed,
+            'total_allowed_views' => $totalAllowedCourse,
+            'views_used' => $viewsUsedCourse,
             'remaining_views' => $remaining,
             'is_unlimited' => false,
-            'is_blocked' => $viewsUsed >= $maxAllowed,
+            'is_blocked' => $isBlocked,
             // Backward compatibility
-            'max_views' => $maxAllowed,
+            'max_views' => $totalAllowedCourse,
             'remaining' => $remaining,
-            'exceeded' => $viewsUsed >= $maxAllowed
+            'exceeded' => $isBlocked
         ];
     }
 

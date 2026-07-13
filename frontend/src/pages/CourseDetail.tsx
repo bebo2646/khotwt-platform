@@ -714,6 +714,20 @@ export default function CourseDetail() {
   );
 
 
+  const getActiveVideoTitle = () => {
+    if (videoId) {
+      for (const unit of units) {
+        if (unit.lessons) {
+          for (const lesson of unit.lessons) {
+            const foundVid = lesson.videos?.find((v: any) => v.id === Number(videoId));
+            if (foundVid) return foundVid.title;
+          }
+        }
+      }
+    }
+    return 'عارض المحاضرة النشطة';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
@@ -796,7 +810,7 @@ export default function CourseDetail() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-primary"></span>
               </span>
-              <span className="font-black text-sm text-slate-100">عارض المحاضرة النشطة</span>
+              <span className="font-black text-sm text-slate-100">{getActiveVideoTitle()}</span>
             </div>
             <button
               onClick={() => {

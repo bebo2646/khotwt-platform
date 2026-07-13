@@ -28,6 +28,10 @@ interface VideoItem {
     completed: boolean
     last_position_seconds: number
     watched_segments?: Array<{ start: number; end: number }>
+    view_limit_details?: any
+    views_used?: number
+    views_allowed?: number
+    views_remaining?: number
   } | null
 }
 
@@ -94,7 +98,7 @@ export default function LessonViewer({
 }: LessonViewerProps = {}) {
   const { id: routeId } = useParams()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   
   const id = overrideLessonId ? overrideLessonId.toString() : routeId
   const preSelectedVideoId = initialVideoId ? initialVideoId.toString() : searchParams.get('play')
@@ -112,8 +116,10 @@ export default function LessonViewer({
   const [subscriptionExpired, setSubscriptionExpired] = React.useState(false)
   const [expirationMessage, setExpirationMessage] = React.useState('')
 
-  const watchSessionIdRef = React.useRef<string>('')
+  const watchSessionIdRef = React.useRef<string>(Math.random().toString(36).substring(2) + Date.now().toString(36))
   const sessionWatchTimeRef = React.useRef<number>(0)
+  const initialViewsUsedRef = React.useRef<Record<number, number>>({})
+  const isSessionAuthorizedRef = React.useRef<boolean>(true)
 
   React.useEffect(() => {
     const handleFullscreenChange = () => {
@@ -155,6 +161,21 @@ export default function LessonViewer({
   const [watchedTime, setWatchedTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
   const [watchedSegments, setWatchedSegments] = React.useState<Array<{ start: number; end: number }>>([])
+
+  // Diagnostic logs
+  React.useEffect(() => {
+    console.log('[Diagnostic Log] viewLimitDetails updated:', viewLimitDetails);
+  }, [viewLimitDetails]);
+
+  React.useEffect(() => {
+    console.log('[Diagnostic Log] activeVideo updated:', activeVideo);
+  }, [activeVideo]);
+
+  React.useEffect(() => {
+    console.log('[Diagnostic Log] isSessionAuthorizedRef updated/checked. Current value:', isSessionAuthorizedRef.current);
+  }, [activeVideo?.id, viewLimitDetails]);
+
+  console.log('[Diagnostic Render] views_used:', viewLimitDetails?.views_used, 'views_remaining:', viewLimitDetails?.remaining_views ?? viewLimitDetails?.remaining, 'isSessionAuthorized:', isSessionAuthorizedRef.current, 'viewLimitDetails:', viewLimitDetails);
 
   // Stable video embed URL state to prevent iframe reload/remount
   const [videoEmbedUrl, setVideoEmbedUrl] = React.useState<string>('')
@@ -264,6 +285,20 @@ export default function LessonViewer({
           const defaultVideo = match || res.data.videos[0]
           
           setActiveVideo(defaultVideo)
+          if (defaultVideo.progress?.view_limit_details) {
+            setViewLimitDetails(defaultVideo.progress.view_limit_details)
+            isSessionAuthorizedRef.current = defaultVideo.progress.view_limit_details.remaining > 0 || defaultVideo.progress.view_limit_details.is_unlimited;
+          } else if (res.data.view_limit_details) {
+            setViewLimitDetails({
+              ...res.data.view_limit_details,
+              views_used: 0,
+              remaining_views: res.data.view_limit_details.total_allowed_views !== -1 ? res.data.view_limit_details.total_allowed_views : -1,
+              remaining: res.data.view_limit_details.total_allowed_views !== -1 ? res.data.view_limit_details.total_allowed_views : -1,
+            })
+            isSessionAuthorizedRef.current = res.data.view_limit_details.total_allowed_views === -1 || res.data.view_limit_details.total_allowed_views > 0;
+          } else {
+            isSessionAuthorizedRef.current = true;
+          }
           const pos = defaultVideo.progress?.last_position_seconds || 0
           const watchedSecs = defaultVideo.progress?.watched_seconds || 0
           const segments = defaultVideo.progress?.watched_segments || []
@@ -396,21 +431,39 @@ export default function LessonViewer({
       const watched = data.watched_seconds !== undefined ? Math.floor(data.watched_seconds) : Math.max(secondsWatchedRef.current, currentPos);
       const segments = data.watched_segments || watchedSegmentsRef.current;
 
+      const currentViewsUsed = video.progress?.views_used || 0;
+      if (initialViewsUsedRef.current[video.id] === undefined) {
+        initialViewsUsedRef.current[video.id] = currentViewsUsed;
+      }
+      const initialViewsUsed = initialViewsUsedRef.current[video.id];
+      const isAlreadyConsumed = currentViewsUsed > initialViewsUsed;
+
+      console.log('[Diagnostic Log] saveLessonProgress values:', {
+        video_id: video.id,
+        currentViewsUsed,
+        initialViewsUsed,
+        isAlreadyConsumed,
+        watchSessionId: watchSessionIdRef.current,
+        sessionWatchTime: sessionWatchTimeRef.current
+      });
+
       const payload = {
         watched_seconds: watched,
         last_position_seconds: currentPos,
         watched_segments: segments,
         session_id: watchSessionIdRef.current,
         session_watch_time: Math.floor(sessionWatchTimeRef.current),
+        skip_view_increment: isAlreadyConsumed,
         course_id: courseId ? Number(courseId) : undefined,
         package_id: packageId ? Number(packageId) : undefined,
       };
 
-      console.log('Saving progress', payload);
+      console.log('Saving progress payload:', payload);
 
       const res = await API.post(`/videos/${video.id}/progress`, payload)
       if (res.data) {
         const progressData = res.data;
+        console.log('[Diagnostic Log] Progress save response:', progressData);
         if (progressData.view_limit_details) {
           setViewLimitDetails(progressData.view_limit_details);
         }
@@ -925,6 +978,26 @@ export default function LessonViewer({
       });
     }
     setActiveVideo(video)
+    if (video.progress?.view_limit_details) {
+      setViewLimitDetails(video.progress.view_limit_details)
+      isSessionAuthorizedRef.current = video.progress.view_limit_details.remaining > 0 || video.progress.view_limit_details.is_unlimited;
+    } else if (viewLimitDetails) {
+      setViewLimitDetails({
+        ...viewLimitDetails,
+        views_used: 0,
+        remaining_views: viewLimitDetails.total_allowed_views !== -1 ? viewLimitDetails.total_allowed_views : -1,
+        remaining: viewLimitDetails.total_allowed_views !== -1 ? viewLimitDetails.total_allowed_views : -1,
+      })
+      isSessionAuthorizedRef.current = viewLimitDetails.total_allowed_views === -1 || viewLimitDetails.total_allowed_views > 0;
+    } else {
+      isSessionAuthorizedRef.current = true;
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('video_id', video.id.toString());
+      return next;
+    });
+    
     
     // Set stable video embed URL for the new video
     const newEmbedUrl = getEmbedUrl(video)
@@ -1143,6 +1216,21 @@ export default function LessonViewer({
                 )}
                 
                 {(() => {
+                  console.log('[Diagnostic Lock Check] viewLimitDetails:', viewLimitDetails, 'isSessionAuthorizedRef.current:', isSessionAuthorizedRef.current);
+                  if (viewLimitDetails && viewLimitDetails.limit_enabled && !viewLimitDetails.is_unlimited && viewLimitDetails.remaining <= 0 && !isSessionAuthorizedRef.current) {
+                    return (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center space-y-4">
+                        <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-full flex items-center justify-center border border-rose-500/20">
+                          <Lock className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-200">لقد استنفدت جميع المشاهدات المتاحة لهذا الفيديو.</h4>
+                        <p className="text-xs font-light max-w-xs leading-relaxed text-slate-400">
+                          لقد شاهدت هذا الفيديو {viewLimitDetails.views_used} من {viewLimitDetails.total_allowed_views} مرات.
+                        </p>
+                      </div>
+                    );
+                  }
+
                   let url = activeVideo.bunny_embed_url || '';
                   
                   // Auto-regeneration fallback if URL is empty or misconfigured

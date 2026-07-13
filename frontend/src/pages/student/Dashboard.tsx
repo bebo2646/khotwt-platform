@@ -53,6 +53,20 @@ interface CourseProgress {
 interface DashboardData {
   wallet_balance: string
   courses: CourseProgress[]
+  last_watched?: {
+    course_id: number
+    course_title: string
+    course_cover?: string | null
+    video_id: number
+    video_title: string
+    watched_seconds: number
+    duration_seconds: number
+    progress_percentage: number
+    lesson_id: number
+    package_id?: number | null
+    purchase_type: string
+    teacher_name: string
+  } | null
   overall_progress_percentage: number
   stats: {
     enrolled_courses_count: number
@@ -464,84 +478,63 @@ export default function StudentDashboard() {
         {/* ====================================
             3. CONTINUE LEARNING (My Current Enrolled Courses)
             ==================================== */}
-        {safeCourses.length > 0 && (
+        {dbData?.last_watched && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
                 <span>استكمال التعليم</span>
-                <span className="text-[10px] text-slate-450 font-light mt-1">تابع فصولك ومحاضراتك الحالية</span>
+                <span className="text-[10px] text-slate-450 font-light mt-1">تابع من حيث توقفت في آخر محاضرة شاهدتها</span>
               </h2>
             </div>
 
             <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="max-w-2xl"
             >
-              {safeCourses.map((course: any) => {
-                const percentage = course.progress_percentage || 0
-                const watchedMin = Math.floor((course.watched_seconds || 0) / 60)
-                const durationMin = Math.floor((course.total_duration_seconds || 0) / 60) || 5
+              <div 
+                className="group bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-3xl overflow-hidden flex flex-col md:flex-row transition-all duration-350 hover:border-brand-primary/30 shadow-xl"
+              >
+                <div className="md:w-2/5 aspect-video md:aspect-auto bg-brand-surface relative overflow-hidden shrink-0">
+                  <img 
+                    src={dbData.last_watched.course_cover || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
+                    alt={dbData.last_watched.course_title} 
+                    className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
+                  />
+                </div>
+                
+                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2 text-right" dir="rtl">
+                    <span className="text-[10px] text-brand-primary font-bold block">مدرس المادة: {dbData.last_watched.teacher_name}</span>
+                    <h3 className="font-black text-base text-foreground leading-relaxed line-clamp-1">{dbData.last_watched.course_title}</h3>
+                    <p className="text-xs text-slate-450 font-medium leading-relaxed">{dbData.last_watched.video_title}</p>
+                  </div>
 
-                return (
-                  <motion.div 
-                    variants={cardItemVariants}
-                    whileHover={{ y: -6, boxShadow: "0 0 25px rgba(99, 102, 241, 0.12)" }}
-                    key={course.id} 
-                    className="group bg-slate-900/50 backdrop-blur-md border border-slate-800/80 rounded-3xl overflow-hidden flex flex-col justify-between transition-all duration-350 hover:border-brand-primary/30"
-                  >
-                    <div>
-                      <div className="aspect-video bg-brand-surface relative overflow-hidden">
-                        <img 
-                          src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
-                          alt={course.title} 
-                          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
-                        />
-                        <div className="absolute top-3 right-3 px-3 py-1 bg-black/80 border border-white/10 text-[10px] font-black text-brand-primary rounded-full">
-                          {SUBJECTS_TRANSLATION[course.subject] || course.subject}
-                        </div>
-                      </div>
-                      
-                      <div className="p-6 space-y-3">
-                        <span className="text-[9px] text-text-secondary font-bold block">مدرس المادة: {course.teacher.name}</span>
-                        <h3 className="font-black text-sm text-foreground group-hover:text-brand-primary transition-colors leading-relaxed line-clamp-1">{course.title}</h3>
-                        <p className="text-[11px] text-text-secondary line-clamp-2 leading-relaxed">{course.description}</p>
-                      </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-[10px] font-black text-text-secondary">
+                      <span>شاهدت: {formatWatchedTimeArabic(dbData.last_watched.watched_seconds)} من {formatWatchedTimeArabic(dbData.last_watched.duration_seconds)}</span>
+                      <span className="text-brand-primary">{Math.round(dbData.last_watched.progress_percentage)}%</span>
+                    </div>
+                    
+                    <div className="w-full bg-background/50 rounded-full h-2 overflow-hidden border border-border-color">
+                      <div 
+                        style={{ width: `${dbData.last_watched.progress_percentage}%` }}
+                        className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full transition-all duration-500" 
+                      />
                     </div>
 
-                    {/* Progress Bar & CTA */}
-                    <div className="p-6 pt-0 border-t border-border-color/50 space-y-4 bg-brand-surface/20">
-                      <div className="space-y-2 pt-4">
-                        <div className="flex justify-between items-center text-[10px] font-black text-text-secondary">
-                          <span>شاهدت: {formatWatchedTimeArabic(course.watched_seconds)} من {formatWatchedTimeArabic(course.total_duration_seconds)}</span>
-                          <span className="text-brand-primary">{percentage}%</span>
-                        </div>
-                        
-                        {/* Visual glowing bar */}
-                        <div className="w-full bg-background/50 rounded-full h-2 overflow-hidden border border-border-color">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${percentage}%` }}
-                            transition={{ duration: 0.8, ease: "easeOut" }}
-                            className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full" 
-                          />
-                        </div>
-                      </div>
-
-                      <div className="flex justify-end pt-1">
-                        <Link 
-                          to={`/course/${course.id}${course.purchase_type === 'package' ? `?package_id=${course.package_id}` : (course.purchase_type === 'lesson' ? `?lesson_id=${course.lesson_id}` : '')}`} 
-                          className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all duration-200 flex items-center gap-1.5"
-                        >
-                          <span>استكمال الكورس</span>
-                          <Play className="h-3.5 w-3.5 fill-current" />
-                        </Link>
-                      </div>
+                    <div className="flex justify-end pt-1">
+                      <Link 
+                        to={`/course/${dbData.last_watched.course_id}?video_id=${dbData.last_watched.video_id}&lesson_id=${dbData.last_watched.lesson_id}${dbData.last_watched.package_id ? `&package_id=${dbData.last_watched.package_id}` : ''}`} 
+                        className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.25)] transition-all duration-200 flex items-center gap-1.5"
+                      >
+                        <span>متابعة المشاهدة</span>
+                        <Play className="h-3.5 w-3.5 fill-current" />
+                      </Link>
                     </div>
-                  </motion.div>
-                )
-              })}
+                  </div>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}

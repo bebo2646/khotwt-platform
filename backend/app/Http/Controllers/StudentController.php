@@ -1271,7 +1271,7 @@ class StudentController extends Controller
 
             // Check if student has exceeded view limit (only in Course context)
             $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $course;
-            if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
+            if (false && $contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
                 $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
                 return response()->json([
                     'is_views_exceeded' => true,
@@ -1315,11 +1315,33 @@ class StudentController extends Controller
         $pdfs = \App\Models\Pdf::where('lesson_id', $lessonId)->get();
         $exams = Exam::where('lesson_id', $lessonId)->get();
 
+        $viewLimitDetails = null;
+        if ($user->isStudent() && $course) {
+            $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
+        }
+
         // Get progress for each video
-        $videosWithProgress = $videos->map(function ($video) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
+        $videosWithProgress = $videos->map(function ($video) use ($user, $contextCourseId, $contextPackageId, $contextLessonId, $viewLimitDetails) {
             $progress = VideoProgress::where('student_id', $user->id)
                 ->where('video_id', $video->id)
                 ->first();
+
+            $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
+            $totalAllowed = $limitEnabled ? (int)($viewLimitDetails['base_limit'] + $viewLimitDetails['extra_views']) : -1;
+            
+            $viewsUsed = $progress ? (int)$progress->views_count : 0;
+            $viewsRemaining = $limitEnabled && $totalAllowed !== -1 ? max(0, $totalAllowed - $viewsUsed) : -1;
+
+            $videoViewLimitDetails = [
+                'limit_enabled' => $limitEnabled,
+                'total_allowed_views' => $totalAllowed,
+                'max_views' => $totalAllowed,
+                'views_used' => $viewsUsed,
+                'remaining_views' => $viewsRemaining,
+                'remaining' => $viewsRemaining,
+                'is_unlimited' => !$limitEnabled || $totalAllowed === -1,
+                'exceeded' => $limitEnabled && $totalAllowed !== -1 && $viewsUsed >= $totalAllowed,
+            ];
 
             return [
                 'id' => $video->id,
@@ -1329,13 +1351,17 @@ class StudentController extends Controller
                 'bunny_status' => $video->bunny_status,
                 'duration_seconds' => $video->duration_seconds,
                 'thumbnail_path' => $video->thumbnail_path,
-                'progress' => $progress ? [
-                    'watched_seconds' => $progress->watched_seconds,
-                    'watched_percentage' => $progress->watched_percentage,
-                    'completed' => $progress->completed,
-                    'last_position_seconds' => $progress->last_position_seconds,
-                    'watched_segments' => $progress->watched_segments ?: [],
-                ] : null,
+                'progress' => [
+                    'watched_seconds' => $progress ? $progress->watched_seconds : 0,
+                    'watched_percentage' => $progress ? $progress->watched_percentage : 0.00,
+                    'completed' => $progress ? $progress->completed : false,
+                    'last_position_seconds' => $progress ? $progress->last_position_seconds : 0,
+                    'watched_segments' => $progress && $progress->watched_segments ? $progress->watched_segments : [],
+                    'views_allowed' => $totalAllowed,
+                    'views_used' => $viewsUsed,
+                    'views_remaining' => $viewsRemaining,
+                    'view_limit_details' => $videoViewLimitDetails,
+                ],
             ];
         });
 
@@ -1373,10 +1399,7 @@ class StudentController extends Controller
             ];
         });
 
-        $viewLimitDetails = null;
-        if ($user->isStudent()) {
-            $viewLimitDetails = $course->getStudentViewLimitDetails($user->id);
-        }
+
 
         if ($parentBundle && $parentBundle->is_bundle) {
             $lesson->unit->course->title = $parentBundle->title;
@@ -1431,7 +1454,22 @@ class StudentController extends Controller
 
             // Check if student has exceeded view limit (only in Course context)
             $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $course;
-            if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
+            $viewLimitDetails = $contextCourse ? $contextCourse->getStudentViewLimitDetails($user->id) : null;
+            $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
+            $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
+            
+            $isExceeded = false;
+            if ($limitEnabled && $totalAllowed !== -1) {
+                $existingProgress = \App\Models\VideoProgress::where('student_id', $user->id)
+                    ->where('video_id', $video->id)
+                    ->first();
+                $viewsUsed = $existingProgress ? (int)$existingProgress->views_count : 0;
+                if ($viewsUsed >= $totalAllowed) {
+                    $isExceeded = true;
+                }
+            }
+
+            if ($isExceeded) {
                 // Allow the student to continue their current active playback session
                 $sessionId = $request->input('session_id');
                 $sessionExists = false;
@@ -1442,7 +1480,7 @@ class StudentController extends Controller
                         ->exists();
                 }
                 if (!$sessionExists) {
-                    return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
+                    return response()->json(['message' => 'لقد انتهى عدد مرات مشاهدة هذا الفيديو. يرجى شراء كود جديد لاستعادة الوصول.'], 403);
                 }
             }
         } else {
@@ -1488,39 +1526,46 @@ class StudentController extends Controller
                 ->first();
             $viewsUsedBefore = $viewLimitRecord ? $viewLimitRecord->views_used : 0;
 
+            $skipViewIncrement = (bool)$request->input('skip_view_increment', false);
+
             $shouldIncrementViewsCount = false;
             if ($session->watch_time >= $threshold && !$session->counted) {
-                $session->counted = true;
-                $session->save();
-                
-                $shouldIncrementViewsCount = true;
+                // Perform atomic update to prevent concurrent race condition
+                $affected = \App\Models\VideoViewSession::where('id', $session->id)
+                    ->where('counted', false)
+                    ->update(['counted' => true]);
 
-                // Check if this video has already been counted for the student (no duplicates across sessions/refreshes)
-                $alreadyCountedSession = \App\Models\VideoViewSession::where('student_id', $user->id)
-                    ->where('video_id', $video->id)
-                    ->where('counted', true)
-                    ->where('session_id', '!=', $session->session_id)
-                    ->exists();
+                if ($affected > 0) {
+                    $session->counted = true;
+                    $shouldIncrementViewsCount = true;
 
-                $alreadyCompletedProgress = \App\Models\VideoProgress::where('student_id', $user->id)
-                    ->where('video_id', $video->id)
-                    ->where(function ($q) use ($threshold) {
-                        $q->where('completed', true)
-                          ->orWhere('watched_seconds', '>=', $threshold);
-                    })
-                    ->exists();
+                    // Check if this video has already been counted for the student (no duplicates across sessions/refreshes)
+                    $alreadyCountedSession = \App\Models\VideoViewSession::where('student_id', $user->id)
+                        ->where('video_id', $video->id)
+                        ->where('counted', true)
+                        ->where('session_id', '!=', $session->session_id)
+                        ->exists();
 
-                if (!$alreadyCountedSession && !$alreadyCompletedProgress && $contextCourseId) {
-                    $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
-                        'student_id' => $user->id,
-                        'course_id' => $contextCourseId,
-                    ], [
-                        'views_used' => 0,
-                        'max_views_override' => null,
-                        'extra_views' => 0,
-                    ]);
+                    $alreadyCompletedProgress = \App\Models\VideoProgress::where('student_id', $user->id)
+                        ->where('video_id', $video->id)
+                        ->where(function ($q) use ($threshold) {
+                            $q->where('completed', true)
+                              ->orWhere('watched_seconds', '>=', $threshold);
+                        })
+                        ->exists();
 
-                    $viewLimit->increment('views_used');
+                    if (!$alreadyCountedSession && !$alreadyCompletedProgress && $contextCourseId) {
+                        $viewLimit = \App\Models\StudentCourseViewLimit::firstOrCreate([
+                            'student_id' => $user->id,
+                            'course_id' => $contextCourseId,
+                        ], [
+                            'views_used' => 0,
+                            'max_views_override' => null,
+                            'extra_views' => 0,
+                        ]);
+
+                        $viewLimit->increment('views_used');
+                    }
                 }
             }
 
@@ -1594,11 +1639,51 @@ class StudentController extends Controller
             ]
         );
 
-        $viewLimitDetails = null;
+        $videoViewLimitDetails = null;
+        $totalAllowed = -1;
+        $viewsUsed = 0;
+        $viewsRemaining = -1;
+        
         if ($user->isStudent() && $contextCourse) {
-            $viewLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
+            $courseLimitDetails = $contextCourse->getStudentViewLimitDetails($user->id);
+            $limitEnabled = $courseLimitDetails && $courseLimitDetails['limit_enabled'];
+            
+            if ($courseLimitDetails && $courseLimitDetails['is_unlimited']) {
+                $totalAllowed = -1;
+                $viewsUsed = 0;
+                $viewsRemaining = -1;
+                $videoViewLimitDetails = [
+                    'limit_enabled' => true,
+                    'total_allowed_views' => -1,
+                    'max_views' => -1,
+                    'views_used' => 0,
+                    'remaining_views' => -1,
+                    'remaining' => -1,
+                    'is_unlimited' => true,
+                    'exceeded' => false,
+                ];
+            } else {
+                $totalAllowed = $limitEnabled ? (int)($courseLimitDetails['base_limit'] + $courseLimitDetails['extra_views']) : -1;
+                $viewsUsed = $viewsCount;
+                $viewsRemaining = $limitEnabled && $totalAllowed !== -1 ? max(0, $totalAllowed - $viewsUsed) : -1;
+
+                $videoViewLimitDetails = [
+                    'limit_enabled' => $limitEnabled,
+                    'total_allowed_views' => $totalAllowed,
+                    'max_views' => $totalAllowed,
+                    'views_used' => $viewsUsed,
+                    'remaining_views' => $viewsRemaining,
+                    'remaining' => $viewsRemaining,
+                    'is_unlimited' => !$limitEnabled || $totalAllowed === -1,
+                    'exceeded' => $limitEnabled && $totalAllowed !== -1 && $viewsUsed >= $totalAllowed,
+                ];
+            }
         }
-        $progress->view_limit_details = $viewLimitDetails;
+        
+        $progress->views_allowed = $totalAllowed;
+        $progress->views_used = $viewsUsed;
+        $progress->views_remaining = $viewsRemaining;
+        $progress->view_limit_details = $videoViewLimitDetails;
 
         return response()->json($progress);
     }
@@ -2622,9 +2707,86 @@ class StudentController extends Controller
                 ];
             });
 
+        // Get the single latest VideoProgress record
+        $latestProgress = VideoProgress::with(['video.lesson.unit.course.teacher'])
+            ->where('student_id', $user->id)
+            ->latest('updated_at')
+            ->first();
+
+        $lastWatched = null;
+        if ($latestProgress && $latestProgress->video && $latestProgress->video->lesson && $latestProgress->video->lesson->unit && $latestProgress->video->lesson->unit->course) {
+            $video = $latestProgress->video;
+            $course = $video->lesson->unit->course;
+            
+            // Resolve correct context from enrollment to make sure we keep any package_id
+            $enrollment = Enrollment::where('student_id', $user->id)
+                ->where(function ($q) use ($course) {
+                    $q->where('course_id', $course->id)
+                      ->orWhereIn('package_id', function ($pq) use ($course) {
+                          $pq->select('parent_id')->from('course_bundle_items')->where('child_id', $course->id);
+                      });
+                })
+                ->first();
+
+            $packageId = $enrollment ? $enrollment->package_id : null;
+            $purchaseType = $enrollment ? ($enrollment->package_id ? 'package' : ($enrollment->lesson_id ? 'lesson' : 'course')) : 'course';
+
+            $lastWatched = [
+                'course_id' => $course->id,
+                'course_title' => $course->title,
+                'course_cover' => $course->cover_image,
+                'video_id' => $video->id,
+                'video_title' => $video->title,
+                'watched_seconds' => $latestProgress->watched_seconds,
+                'duration_seconds' => $video->duration_seconds,
+                'progress_percentage' => $latestProgress->watched_percentage,
+                'lesson_id' => $video->lesson_id,
+                'package_id' => $packageId,
+                'purchase_type' => $purchaseType,
+                'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم',
+            ];
+        } else {
+            // Fallback: get the latest enrolled course and its first video
+            $latestEnrollment = Enrollment::with(['course.teacher', 'course.units.lessons.videos'])
+                ->where('student_id', $user->id)
+                ->latest()
+                ->first();
+
+            if ($latestEnrollment && $latestEnrollment->course) {
+                $course = $latestEnrollment->course;
+                $firstVideo = null;
+                foreach ($course->units as $unit) {
+                    foreach ($unit->lessons as $lesson) {
+                        if ($lesson->videos->count() > 0) {
+                            $firstVideo = $lesson->videos->first();
+                            break 2;
+                        }
+                    }
+                }
+
+                if ($firstVideo) {
+                    $lastWatched = [
+                        'course_id' => $course->id,
+                        'course_title' => $course->title,
+                        'course_cover' => $course->cover_image,
+                        'video_id' => $firstVideo->id,
+                        'video_title' => $firstVideo->title,
+                        'watched_seconds' => 0,
+                        'duration_seconds' => $firstVideo->duration_seconds,
+                        'progress_percentage' => 0,
+                        'lesson_id' => $firstVideo->lesson_id,
+                        'package_id' => $latestEnrollment->package_id,
+                        'purchase_type' => $latestEnrollment->package_id ? 'package' : ($latestEnrollment->lesson_id ? 'lesson' : 'course'),
+                        'teacher_name' => $course->teacher ? $course->teacher->name : 'معلم',
+                    ];
+                }
+            }
+        }
+
         return response()->json([
             'wallet_balance' => $walletBalance,
             'courses' => $coursesData,
+            'last_watched' => $lastWatched,
             'overall_progress_percentage' => $overallProgress,
             'recent_lessons' => $recentLessons,
             'recommended_courses' => $recommendedCourses,

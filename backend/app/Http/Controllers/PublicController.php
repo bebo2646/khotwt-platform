@@ -473,16 +473,18 @@ class PublicController extends Controller
                                 $physicalCourse = $lesson->unit->course;
                                 $physicalLimitDetails = $user ? $physicalCourse->getStudentViewLimitDetails($user->id) : null;
 
-                                $viewsUsed = $physicalLimitDetails ? (int)$physicalLimitDetails['views_used'] : 0;
+                                // Video-specific views used and remaining
+                                $limitEnabled = $physicalLimitDetails && $physicalLimitDetails['limit_enabled'];
+                                $totalAllowed = $limitEnabled ? (int)($physicalLimitDetails['base_limit'] + $physicalLimitDetails['extra_views']) : -1;
+                                
+                                $viewsUsed = $progress ? (int)$progress->views_count : 0;
+                                $viewsRemaining = $limitEnabled && $totalAllowed !== -1 ? max(0, $totalAllowed - $viewsUsed) : -1;
+
                                 $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
                                 $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
                                 $completed = $progress ? (bool)$progress->completed : false;
                                 $lastPosition = $progress ? (int)$progress->last_position_seconds : 0;
                                 $lastWatchedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
-
-                                $limitEnabled = $physicalLimitDetails && $physicalLimitDetails['limit_enabled'];
-                                $totalAllowed = $limitEnabled ? (int)$physicalLimitDetails['total_allowed_views'] : -1;
-                                $viewsRemaining = $limitEnabled ? (int)$physicalLimitDetails['remaining_views'] : -1;
 
                                 if ($completed) {
                                     $status = 'completed';
@@ -837,17 +839,18 @@ class PublicController extends Controller
                         
                         $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
                         
-                        $viewsUsed = $viewLimitDetails ? (int)$viewLimitDetails['views_used'] : 0;
                         $watchedSeconds = $progress ? (int)$progress->watched_seconds : 0;
                         $watchedPercentage = $progress ? (float)$progress->watched_percentage : 0.00;
                         $completed = $progress ? (bool)$progress->completed : false;
                         $lastPosition = $progress ? (int)$progress->last_position_seconds : 0;
                         $lastWatchedAt = $progress && $progress->updated_at ? $progress->updated_at->toIso8601String() : null;
 
-                        // Allowed views
+                        // Video-specific views used and remaining
                         $limitEnabled = $viewLimitDetails && $viewLimitDetails['limit_enabled'];
-                        $totalAllowed = $limitEnabled ? (int)$viewLimitDetails['total_allowed_views'] : -1;
-                        $viewsRemaining = $limitEnabled ? (int)$viewLimitDetails['remaining_views'] : -1;
+                        $totalAllowed = $limitEnabled ? (int)($viewLimitDetails['base_limit'] + $viewLimitDetails['extra_views']) : -1;
+                        
+                        $viewsUsed = $progress ? (int)$progress->views_count : 0;
+                        $viewsRemaining = $limitEnabled && $totalAllowed !== -1 ? max(0, $totalAllowed - $viewsUsed) : -1;
 
                         // Determine status
                         if ($completed) {
