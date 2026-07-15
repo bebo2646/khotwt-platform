@@ -7,6 +7,7 @@ use App\Models\Wallet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\RateLimiter;
 
 class AuthController extends Controller
 {
@@ -23,6 +24,30 @@ class AuthController extends Controller
             'parent_phone' => 'required|string',
             'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
         ]);
+
+        $phone = $request->phone;
+        $parentPhone = $request->parent_phone;
+        
+        $normalize = function ($num) {
+            if (!$num) return '';
+            $clean = preg_replace('/\D/', '', $num);
+            if (strpos($clean, '00201') === 0 && strlen($clean) === 14) {
+                $clean = substr($clean, 4);
+            } elseif (strpos($clean, '201') === 0 && strlen($clean) === 12) {
+                $clean = substr($clean, 2);
+            } elseif (strpos($clean, '01') === 0 && strlen($clean) === 11) {
+                $clean = substr($clean, 1);
+            } elseif (strpos($clean, '0') === 0) {
+                $clean = substr($clean, 1);
+            }
+            return $clean;
+        };
+
+        if ($normalize($phone) === $normalize($parentPhone)) {
+            throw ValidationException::withMessages([
+                'parent_phone' => ["The student's phone number cannot be the same as the parent's phone number."],
+            ]);
+        }
 
         $settings = \App\Models\PlatformSetting::first();
         $requireApproval = $settings ? (bool)$settings->require_student_approval : false;
@@ -81,13 +106,28 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
+        $email = $request->input('email');
+        $ip = $request->ip();
+        $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($email) . '|' . $ip;
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            throw ValidationException::withMessages([
+                'email' => ["Too many login attempts. Please try again in {$minutes} minutes."],
+            ]);
+        }
+
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
+            RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
                 'email' => ['بيانات الاعتماد المدخلة غير صحيحة.'],
             ]);
         }
+
+        RateLimiter::clear($throttleKey);
 
         if ($user->status === 'disabled') {
             return response()->json(['message' => 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.'], 403);

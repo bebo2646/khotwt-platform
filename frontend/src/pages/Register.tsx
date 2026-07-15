@@ -33,6 +33,21 @@ const GRADES_OPTIONS = {
   ]
 }
 
+const normalizePhone = (num: string): string => {
+  if (!num) return ''
+  let clean = num.replace(/\D/g, '')
+  if (clean.startsWith('00201') && clean.length === 14) {
+    clean = clean.substring(4)
+  } else if (clean.startsWith('201') && clean.length === 12) {
+    clean = clean.substring(2)
+  } else if (clean.startsWith('01') && clean.length === 11) {
+    clean = clean.substring(1)
+  } else if (clean.startsWith('0')) {
+    clean = clean.substring(1)
+  }
+  return clean
+}
+
 export default function Register() {
   const navigate = useNavigate()
   const loginUser = useAuthStore((state) => state.login)
@@ -44,6 +59,7 @@ export default function Register() {
     handleSubmit,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<RegisterFormInputs>({
     defaultValues: {
@@ -231,6 +247,14 @@ export default function Register() {
                       pattern: {
                         value: /^01[0125][0-9]{8}$/,
                         message: 'رقم الهاتف المصري غير صحيح.'
+                      },
+                      validate: (val) => {
+                        const parentPhone = getValues('parent_phone');
+                        if (!parentPhone) return true;
+                        if (normalizePhone(val) === normalizePhone(parentPhone)) {
+                          return "The student's phone number cannot be the same as the parent's phone number.";
+                        }
+                        return true;
                       }
                     })}
                     className={`w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 ${errors.phone ? 'is-invalid' : ''}`}
@@ -254,6 +278,14 @@ export default function Register() {
                       pattern: {
                         value: /^01[0125][0-9]{8}$/,
                         message: 'رقم الهاتف المصري غير صحيح.'
+                      },
+                      validate: (val) => {
+                        const studentPhone = getValues('phone');
+                        if (!studentPhone) return true;
+                        if (normalizePhone(val) === normalizePhone(studentPhone)) {
+                          return "The student's phone number cannot be the same as the parent's phone number.";
+                        }
+                        return true;
                       }
                     })}
                     className={`w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 ${errors.parent_phone ? 'is-invalid' : ''}`}
