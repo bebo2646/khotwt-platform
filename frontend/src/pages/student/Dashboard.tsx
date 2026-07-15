@@ -904,9 +904,11 @@ export default function StudentDashboard() {
                             </div>
                             <button
                               onClick={() => {
-                                if (checkExamAvailability(exam)) {
-                                  navigate(`/student/exams/${exam.id}`);
-                                }
+                                checkExamAvailability(exam.id).then((allowed) => {
+                                  if (allowed) {
+                                    navigate(`/student/exams/${exam.id}`);
+                                  }
+                                })
                               }}
                               className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-[10px] font-black shadow-md transition-all duration-200 cursor-pointer"
                             >

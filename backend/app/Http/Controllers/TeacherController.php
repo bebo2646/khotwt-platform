@@ -2218,6 +2218,52 @@ class TeacherController extends Controller
             ];
         }
         
+        // Get full refund logs for details page / modal
+        $refundTransactions = WalletTransaction::with('wallet.student')
+            ->where('type', 'refund')
+            ->where(function($q) use ($courseIdsStr, $packageIdsStr) {
+                $q->where(function($sq) use ($courseIdsStr) {
+                    $sq->where('description', 'like', '%إرجاع قيمة كورس%')
+                       ->whereIn('reference_id', $courseIdsStr);
+                })->orWhere(function($sq) use ($packageIdsStr) {
+                    $sq->where('description', 'like', '%إرجاع قيمة باقة%')
+                       ->whereIn('reference_id', $packageIdsStr);
+                });
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $refundsList = [];
+        foreach ($refundTransactions as $tx) {
+            $refId = (int)$tx->reference_id;
+            $desc = $tx->description;
+            $itemType = str_contains($desc, 'باقة') ? 'Bundle' : 'Course';
+            $itemName = $itemType === 'Bundle' ? ($packagesMap[$refId] ?? 'باقة محذوفة') : ($coursesMap[$refId] ?? 'كورس محذوف');
+            $student = $tx->wallet && $tx->wallet->student ? $tx->wallet->student : null;
+
+            // Find matching purchase transaction to extract original date
+            $origTx = WalletTransaction::where('wallet_id', $tx->wallet_id)
+                ->where('type', 'purchase')
+                ->where('reference_id', $tx->reference_id)
+                ->where('description', 'like', $itemType === 'Bundle' ? '%باقة%' : '%كورس%')
+                ->first();
+
+            $refundsList[] = [
+                'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
+                'student_id' => $student ? $student->id : null,
+                'student_name' => $student ? $student->name : 'طالب محذوف',
+                'item_name' => $itemName,
+                'purchase_type' => $itemType,
+                'original_amount' => $origTx ? (float)$origTx->amount : (float)$tx->amount,
+                'refunded_amount' => (float)$tx->amount,
+                'purchase_date' => $origTx ? $origTx->created_at->toDateTimeString() : null,
+                'refund_date' => $tx->created_at->toDateTimeString(),
+                'refund_reason' => $desc,
+                'status' => 'مسترجع',
+                'payment_method' => 'المحفظة',
+            ];
+        }
+
         return response()->json([
             'summary' => [
                 'total_revenue' => $totalRevenue,
@@ -2227,11 +2273,14 @@ class TeacherController extends Controller
                 'gross_revenue' => $grossTotal,
                 'refunded_revenue' => $refundTotal,
                 'net_revenue' => $netTotal,
+                'refund_count' => count($refundsList),
+                'refund_rate' => $grossTotal > 0 ? round(($refundTotal / $grossTotal) * 100, 2) : 0,
             ],
             'breakdown' => $breakdown,
             'bundle_details' => array_values($bundleDetails),
             'lesson_details' => array_values($lessonDetails),
-            'ledger' => $ledger
+            'ledger' => $ledger,
+            'refunds' => $refundsList,
         ]);
     }
 

@@ -1373,17 +1373,37 @@ class StudentController extends Controller
 
         // Get exam submissions for this student
         $examsWithAttempts = $exams->map(function ($exam) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
-            $lastAttempt = StudentExam::where('student_id', $user->id)
+            $allAttempts = StudentExam::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
                 ->where('course_id', $contextCourseId)
                 ->where('package_id', $contextPackageId)
                 ->where('lesson_id', $contextLessonId)
-                ->latest()
-                ->first();
+                ->get();
+
+            $lastAttempt = $allAttempts->sortByDesc('created_at')->first();
+            $bestAttempt = $allAttempts->where('status', 'graded')->sortByDesc('score')->first();
+            if (!$bestAttempt) {
+                $bestAttempt = $allAttempts->sortByDesc('score')->first();
+            }
+
+            $attemptsCount = $allAttempts->count();
+            $questionsCount = $exam->questions()->count();
 
             $isPurchased = !$exam->is_paid || \App\Models\ExamPurchase::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
                 ->exists();
+
+            $progressData = $lastAttempt ? [
+                'id' => $lastAttempt->id,
+                'score' => $lastAttempt->score,
+                'status' => $lastAttempt->status,
+                'is_suspicious' => (bool)$lastAttempt->is_suspicious,
+                'submitted_at' => $lastAttempt->submitted_at,
+                'graded_at' => $lastAttempt->graded_at,
+                'created_at' => $lastAttempt->created_at ? $lastAttempt->created_at->toIso8601String() : null,
+                'teacher_feedback' => $lastAttempt->teacher_feedback,
+                'attempts_count' => $attemptsCount,
+            ] : null;
 
             return [
                 'id' => $exam->id,
@@ -1394,13 +1414,31 @@ class StudentController extends Controller
                 'is_paid' => $exam->is_paid,
                 'price' => $exam->price,
                 'is_purchased' => $isPurchased,
-                'last_attempt' => $lastAttempt ? [
-                    'id' => $lastAttempt->id,
-                    'score' => $lastAttempt->score,
-                    'status' => $lastAttempt->status,
-                    'submitted_at' => $lastAttempt->submitted_at,
-                    'graded_at' => $lastAttempt->graded_at,
-                    'teacher_feedback' => $lastAttempt->teacher_feedback,
+                
+                // Scheduling details
+                'enable_schedule' => (bool)$exam->enable_schedule,
+                'open_date' => $exam->open_date ? $exam->open_date->format('Y-m-d') : null,
+                'open_time' => $exam->open_time,
+                'close_date' => $exam->close_date ? $exam->close_date->format('Y-m-d') : null,
+                'close_time' => $exam->close_time,
+                'start_date' => $exam->start_date ? $exam->start_date->format('Y-m-d') : null,
+                'start_time' => $exam->start_time,
+                'end_date' => $exam->end_date ? $exam->end_date->format('Y-m-d') : null,
+                'end_time' => $exam->end_time,
+
+                // Metadata
+                'questions_count' => $questionsCount,
+                'max_attempts' => $exam->max_attempts ?? 1,
+                'passing_score' => $exam->passing_score ?? 50,
+
+                // Attempt details
+                'attempts_count' => $attemptsCount,
+                'progress' => $progressData,
+                'last_attempt' => $progressData,
+                'best_attempt' => $bestAttempt ? [
+                    'id' => $bestAttempt->id,
+                    'score' => $bestAttempt->score,
+                    'status' => $bestAttempt->status,
                 ] : null,
             ];
         });
@@ -1937,34 +1975,47 @@ class StudentController extends Controller
             return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
-        // Validate scheduling
-        if ($exam->enable_schedule) {
+        // Validate scheduling (supporting both open/close dates and start/end dates for exams and homework)
+        if ($exam->enable_schedule || $exam->start_date || $exam->end_date || $exam->open_date || $exam->close_date) {
             $now = \Carbon\Carbon::now();
             
-            $openDateStr = $exam->open_date ? $exam->open_date->format('Y-m-d') : null;
-            $openTimeStr = $exam->open_time ?: '00:00:00';
-            $openDatetime = $openDateStr ? \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr) : null;
-            
-            $closeDateStr = $exam->close_date ? $exam->close_date->format('Y-m-d') : null;
-            $closeTimeStr = $exam->close_time ?: '23:59:59';
-            $closeDatetime = $closeDateStr ? \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr) : null;
+            $startDatetime = null;
+            if ($exam->open_date) {
+                $openDateStr = $exam->open_date->format('Y-m-d');
+                $openTimeStr = $exam->open_time ?: '00:00:00';
+                $startDatetime = \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr);
+            } elseif ($exam->start_date) {
+                $startDateStr = $exam->start_date->format('Y-m-d');
+                $startTimeStr = $exam->start_time ?: '00:00:00';
+                $startDatetime = \Carbon\Carbon::parse($startDateStr . ' ' . $startTimeStr);
+            }
 
-            if ($openDatetime && $now->lt($openDatetime)) {
+            $endDatetime = null;
+            if ($exam->close_date) {
+                $closeDateStr = $exam->close_date->format('Y-m-d');
+                $closeTimeStr = $exam->close_time ?: '23:59:59';
+                $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
+            } elseif ($exam->end_date) {
+                $endDateStr = $exam->end_date->format('Y-m-d');
+                $endTimeStr = $exam->end_time ?: '23:59:59';
+                $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
+            }
+
+            if ($startDatetime && $now->lt($startDatetime)) {
                 return response()->json([
-                    'message' => 'هذا الامتحان لم يبدأ بعد',
+                    'message' => 'This exam is not available yet.',
                     'status' => 'not_started',
-                    'open_datetime' => $openDatetime->toIso8601String(),
-                    'countdown_seconds' => $now->diffInSeconds($openDatetime),
+                    'open_datetime' => $startDatetime->toIso8601String(),
+                    'countdown_seconds' => $now->diffInSeconds($startDatetime),
                     'error_code' => 'SCHEDULE_NOT_STARTED'
                 ], 403);
             }
 
-            if ($closeDatetime && $now->gt($closeDatetime)) {
-                $msg = $exam->type === 'homework' ? 'انتهى موعد الواجب' : 'انتهى موعد الامتحان';
+            if ($endDatetime && $now->gt($endDatetime)) {
                 return response()->json([
-                    'message' => $msg,
+                    'message' => 'The exam availability period has ended.',
                     'status' => 'expired',
-                    'close_datetime' => $closeDatetime->toIso8601String(),
+                    'close_datetime' => $endDatetime->toIso8601String(),
                     'error_code' => 'SCHEDULE_EXPIRED'
                 ], 403);
             }
@@ -2099,6 +2150,59 @@ class StudentController extends Controller
     }
 
     /**
+     * Check exam or homework availability before entering.
+     */
+    public function checkAvailability(Request $request, $examId)
+    {
+        $exam = Exam::findOrFail($examId);
+        $now = \Carbon\Carbon::now();
+        
+        $startDatetime = null;
+        if ($exam->open_date) {
+            $openDateStr = $exam->open_date->format('Y-m-d');
+            $openTimeStr = $exam->open_time ?: '00:00:00';
+            $startDatetime = \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr);
+        } elseif ($exam->start_date) {
+            $startDateStr = $exam->start_date->format('Y-m-d');
+            $startTimeStr = $exam->start_time ?: '00:00:00';
+            $startDatetime = \Carbon\Carbon::parse($startDateStr . ' ' . $startTimeStr);
+        }
+
+        $endDatetime = null;
+        if ($exam->close_date) {
+            $closeDateStr = $exam->close_date->format('Y-m-d');
+            $closeTimeStr = $exam->close_time ?: '23:59:59';
+            $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
+        } elseif ($exam->end_date) {
+            $endDateStr = $exam->end_date->format('Y-m-d');
+            $endTimeStr = $exam->end_time ?: '23:59:59';
+            $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
+        }
+
+        if ($startDatetime && $now->lt($startDatetime)) {
+            return response()->json([
+                'available' => false,
+                'message' => 'This exam is not available yet.',
+                'error_code' => 'SCHEDULE_NOT_STARTED',
+                'start_datetime' => $startDatetime->toIso8601String(),
+            ], 403);
+        }
+
+        if ($endDatetime && $now->gt($endDatetime)) {
+            return response()->json([
+                'available' => false,
+                'message' => 'The exam availability period has ended.',
+                'error_code' => 'SCHEDULE_EXPIRED',
+                'end_datetime' => $endDatetime->toIso8601String(),
+            ], 403);
+        }
+
+        return response()->json([
+            'available' => true,
+        ]);
+    }
+
+    /**
      * Save draft progress for an exam attempt.
      */
     public function saveDraftExam(Request $request, $examId)
@@ -2159,13 +2263,21 @@ class StudentController extends Controller
         }
 
         // Validate scheduling on submit
-        if ($exam->enable_schedule) {
+        if ($exam->enable_schedule || $exam->end_date || $exam->close_date) {
             $now = \Carbon\Carbon::now();
-            $closeDateStr = $exam->close_date ? $exam->close_date->format('Y-m-d') : null;
-            $closeTimeStr = $exam->close_time ?: '23:59:59';
-            $closeDatetime = $closeDateStr ? \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr) : null;
+            
+            $endDatetime = null;
+            if ($exam->close_date) {
+                $closeDateStr = $exam->close_date->format('Y-m-d');
+                $closeTimeStr = $exam->close_time ?: '23:59:59';
+                $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
+            } elseif ($exam->end_date) {
+                $endDateStr = $exam->end_date->format('Y-m-d');
+                $endTimeStr = $exam->end_time ?: '23:59:59';
+                $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
+            }
 
-            if ($closeDatetime && $now->gt($closeDatetime)) {
+            if ($endDatetime && $now->gt($endDatetime)) {
                 return response()->json([
                     'message' => 'عذراً، لقد تجاوزت الموعد النهائي لتسليم الامتحان.',
                     'error_code' => 'SCHEDULE_EXPIRED'

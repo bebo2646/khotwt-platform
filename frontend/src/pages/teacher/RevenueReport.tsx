@@ -1,6 +1,6 @@
 import React from 'react'
 import API from '../../services/api'
-import { Wallet, Calendar, Filter, BookOpen, Package, Clock, TrendingUp, CreditCard, Award, CheckCircle } from 'lucide-react'
+import { Wallet, Calendar, Filter, BookOpen, Package, Clock, TrendingUp, CreditCard, Award, CheckCircle, Download, Search, ArrowUpDown, User, Hash, FileSpreadsheet, AlertCircle, X } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 
 interface SummaryData {
@@ -71,6 +71,118 @@ export default function RevenueReport() {
   const [startDate, setStartDate] = React.useState('')
   const [endDate, setEndDate] = React.useState('')
   const [activeTab, setActiveTab] = React.useState<'ledger' | 'breakdown' | 'bundles' | 'lessons'>('ledger')
+  
+  // Refunds modal states & sorting
+  const [showRefundsModal, setShowRefundsModal] = React.useState(false)
+  const [refundSearch, setRefundSearch] = React.useState('')
+  const [refundFilterCourse, setRefundFilterCourse] = React.useState('all')
+  const [refundFilterType, setRefundFilterType] = React.useState('all')
+  const [refundSortField, setRefundSortField] = React.useState<'refund_date' | 'refunded_amount'>('refund_date')
+  const [refundSortOrder, setRefundSortOrder] = React.useState<'asc' | 'desc'>('desc')
+  const [refundPage, setRefundPage] = React.useState(1)
+
+  // Memoized Filtered Refunds
+  const filteredRefunds = React.useMemo(() => {
+    const list = (data as any)?.refunds || [];
+    return list.filter((ref: any) => {
+      const matchesSearch = 
+        ref.student_name.toLowerCase().includes(refundSearch.toLowerCase()) ||
+        ref.transaction_id.toLowerCase().includes(refundSearch.toLowerCase());
+      
+      const matchesItem = refundFilterCourse === 'all' || ref.item_name === refundFilterCourse;
+      const matchesType = refundFilterType === 'all' || ref.purchase_type === refundFilterType;
+
+      return matchesSearch && matchesItem && matchesType;
+    }).sort((a: any, b: any) => {
+      let valA = a[refundSortField];
+      let valB = b[refundSortField];
+
+      if (refundSortField === 'refund_date') {
+        valA = new Date(valA).getTime();
+        valB = new Date(valB).getTime();
+      }
+
+      if (valA < valB) return refundSortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return refundSortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [data, refundSearch, refundFilterCourse, refundFilterType, refundSortField, refundSortOrder]);
+
+  const itemsPerPage = 8;
+  const totalPages = Math.ceil(filteredRefunds.length / itemsPerPage);
+  const paginatedRefunds = React.useMemo(() => {
+    const startIndex = (refundPage - 1) * itemsPerPage;
+    return filteredRefunds.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredRefunds, refundPage]);
+
+  // Unique item names for filters
+  const uniqueRefundItems = React.useMemo(() => {
+    const list = (data as any)?.refunds || [];
+    return Array.from(new Set(list.map((r: any) => r.item_name))) as string[];
+  }, [data]);
+
+  const handleExportCSV = () => {
+    if (!filteredRefunds.length) return;
+    const headers = [
+      'Transaction ID',
+      'Student Name',
+      'Student ID',
+      'Item Name',
+      'Type',
+      'Original Amount',
+      'Refunded Amount',
+      'Purchase Date',
+      'Refund Date',
+      'Reason',
+      'Status',
+      'Payment Method'
+    ];
+
+    const rows = filteredRefunds.map((ref: any) => [
+      ref.transaction_id,
+      ref.student_name,
+      ref.student_id || '-',
+      ref.item_name,
+      ref.purchase_type === 'Bundle' ? 'باقة مجمعة' : 'كورس كامل',
+      ref.original_amount,
+      ref.refunded_amount,
+      ref.purchase_date || '-',
+      ref.refund_date,
+      ref.refund_reason || '-',
+      ref.status,
+      ref.payment_method
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\ufeff" 
+      + [headers.join(','), ...rows.map((e: any[]) => e.map((val: any) => `"${val}"`).join(','))].join('\n');
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `refunds_report_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const toggleRefundSort = (field: 'refund_date' | 'refunded_amount') => {
+    if (refundSortField === field) {
+      setRefundSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRefundSortField(field);
+      setRefundSortOrder('desc');
+    }
+  };
+
+  const grossRevenueVal = data?.summary.gross_revenue || data?.summary.total_revenue || 0;
+  const currentTotalRefunded = filteredRefunds.reduce((sum: number, r: any) => sum + r.refunded_amount, 0);
+
+  const summaryStats = {
+    count: filteredRefunds.length,
+    amount: currentTotalRefunded,
+    net: grossRevenueVal - currentTotalRefunded,
+    rate: grossRevenueVal > 0 ? ((currentTotalRefunded / grossRevenueVal) * 100) : 0
+  };
 
   const fetchRevenueData = () => {
     setLoading(true)
@@ -206,12 +318,18 @@ export default function RevenueReport() {
             </div>
             <p className="text-[10px] text-slate-500 font-light">مجموع عمليات الشراء قبل خصم الاسترجاع</p>
           </div>
-          <div className="space-y-1 md:border-r border-slate-800 md:pr-6">
-            <span className="text-xs text-slate-400 font-bold">المبالغ المسترجعة (Refunded Revenue)</span>
+          <div 
+            onClick={() => setShowRefundsModal(true)}
+            className="space-y-1 md:border-r border-slate-800 md:pr-6 cursor-pointer hover:bg-slate-900/10 p-2.5 rounded-2xl transition-all border border-transparent hover:border-red-500/10 group text-right"
+          >
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-slate-400 font-bold">المبالغ المسترجعة (Refunded Revenue)</span>
+              <span className="text-[9px] text-red-400 font-black opacity-0 group-hover:opacity-100 transition-opacity">التفاصيل 🔍</span>
+            </div>
             <div className="text-2xl font-black text-red-500">
               {(data.summary.refunded_revenue ?? 0).toFixed(2)} ج.م
             </div>
-            <p className="text-[10px] text-slate-500 font-light">إجمالي الاشتراكات التي تم استرجاعها للطلاب</p>
+            <p className="text-[10px] text-slate-500 font-light">إجمالي الاشتراكات التي تم استرجاعها للطلاب (اضغط للتفاصيل)</p>
           </div>
           <div className="space-y-1 md:border-r border-slate-800 md:pr-6">
             <span className="text-xs text-slate-400 font-bold">صافي الأرباح (Net Revenue)</span>
@@ -543,6 +661,218 @@ export default function RevenueReport() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* Detailed Refunds Modal Overlay */}
+      {showRefundsModal && data && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in text-right">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-center bg-slate-950/20 text-right">
+              <div className="flex items-center gap-2">
+                <span className="p-2 bg-red-500/10 text-red-500 rounded-xl">
+                  <Wallet className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-black text-slate-100">سجل وإحصائيات المبيعات المسترجعة</h3>
+                  <p className="text-[10px] text-slate-500 font-light font-semibold">تفاصيل وتقارير الاشتراكات المستردة للطلاب</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowRefundsModal(false)}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl transition-all cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 text-right">
+              
+              {/* Stat Boxes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 bg-slate-950/40 border border-slate-900 rounded-2xl space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-bold">إجمالي عدد المرتجعات</span>
+                  <span className="text-xl font-black text-slate-200">{summaryStats.count} عملية</span>
+                </div>
+                <div className="p-4 bg-slate-950/40 border border-slate-900 rounded-2xl space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-bold">إجمالي المبالغ المسترجعة</span>
+                  <span className="text-xl font-black text-red-500">{summaryStats.amount.toFixed(2)} ج.م</span>
+                </div>
+                <div className="p-4 bg-slate-950/40 border border-slate-900 rounded-2xl space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-bold">صافي الإيراد بعد الاسترجاع</span>
+                  <span className="text-xl font-black text-emerald-400">{summaryStats.net.toFixed(2)} ج.م</span>
+                </div>
+                <div className="p-4 bg-slate-950/40 border border-slate-900 rounded-2xl space-y-1">
+                  <span className="text-[10px] text-slate-400 block font-bold">معدل الاسترجاع</span>
+                  <span className="text-xl font-black text-amber-500">{summaryStats.rate.toFixed(2)}%</span>
+                </div>
+              </div>
+
+              {/* Filters Header */}
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-end bg-slate-950/15 p-4.5 rounded-2xl border border-[var(--border-color)] text-right">
+                
+                {/* Search & Select Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto md:flex-1 text-right">
+                  <div className="space-y-1 text-right">
+                    <label className="text-[10px] font-bold text-slate-450">بحث (اسم الطالب / المعاملة)</label>
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        placeholder="ابحث هنا..."
+                        value={refundSearch}
+                        onChange={(e) => { setRefundSearch(e.target.value); setRefundPage(1); }}
+                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl pr-9 pl-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                      />
+                      <Search className="absolute right-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-right">
+                    <label className="text-[10px] font-bold text-slate-450">تصفية حسب الكورس / الباقة</label>
+                    <select
+                      value={refundFilterCourse}
+                      onChange={(e) => { setRefundFilterCourse(e.target.value); setRefundPage(1); }}
+                      className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                    >
+                      <option value="all">كل الكورسات والباقات</option>
+                      {uniqueRefundItems.map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1 text-right">
+                    <label className="text-[10px] font-bold text-slate-450">نوع الشراء</label>
+                    <select
+                      value={refundFilterType}
+                      onChange={(e) => { setRefundFilterType(e.target.value); setRefundPage(1); }}
+                      className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
+                    >
+                      <option value="all">كل الأنواع</option>
+                      <option value="Course">كورس كامل</option>
+                      <option value="Bundle">باقة مجمعة</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* CSV Button */}
+                <button
+                  onClick={handleExportCSV}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shrink-0 transition-all shadow-md shadow-emerald-500/10"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  <span>تصدير Excel / CSV</span>
+                </button>
+              </div>
+
+              {/* Refunds Table */}
+              <div className="border border-[var(--border-color)] bg-slate-950/20 rounded-2xl overflow-hidden text-right">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-900/30 border-b border-[var(--border-color)] text-slate-450 font-bold">
+                        <th className="p-4">رقم المعاملة</th>
+                        <th className="p-4">الطالب</th>
+                        <th className="p-4">الكورس / الباقة</th>
+                        <th className="p-4 cursor-pointer hover:bg-slate-900/40 select-none" onClick={() => toggleRefundSort('refunded_amount')}>
+                          <div className="flex items-center gap-1">
+                            <span>القيمة المسترجعة</span>
+                            <ArrowUpDown className="h-3 w-3" />
+                          </div>
+                        </th>
+                        <th className="p-4 cursor-pointer hover:bg-slate-900/40 select-none" onClick={() => toggleRefundSort('refund_date')}>
+                          <div className="flex items-center gap-1">
+                            <span>تاريخ الاسترجاع</span>
+                            <ArrowUpDown className="h-3 w-3" />
+                          </div>
+                        </th>
+                        <th className="p-4">تفاصيل الشراء الأصلي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-900/50">
+                      {paginatedRefunds.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-8 text-center text-slate-500 font-light">
+                            لا توجد أي معاملات مسترجعة تطابق الفلترة الحالية.
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedRefunds.map((ref: any) => (
+                          <tr key={ref.transaction_id} className="hover:bg-slate-900/10 text-slate-300 transition-colors">
+                            <td className="p-4 font-mono text-[10px] text-slate-400">{ref.transaction_id}</td>
+                            <td className="p-4">
+                              <div className="font-bold text-slate-100">{ref.student_name}</div>
+                              <div className="text-[10px] text-slate-500 font-light font-semibold">كود الطالب: {ref.student_id || '-'}</div>
+                            </td>
+                            <td className="p-4">
+                              <span className="font-bold text-slate-250">{ref.item_name}</span>
+                              <span className={`mr-2 px-2 py-0.5 rounded text-[8px] font-black ${
+                                ref.purchase_type === 'Bundle' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20'
+                              }`}>
+                                {ref.purchase_type === 'Bundle' ? 'باقة' : 'كورس'}
+                              </span>
+                            </td>
+                            <td className="p-4 font-bold text-red-400">
+                              {ref.refunded_amount.toFixed(2)} ج.م
+                            </td>
+                            <td className="p-4 font-light text-[10px]" dir="ltr">
+                              {ref.refund_date}
+                            </td>
+                            <td className="p-4 space-y-1">
+                              <div className="text-[10px] text-slate-450 font-semibold">سعر الشراء: {ref.original_amount.toFixed(2)} ج.م</div>
+                              {ref.purchase_date && (
+                                <div className="text-[9px] text-slate-500 font-light font-semibold">تاريخ الشراء: {ref.purchase_date}</div>
+                              )}
+                              <div className="text-[9px] text-red-500/70 font-semibold">السبب: {ref.refund_reason || '-'}</div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="p-4 border-t border-[var(--border-color)] flex justify-between items-center bg-slate-950/10">
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      صفحة {refundPage} من {totalPages}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        disabled={refundPage === 1}
+                        onClick={() => setRefundPage(prev => Math.max(1, prev - 1))}
+                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 rounded-lg font-bold text-[10px] cursor-pointer"
+                      >
+                        السابق
+                      </button>
+                      <button
+                        disabled={refundPage === totalPages}
+                        onClick={() => setRefundPage(prev => Math.min(totalPages, prev + 1))}
+                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 rounded-lg font-bold text-[10px] cursor-pointer"
+                      >
+                        التالي
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 border-t border-[var(--border-color)] bg-slate-950/20 text-left">
+              <button
+                onClick={() => setShowRefundsModal(false)}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                إغلاق
+              </button>
+            </div>
+
+          </div>
         </div>
       )}
 

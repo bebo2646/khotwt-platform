@@ -299,9 +299,11 @@ export default function CourseDetail() {
                       if (ex.progress?.status === 'completed') {
                         navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                       } else {
-                        if (checkExamAvailability(ex)) {
-                          navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
-                        }
+                        checkExamAvailability(ex.id).then((allowed) => {
+                                  if (allowed) {
+                                    navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                                  }
+                                })
                       }
                     }
                   }}
@@ -508,9 +510,11 @@ export default function CourseDetail() {
                               if (ex.progress?.status === 'completed') {
                                 navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                               } else {
-                                if (checkExamAvailability(ex)) {
-                                  navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
-                                }
+                                checkExamAvailability(ex.id).then((allowed) => {
+                                  if (allowed) {
+                                    navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                                  }
+                                })
                               }
                             }}
                             className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
@@ -528,22 +532,122 @@ export default function CourseDetail() {
                       </div>
                     </div>
 
-                    {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && ex.progress && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500">⏱️ مدة الامتحان:</span>
-                          <span className="font-bold text-slate-100">{ex.duration_minutes || 'غير محدد'} دقيقة</span>
-                        </div>
-                        {ex.progress.score !== null && (
+                    {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && (
+                      <div className="p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-2xl text-[11px] sm:text-xs text-slate-300 animate-slide-down space-y-3.5">
+                        
+                        {/* Section 1: General Exam Metadata */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           <div className="flex items-center gap-2">
-                            <span className="text-slate-500">🏆 الدرجة المحققة:</span>
-                            <span className="font-bold text-slate-100">{ex.progress.score}</span>
+                            <span className="text-slate-500">⏱️ مدة الامتحان:</span>
+                            <span className="font-bold text-slate-100">
+                              {ex.time_limit_minutes || ex.duration_minutes ? `${ex.time_limit_minutes || ex.duration_minutes} دقيقة` : 'Unlimited'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">❓ عدد الأسئلة:</span>
+                            <span className="font-bold text-slate-100">
+                              {ex.questions_count !== undefined ? `${ex.questions_count} سؤال` : '-'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">🏆 الدرجة الكلية:</span>
+                            <span className="font-bold text-slate-100">
+                              {ex.max_score !== undefined ? `${ex.max_score} درجة` : '-'}
+                            </span>
+                          </div>
+
+                          {/* Start / End Schedule Times */}
+                          {(() => {
+                            const startD = ex.open_date || ex.start_date;
+                            const startT = ex.open_time || ex.start_time || '00:00';
+                            const endD = ex.close_date || ex.end_date;
+                            const endT = ex.close_time || ex.end_time || '23:59';
+
+                            return (
+                              <>
+                                {startD && (
+                                  <div className="flex items-center gap-2 col-span-1">
+                                    <span className="text-slate-500">📅 يبدأ في:</span>
+                                    <span className="font-bold text-slate-100" dir="ltr">
+                                      {startD} {startT.substring(0, 5)}
+                                    </span>
+                                  </div>
+                                )}
+                                {endD && (
+                                  <div className="flex items-center gap-2 col-span-1">
+                                    <span className="text-slate-500">📅 ينتهي في:</span>
+                                    <span className="font-bold text-slate-100" dir="ltr">
+                                      {endD} {endT.substring(0, 5)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Section 2: Student Attempt Details */}
+                        {ex.attempts_count > 0 && (
+                          <div className="pt-3 border-t border-slate-900/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-slate-500">🔄 المحاولات المستخدمة:</span>
+                              <span className="font-bold text-slate-100">
+                                {ex.attempts_count} / {ex.max_attempts}
+                              </span>
+                            </div>
+
+                            {ex.last_attempt && (
+                              <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
+                                <span className="text-slate-500">🕒 آخر محاولة:</span>
+                                <span className="font-bold text-slate-100">
+                                  {new Date(ex.last_attempt.submitted_at || ex.last_attempt.created_at).toLocaleString('ar-EG', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            )}
+
+                            {ex.max_attempts > 1 && ex.best_attempt && ex.best_attempt.score !== null && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-500">🎯 أفضل درجة:</span>
+                                <span className="font-bold text-slate-100">
+                                  {ex.best_attempt.score} / {ex.max_score}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Status and Anti-cheat status lock */}
+                            {ex.last_attempt && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-500">📊 الحالة الحالية:</span>
+                                <span className="font-bold">
+                                  {(() => {
+                                    if (ex.last_attempt.is_suspicious) {
+                                      return <span className="text-rose-400 font-bold">Locked (مغلق ومحجوب تلقائياً)</span>;
+                                    }
+                                    
+                                    const status = ex.last_attempt.status;
+                                    if (status === 'graded') {
+                                      const score = ex.last_attempt.score ?? 0;
+                                      const passScore = ex.passing_score ?? (ex.max_score * 0.5);
+                                      return score >= passScore 
+                                        ? <span className="text-emerald-400 font-bold">Passed (ناجح)</span>
+                                        : <span className="text-rose-400 font-bold">Failed (راسب)</span>;
+                                    }
+                                    if (status === 'submitted') {
+                                      return <span className="text-amber-400 font-bold">Awaiting Review (بانتظار التصحيح)</span>;
+                                    }
+                                    return <span className="text-slate-350">{status}</span>;
+                                  })()}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500">🔄 المحاولات:</span>
-                          <span className="font-bold text-slate-100">{ex.progress.attempts_count}</span>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -1092,9 +1196,11 @@ export default function CourseDetail() {
                           if (ex.progress?.status === 'completed') {
                             navigate(`/student/exams/${ex.id}/result?course_id=${course.id}`);
                           } else {
-                            if (checkExamAvailability(ex)) {
-                              navigate(`/student/exams/${ex.id}?course_id=${course.id}`);
-                            }
+                            checkExamAvailability(ex.id).then((allowed) => {
+                                  if (allowed) {
+                                    navigate(`/student/exams/${ex.id}?course_id=${course.id}`);
+                                  }
+                                })
                           }
                         }
                       }

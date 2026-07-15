@@ -76,6 +76,13 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
   const [countdown, setCountdown] = React.useState<number>(0)
   const [focusedIndex, setFocusedIndex] = React.useState(0)
 
+  // Ref to track the latest mutable states for event listeners to avoid re-binding triggers
+  const stateRef = React.useRef({ timeLeft, currentQuestionIndex, focusedIndex, questions })
+
+  React.useEffect(() => {
+    stateRef.current = { timeLeft, currentQuestionIndex, focusedIndex, questions }
+  }, [timeLeft, currentQuestionIndex, focusedIndex, questions])
+
   React.useEffect(() => {
     const params: any = {}
     if (courseId) params.course_id = courseId
@@ -274,7 +281,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       window.removeEventListener('blur', handleBlur)
       window.removeEventListener('focus', handleFocus)
     }
-  }, [isStarted, exam, timeLeft, currentQuestionIndex, focusedIndex, questions])
+  }, [isStarted, exam])
 
   // Fullscreen change listener
   React.useEffect(() => {
@@ -343,13 +350,14 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     if (!exam || !attemptId) return
 
     try {
-      const currentQuestion = questions[exam.homework_type === 'bubble_sheet' ? focusedIndex : currentQuestionIndex];
+      const { timeLeft: latestTimeLeft, currentQuestionIndex: latestQIdx, focusedIndex: latestFIdx, questions: latestQs } = stateRef.current;
+      const currentQuestion = latestQs[exam.homework_type === 'bubble_sheet' ? latestFIdx : latestQIdx];
       const res = await API.post(`/exams/${exam.id}/log-violation`, {
         attempt_id: attemptId,
         violation_type: type,
         question_id: currentQuestion?.id || null,
-        question_number: (exam.homework_type === 'bubble_sheet' ? focusedIndex : currentQuestionIndex) + 1,
-        time_remaining: timeLeft,
+        question_number: (exam.homework_type === 'bubble_sheet' ? latestFIdx : latestQIdx) + 1,
+        time_remaining: latestTimeLeft,
       })
 
       const newCount = res.data.violation_count

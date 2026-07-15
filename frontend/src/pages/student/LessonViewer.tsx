@@ -1529,9 +1529,11 @@ export default function LessonViewer({
                           ) : (
                             <button
                               onClick={() => {
-                                if (checkExamAvailability(exam)) {
-                                  navigate(`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`);
-                                }
+                                checkExamAvailability(exam.id).then((allowed) => {
+                                  if (allowed) {
+                                    navigate(`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`);
+                                  }
+                                })
                               }}
                               className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
                             >
