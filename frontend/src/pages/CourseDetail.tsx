@@ -197,6 +197,7 @@ export default function CourseDetail() {
   
   // Accordion state (maps unit_id to boolean)
   const [expandedUnits, setExpandedUnits] = React.useState<Record<number, boolean>>({})
+  const viewerRef = React.useRef<HTMLDivElement | null>(null)
 
   // Expanded content items (maps 'video-id', 'pdf-id', or 'exam-id' to boolean)
   const [expandedContentItems, setExpandedContentItems] = React.useState<Record<string, boolean>>({})
@@ -611,6 +612,28 @@ export default function CourseDetail() {
     fetchDetails()
   }, [fetchDetails, isLoggedIn])
 
+  React.useEffect(() => {
+    if (videoId || pdfId) {
+      const handleScroll = () => {
+        if (viewerRef.current) {
+          viewerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
+
+      // Trigger scroll immediately and at staggered intervals to prevent layout shift offset issues
+      handleScroll();
+      const t1 = setTimeout(handleScroll, 100);
+      const t2 = setTimeout(handleScroll, 300);
+      const t3 = setTimeout(handleScroll, 600);
+
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
+  }, [videoId, pdfId])
+
   const toggleUnit = (unitId: number) => {
     setExpandedUnits((prev) => ({
       ...prev,
@@ -791,7 +814,7 @@ export default function CourseDetail() {
 
       {/* Dynamic Content Viewer Area */}
       {isEnrolled && (videoId || pdfId) && (
-        <div className="space-y-4 text-right my-8" dir="rtl">
+        <div ref={viewerRef} className="space-y-4 text-right my-8 scroll-mt-24" dir="rtl">
           
           {/* Viewer Header */}
           <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4.5 rounded-3xl shadow-lg">
