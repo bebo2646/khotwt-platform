@@ -90,10 +90,15 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
           setAnswers(res.data.existing_answers)
         }
         
-        // Initialize timer if set
-        if (res.data.exam.time_limit_minutes) {
-          setTimeLeft(res.data.exam.time_limit_minutes * 60)
+        // Initialize timer if set, evaluating close_datetime
+        let initialTimeLeft = res.data.exam.time_limit_minutes ? res.data.exam.time_limit_minutes * 60 : null;
+        if (res.data.exam.close_datetime) {
+          const timeUntilClose = Math.max(0, Math.floor((new Date(res.data.exam.close_datetime).getTime() - new Date().getTime()) / 1000));
+          if (initialTimeLeft === null || timeUntilClose < initialTimeLeft) {
+            initialTimeLeft = timeUntilClose;
+          }
         }
+        setTimeLeft(initialTimeLeft)
       })
       .catch((err: any) => {
         console.error(err)
@@ -255,13 +260,21 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       }
     }
 
+    const handleFocus = () => {
+      if (exam.enable_anti_tab_switching) {
+        registerViolation('returned')
+      }
+    }
+
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('blur', handleBlur)
+    window.addEventListener('focus', handleFocus)
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('blur', handleBlur)
+      window.removeEventListener('focus', handleFocus)
     }
-  }, [isStarted, exam])
+  }, [isStarted, exam, timeLeft, currentQuestionIndex, focusedIndex, questions])
 
   // Fullscreen change listener
   React.useEffect(() => {
@@ -330,9 +343,13 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     if (!exam || !attemptId) return
 
     try {
+      const currentQuestion = questions[exam.homework_type === 'bubble_sheet' ? focusedIndex : currentQuestionIndex];
       const res = await API.post(`/exams/${exam.id}/log-violation`, {
         attempt_id: attemptId,
-        violation_type: type
+        violation_type: type,
+        question_id: currentQuestion?.id || null,
+        question_number: (exam.homework_type === 'bubble_sheet' ? focusedIndex : currentQuestionIndex) + 1,
+        time_remaining: timeLeft,
       })
 
       const newCount = res.data.violation_count
@@ -373,42 +390,85 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     }
   }
 
+  // Auto-save draft helper
+  const saveDraft = async (updatedAnswers: Record<number, string>) => {
+    if (!attemptId || !exam) return;
+    try {
+      await API.post(`/exams/${exam.id}/save-draft`, {
+        attempt_id: attemptId,
+        answers: updatedAnswers,
+      });
+    } catch (err) {
+      console.error('Failed to save draft exam answers:', err);
+    }
+  };
+
+  // Debounce helper for text essay areas (using typed React ref to avoid assignment errors)
+  const saveTimeoutRef = React.useRef<any>(null);
+  const debounceSaveDraft = (updatedAnswers: Record<number, string>) => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveDraft(updatedAnswers);
+    }, 1000);
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
   const handleOptionSelect = (questionId: number, optionVal: string) => {
     setAnswers((prev) => {
       const currentVal = prev[questionId]
+      let next;
       if (currentVal === optionVal) {
-        const next = { ...prev }
+        next = { ...prev }
         delete next[questionId]
-        return next
       } else {
-        return {
+        next = {
           ...prev,
           [questionId]: optionVal
         }
       }
-    })
-  }
+      saveDraft(next);
+      return next;
+    });
+
+    // Auto move to the next question with a smooth transition
+    const isBubbleSheet = exam?.homework_type === 'bubble_sheet';
+    if (!isBubbleSheet) {
+      if (currentQuestionIndex < questions.length - 1) {
+        setTimeout(() => {
+          setCurrentQuestionIndex((prev) => prev + 1);
+        }, 350);
+      }
+    } else {
+      if (focusedIndex < questions.length - 1) {
+        setTimeout(() => {
+          setFocusedIndex((prev) => prev + 1);
+        }, 350);
+      }
+    }
+  };
 
   const handleEssayChange = (questionId: number, textVal: string) => {
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: textVal,
-    }))
-  }
+    setAnswers((prev) => {
+      const next = {
+        ...prev,
+        [questionId]: textVal,
+      };
+      debounceSaveDraft(next);
+      return next;
+    });
+  };
 
   const handleAutoSubmit = () => {
-    useModalStore.getState().showAlert({
-      title: 'انتهى الوقت المحدد للاختبار',
-      description: 'انتهى الوقت المحدد للاختبار! سيتم تسليم إجاباتك الحالية تلقائياً.',
-      type: 'warning',
-      buttonText: 'موافق',
-      onConfirm: () => {
-        if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {})
-        }
-        submitExamAnswers()
-      }
-    })
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+    setSubmitting(true);
+    submitExamAnswers();
   }
 
   const submitExamAnswers = async () => {

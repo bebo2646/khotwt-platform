@@ -6,6 +6,7 @@ import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
 import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl, formatDurationArabic } from '../../utils/video'
 import { useAuthStore } from '../../store/authStore'
+import { checkExamAvailability } from '../../utils/exam'
 
 declare global {
   interface Window {
@@ -1526,12 +1527,16 @@ export default function LessonViewer({
                               <span>شراء الامتحان</span>
                             </button>
                           ) : (
-                            <Link
-                              to={`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`}
-                              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all"
+                            <button
+                              onClick={() => {
+                                if (checkExamAvailability(exam)) {
+                                  navigate(`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`);
+                                }
+                              }}
+                              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
                             >
                               ابدأ الاختبار
-                            </Link>
+                            </button>
                           )}
                         </div>
                       </div>

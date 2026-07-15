@@ -65,7 +65,14 @@ interface AttemptItem {
   }
   violation_count?: number
   is_suspicious?: boolean
-  violation_timestamps?: { type: string, time: string }[]
+  violation_timestamps?: {
+    type: string
+    time: string
+    question_number?: number | null
+    question_id?: number | null
+    time_remaining?: number | null
+    returned?: boolean
+  }[]
   answers: {
     id: number
     question_id: number
@@ -76,6 +83,7 @@ interface AttemptItem {
       text: string
       type: string
       score: number
+      correct_answer?: string | null
     }
   }[]
 }
@@ -385,32 +393,91 @@ export default function ExamsManager() {
               
               {/* Anti-cheat report section */}
               {(activeAttempt.violation_count ?? 0) > 0 && (
-                <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl space-y-2">
+                <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl space-y-3">
                   <div className="flex items-center justify-between text-xs font-bold text-rose-500">
                     <span className="flex items-center gap-1">
                       <AlertCircle className="h-4 w-4 shrink-0" />
                       <span>تقرير نظام مراقبة الغش والمخالفات</span>
                     </span>
-                    <span>المخالفات المسجلة: {activeAttempt.violation_count}</span>
+                    <span>إجمالي المخالفات: {activeAttempt.violation_count}</span>
                   </div>
                   {activeAttempt.violation_timestamps && activeAttempt.violation_timestamps.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-[10px] text-slate-450 block font-light">سجل وتفاصيل المحاولات المشبوهة:</span>
-                      <div className="max-h-28 overflow-y-auto space-y-1 pr-1" dir="rtl">
-                        {activeAttempt.violation_timestamps.map((t, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[10px] text-slate-350 bg-slate-950/40 p-2 rounded-lg border border-slate-900">
-                            <span>
-                              {t.type === 'tab_switch' ? 'تبديل تبويب المتصفح / مغادرة الصفحة' : 
-                               t.type === 'window_blur' ? 'الخروج عن شاشة الامتحان (التركيز)' : 
-                               t.type === 'fullscreen_exit' ? 'الخروج من وضع ملء الشاشة' : 
-                               t.type === 'copy_attempt' ? 'محاولة نسخ النص' : 
-                               t.type === 'paste_attempt' ? 'محاولة لصق محتوى خارجي' : 
-                               t.type === 'right_click_attempt' ? 'محاولة استخدام الزر الأيمن' : t.type}
-                            </span>
-                            <span className="font-light text-slate-400">{new Date(t.time).toLocaleTimeString('ar-EG')}</span>
-                          </div>
-                        ))}
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[10px] text-slate-400 block font-bold">سجل المخالفات التفصيلي:</span>
+                      <div className="space-y-1.5 pr-1 max-h-48 overflow-y-auto" dir="rtl">
+                        {activeAttempt.violation_timestamps.map((t, idx) => {
+                          const isReturn = t.type === 'returned';
+                          const timeStr = new Date(t.time).toLocaleTimeString('ar-EG');
+                          const timeRemainingStr = t.time_remaining !== undefined && t.time_remaining !== null 
+                            ? `${Math.floor(t.time_remaining / 60)} دقيقة و ${t.time_remaining % 60} ثانية`
+                            : null;
+                          
+                          let violationName = t.type;
+                          if (t.type === 'tab_switch') violationName = 'تبديل تبويب المتصفح / مغادرة الصفحة';
+                          else if (t.type === 'window_blur') violationName = 'الخروج عن شاشة الامتحان (فقدان التركيز)';
+                          else if (t.type === 'fullscreen_exit') violationName = 'الخروج من وضع ملء الشاشة';
+                          else if (t.type === 'copy_attempt') violationName = 'محاولة نسخ النص';
+                          else if (t.type === 'paste_attempt') violationName = 'محاولة لصق محتوى خارجي';
+                          else if (t.type === 'right_click_attempt') violationName = 'محاولة استخدام الزر الأيمن';
+                          else if (t.type === 'returned') violationName = 'العودة إلى شاشة الامتحان بعد الخروج';
+
+                          return (
+                            <div key={idx} className={`p-2.5 rounded-xl border text-[10px] space-y-1 ${
+                              isReturn 
+                                ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
+                                : 'bg-rose-500/5 border-rose-500/10 text-rose-300'
+                            }`}>
+                              <div className="flex justify-between items-center font-bold">
+                                <span>{isReturn ? '🟢' : '🚨'} {violationName}</span>
+                                <span className="font-light text-slate-450">{timeStr}</span>
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-slate-450 pt-0.5 border-t border-slate-900/60">
+                                {t.question_number && (
+                                  <span>السؤال النشط: {t.question_number}</span>
+                                )}
+                                {timeRemainingStr && (
+                                  <span>الوقت المتبقي: {timeRemainingStr}</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
+
+                      {/* Final status summary */}
+                      {activeAttempt.is_suspicious && (
+                        <div className="pt-2.5 border-t border-rose-500/25 text-[10px] text-rose-450 font-bold space-y-1">
+                          <div className="flex items-center gap-1">
+                            <span>⚠️</span>
+                            <span>الحالة النهائية: تم قفل الامتحان بسبب تجاوز المخالفات المسموح بها.</span>
+                          </div>
+                          {(() => {
+                            const lastViol = activeAttempt.violation_timestamps
+                              .filter((t) => t.type !== 'returned')
+                              .pop();
+                            if (lastViol) {
+                              let lastViolName = lastViol.type;
+                              if (lastViol.type === 'tab_switch') lastViolName = 'تبديل تبويب المتصفح';
+                              else if (lastViol.type === 'window_blur') lastViolName = 'مغادرة شاشة الامتحان';
+                              else if (lastViol.type === 'fullscreen_exit') lastViolName = 'الخروج من ملء الشاشة';
+                              else if (lastViol.type === 'copy_attempt') lastViolName = 'محاولة نسخ النص';
+
+                              const remStr = lastViol.time_remaining !== undefined && lastViol.time_remaining !== null 
+                                ? `${Math.floor(lastViol.time_remaining / 60)} دقيقة و ${lastViol.time_remaining % 60} ثانية`
+                                : 'غير متوفر';
+
+                              return (
+                                <div className="text-[9px] text-slate-400 font-medium">
+                                  <span>سبب القفل الأخير: {lastViolName}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>الوقت المتبقي عند القفل: {remStr}</span>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -431,6 +498,14 @@ export default function ExamsManager() {
                         <div className="text-[10px] text-slate-500">إجابة الطالب:</div>
                         <p className="font-bold text-slate-200">{ans.answer_text || '[لا توجد إجابة]'}</p>
                       </div>
+
+                      {/* Correct Answer */}
+                      {ans.question.correct_answer && (
+                        <div className="p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-xl space-y-1">
+                          <div className="text-[10px] text-brand-primary">الإجابة النموذجية الصحيحة:</div>
+                          <p className="font-bold text-brand-primary">{ans.question.correct_answer}</p>
+                        </div>
+                      )}
 
                       {/* Essay score input inline */}
                       {ans.question.type === 'essay' && (

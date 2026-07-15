@@ -91,6 +91,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/student/pdfs/{pdf}', [StudentController::class, 'getPdfDetails']);
             Route::get('/exams/{exam}', [StudentController::class, 'startExam']);
             Route::post('/exams/{exam}/submit', [StudentController::class, 'submitExam']);
+            Route::post('/exams/{exam}/save-draft', [StudentController::class, 'saveDraftExam']);
             Route::post('/exams/{exam}/log-violation', [StudentController::class, 'logViolation']);
             Route::post('/exams/{exam}/purchase', [StudentController::class, 'purchaseExam']);
             Route::get('/student/results', [StudentController::class, 'examResults']);

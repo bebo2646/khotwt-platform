@@ -2091,10 +2091,51 @@ class StudentController extends Controller
                 'enable_fullscreen' => (bool)($exam->enable_fullscreen ?? true),
                 'enable_anti_tab_switching' => (bool)($exam->enable_anti_tab_switching ?? true),
                 'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
+                'close_datetime' => $exam->enable_schedule && $exam->close_date ? \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'))->toIso8601String() : null,
             ],
             'questions' => $shuffledQuestions,
             'existing_answers' => $answersFormatted,
         ]);
+    }
+
+    /**
+     * Save draft progress for an exam attempt.
+     */
+    public function saveDraftExam(Request $request, $examId)
+    {
+        $request->validate([
+            'attempt_id' => 'required|integer',
+            'answers' => 'required|array',
+        ]);
+
+        $user = $request->user();
+        $attempt = StudentExam::where('id', $request->attempt_id)
+            ->where('student_id', $user->id)
+            ->firstOrFail();
+
+        if ($attempt->status !== 'started') {
+            return response()->json(['message' => 'هذا الامتحان غير متاح للتعديل.'], 422);
+        }
+
+        DB::transaction(function () use ($attempt, $request) {
+            foreach ($request->answers as $qId => $ansText) {
+                $ansTextStr = is_null($ansText) ? '' : (string)$ansText;
+                
+                StudentAnswer::updateOrCreate(
+                    [
+                        'student_exam_id' => $attempt->id,
+                        'question_id' => $qId,
+                    ],
+                    [
+                        'answer_text' => $ansTextStr,
+                        'is_correct' => false,
+                        'score' => 0,
+                    ]
+                );
+            }
+        });
+
+        return response()->json(['message' => 'تم حفظ الإجابات بنجاح.']);
     }
 
     /**
@@ -2157,13 +2198,17 @@ class StudentController extends Controller
                     }
                 }
 
-                StudentAnswer::create([
-                    'student_exam_id' => $attempt->id,
-                    'question_id' => $question->id,
-                    'answer_text' => $answerText,
-                    'is_correct' => $isCorrect,
-                    'score' => $questionScore,
-                ]);
+                StudentAnswer::updateOrCreate(
+                    [
+                        'student_exam_id' => $attempt->id,
+                        'question_id' => $question->id,
+                    ],
+                    [
+                        'answer_text' => $answerText,
+                        'is_correct' => $isCorrect,
+                        'score' => $questionScore,
+                    ]
+                );
             }
 
             // If it is a quiz/monthly exam or bubble sheet homework with no essay questions, we mark as graded
@@ -2229,10 +2274,13 @@ class StudentController extends Controller
         $request->validate([
             'attempt_id' => 'required|integer',
             'violation_type' => 'required|string',
+            'question_id' => 'nullable|integer',
+            'question_number' => 'nullable|integer',
+            'time_remaining' => 'nullable|integer',
         ]);
 
         $user = $request->user();
-        $exam = Exam::findOrFail($examId);
+        $exam = Exam::with('questions')->findOrFail($examId);
         $attempt = StudentExam::where('id', $request->attempt_id)
             ->where('student_id', $user->id)
             ->firstOrFail();
@@ -2242,21 +2290,78 @@ class StudentController extends Controller
         }
 
         $timestamps = $attempt->violation_timestamps ?: [];
-        $timestamps[] = [
+        
+        $violationData = [
             'type' => $request->violation_type,
-            'time' => Carbon::now()->toDateTimeString(),
+            'time' => \Carbon\Carbon::now()->toDateTimeString(),
+            'question_id' => $request->question_id,
+            'question_number' => $request->question_number,
+            'time_remaining' => $request->time_remaining,
         ];
 
-        $attempt->violation_count += 1;
+        // Increment violation count only if it's not a return focus event
+        if ($request->violation_type !== 'returned') {
+            $attempt->violation_count += 1;
+        }
+
+        $timestamps[] = $violationData;
         $attempt->violation_timestamps = $timestamps;
 
         $reachedLimit = $attempt->violation_count >= ($exam->allowed_violations ?? 3);
         
-        if ($reachedLimit) {
+        if ($reachedLimit && $request->violation_type !== 'returned') {
             $attempt->is_suspicious = true;
             if ($exam->auto_submit_on_violation) {
-                $attempt->status = 'submitted';
-                $attempt->submitted_at = Carbon::now();
+                // Auto-submit and grade current answers when locked out due to violations
+                $existingAnswers = StudentAnswer::where('student_exam_id', $attempt->id)
+                    ->pluck('answer_text', 'question_id')
+                    ->toArray();
+
+                $totalScore = 0;
+                $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']) || ($exam->type === 'homework' && $exam->homework_type === 'bubble_sheet');
+                $hasEssay = false;
+
+                // Loop through all exam questions to grade them and ensure every question has an answer record
+                foreach ($exam->questions as $question) {
+                    $answerText = isset($existingAnswers[$question->id]) ? $existingAnswers[$question->id] : '';
+                    $isCorrect = false;
+                    $questionScore = 0;
+
+                    if ($question->type === 'essay') {
+                        $hasEssay = true;
+                        $isCorrect = false;
+                        $questionScore = 0;
+                    } else {
+                        if (trim(strtolower($answerText)) === trim(strtolower($question->correct_answer))) {
+                            $isCorrect = true;
+                            $questionScore = $question->score;
+                            $totalScore += $questionScore;
+                        }
+                    }
+
+                    StudentAnswer::updateOrCreate(
+                        [
+                            'student_exam_id' => $attempt->id,
+                            'question_id' => $question->id,
+                        ],
+                        [
+                            'answer_text' => $answerText,
+                            'is_correct' => $isCorrect,
+                            'score' => $questionScore,
+                        ]
+                    );
+                }
+
+                if ($isAutoGraded && !$hasEssay) {
+                    $attempt->status = 'graded';
+                    $attempt->score = $totalScore;
+                    $attempt->graded_at = \Carbon\Carbon::now();
+                } else {
+                    $attempt->status = 'submitted';
+                    $attempt->score = $isAutoGraded ? $totalScore : null;
+                }
+
+                $attempt->submitted_at = \Carbon\Carbon::now();
             }
         }
 

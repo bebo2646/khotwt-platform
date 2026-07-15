@@ -1,5 +1,6 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { checkExamAvailability } from '../../utils/exam'
 import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
 import { formatWatchedTimeArabic } from '../../utils/video'
@@ -192,6 +193,7 @@ const cardItemVariants = {
 
 export default function StudentDashboard() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [dbData, setDbData] = React.useState<DashboardData | null>(null)
   const [teachers, setTeachers] = React.useState<Teacher[]>([])
   const [availableCourses, setAvailableCourses] = React.useState<AvailableCourse[]>([])
@@ -372,17 +374,7 @@ export default function StudentDashboard() {
               تعلم بذكاء، تابع تقدمك، اختبر نفسك، وحقق أفضل النتائج مع تجربة تعليمية مصممة خصيصًا لطلاب المرحلة الإعدادية والثانوية.
             </p>
 
-            {/* Quick Search */}
-            <div className="relative pt-2 max-w-md">
-              <input 
-                type="text" 
-                placeholder="ابحث عن اسم مدرس، مادة علمية، أو كورس..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-brand-card/80 border border-border-color rounded-2xl pr-11 pl-4 py-3.5 text-xs focus:outline-none focus:border-brand-primary text-foreground placeholder-slate-500 shadow-lg text-right transition-all focus:ring-4 focus:ring-brand-primary/15"
-              />
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            </div>
+            {/* Search UI removed per request */}
           </div>
 
           {/* Premium Wallet Widget */}
@@ -910,9 +902,16 @@ export default function StudentDashboard() {
                               <h4 className="font-bold text-xs text-slate-200 mt-1">{exam.title}</h4>
                               <p className="text-[10px] text-slate-500 font-semibold">المدة: {exam.time_limit_minutes} دقيقة | الدرجة القصوى: {exam.max_score} درجة</p>
                             </div>
-                            <Link to={`/student/exams/${exam.id}`} className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-[10px] font-black shadow-md transition-all duration-200">
+                            <button
+                              onClick={() => {
+                                if (checkExamAvailability(exam)) {
+                                  navigate(`/student/exams/${exam.id}`);
+                                }
+                              }}
+                              className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-[10px] font-black shadow-md transition-all duration-200 cursor-pointer"
+                            >
                               ابدأ الحل الآن
-                            </Link>
+                            </button>
                           </div>
                         ))}
                       </div>
