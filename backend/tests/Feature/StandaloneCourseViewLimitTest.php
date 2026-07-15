@@ -468,4 +468,76 @@ class StandaloneCourseViewLimitTest extends TestCase
         $this->assertEquals(10, $standaloneWatched['progress_percentage']);
         $this->assertEquals(90, $bundleWatched['progress_percentage']);
     }
+
+    public function test_teacher_can_view_bundle_course_detail_without_error(): void
+    {
+        // 1. Create a Teacher
+        $teacher = User::create([
+            'name' => 'Teacher Test Bundle',
+            'email' => 'teacher_bundle_test_' . rand(100, 999) . '@test.com',
+            'password' => bcrypt('password'),
+            'role' => 'teacher',
+            'status' => 'active',
+            'subject' => 'chemistry',
+            'grades' => ['first_secondary']
+        ]);
+
+        // 2. Create standalone Course #1
+        $course1 = Course::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Course 1 Standalone',
+            'price' => 100.00,
+            'grade' => 'first_secondary',
+            'subject' => 'chemistry',
+            'is_published' => true,
+            'is_bundle' => false,
+            'view_limit_enabled' => true,
+            'max_views' => 3
+        ]);
+
+        // 3. Create Bundle Course
+        $bundleCourse = Course::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Bundle Course',
+            'price' => 250.00,
+            'grade' => 'first_secondary',
+            'subject' => 'chemistry',
+            'is_published' => true,
+            'is_bundle' => true,
+            'view_limit_enabled' => true,
+            'max_views' => 3
+        ]);
+
+        // Link Course #1 to Bundle
+        $bundleCourse->childCourses()->attach($course1->id);
+
+        // 4. Create Unit, Lesson, and Video in Course #1
+        $unit = Unit::create([
+            'course_id' => $course1->id,
+            'title' => 'Unit 1',
+            'order' => 1
+        ]);
+
+        $lesson = Lesson::create([
+            'unit_id' => $unit->id,
+            'title' => 'Lesson 1',
+            'order' => 1
+        ]);
+
+        $video = Video::create([
+            'lesson_id' => $lesson->id,
+            'title' => 'Video 1',
+            'bunny_stream_id' => 'bunny_123',
+            'duration_seconds' => 100
+        ]);
+
+        // 5. Assert Teacher can load the Bundle Course detail page
+        $response = $this->actingAs($teacher)
+             ->getJson("/api/courses/{$bundleCourse->id}");
+
+        $response->assertStatus(200);
+        $data = $response->json();
+        
+        $this->assertEquals($bundleCourse->id, $data['course']['id']);
+    }
 }

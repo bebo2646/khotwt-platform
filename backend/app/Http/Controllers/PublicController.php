@@ -397,7 +397,7 @@ class PublicController extends Controller
             }
 
             // Fetch progresses if student
-            $videoProgresses = [];
+            $videoProgresses = collect();
             $pdfProgresses = [];
             $examAttempts = [];
             if ($user && $user->isStudent()) {
