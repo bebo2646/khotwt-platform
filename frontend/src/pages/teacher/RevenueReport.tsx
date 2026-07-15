@@ -486,7 +486,9 @@ export default function RevenueReport() {
                             </span>
                           </td>
                           <td className="p-4 font-medium text-slate-300">{item.item_name}</td>
-                          <td className="p-4 font-bold text-emerald-400">{item.amount.toFixed(2)} ج.م</td>
+                          <td className={`p-4 font-bold ${item.status === 'مسترجع' ? 'text-red-500' : 'text-emerald-400'}`}>
+                            {item.status === 'مسترجع' ? '-' : ''}{item.amount.toFixed(2)} ج.م
+                          </td>
                           <td className="p-4 text-slate-400 font-light">{item.date}</td>
                           <td className="p-4">
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-brand-success bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">

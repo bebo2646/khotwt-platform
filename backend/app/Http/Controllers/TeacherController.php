@@ -2139,84 +2139,105 @@ class TeacherController extends Controller
         $bundleDetails = [];
         $lessonDetails = [];
         
+        $grossTotal = 0;
+        $refundTotal = 0;
+
         foreach ($transactions as $tx) {
-            if ($tx->type !== 'purchase') {
-                continue;
-            }
-            
+            $studentName = $tx->wallet && $tx->wallet->student ? $tx->wallet->student->name : 'طالب محذوف';
             $refId = (int)$tx->reference_id;
             $desc = $tx->description;
-            $itemType = (str_contains($desc, 'شراء باقة') || str_contains($desc, 'باقة:')) ? 'bundle' : 'course';
-
-            // Filter out refunded purchases
-            if (isset($refundedKeys[$tx->wallet_id][$refId][$itemType])) {
-                continue;
-            }
-
-            $studentName = $tx->wallet && $tx->wallet->student ? $tx->wallet->student->name : 'طالب محذوف';
-            
-            $purchaseType = 'Other';
-            $itemName = $desc;
-            
-            if (str_contains($desc, 'شراء كورس') || str_contains($desc, 'كورس:')) {
-                $purchaseType = 'Course';
-                $itemName = $coursesMap[$refId] ?? 'كورس محذوف';
-            } elseif (str_contains($desc, 'شراء باقة') || str_contains($desc, 'باقة شهرية') || str_contains($desc, 'باقة:')) {
-                $purchaseType = 'Bundle';
-                $itemName = $packagesMap[$refId] ?? 'باقة محذوفة';
-                
-                if (!isset($bundleDetails[$refId])) {
-                    $bundleDetails[$refId] = [
-                        'bundle_name' => $itemName,
-                        'purchases' => []
-                    ];
-                }
-                $bundleDetails[$refId]['purchases'][] = [
-                    'student_name' => $studentName,
-                    'amount_paid' => (float)$tx->amount,
-                    'purchase_date' => $tx->created_at->toDateTimeString(),
-                ];
-            } elseif (str_contains($desc, 'شراء محاضرة') || str_contains($desc, 'محاضرة:') || str_contains($desc, 'شراء درس') || str_contains($desc, 'درس:')) {
-                $purchaseType = 'Lesson';
-                $itemName = $lessonsMap[$refId] ?? 'محاضرة محذوفة';
-                
-                if (!isset($lessonDetails[$refId])) {
-                    $lessonDetails[$refId] = [
-                        'lesson_name' => $itemName,
-                        'purchases' => []
-                    ];
-                }
-                $lessonDetails[$refId]['purchases'][] = [
-                    'student_name' => $studentName,
-                    'amount_paid' => (float)$tx->amount,
-                    'purchase_date' => $tx->created_at->toDateTimeString(),
-                ];
-            }
             
             $paymentSource = 'المحفظة';
             if (str_contains($desc, 'استخدام كود') || str_contains($desc, 'بواسطة كود')) {
                 $paymentSource = 'كود شحن كورس';
             }
-            
-            $breakdown[] = [
-                'student_name' => $studentName,
-                'purchase_type' => $purchaseType,
-                'item_name' => $itemName,
-                'amount_paid' => (float)$tx->amount,
-                'purchase_date' => $tx->created_at->toDateTimeString(),
-                'payment_source' => $paymentSource
-            ];
-            
-            $ledger[] = [
-                'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
-                'student_name' => $studentName,
-                'type' => $purchaseType,
-                'item_name' => $itemName,
-                'amount' => (float)$tx->amount,
-                'date' => $tx->created_at->toDateTimeString(),
-                'status' => 'مكتمل'
-            ];
+
+            if ($tx->type === 'purchase') {
+                $purchaseType = 'Other';
+                $itemName = $desc;
+                
+                if (str_contains($desc, 'شراء كورس') || str_contains($desc, 'كورس:')) {
+                    $purchaseType = 'Course';
+                    $itemName = $coursesMap[$refId] ?? 'كورس محذوف';
+                } elseif (str_contains($desc, 'شراء باقة') || str_contains($desc, 'باقة شهرية') || str_contains($desc, 'باقة:')) {
+                    $purchaseType = 'Bundle';
+                    $itemName = $packagesMap[$refId] ?? 'باقة محذوفة';
+                    
+                    if (!isset($bundleDetails[$refId])) {
+                        $bundleDetails[$refId] = [
+                            'bundle_name' => $itemName,
+                            'purchases' => []
+                        ];
+                    }
+                    $bundleDetails[$refId]['purchases'][] = [
+                        'student_name' => $studentName,
+                        'amount_paid' => (float)$tx->amount,
+                        'purchase_date' => $tx->created_at->toDateTimeString(),
+                    ];
+                } elseif (str_contains($desc, 'شراء محاضرة') || str_contains($desc, 'محاضرة:') || str_contains($desc, 'شراء درس') || str_contains($desc, 'درس:')) {
+                    $purchaseType = 'Lesson';
+                    $itemName = $lessonsMap[$refId] ?? 'محاضرة محذوفة';
+                    
+                    if (!isset($lessonDetails[$refId])) {
+                        $lessonDetails[$refId] = [
+                            'lesson_name' => $itemName,
+                            'purchases' => []
+                        ];
+                    }
+                    $lessonDetails[$refId]['purchases'][] = [
+                        'student_name' => $studentName,
+                        'amount_paid' => (float)$tx->amount,
+                        'purchase_date' => $tx->created_at->toDateTimeString(),
+                    ];
+                }
+
+                $grossTotal += (float)$tx->amount;
+                
+                $breakdown[] = [
+                    'student_name' => $studentName,
+                    'purchase_type' => $purchaseType,
+                    'item_name' => $itemName,
+                    'amount_paid' => (float)$tx->amount,
+                    'purchase_date' => $tx->created_at->toDateTimeString(),
+                    'payment_source' => $paymentSource
+                ];
+                
+                $ledger[] = [
+                    'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
+                    'student_name' => $studentName,
+                    'type' => $purchaseType,
+                    'item_name' => $itemName,
+                    'amount' => (float)$tx->amount,
+                    'date' => $tx->created_at->toDateTimeString(),
+                    'status' => 'مكتمل'
+                ];
+            } elseif ($tx->type === 'refund') {
+                $refundType = 'Other';
+                $itemName = $desc;
+                
+                if (str_contains($desc, 'إرجاع قيمة كورس') || str_contains($desc, 'كورس:')) {
+                    $refundType = 'Course';
+                    $itemName = $coursesMap[$refId] ?? 'كورس محذوف';
+                } elseif (str_contains($desc, 'إرجاع قيمة باقة') || str_contains($desc, 'باقة:')) {
+                    $refundType = 'Bundle';
+                    $itemName = $packagesMap[$refId] ?? 'باقة محذوفة';
+                }
+
+                $refundTotal += (float)$tx->amount;
+                
+                $ledger[] = [
+                    'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
+                    'student_name' => $studentName,
+                    'type' => $refundType,
+                    'item_name' => $itemName,
+                    'amount' => (float)$tx->amount,
+                    'date' => $tx->created_at->toDateTimeString(),
+                    'status' => 'مسترجع'
+                ];
+            }
         }
+        
+        $netTotal = $grossTotal - $refundTotal;
         
         // Get full refund logs for details page / modal
         $refundTransactions = WalletTransaction::with('wallet.student')
