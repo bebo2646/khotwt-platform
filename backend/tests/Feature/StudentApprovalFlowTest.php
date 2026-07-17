@@ -31,6 +31,7 @@ class StudentApprovalFlowTest extends TestCase
             'parent_phone' => '01112345678',
             'grade' => 'first_secondary',
             'password' => 'password123',
+            'student_type' => 'online',
         ]);
 
         $response->assertStatus(201);

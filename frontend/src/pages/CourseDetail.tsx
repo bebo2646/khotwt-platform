@@ -22,6 +22,7 @@ interface CourseItem {
   price: string
   grade: string
   subject: string
+  availability?: 'online' | 'center' | 'both'
   is_bundle?: boolean
   enable_discount?: boolean
   discount_type?: 'percentage' | 'fixed' | null
@@ -270,10 +271,12 @@ export default function CourseDetail() {
               )}
             </div>
             
-            {isEnrolled ? (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (!isEnrolled) {
+                    useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                  } else {
                     if (lesson.videos && lesson.videos.length > 0) {
                       setSearchParams((prev) => {
                         const next = new URLSearchParams(prev);
@@ -306,21 +309,25 @@ export default function CourseDetail() {
                                 })
                       }
                     }
-                  }}
-                  className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0"
-                >
-                  <span>بدء الدراسة</span>
-                  <ArrowLeft className="h-3 w-3" />
-                </button>
-                {!lesson.is_locked ? (
+                  }
+                }}
+                className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer flex items-center gap-1 shrink-0 border ${
+                  !isEnrolled 
+                    ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                    : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45"
+                }`}
+              >
+                <span>{!isEnrolled ? "بدء الدراسة 🔒" : "بدء الدراسة"}</span>
+                <ArrowLeft className="h-3 w-3" />
+              </button>
+              {isEnrolled && (
+                !lesson.is_locked ? (
                   <CheckCircle className="h-5 w-5 text-brand-success shrink-0" />
                 ) : (
                   <Lock className="h-4 w-4 text-slate-500 shrink-0" />
-                )}
-              </div>
-            ) : (
-              <Lock className="h-4 w-4 text-slate-500 shrink-0" />
-            )}
+                )
+              )}
+            </div>
           </div>
 
           {/* Lesson Contents Nested List */}
@@ -345,10 +352,12 @@ export default function CourseDetail() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      {!vid.is_locked ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (vid.is_locked) {
+                            useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                          } else {
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set('video_id', vid.id.toString());
@@ -358,46 +367,48 @@ export default function CourseDetail() {
                               next.delete('show_result');
                               return next;
                             });
-                          }}
-                          className="px-3 py-1 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                        >
-                          تشغيل
-                        </button>
-                      ) : (
-                        <Lock className="h-3 w-3 text-slate-600" />
-                      )}
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                          vid.is_locked
+                            ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                            : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45"
+                        }`}
+                      >
+                        {vid.is_locked ? "تشغيل 🔒" : "تشغيل"}
+                      </button>
                       <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`video-${vid.id}`] ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
 
                   {/* Video Info Panel */}
-                  {expandedContentItems[`video-${vid.id}`] && !vid.is_locked && vid.progress && (
+                  {expandedContentItems[`video-${vid.id}`] && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">⏳ مدة الفيديو:</span>
                         <span className="font-bold text-slate-100">{formatDurationArabic(vid.duration_seconds || 0)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-slate-500">{vid.progress.views_allowed === -1 ? '👁️ عدد المشاهدات:' : '👁️ المشاهدات المسموح بها:'}</span>
+                        <span className="text-slate-500">{(!vid.progress || vid.progress.views_allowed === -1) ? '👁️ عدد المشاهدات:' : '👁️ المشاهدات المسموح بها:'}</span>
                         <span className="font-bold text-slate-100 text-right">
-                          {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_allowed}
+                          {(!vid.progress || vid.progress.views_allowed === -1) ? 'غير محدود' : vid.progress.views_allowed}
                         </span>
                       </div>
-                      <div className={`flex items-center gap-2 ${vid.progress.views_allowed === -1 ? 'hidden' : ''}`}>
+                      <div className={`flex items-center gap-2 ${(!vid.progress || vid.progress.views_allowed === -1) ? 'hidden' : ''}`}>
                         <span className="text-slate-500">📈 المشاهدات المستخدمة:</span>
-                        <span className="font-bold text-slate-100">{vid.progress.views_used}</span>
+                        <span className="font-bold text-slate-100">{vid.progress?.views_used || 0}</span>
                       </div>
-                      <div className={`flex items-center gap-2 ${vid.progress.views_allowed === -1 ? 'hidden' : ''}`}>
+                      <div className={`flex items-center gap-2 ${(!vid.progress || vid.progress.views_allowed === -1) ? 'hidden' : ''}`}>
                         <span className="text-slate-500">🔐 المشاهدات المتبقية:</span>
                         <span className="font-bold text-slate-100 text-right">
-                          {vid.progress.views_allowed === -1 ? 'غير محدود' : vid.progress.views_remaining}
+                          {(!vid.progress || vid.progress.views_allowed === -1) ? 'غير محدود' : vid.progress?.views_remaining || 0}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">⏱️ إجمالي وقت المشاهدة:</span>
-                        <span className="font-bold text-slate-100">{formatWatchedTimeArabic(vid.progress.watched_seconds)}</span>
+                        <span className="font-bold text-slate-100">{formatWatchedTimeArabic(vid.progress?.watched_seconds || 0)}</span>
                       </div>
-                      {vid.progress.last_watched_at && (
+                      {vid.progress?.last_watched_at && (
                         <div className="flex items-center gap-2">
                           <span className="text-slate-500">📅 آخر مشاهدة:</span>
                           <span className="font-bold text-slate-100 truncate" title={new Date(vid.progress.last_watched_at).toLocaleString('ar-EG')}>
@@ -405,6 +416,12 @@ export default function CourseDetail() {
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {expandedContentItems[`video-${vid.id}`] && vid.is_locked && (
+                    <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex items-center gap-2 animate-slide-down text-right" dir="rtl">
+                      <Lock className="h-4 w-4 shrink-0 text-rose-500" />
+                      <span className="font-semibold">هذا المحتوى مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى. / This course is currently restricted. Purchase or enroll to unlock the content.</span>
                     </div>
                   )}
                 </div>
@@ -426,33 +443,37 @@ export default function CourseDetail() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                      {!pdf.is_locked ? (
-                         <button
-                           onClick={(e) => {
-                             e.stopPropagation();
-                             setSearchParams((prev) => {
-                               const next = new URLSearchParams(prev);
-                               next.set('pdf_id', pdf.id.toString());
-                               next.set('lesson_id', lesson.id.toString());
-                               next.delete('video_id');
-                               next.delete('exam_id');
-                               next.delete('show_result');
-                               return next;
-                             });
-                           }}
-                           className="px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45 rounded-lg font-bold text-[10px] transition-all cursor-pointer"
-                         >
-                           عرض الملف
-                         </button>
-                      ) : (
-                        <Lock className="h-3 w-3 text-slate-600" />
-                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (pdf.is_locked) {
+                            useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                          } else {
+                            setSearchParams((prev) => {
+                              const next = new URLSearchParams(prev);
+                              next.set('pdf_id', pdf.id.toString());
+                              next.set('lesson_id', lesson.id.toString());
+                              next.delete('video_id');
+                              next.delete('exam_id');
+                              next.delete('show_result');
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                          pdf.is_locked
+                            ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                            : "bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/20 hover:border-emerald-500/45"
+                        }`}
+                      >
+                        {pdf.is_locked ? "عرض الملف 🔒" : "عرض الملف"}
+                      </button>
                       <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`pdf-${pdf.id}`] ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
 
                   {/* PDF Info Panel */}
-                  {expandedContentItems[`pdf-${pdf.id}`] && !pdf.is_locked && pdf.progress && (
+                  {expandedContentItems[`pdf-${pdf.id}`] && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-xl text-[11px] sm:text-xs text-slate-300 animate-slide-down">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">📖 عدد الصفحات:</span>
@@ -464,9 +485,9 @@ export default function CourseDetail() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500">👁️ عدد مرات الفتح:</span>
-                        <span className="font-bold text-slate-100">{pdf.progress.open_count}</span>
+                        <span className="font-bold text-slate-100">{pdf.progress?.open_count || 0}</span>
                       </div>
-                      {pdf.progress.last_opened_at && (
+                      {pdf.progress?.last_opened_at && (
                         <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-1">
                           <span className="text-slate-500">📅 آخر مرة تم فتحه:</span>
                           <span className="font-bold text-slate-100" title={new Date(pdf.progress.last_opened_at).toLocaleString('ar-EG')}>
@@ -474,6 +495,12 @@ export default function CourseDetail() {
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {expandedContentItems[`pdf-${pdf.id}`] && pdf.is_locked && (
+                    <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex items-center gap-2 animate-slide-down text-right" dir="rtl">
+                      <Lock className="h-4 w-4 shrink-0 text-rose-500" />
+                      <span className="font-semibold">هذا المحتوى مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى. / This course is currently restricted. Purchase or enroll to unlock the content.</span>
                     </div>
                   )}
                 </div>
@@ -503,10 +530,12 @@ export default function CourseDetail() {
                       </div>
                       
                       <div className="flex items-center gap-3">
-                        {!ex.is_locked ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (ex.is_locked) {
+                              useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                            } else {
                               if (ex.progress?.status === 'completed') {
                                 navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                               } else {
@@ -516,23 +545,23 @@ export default function CourseDetail() {
                                   }
                                 })
                               }
-                            }}
-                            className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
-                              ex.progress?.status === 'completed'
-                                ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
-                                : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
-                            }`}
-                          >
-                            {ex.progress?.status === 'completed' ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن')}
-                          </button>
-                        ) : (
-                          <Lock className="h-3 w-3 text-slate-600" />
-                        )}
+                            }
+                          }}
+                          className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                            ex.is_locked
+                              ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                              : ex.progress?.status === 'completed'
+                              ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
+                              : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                          }`}
+                        >
+                          {ex.is_locked ? "ابدأ الآن 🔒" : (ex.progress?.status === 'completed' ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'))}
+                        </button>
                         <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
                       </div>
                     </div>
 
-                    {expandedContentItems[`exam-${ex.id}`] && !ex.is_locked && (
+                    {expandedContentItems[`exam-${ex.id}`] && (
                       <div className="p-4 bg-slate-950/60 border border-[var(--border-color)] rounded-2xl text-[11px] sm:text-xs text-slate-300 animate-slide-down space-y-3.5">
                         
                         {/* Section 1: General Exam Metadata */}
@@ -648,7 +677,13 @@ export default function CourseDetail() {
                             )}
                           </div>
                         )}
-                      </div>
+                        {expandedContentItems[`exam-${ex.id}`] && ex.is_locked && (
+                       <div className="p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex items-center gap-2 animate-slide-down text-right" dir="rtl">
+                         <Lock className="h-4 w-4 shrink-0 text-rose-500" />
+                         <span className="font-semibold">هذا المحتوى مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى. / This course is currently restricted. Purchase or enroll to unlock the content.</span>
+                       </div>
+                     )}
+                   </div>
                     )}
                   </div>
                 );
@@ -1368,64 +1403,77 @@ export default function CourseDetail() {
               {viewLimitMessage || 'لقد انتهى عدد مرات مشاهدة هذا الكورس. يرجى شراء كود جديد لاستعادة الوصول.'}
             </p>
           </div>
-        ) : availabilityMessage ? (
-          <div className="bg-amber-500/10 border border-amber-500/30 p-8 rounded-3xl flex flex-col items-center text-center gap-3 max-w-xl mx-auto shadow-md">
-            <span className="text-3xl">🏫</span>
-            <h3 className="font-black text-sm sm:text-base text-amber-500">هذا الكورس مخصص لطلاب السنتر</h3>
-            <p className="text-xs text-slate-300 font-light leading-relaxed">{availabilityMessage}</p>
-          </div>
-        ) : units.length === 0 ? (
-          <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
-            لم يقم المدرس بنشر أي وحدات دراسية لهذا الكورس حتى الآن.
-          </div>
         ) : (
           <div className="space-y-6">
-            {(() => {
-              let lastChildCourseId: number | null = null;
-              return units.map((unit) => {
-                const showCourseHeader = unit.child_course_id && unit.child_course_id !== lastChildCourseId;
-                if (unit.child_course_id) {
-                  lastChildCourseId = unit.child_course_id;
-                }
-                const isExpanded = course.is_bundle ? true : !!expandedUnits[unit.id]
+            {!isEnrolled && (
+              <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-3xl flex flex-col items-center text-center gap-2 max-w-xl mx-auto shadow-md">
+                <span className="text-2xl">🔒</span>
+                <h3 className="font-black text-sm sm:text-base text-amber-500">
+                  {course.availability === 'center' ? 'الكورس مخصص لطلاب السنتر ومقيد حالياً' : 'محتوى مقيد'}
+                </h3>
+                <p className="text-xs text-slate-300 font-semibold leading-relaxed">
+                  هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.
+                </p>
+                <p className="text-[11px] text-slate-400 font-light">
+                  This course is currently restricted. Purchase or enroll to unlock the content.
+                </p>
+              </div>
+            )}
 
-                return (
-                  <div key={unit.id} className="space-y-4">
-                    {showCourseHeader && (
-                      <div className="pt-6 pb-2 border-b border-[var(--border-color)]">
-                        <h3 className="text-sm font-black text-brand-primary flex items-center gap-2">
-                          <span>📚</span>
-                          <span>كورس: {unit.child_course_title}</span>
-                        </h3>
-                      </div>
-                    )}
-                    
-                    <div className={course.is_bundle ? "" : "border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300"}>
-                      {/* Unit Title Header */}
-                      <button
-                        onClick={() => toggleUnit(unit.id)}
-                        className={`w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors ${course.is_bundle ? 'hidden' : ''}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          {!course.is_bundle && (
-                            <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+            {units.length === 0 ? (
+              <div className="text-center p-12 border border-[var(--border-color)] rounded-2xl text-slate-400 text-sm font-light">
+                لم يقم المدرس بنشر أي وحدات دراسية لهذا الكورس حتى الآن.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {(() => {
+                  let lastChildCourseId: number | null = null;
+                  return units.map((unit) => {
+                    const showCourseHeader = unit.child_course_id && unit.child_course_id !== lastChildCourseId;
+                    if (unit.child_course_id) {
+                      lastChildCourseId = unit.child_course_id;
+                    }
+                    const isExpanded = course.is_bundle ? true : !!expandedUnits[unit.id]
+
+                    return (
+                      <div key={unit.id} className="space-y-4">
+                        {showCourseHeader && (
+                          <div className="pt-6 pb-2 border-b border-[var(--border-color)]">
+                            <h3 className="text-sm font-black text-brand-primary flex items-center gap-2">
+                              <span>📚</span>
+                              <span>كورس: {unit.child_course_title}</span>
+                            </h3>
+                          </div>
+                        )}
+                        
+                        <div className={course.is_bundle ? "" : "border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300"}>
+                          {/* Unit Title Header */}
+                          <button
+                            onClick={() => toggleUnit(unit.id)}
+                            className={`w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors ${course.is_bundle ? 'hidden' : ''}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {!course.is_bundle && (
+                                <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
+                              )}
+                              <span className="text-slate-100 font-black">{unit.title}</span>
+                            </div>
+                            <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          {/* Lessons list details */}
+                          {isExpanded && (
+                            <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
+                              {renderLessonsList(unit.lessons)}
+                            </div>
                           )}
-                          <span className="text-slate-100 font-black">{unit.title}</span>
                         </div>
-                        <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {/* Lessons list details */}
-                      {isExpanded && (
-                        <div className="border-t border-[var(--border-color)] bg-slate-950/20 divide-y divide-slate-900/40">
-                          {renderLessonsList(unit.lessons)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })
-            })()}
+                      </div>
+                    )
+                  })
+                })()}
+              </div>
+            )}
           </div>
         )}
       </div>

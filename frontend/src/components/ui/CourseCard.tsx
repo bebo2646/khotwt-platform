@@ -4,6 +4,7 @@ import { BookOpen, CheckCircle, ArrowLeft } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { getCourseDisplayPrice } from '../../utils/pricing'
 import { ensureHttps } from '../../utils/urls'
+import { useAuthStore } from '../../store/authStore'
 
 interface CourseCardProps {
   id: number
@@ -103,17 +104,25 @@ export default function CourseCard({
               {GRADES_MAP[grade] || grade}
             </div>
           )}
-          {availability && (
-            <div className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wide border shadow-md ${
-              availability === 'online'
-                ? 'bg-emerald-600 text-white border-emerald-500/25'
-                : availability === 'center'
-                ? 'bg-amber-600 text-white border-amber-500/25'
-                : 'bg-indigo-650 text-white border-indigo-550/25'
-            }`}>
-              {availability === 'online' ? '🟢 أونلاين' : availability === 'center' ? '🏫 سنتر' : '🟣 أونلاين + سنتر'}
-            </div>
-          )}
+          {(() => {
+            const user = useAuthStore.getState().user;
+            const isOnlineStudent = user?.role === 'student' && user?.student_type === 'online';
+            return availability && (
+              <div className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wide border shadow-md ${
+                availability === 'online'
+                  ? 'bg-emerald-600 text-white border-emerald-500/25'
+                  : availability === 'center'
+                  ? 'bg-amber-600 text-white border-amber-500/25'
+                  : 'bg-indigo-650 text-white border-indigo-550/25'
+              }`}>
+                {availability === 'online' 
+                  ? '🟢 أونلاين' 
+                  : availability === 'center' 
+                    ? (isOnlineStudent ? '🏫 Center Students' : '🏫 سنتر') 
+                    : '🟣 أونلاين + سنتر'}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Subscription Status Overlay */}

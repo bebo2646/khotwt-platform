@@ -131,6 +131,7 @@ export default function ProfileDashboard() {
   const [profileEmail, setProfileEmail] = React.useState(user?.email || '')
   const [profilePhone, setProfilePhone] = React.useState(user?.phone || '')
   const [profileParentPhone, setProfileParentPhone] = React.useState(user?.parent_phone || '')
+  const [profileStudentType, setProfileStudentType] = React.useState(user?.student_type || 'online')
   
   // Determine initial stage and grade
   const getInitialGradeAndStage = () => {
@@ -215,6 +216,7 @@ export default function ProfileDashboard() {
         phone: profilePhone,
         parent_phone: profileParentPhone,
         grade: profileGrade,
+        student_type: profileStudentType,
       })
 
       setProfileSuccess(res.data.message)
@@ -770,6 +772,19 @@ export default function ProfileDashboard() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Preferred Learning Mode (Student Type) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300">طريقة الدراسة المفضلة</label>
+              <select
+                value={profileStudentType}
+                onChange={(e) => setProfileStudentType(e.target.value as any)}
+                className="w-full bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-xl px-4 py-3 text-sm focus:outline-none text-right text-slate-100 cursor-pointer"
+              >
+                <option value="online">طالب أونلاين (Online Student)</option>
+                <option value="center">طالب سنتر (Center Student)</option>
+              </select>
             </div>
 
             {/* Submit */}

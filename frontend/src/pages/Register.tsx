@@ -18,6 +18,7 @@ type RegisterFormInputs = {
   grade: string
   password: string
   password_confirmation: string
+  student_type: 'online' | 'center'
 }
 
 const GRADES_OPTIONS = {
@@ -64,7 +65,8 @@ export default function Register() {
   } = useForm<RegisterFormInputs>({
     defaultValues: {
       stage: 'preparatory',
-      grade: 'first_preparatory'
+      grade: 'first_preparatory',
+      student_type: 'online'
     }
   })
 
@@ -91,6 +93,7 @@ export default function Register() {
         parent_phone: data.parent_phone,
         grade: data.grade,
         password: data.password,
+        student_type: data.student_type,
       })
       const { user: registeredUser, token, session_token, status } = res.data
       
@@ -327,6 +330,46 @@ export default function Register() {
                 </select>
               </div>
 
+            </div>
+
+            {/* Preferred Learning Mode / Student Type */}
+            <div className="space-y-2 text-right animate-fade-in" dir="rtl">
+              <label className="text-xs font-semibold text-slate-100 block">نوع الطالب (طريقة الدراسة المفضلة)</label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center justify-between p-4 bg-brand-surface/20 hover:bg-brand-surface/40 border border-[var(--border-color)] rounded-2xl cursor-pointer transition-all duration-300 select-none">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base shrink-0">🟢</span>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-slate-100 block">طالب أونلاين</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">Online Student</span>
+                    </div>
+                  </div>
+                  <input
+                    type="radio"
+                    value="online"
+                    {...register('student_type', { required: 'يرجى تحديد نوع الطالب.' })}
+                    className="accent-brand-primary h-4.5 w-4.5 cursor-pointer"
+                  />
+                </label>
+                <label className="flex items-center justify-between p-4 bg-brand-surface/20 hover:bg-brand-surface/40 border border-[var(--border-color)] rounded-2xl cursor-pointer transition-all duration-300 select-none">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base shrink-0">🏫</span>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-slate-100 block">طالب سنتر</span>
+                      <span className="text-[9px] text-slate-400 block mt-0.5">Center Student</span>
+                    </div>
+                  </div>
+                  <input
+                    type="radio"
+                    value="center"
+                    {...register('student_type', { required: 'يرجى تحديد نوع الطالب.' })}
+                    className="accent-brand-primary h-4.5 w-4.5 cursor-pointer"
+                  />
+                </label>
+              </div>
+              {errors.student_type && (
+                <p className="text-[11px] text-rose-500 font-medium">{errors.student_type.message}</p>
+              )}
             </div>
 
             {/* Grid for Passwords */}

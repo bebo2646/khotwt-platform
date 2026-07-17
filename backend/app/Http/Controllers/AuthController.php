@@ -23,6 +23,7 @@ class AuthController extends Controller
             'phone' => 'required|string',
             'parent_phone' => 'required|string',
             'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
+            'student_type' => 'required|string|in:online,center',
         ]);
 
         $phone = $request->phone;
@@ -61,6 +62,7 @@ class AuthController extends Controller
             'parent_phone' => $request->parent_phone,
             'status' => $requireApproval ? 'pending' : 'active',
             'grades' => [$request->grade],
+            'student_type' => $request->student_type,
         ]);
 
         // Auto create wallet for the student

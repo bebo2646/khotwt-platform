@@ -3353,6 +3353,7 @@ class StudentController extends Controller
             'phone' => 'required|string',
             'parent_phone' => 'required|string',
             'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
+            'student_type' => 'nullable|string|in:online,center',
         ]);
 
         $user->name = $request->name;
@@ -3360,6 +3361,9 @@ class StudentController extends Controller
         $user->phone = $request->phone;
         $user->parent_phone = $request->parent_phone;
         $user->grades = [$request->grade];
+        if ($request->has('student_type')) {
+            $user->student_type = $request->student_type;
+        }
         $user->save();
 
         return response()->json([

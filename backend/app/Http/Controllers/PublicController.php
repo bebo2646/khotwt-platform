@@ -242,7 +242,16 @@ class PublicController extends Controller
             $query->where('title', 'ilike', '%' . $request->search . '%');
         }
 
-        $courses = $query->latest()->get();
+        $user = Auth::guard('sanctum')->user();
+        if ($user && $user->isStudent() && $user->student_type) {
+            if ($user->student_type === 'online') {
+                $query->orderByRaw("CASE WHEN availability = 'online' THEN 1 WHEN availability = 'both' THEN 2 ELSE 3 END");
+            } elseif ($user->student_type === 'center') {
+                $query->orderByRaw("CASE WHEN availability = 'center' THEN 1 WHEN availability = 'both' THEN 2 ELSE 3 END");
+            }
+        }
+
+        $courses = $query->orderBy('created_at', 'desc')->get();
 
         return response()->json($courses);
     }
@@ -464,7 +473,7 @@ class PublicController extends Controller
                             $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
                             $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $lesson, $user) {
-                                $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
+                                $videoSecured = $secured;
                                 
                                 // Fetch the actual course of the lesson for view limit tracking!
                                 $physicalCourse = $lesson->unit->course;
@@ -563,6 +572,8 @@ class PublicController extends Controller
                                     'title' => $exam->title,
                                     'type' => $exam->type,
                                     'duration_minutes' => $exam->duration_minutes,
+                                    'time_limit_minutes' => $exam->time_limit_minutes,
+                                    'questions_count' => $exam->questions()->count(),
                                     'is_locked' => !$secured,
                                     'progress' => [
                                         'status' => $status,
@@ -722,7 +733,7 @@ class PublicController extends Controller
         }
 
         $availabilityMessage = null;
-        if ($course->availability === 'center' && $isStudent) {
+        if ($course->availability === 'center' && $isStudent && !$isEnrolled) {
             $availabilityMessage = 'هذا الكورس مخصص لطلاب السنتر.';
         }
 
@@ -864,7 +875,7 @@ class PublicController extends Controller
                     $secured = $hasLessonAccess && !$isLocked && !$viewLimitExceeded;
 
                     $lessonData['videos'] = $lesson->videos->map(function ($video) use ($secured, $course, $isStudent, $videoProgresses, $viewLimitDetails) {
-                        $videoSecured = $secured && !($course->availability === 'center' && $isStudent);
+                        $videoSecured = $secured;
                         
                         $progress = isset($videoProgresses[$video->id]) ? $videoProgresses[$video->id] : null;
                         
@@ -991,8 +1002,8 @@ class PublicController extends Controller
                             'type' => $exam->type,
                             'homework_type' => $exam->homework_type ?: 'normal',
                             'is_locked' => !$secured,
-                            'time_limit_minutes' => $secured ? $exam->time_limit_minutes : null,
-                            'questions_count' => $secured ? $exam->questions()->count() : 0,
+                            'time_limit_minutes' => $exam->time_limit_minutes,
+                            'questions_count' => $exam->questions()->count(),
                             'max_score' => $exam->max_score,
                             'passing_score' => $exam->passing_score,
                             'max_attempts' => $exam->max_attempts,
