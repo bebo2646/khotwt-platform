@@ -28,6 +28,19 @@ export default function Plans() {
   const [submittingId, setSubmittingId] = useState<number | null>(null)
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   
+  // Dynamic packages
+  const [activationCodePackages, setActivationCodePackages] = useState<any[]>([])
+
+  // Checkout Modal State
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false)
+  const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1)
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
+  const [selectedDuration, setSelectedDuration] = useState<string>('monthly')
+  const [customDays, setCustomDays] = useState<number>(30)
+  const [wantsCodes, setWantsCodes] = useState<boolean>(false)
+  const [selectedCodePackage, setSelectedCodePackage] = useState<any | null>(null)
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false)
+
   // Search, Filter and Sort States
   const [searchQuery, setSearchQuery] = useState('')
   const [billingTypeFilter, setBillingTypeFilter] = useState<'all' | 'monthly' | 'revenue_sharing'>('all')
@@ -58,6 +71,9 @@ export default function Plans() {
         setBillingPeriod(res.data.subscription.billing_cycle)
       }
       setHasPendingRequest(!!res.data.has_pending_request)
+      if (res.data.activation_code_packages) {
+        setActivationCodePackages(res.data.activation_code_packages)
+      }
     } catch (err: any) {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل خطط الاشتراك.', 'error')
@@ -74,20 +90,66 @@ export default function Plans() {
     return await API.post('/teacher/subscription/upgrade-request', payload)
   }
 
-  const handleRequestUpgrade = async (planId: number, duration: string) => {
-    try {
-      setSubmittingId(planId)
-      const payload = {
-        type: 'plan_upgrade',
-        requested_plan_id: planId,
-        billing_period: duration === 'yearly' ? 'annual' : duration
-      }
-      console.log('BOTTOM CARD PAYLOAD', payload)
-      const response = await submitSubscriptionRequest(payload)
-      console.log('UPGRADE RESPONSE', response)
-      console.log('UPGRADE RESPONSE DATA', response.data)
+  const getScaledPlanPrice = (plan: Plan, days: number) => {
+    if (plan.billing_type === 'revenue_sharing') {
+      return { base: 0, discount: 0, final: 0 }
+    }
+    const monthlyPrice = Number(plan.price_egp) || 0
+    const basePrice = (monthlyPrice / 30.0) * days
+    
+    // Apply discount if semi-annual (180 days) or annual (365 days)
+    let discount = 0
+    if (days === 180) {
+      discount = parseFloat(settings.discount_semi_annually || '10')
+    } else if (days >= 360) {
+      discount = parseFloat(settings.discount_annually || '20')
+    }
+    
+    const finalPrice = basePrice - (basePrice * discount / 100)
+    return {
+      base: basePrice,
+      discount,
+      final: finalPrice
+    }
+  }
 
+  const handleRequestUpgrade = async (planId: number, duration: string) => {
+    const plan = plans.find(p => p.id === planId)
+    if (!plan) return
+    
+    setSelectedPlan(plan)
+    setSelectedDuration(duration)
+    // Default duration in days based on duration string
+    let days = 30
+    if (duration === 'quarterly') days = 90
+    else if (duration === 'semi_annual') days = 180
+    else if (duration === 'annual' || duration === 'yearly') days = 365
+    setCustomDays(days)
+    
+    setWantsCodes(false)
+    setSelectedCodePackage(null)
+    setCheckoutStep(1)
+    setCheckoutModalOpen(true)
+  }
+
+  const handleConfirmCheckout = async () => {
+    if (!selectedPlan) return
+    try {
+      setCheckoutSubmitting(true)
+      const payload: any = {
+        type: 'plan_upgrade',
+        requested_plan_id: selectedPlan.id,
+        duration_days: customDays,
+      }
+      
+      // If code package selected
+      if (wantsCodes && selectedCodePackage) {
+        payload.activation_code_package_id = selectedCodePackage.id
+      }
+      
+      const response = await API.post('/teacher/subscription/upgrade-request', payload)
       showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة. سيتم تفعيله بعد التحقق.', 'success')
+      setCheckoutModalOpen(false)
       loadData(true)
     } catch (err: any) {
       console.error(err)
@@ -96,7 +158,7 @@ export default function Plans() {
         : (err.response?.data?.message || 'فشل تقديم طلب الترقية.')
       showToast(errorMsg, 'error')
     } finally {
-      setSubmittingId(null)
+      setCheckoutSubmitting(false)
     }
   }
 
@@ -294,6 +356,268 @@ export default function Plans() {
               />
             )
           })}
+        </div>
+      )}
+
+      {/* Checkout Wizard Modal */}
+      {checkoutModalOpen && selectedPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 text-right" dir="rtl">
+            
+            {/* Modal Header */}
+            <div className="flex justify-between items-center border-b border-slate-850 pb-4">
+              <h3 className="text-base font-black text-slate-200 flex items-center gap-2">
+                <Award className="w-5 h-5 text-indigo-400" />
+                <span>إتمّام ترقية/تجديد الاشتراك</span>
+              </h3>
+              <button
+                onClick={() => setCheckoutModalOpen(false)}
+                className="text-slate-400 hover:text-white transition cursor-pointer text-xs font-bold bg-slate-850 px-3 py-1.5 rounded-lg"
+              >
+                إغلاق
+              </button>
+            </div>
+
+            {/* Steps Progress Indicator */}
+            <div className="flex justify-between items-center px-4">
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  checkoutStep >= 1 ? 'bg-indigo-650 text-white font-black' : 'bg-slate-800 text-slate-400'
+                }`}>1</div>
+                <span className="text-[9px] text-slate-450 mt-1 font-bold">مدة الاشتراك</span>
+              </div>
+              <div className="flex-1 h-0.5 bg-slate-850 mx-2" />
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  checkoutStep >= 2 ? 'bg-indigo-650 text-white font-black' : 'bg-slate-800 text-slate-400'
+                }`}>2</div>
+                <span className="text-[9px] text-slate-450 mt-1 font-bold">أكواد تفعيل إضافية</span>
+              </div>
+              <div className="flex-1 h-0.5 bg-slate-850 mx-2" />
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                  checkoutStep >= 3 ? 'bg-indigo-650 text-white font-black' : 'bg-slate-800 text-slate-400'
+                }`}>3</div>
+                <span className="text-[9px] text-slate-450 mt-1 font-bold">مراجعة وتأكيد</span>
+              </div>
+            </div>
+
+            {/* Wizard Content */}
+            <div className="min-h-[220px] py-2">
+              
+              {/* STEP 1: Select Duration */}
+              {checkoutStep === 1 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-300 mb-1">الخطوة 1: اختر مدة صلاحية الاشتراك</h4>
+                    <p className="text-[10px] text-slate-450">يمكنك اختيار صلاحية مخصصة بالايام للاشتراك وتجديده.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    {[
+                      { label: '30 يوم', days: 30 },
+                      { label: '60 يوم', days: 60 },
+                      { label: '90 يوم', days: 90 },
+                      { label: '180 يوم', days: 180, tag: `خصم ${settings.discount_semi_annually || '10'}%` },
+                      { label: '365 يوم', days: 365, tag: `خصم ${settings.discount_annually || '20'}%` }
+                    ].map(d => {
+                      const isSelected = customDays === d.days
+                      return (
+                        <button
+                          key={d.days}
+                          type="button"
+                          onClick={() => setCustomDays(d.days)}
+                          className={`relative p-3 rounded-xl border text-center transition cursor-pointer flex flex-col justify-center items-center ${
+                            isSelected 
+                              ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400 font-bold' 
+                              : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:border-slate-800'
+                          }`}
+                        >
+                          <span className="text-xs">{d.label}</span>
+                          {d.tag && (
+                            <span className="absolute -top-2 bg-rose-600 text-white text-[8px] px-1 rounded-md font-extrabold">{d.tag}</span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Dynamic Price Calculation display */}
+                  <div className="bg-slate-950/60 p-4 border border-slate-850 rounded-2xl flex justify-between items-center text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">الباقة المختارة:</span>
+                      <strong className="text-slate-200">{selectedPlan.name}</strong>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-slate-400 block text-[10px]">قيمة الاشتراك:</span>
+                      <strong className="text-emerald-400 text-sm">
+                        {selectedPlan.billing_type === 'revenue_sharing' 
+                          ? 'نظام نسبة مشاركة الأرباح' 
+                          : `${getScaledPlanPrice(selectedPlan, customDays).final.toFixed(2)} ج.م`
+                        }
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: Ask for Codes */}
+              {checkoutStep === 2 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-300 mb-1">الخطوة 2: هل ترغب في إضافة حزمة أكواد تفعيل للطلاب الآن؟</h4>
+                    <p className="text-[10px] text-slate-450">تمنحك الأكواد سعة لتسجيل الطلاب وتفعيل حساباتهم على منصتك.</p>
+                  </div>
+
+                  <div className="flex bg-slate-950 p-1 border border-slate-850 rounded-xl gap-2 max-w-xs mx-auto mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWantsCodes(true)
+                        if (activationCodePackages.length > 0) {
+                          setSelectedCodePackage(activationCodePackages[0])
+                        }
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition ${
+                        wantsCodes ? 'bg-indigo-600 text-white font-black' : 'text-slate-500'
+                      }`}
+                    >
+                      نعم، أرغب في إضافة حزمة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWantsCodes(false)
+                        setSelectedCodePackage(null)
+                      }}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer transition ${
+                        !wantsCodes ? 'bg-indigo-600 text-white font-black' : 'text-slate-500'
+                      }`}
+                    >
+                      لا، شكراً
+                    </button>
+                  </div>
+
+                  {wantsCodes && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[140px] overflow-y-auto pr-1">
+                      {activationCodePackages.map(pkg => {
+                        const isSelected = selectedCodePackage?.id === pkg.id
+                        return (
+                          <button
+                            key={pkg.id}
+                            type="button"
+                            onClick={() => setSelectedCodePackage(pkg)}
+                            className={`p-3 rounded-xl border text-right transition cursor-pointer flex justify-between items-center ${
+                              isSelected 
+                                ? 'bg-indigo-650/10 border-indigo-550 text-indigo-400 font-bold' 
+                                : 'bg-slate-950/40 border-slate-850 text-slate-400 hover:border-slate-800'
+                            }`}
+                          >
+                            <div>
+                              <span className="text-xs font-black block text-slate-200">{pkg.name}</span>
+                              <span className="text-[10px] text-slate-450">{pkg.number_of_codes} كود طلاب</span>
+                            </div>
+                            <span className="text-xs font-black text-emerald-450">{Number(pkg.total_price).toFixed(2)} ج.م</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 3: Grand Total Summary */}
+              {checkoutStep === 3 && (
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-300 mb-1">الخطوة 3: مراجعة ملخص الفاتورة الإجمالية</h4>
+                    <p className="text-[10px] text-slate-450">يرجى التأكد من تفاصيل طلبك وقيمته قبل إرساله للإدارة.</p>
+                  </div>
+
+                  <div className="bg-slate-950/40 border border-slate-850 rounded-2xl p-4 text-xs space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">باقة الاشتراك الأساسية:</span>
+                      <strong className="text-slate-200">{selectedPlan.name}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">صلاحية الاشتراك:</span>
+                      <strong className="text-slate-200">{customDays} يوم</strong>
+                    </div>
+                    <div className="flex justify-between items-center border-b border-slate-850/60 pb-2">
+                      <span className="text-slate-400 font-bold">سعر الباقة الأساسي:</span>
+                      <strong className="text-emerald-400">
+                        {selectedPlan.billing_type === 'revenue_sharing' 
+                          ? 'مشاركة أرباح (0.00 ج.م)' 
+                          : `${getScaledPlanPrice(selectedPlan, customDays).final.toFixed(2)} ج.م`
+                        }
+                      </strong>
+                    </div>
+
+                    {wantsCodes && selectedCodePackage && (
+                      <div className="flex justify-between items-center border-b border-slate-850/60 pb-2">
+                        <span className="text-slate-400 font-bold">حزمة الأكواد المضافة ({selectedCodePackage.name}):</span>
+                        <strong className="text-emerald-400">{Number(selectedCodePackage.total_price).toFixed(2)} ج.م</strong>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center pt-2">
+                      <span className="text-sm font-black text-indigo-400">المجموع الإجمالي للفاتورة:</span>
+                      <strong className="text-base font-black text-emerald-400">
+                        {(
+                          (selectedPlan.billing_type === 'revenue_sharing' ? 0 : getScaledPlanPrice(selectedPlan, customDays).final) + 
+                          (wantsCodes && selectedCodePackage ? Number(selectedCodePackage.total_price) : 0)
+                        ).toFixed(2)} ج.م
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-between items-center pt-4 border-t border-slate-850">
+              <div>
+                {checkoutStep > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutStep((prev) => (prev - 1) as any)}
+                    className="px-5 py-2 bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    السابق
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCheckoutModalOpen(false)}
+                  className="px-5 py-2 bg-slate-850 hover:bg-slate-800 text-slate-350 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                {checkoutStep < 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCheckoutStep((prev) => (prev + 1) as any)}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl active:scale-95 transition cursor-pointer"
+                  >
+                    التالي
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmCheckout}
+                    disabled={checkoutSubmitting}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black rounded-xl active:scale-95 transition cursor-pointer disabled:opacity-50"
+                  >
+                    {checkoutSubmitting ? 'جاري التقديم...' : 'تأكيد وإرسال الطلب'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+          </div>
         </div>
       )}
     </div>

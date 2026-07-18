@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import API from '../../services/api'
-import { Check, X, ShieldAlert, Award, HardDrive, Users, Calendar, MessageSquare, AlertCircle } from 'lucide-react'
+import { Check, X, ShieldAlert, Award, HardDrive, Users, Calendar, MessageSquare, AlertCircle, Database, Code, DollarSign } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 import { Link } from 'react-router-dom'
 
@@ -28,6 +28,19 @@ interface SubscriptionRequest {
   billing_period: 'monthly' | 'quarterly' | 'semi_annual' | 'annual'
   admin_response: string | null
   created_at: string
+  activation_code_package?: {
+    id: number
+    name: string
+    number_of_codes: number
+    total_price: number | string
+  }
+  storage_package?: {
+    id: number
+    name: string
+    storage_gb: number
+    price: number | string
+  }
+  total_price?: number | string
 }
 
 export default function SubscriptionRequests() {
@@ -158,9 +171,22 @@ export default function SubscriptionRequests() {
                         <strong>الباقة المطلوبة:</strong> {req.requested_plan?.name} ({req.billing_period === 'annual' ? 'سنوي' : (req.billing_period === 'semi_annual' ? 'نصف سنوي' : req.billing_period === 'quarterly' ? '3 أشهر' : 'شهري')})
                       </span>
                     )}
-                    {req.type !== 'plan_upgrade' && (
+                    {req.type === 'extra_storage' && (
                       <span className="flex items-center gap-1.5">
-                        <strong>الكمية الإضافية:</strong> {req.amount} {req.type === 'extra_storage' ? 'جيجا' : 'كود'}
+                        <Database className="w-4 h-4 text-emerald-400" />
+                        <strong>الباقة المطلوبة:</strong> {req.storage_package ? req.storage_package.name : `${req.amount} جيجابايت`}
+                      </span>
+                    )}
+                    {req.type === 'extra_codes' && (
+                      <span className="flex items-center gap-1.5">
+                        <Code className="w-4 h-4 text-blue-400" />
+                        <strong>الباقة المطلوبة:</strong> {req.activation_code_package ? req.activation_code_package.name : `${req.amount} كود`}
+                      </span>
+                    )}
+                    {req.total_price !== undefined && req.total_price !== null && (
+                      <span className="flex items-center gap-1.5">
+                        <DollarSign className="w-4 h-4 text-emerald-400" />
+                        <strong>التكلفة المقدرة:</strong> <strong className="text-emerald-400">{Number(req.total_price).toFixed(2)} ج.م</strong>
                       </span>
                     )}
                     <span className="flex items-center gap-1.5">

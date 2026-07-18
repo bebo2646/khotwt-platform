@@ -117,6 +117,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Teacher Subscription routes (always accessible)
             Route::get('/teacher/subscription', [SubscriptionController::class, 'getTeacherSubscriptionSelf']);
             Route::post('/teacher/subscription/upgrade-request', [SubscriptionController::class, 'requestUpgradeSelf']);
+            Route::get('/teacher/activation-code-packages', [SubscriptionController::class, 'listActivationCodePackagesPublic']);
+            Route::get('/teacher/storage-packages', [SubscriptionController::class, 'listStoragePackagesPublic']);
             Route::get('/teacher/storage', [TeacherController::class, 'getStorageStats']);
             Route::get('/teacher/videos', [TeacherController::class, 'listVideos']);
             Route::get('/teacher/student-course-limits', [TeacherController::class, 'getStudentCourseLimits']);
@@ -217,6 +219,20 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::get('/admin/subscription-plans/{id}/price-history', [SubscriptionController::class, 'getPriceHistory']);
                 Route::get('/admin/subscription-plans/{id}/audit-logs', [SubscriptionController::class, 'getAuditLogs']);
                 Route::post('/admin/subscription-settings', [SubscriptionController::class, 'updateSettings']);
+
+                // Activation Code Packages
+                Route::get('/admin/activation-code-packages', [SubscriptionController::class, 'listActivationCodePackagesAdmin']);
+                Route::post('/admin/activation-code-packages', [SubscriptionController::class, 'createActivationCodePackage']);
+                Route::put('/admin/activation-code-packages/{id}', [SubscriptionController::class, 'updateActivationCodePackage']);
+                Route::delete('/admin/activation-code-packages/{id}', [SubscriptionController::class, 'deleteActivationCodePackage']);
+                Route::post('/admin/activation-code-packages/{id}/toggle', [SubscriptionController::class, 'toggleActivationCodePackageStatus']);
+
+                // Storage Packages
+                Route::get('/admin/storage-packages', [SubscriptionController::class, 'listStoragePackagesAdmin']);
+                Route::post('/admin/storage-packages', [SubscriptionController::class, 'createStoragePackage']);
+                Route::put('/admin/storage-packages/{id}', [SubscriptionController::class, 'updateStoragePackage']);
+                Route::delete('/admin/storage-packages/{id}', [SubscriptionController::class, 'deleteStoragePackage']);
+                Route::post('/admin/storage-packages/{id}/toggle', [SubscriptionController::class, 'toggleStoragePackageStatus']);
             });
 
             // Students Management

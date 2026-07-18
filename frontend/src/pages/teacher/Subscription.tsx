@@ -90,6 +90,12 @@ export default function Subscription() {
   const [sendingRequest, setSendingRequest] = useState(false)
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
 
+  // Dynamic packages
+  const [activationCodePackages, setActivationCodePackages] = useState<any[]>([])
+  const [storagePackages, setStoragePackages] = useState<any[]>([])
+  const [selectedCodePackageId, setSelectedCodePackageId] = useState<string>('')
+  const [selectedStoragePackageId, setSelectedStoragePackageId] = useState<string>('')
+
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null)
 
@@ -140,6 +146,19 @@ export default function Subscription() {
         setReqPlanId(filterPlans[0].id.toString())
       }
       setHasPendingRequest(!!res.data.has_pending_request)
+
+      if (res.data.activation_code_packages) {
+        setActivationCodePackages(res.data.activation_code_packages)
+        if (res.data.activation_code_packages.length > 0 && !selectedCodePackageId) {
+          setSelectedCodePackageId(res.data.activation_code_packages[0].id.toString())
+        }
+      }
+      if (res.data.storage_packages) {
+        setStoragePackages(res.data.storage_packages)
+        if (res.data.storage_packages.length > 0 && !selectedStoragePackageId) {
+          setSelectedStoragePackageId(res.data.storage_packages[0].id.toString())
+        }
+      }
     } catch (err: any) {
       console.error(err)
       showToast(err.response?.data?.message || 'فشل تحميل بيانات الاشتراك.', 'error')
@@ -195,26 +214,28 @@ export default function Subscription() {
 
   const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (requestType !== 'plan_upgrade' && reqAmount <= 0) {
-      showToast('يرجى تحديد كمية صالحة أكبر من الصفر.', 'warning')
-      return
-    }
 
     try {
       setSendingRequest(true)
-      const payload = {
+      const payload: any = {
         type: requestType,
-        requested_plan_id: requestType === 'plan_upgrade' ? Number(reqPlanId) : null,
-        amount: requestType !== 'plan_upgrade' ? reqAmount : null,
-        billing_period: requestType === 'plan_upgrade' ? billingPeriod : null,
       }
+      
+      if (requestType === 'plan_upgrade') {
+        payload.requested_plan_id = Number(reqPlanId)
+        payload.billing_period = billingPeriod
+      } else if (requestType === 'extra_storage') {
+        payload.storage_package_id = Number(selectedStoragePackageId)
+      } else if (requestType === 'extra_codes') {
+        payload.activation_code_package_id = Number(selectedCodePackageId)
+      }
+
       console.log('TOP FORM PAYLOAD', payload)
       const response = await submitSubscriptionRequest(payload)
       console.log('UPGRADE RESPONSE', response)
       console.log('UPGRADE RESPONSE DATA', response.data)
 
       showToast(response.data.message || 'تم تقديم طلب الترقية بنجاح إلى إدارة المنصة للمراجعة.', 'success')
-      setReqAmount(0)
       setRequestType('plan_upgrade')
       setShowRequestSection(false)
       loadData(true)
@@ -464,18 +485,26 @@ export default function Subscription() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-            <div className="bg-[var(--bg-color)]/25 p-4 rounded-xl border border-[var(--border-color)]">
-              <span className="text-[10px] text-[var(--text-secondary)] block mb-1">سعر وقيمة الاشتراك الحالي</span>
-              <span className="text-xs font-black text-[var(--text-color)]">
-                {subscription.plan?.billing_type === 'revenue_sharing' 
-                  ? `نظام النسبة (عمولة ${subscription.plan?.commission_percentage}%)` 
-                  : `${Number(subscription.final_price).toFixed(2)} ج.م / ${
-                      subscription.billing_period === 'annual' ? 'سنوي' : 
-                      subscription.billing_period === 'semi_annual' ? '6 أشهر' : 
-                      subscription.billing_period === 'quarterly' ? '3 أشهر' : 'شهرياً'
-                    }`
-                }
-              </span>
+            <div className="bg-[var(--bg-color)]/25 p-4 rounded-xl border border-[var(--border-color)] flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] text-[var(--text-secondary)] block mb-1">سعر وقيمة الاشتراك الحالي</span>
+                <span className="text-xs font-black text-[var(--text-color)]">
+                  {subscription.plan?.billing_type === 'revenue_sharing' 
+                    ? `نظام النسبة (عمولة ${subscription.plan?.commission_percentage}%)` 
+                    : `${Number(subscription.final_price).toFixed(2)} ج.م / ${
+                        subscription.billing_period === 'annual' ? 'سنوي' : 
+                        subscription.billing_period === 'semi_annual' ? '6 أشهر' : 
+                        subscription.billing_period === 'quarterly' ? '3 أشهر' : 'شهرياً'
+                      }`
+                  }
+                </span>
+              </div>
+              <button
+                onClick={() => navigate('/teacher/plans')}
+                className="mt-3 w-full py-1.5 bg-indigo-650/10 hover:bg-indigo-650/20 text-indigo-450 font-bold text-[10px] rounded-lg active:scale-95 transition cursor-pointer text-center border border-indigo-550/10"
+              >
+                ترقية أو تجديد الباقة
+              </button>
             </div>
             <div className="bg-[var(--bg-color)]/25 p-4 rounded-xl border border-[var(--border-color)]">
               <span className="text-[10px] text-[var(--text-secondary)] block mb-1">تاريخ بداية الباقة</span>
@@ -527,6 +556,13 @@ export default function Subscription() {
                     <span className="font-bold text-brand-primary">السعة المتبقية: {subscription.remaining_codes} طالب</span>
                   </div>
 
+                  {subscription.remaining_codes !== null && subscription.remaining_codes < 10 && (
+                    <div className="mt-2 p-3 bg-amber-500/10 border border-amber-500/20 text-amber-450 rounded-xl text-[10px] font-extrabold flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>تنبيه: رصيد أكواد التفعيل الخاص بك شارف على النفاد. Your activation code balance is running low.</span>
+                    </div>
+                  )}
+
                   {/* Breakdown & Extra Capacity */}
                   <div className="pt-2 flex flex-col gap-2 border-t border-[var(--border-color)]/45 mt-2">
                     <div className="flex justify-between items-center text-xs">
@@ -545,6 +581,22 @@ export default function Subscription() {
                         </div>
                       </>
                     )}
+                  </div>
+
+                  {/* Action Button */}
+                  <div className="pt-4 mt-2 border-t border-[var(--border-color)]/30">
+                    <button
+                      onClick={() => {
+                        setRequestType('extra_codes')
+                        setShowRequestSection(true)
+                        setTimeout(() => {
+                          document.getElementById('upgrade-request-form')?.scrollIntoView({ behavior: 'smooth' })
+                        }, 100)
+                      }}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl active:scale-95 transition cursor-pointer text-center"
+                    >
+                      شراء أكواد تفعيل إضافية
+                    </button>
                   </div>
                 </div>
               )}
@@ -597,6 +649,22 @@ export default function Subscription() {
                       </div>
                     </>
                   )}
+                </div>
+
+                {/* Action Button */}
+                <div className="pt-4 mt-2 border-t border-[var(--border-color)]/30">
+                  <button
+                    onClick={() => {
+                      setRequestType('extra_storage')
+                      setShowRequestSection(true)
+                      setTimeout(() => {
+                        document.getElementById('upgrade-request-form')?.scrollIntoView({ behavior: 'smooth' })
+                      }, 100)
+                    }}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl active:scale-95 transition cursor-pointer text-center"
+                  >
+                    شراء مساحة تخزين إضافية
+                  </button>
                 </div>
               </div>
             </div>
@@ -735,24 +803,20 @@ export default function Subscription() {
               <div>
                 <label className="text-xs text-[var(--text-secondary)] block mb-1.5 font-bold">اختر باقة التخزين الإضافية</label>
                 <select
-                  value={reqAmount}
-                  onChange={(e) => setReqAmount(Number(e.target.value))}
-                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500"
+                  value={selectedStoragePackageId}
+                  onChange={(e) => setSelectedStoragePackageId(e.target.value)}
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-bold"
                 >
-                  <option value="0">-- اختر باقة مساحة تخزين --</option>
-                  <option value="1">1 جيجابايت (15 ج.م)</option>
-                  <option value="10">10 جيجابايت (120 ج.م)</option>
-                  <option value="25">25 جيجابايت (250 ج.م)</option>
-                  <option value="50">50 جيجابايت (450 ج.م)</option>
+                  {storagePackages.length === 0 && <option value="">لا يوجد باقات تخزين متاحة حالياً</option>}
+                  {storagePackages.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({pkg.storage_gb} GB) - {Number(pkg.price).toFixed(2)} ج.م / شهرياً
+                    </option>
+                  ))}
                 </select>
-                {reqAmount > 0 && (
-                  <span className="text-[10px] text-[var(--text-secondary)] mt-1 block font-bold">
-                    تكلفة الباقة المحددة: {
-                      reqAmount === 1 ? 15 : 
-                      reqAmount === 10 ? 120 : 
-                      reqAmount === 25 ? 250 : 
-                      reqAmount === 50 ? 450 : 0
-                    } جنيه مصري
+                {selectedStoragePackageId && (
+                  <span className="text-[10px] text-indigo-400 mt-1.5 block font-bold">
+                    سيتم إرسال طلب تفعيل الباقة للإدارة للموافقة عليها.
                   </span>
                 )}
               </div>
@@ -762,22 +826,20 @@ export default function Subscription() {
               <div>
                 <label className="text-xs text-[var(--text-secondary)] block mb-1.5 font-bold">اختر باقة الطلاب الإضافية</label>
                 <select
-                  value={reqAmount}
-                  onChange={(e) => setReqAmount(Number(e.target.value))}
-                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500"
+                  value={selectedCodePackageId}
+                  onChange={(e) => setSelectedCodePackageId(e.target.value)}
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-color)] rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-indigo-500 cursor-pointer font-bold"
                 >
-                  <option value="0">-- اختر باقة أكواد طلاب --</option>
-                  <option value="50">50 كود (75 ج.م)</option>
-                  <option value="100">100 كود (140 ج.م)</option>
-                  <option value="250">250 كود (300 ج.م)</option>
+                  {activationCodePackages.length === 0 && <option value="">لا يوجد باقات أكواد متاحة حالياً</option>}
+                  {activationCodePackages.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} ({pkg.number_of_codes} كود) - بسعر {Number(pkg.total_price).toFixed(2)} ج.م
+                    </option>
+                  ))}
                 </select>
-                {reqAmount > 0 && (
-                  <span className="text-[10px] text-[var(--text-secondary)] mt-1 block font-bold">
-                    تكلفة الباقة المحددة: {
-                      reqAmount === 50 ? 75 : 
-                      reqAmount === 100 ? 140 : 
-                      reqAmount === 250 ? 300 : 0
-                    } جنيه مصري
+                {selectedCodePackageId && (
+                  <span className="text-[10px] text-indigo-400 mt-1.5 block font-bold">
+                    سيتم إرسال طلب تفعيل الباقة للإدارة للموافقة عليها.
                   </span>
                 )}
               </div>
@@ -785,7 +847,7 @@ export default function Subscription() {
 
             <button
               type="submit"
-              disabled={sendingRequest || hasPendingRequest || (requestType !== 'plan_upgrade' && reqAmount <= 0)}
+              disabled={sendingRequest || hasPendingRequest || (requestType === 'extra_storage' && !selectedStoragePackageId) || (requestType === 'extra_codes' && !selectedCodePackageId)}
               className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg active:scale-95 transition cursor-pointer disabled:opacity-50"
             >
               {sendingRequest ? 'جاري تقديم الطلب...' : hasPendingRequest ? 'لديك طلب ترقية معلق' : 'إرسال طلب الترقية'}

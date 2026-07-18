@@ -167,6 +167,8 @@ class SubscriptionController extends Controller
             'payments' => $subscription->payments()->orderBy('created_at', 'desc')->get(),
             'plans' => SubscriptionPlan::orderBy('sort_order', 'asc')->get(),
             'settings' => $this->getSettings(),
+            'activation_code_packages' => \App\Models\ActivationCodePackage::orderBy('sort_order', 'asc')->get(),
+            'storage_packages' => \App\Models\StoragePackage::orderBy('sort_order', 'asc')->get(),
         ]);
     }
 
@@ -179,6 +181,8 @@ class SubscriptionController extends Controller
             'plan_id' => 'required|exists:subscription_plans,id',
             'duration_months' => 'nullable|integer|min:1',
             'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
+            'duration_days' => 'nullable|integer|min:1',
+            'activation_code_package_id' => 'nullable|exists:activation_code_packages,id',
         ]);
 
         $teacher = User::where('role', 'teacher')->findOrFail($id);
@@ -190,36 +194,56 @@ class SubscriptionController extends Controller
             $billingPeriod = 'annual';
         }
         $months = $request->duration_months;
+        $durationDays = $request->duration_days;
 
-        if ($billingPeriod) {
-            if ($billingPeriod === 'monthly') {
-                $months = 1;
-            } elseif ($billingPeriod === 'quarterly') {
-                $months = 3;
-            } elseif ($billingPeriod === 'semi_annual') {
-                $months = 6;
-            } elseif ($billingPeriod === 'annual') {
-                $months = 12;
-            }
+        if ($durationDays) {
+            $billingPeriod = is_numeric($request->billing_period) ? 'custom' : ($request->billing_period ?: 'custom');
         } else {
-            // fallback if billing period is not provided but months are
-            if ($months == 1) {
-                $billingPeriod = 'monthly';
-            } elseif ($months == 3) {
-                $billingPeriod = 'quarterly';
-            } elseif ($months == 6) {
-                $billingPeriod = 'semi_annual';
-            } elseif ($months == 12) {
-                $billingPeriod = 'annual';
+            if ($billingPeriod) {
+                if ($billingPeriod === 'monthly') {
+                    $months = 1;
+                } elseif ($billingPeriod === 'quarterly') {
+                    $months = 3;
+                } elseif ($billingPeriod === 'semi_annual') {
+                    $months = 6;
+                } elseif ($billingPeriod === 'annual') {
+                    $months = 12;
+                }
+                $durationDays = $months * 30;
             } else {
-                $billingPeriod = 'monthly';
+                if ($months == 1) {
+                    $billingPeriod = 'monthly';
+                } elseif ($months == 3) {
+                    $billingPeriod = 'quarterly';
+                } elseif ($months == 6) {
+                    $billingPeriod = 'semi_annual';
+                } elseif ($months == 12) {
+                    $billingPeriod = 'annual';
+                } else {
+                    $billingPeriod = 'monthly';
+                }
+                $durationDays = ($months ?: 1) * 30;
             }
         }
 
-        $details = $this->getSubscriptionPriceDetails($plan, $billingPeriod);
-        
-        $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $billingPeriod, 'upgrade');
+        $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $billingPeriod, 'upgrade', $durationDays);
         $details = $calc['details'];
+
+        $price = $details['final_price'];
+        $grandTotal = $price;
+        $paymentNotes = "تجديد/ترقية باقة ({$plan->name}) - دورة {$details['billing_cycle']}";
+
+        if ($request->activation_code_package_id) {
+            $codePackage = \App\Models\ActivationCodePackage::findOrFail($request->activation_code_package_id);
+            SubscriptionAddon::create([
+                'teacher_subscription_id' => $subscription->id,
+                'type' => 'codes',
+                'amount' => $codePackage->number_of_codes,
+                'price_egp' => $codePackage->total_price,
+            ]);
+            $grandTotal += (float)$codePackage->total_price;
+            $paymentNotes .= " + إضافة حزمة أكواد ({$codePackage->name})";
+        }
 
         $subscription->update([
             'plan_id' => $plan->id,
@@ -227,19 +251,18 @@ class SubscriptionController extends Controller
             'billing_cycle' => $details['billing_cycle'],
             'discount_percentage' => $details['discount_percentage'],
             'discount_amount' => $details['discount_amount'],
-            'final_price' => $details['final_price'],
+            'final_price' => $price,
             'start_date' => $calc['start_date'],
             'end_date' => $calc['end_date'],
             'status' => 'Active',
         ]);
 
-        // Calculate price and log payment
-        $price = $details['final_price'];
+        // Create subscription payment log
         SubscriptionPayment::create([
             'teacher_subscription_id' => $subscription->id,
-            'amount' => $price,
+            'amount' => $grandTotal,
             'payment_status' => 'Paid',
-            'notes' => "تجديد/ترقية باقة ({$plan->name}) - دورة {$details['billing_cycle']}",
+            'notes' => $paymentNotes,
             'payment_date' => Carbon::now(),
             'admin_name' => $request->user()->name,
             'admin_id' => $request->user()->id ?? null,
@@ -248,7 +271,7 @@ class SubscriptionController extends Controller
         // Send Notification
         $this->notificationService->sendNotification(
             'تجديد وترقية الاشتراك',
-            "تم تفعيل باقة ({$plan->name}) لاشتراكك بنجاح من قبل الإدارة بدورة دفع ({$billingPeriod}) بقيمة {$price} ج.م.",
+            "تم تفعيل باقة ({$plan->name}) لاشتراكك بنجاح من قبل الإدارة بدورة دفع ({$billingPeriod}) بقيمة {$grandTotal} ج.م.",
             'specific_teacher',
             $teacher->id
         );
@@ -271,12 +294,27 @@ class SubscriptionController extends Controller
     /**
      * Helper to calculate start and end dates based on active/grace/expired state and plan.
      */
-    private function calculateNewSubscriptionDates($subscription, $newPlan, $billingCycle, $actionType)
+    private function calculateNewSubscriptionDates($subscription, $newPlan, $billingCycle, $actionType, $durationDays = null)
     {
-        $details = $this->getSubscriptionPriceDetails($newPlan, $billingCycle);
-        $months = $details['months'];
-        
         $today = Carbon::today();
+        
+        // If duration in days is provided or billingCycle is numeric
+        if ($durationDays !== null) {
+            $days = (int)$durationDays;
+        } elseif (is_numeric($billingCycle)) {
+            $days = (int)$billingCycle;
+        } else {
+            // standard billingCycle translation
+            if ($billingCycle === 'quarterly') {
+                $days = 90;
+            } elseif ($billingCycle === 'semi_annual') {
+                $days = 180;
+            } elseif ($billingCycle === 'annual' || $billingCycle === 'yearly') {
+                $days = 365;
+            } else {
+                $days = 30; // Default is 30 days
+            }
+        }
         
         // Check if it's renewal of the SAME plan
         $isSamePlan = $subscription && ((int)$subscription->plan_id === (int)$newPlan->id);
@@ -291,27 +329,55 @@ class SubscriptionController extends Controller
                     // Renewing while Active: extend old end date
                     $currentEndDate = Carbon::parse($subscription->end_date);
                     $newStartDate = $subscription->start_date->toDateString();
-                    $newEndDate = $currentEndDate->addMonths($months)->toDateString();
+                    $newEndDate = $currentEndDate->addDays($days)->toDateString();
                 } else {
                     // Renewing while Grace or Expired: starts from today
                     $newStartDate = $today->toDateString();
-                    $newEndDate = $today->copy()->addMonths($months)->toDateString();
+                    $newEndDate = $today->copy()->addDays($days)->toDateString();
                 }
             } else {
                 // Changing plan (Upgrade/Downgrade): start from today
                 $newStartDate = $today->toDateString();
-                $newEndDate = $today->copy()->addMonths($months)->toDateString();
+                $newEndDate = $today->copy()->addDays($days)->toDateString();
             }
         } else {
             // No previous subscription: starts from today
             $newStartDate = $today->toDateString();
-            $newEndDate = $today->copy()->addMonths($months)->toDateString();
+            $newEndDate = $today->copy()->addDays($days)->toDateString();
         }
+
+        // Calculate price dynamically based on days using the plan's monthly price
+        $monthlyPrice = (float)($newPlan->price ?? $newPlan->price_egp ?? 0);
+        $basePrice = ($monthlyPrice / 30.0) * $days;
+        
+        $discountPercentage = 0.00;
+        if ($durationDays === null && !is_numeric($billingCycle)) {
+            $settings = $this->getSettings();
+            $semiDiscount = isset($settings['discount_semi_annually']) ? (float)$settings['discount_semi_annually'] : 10.00;
+            $annualDiscount = isset($settings['discount_annually']) ? (float)$settings['discount_annually'] : 20.00;
+            
+            if ($billingCycle === 'semi_annual') {
+                $discountPercentage = $semiDiscount;
+            } elseif ($billingCycle === 'annual' || $billingCycle === 'yearly') {
+                $discountPercentage = $annualDiscount;
+            }
+        }
+        
+        $discountAmount = $basePrice * ($discountPercentage / 100.0);
+        $finalPrice = $basePrice - $discountAmount;
 
         return [
             'start_date' => $newStartDate,
             'end_date' => $newEndDate,
-            'details' => $details,
+            'details' => [
+                'months' => round($days / 30.0, 1),
+                'days' => $days,
+                'billing_cycle' => is_numeric($billingCycle) ? 'custom' : $billingCycle,
+                'discount_percentage' => $discountPercentage,
+                'discount_amount' => round($discountAmount, 2),
+                'final_price' => round($finalPrice, 2),
+                'base_price' => round($basePrice, 2)
+            ]
         ];
     }
 
@@ -597,7 +663,7 @@ class SubscriptionController extends Controller
      */
     public function getSubscriptionRequests(Request $request)
     {
-        $requests = SubscriptionRequest::with(['teacher', 'requestedPlan'])
+        $requests = SubscriptionRequest::with(['teacher', 'requestedPlan', 'activationCodePackage', 'storagePackage'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -658,7 +724,7 @@ class SubscriptionController extends Controller
                     }
                 }
 
-                $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $period, 'upgrade');
+                $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $period, 'upgrade', $subRequest->duration_days);
                 
                 $discountPercentage = $calc['details']['discount_percentage'];
                 $discountAmount = $calc['details']['discount_amount'];
@@ -677,25 +743,53 @@ class SubscriptionController extends Controller
                 ]);
 
                 // Create billing
+                $grandTotal = $subRequest->total_price ?: $price;
+                $paymentNotes = "قيمة تجديد وترقية الباقة إلى ({$plan->name}) - فترة: " . ($period === 'annual' || $period === 'yearly' ? 'سنوي' : ($period === 'semi_annual' ? 'نصف سنوي' : ($period === 'quarterly' ? '3 أشهر' : 'شهري')));
+                
+                if ($subRequest->activation_code_package_id) {
+                    $codePackage = \App\Models\ActivationCodePackage::find($subRequest->activation_code_package_id);
+                    if ($codePackage) {
+                        SubscriptionAddon::create([
+                            'teacher_subscription_id' => $subscription->id,
+                            'type' => 'codes',
+                            'amount' => $codePackage->number_of_codes,
+                            'price_egp' => $codePackage->total_price,
+                        ]);
+                        $paymentNotes .= " + إضافة حزمة أكواد ({$codePackage->name})";
+                    }
+                }
+
                 SubscriptionPayment::create([
                     'teacher_subscription_id' => $subscription->id,
-                    'amount' => $price,
+                    'amount' => $grandTotal,
                     'payment_status' => 'Pending',
-                    'notes' => "قيمة تجديد وترقية الباقة إلى ({$plan->name}) - فترة: " . ($period === 'annual' || $period === 'yearly' ? 'سنوي' : ($period === 'semi_annual' ? 'نصف سنوي' : ($period === 'quarterly' ? '3 أشهر' : 'شهري'))),
+                    'notes' => $paymentNotes,
                 ]);
 
                 $this->notificationService->sendNotification(
                     'تمت الموافقة على طلب الترقية',
-                    "تمت الموافقة على طلب ترقية باقتك إلى ({$plan->name}) بنجاح بقيمة {$price} ج.م، وتم إصدار فاتورة بالقيمة.{$adminNote}",
+                    "تمت الموافقة على طلب ترقية باقتك إلى ({$plan->name}) بنجاح بقيمة {$grandTotal} ج.م، وتم إصدار فاتورة بالقيمة.{$adminNote}",
                     'specific_teacher',
                     $teacher->id
                 );
             } elseif ($subRequest->type === 'extra_storage') {
-                $price = $this->calculateAddonPrice('storage', $subRequest->amount);
+                $price = $subRequest->final_price ?: $this->calculateAddonPrice('storage', $subRequest->amount);
+                $storageGb = $subRequest->amount;
+                $notes = "قيمة إضافة مساحة تخزين (+{$storageGb} جيجا)";
+
+                if ($subRequest->storage_package_id) {
+                    $storagePackage = \App\Models\StoragePackage::find($subRequest->storage_package_id);
+                    if ($storagePackage) {
+                        $price = $storagePackage->price;
+                        $storageGb = $storagePackage->storage_gb;
+                        $notes = "قيمة إضافة مساحة تخزين حزمة ({$storagePackage->name})";
+                    }
+                }
+
                 SubscriptionAddon::create([
                     'teacher_subscription_id' => $subscription->id,
                     'type' => 'storage',
-                    'amount' => $subRequest->amount,
+                    'amount' => $storageGb,
                     'price_egp' => $price,
                 ]);
 
@@ -703,17 +797,29 @@ class SubscriptionController extends Controller
                     'teacher_subscription_id' => $subscription->id,
                     'amount' => $price,
                     'payment_status' => 'Pending',
-                    'notes' => "قيمة إضافة مساحة تخزين (+{$subRequest->amount} جيجا)",
+                    'notes' => $notes,
                 ]);
 
                 $this->notificationService->sendNotification(
                     'تمت الموافقة على طلب المساحة الإضافية',
-                    "تمت إضافة مساحة تخزين (+{$subRequest->amount} جيجا) إلى حسابك بعد الموافقة على طلبكم.{$adminNote}",
+                    "تمت إضافة مساحة تخزين (+{$storageGb} جيجا) إلى حسابك بعد الموافقة على طلبكم.{$adminNote}",
                     'specific_teacher',
                     $teacher->id
                 );
             } elseif ($subRequest->type === 'extra_codes') {
-                $price = $this->calculateAddonPrice('codes', $subRequest->amount);
+                $price = $subRequest->final_price ?: $this->calculateAddonPrice('codes', $subRequest->amount);
+                $codesCount = $subRequest->amount;
+                $notes = "قيمة إضافة أكواد طلاب (+{$codesCount} كود)";
+
+                if ($subRequest->activation_code_package_id) {
+                    $codePackage = \App\Models\ActivationCodePackage::find($subRequest->activation_code_package_id);
+                    if ($codePackage) {
+                        $price = $codePackage->total_price;
+                        $codesCount = $codePackage->number_of_codes;
+                        $notes = "قيمة إضافة أكواد حزمة ({$codePackage->name})";
+                    }
+                }
+
                 SubscriptionAddon::create([
                     'teacher_subscription_id' => $subscription->id,
                     'type' => 'codes',
@@ -925,6 +1031,11 @@ class SubscriptionController extends Controller
             $alerts[] = 'تنبيه: لقد استهلكت أكثر من 90% من المساحة المتاحة باشتراكك.';
         }
 
+        // Add low code warnings
+        if ($subscription->remaining_codes !== null && $subscription->remaining_codes < 10) {
+            $alerts[] = 'رصيد أكواد التفعيل الخاص بك شارف على النفاد. Your activation code balance is running low.';
+        }
+
         $hasPendingRequest = \App\Models\SubscriptionRequest::where('teacher_id', $teacher->id)
             ->where('status', 'Pending')
             ->exists();
@@ -970,6 +1081,8 @@ class SubscriptionController extends Controller
             'settings' => $this->getSettings(),
             'alerts' => $alerts,
             'has_pending_request' => $hasPendingRequest,
+            'activation_code_packages' => \App\Models\ActivationCodePackage::where('active', true)->orderBy('sort_order', 'asc')->get(),
+            'storage_packages' => \App\Models\StoragePackage::where('active', true)->orderBy('sort_order', 'asc')->get(),
             'earnings' => [
                 'platform_commission' => $earningsPlatformCommission,
                 'teacher_earnings' => $earningsTeacherTotal,
@@ -989,25 +1102,14 @@ class SubscriptionController extends Controller
             'payload' => $request->all()
         ]);
 
-        // Map alternate field names to amount for robustness
-        foreach (['storage_amount', 'extra_storage', 'gb_amount', 'resource_amount', 'quantity'] as $field) {
-            if ($request->has($field) && !$request->has('amount')) {
-                $request->merge(['amount' => $request->input($field)]);
-            }
-        }
-
-        // Default to 1 if no amount is selected for additional resources
-        if ($request->type !== 'plan_upgrade') {
-            $request->merge([
-                'amount' => $request->amount ?? 1
-            ]);
-        }
-
         $validator = \Validator::make($request->all(), [
             'type' => 'required|in:plan_upgrade,extra_storage,extra_codes',
             'requested_plan_id' => 'nullable|required_if:type,plan_upgrade|exists:subscription_plans,id',
-            'amount' => 'required_if:type,extra_storage,extra_codes|integer|min:1',
-            'billing_period' => 'nullable|string|in:monthly,quarterly,semi_annual,annual,yearly',
+            'amount' => 'nullable|integer|min:1',
+            'billing_period' => 'nullable|string',
+            'duration_days' => 'nullable|integer|min:1',
+            'activation_code_package_id' => 'nullable|exists:activation_code_packages,id',
+            'storage_package_id' => 'nullable|exists:storage_packages,id',
         ]);
 
         if ($validator->fails()) {
@@ -1056,48 +1158,90 @@ class SubscriptionController extends Controller
                 ], 400);
             }
 
-            $billingCycle = $request->type === 'plan_upgrade' ? ($request->billing_period ?: 'monthly') : 'monthly';
-            if ($billingCycle === 'yearly') {
-                $billingCycle = 'annual';
+            $durationDays = $request->duration_days ?: 30; // default 30 days
+            $activationCodePackageId = $request->activation_code_package_id;
+            $storagePackageId = $request->storage_package_id;
+
+            $billingCycle = 'monthly';
+            if ($request->type === 'plan_upgrade') {
+                $billingCycle = is_numeric($request->billing_period) ? 'custom' : ($request->billing_period ?: 'monthly');
+                if ($billingCycle === 'yearly') {
+                    $billingCycle = 'annual';
+                }
             }
+
             $discountPercentage = 0;
             $discountAmount = 0;
             $finalPrice = 0;
+            $totalPrice = 0;
+            $amount = null;
 
             if ($request->type === 'plan_upgrade') {
                 $plan = SubscriptionPlan::findOrFail($request->requested_plan_id);
                 
                 // Protection: Deactivated plans cannot be requested/purchased
-                if (!$plan->isActive) {
+                if (!$plan->active && !$plan->isActive) {
                     return response()->json(['message' => 'عذراً، خطة الاشتراك المطلوبة غير متاحة حالياً ولا يمكن الترقية إليها.'], 400);
                 }
                 
-                $details = $this->getSubscriptionPriceDetails($plan, $billingCycle);
-                $discountPercentage = $details['discount_percentage'];
-                $discountAmount = $details['discount_amount'];
-                $finalPrice = $details['final_price'];
-            } else {
-                $finalPrice = $this->calculateAddonPrice($request->type, $request->amount);
+                // Calculate subscription price
+                $calc = $this->calculateNewSubscriptionDates($subscription, $plan, $billingCycle, 'upgrade', $durationDays);
+                $discountPercentage = $calc['details']['discount_percentage'];
+                $discountAmount = $calc['details']['discount_amount'];
+                $finalPrice = $calc['details']['final_price'];
+                $totalPrice = $finalPrice;
+
+                // Add activation code package if chosen
+                if ($activationCodePackageId) {
+                    $codePackage = \App\Models\ActivationCodePackage::findOrFail($activationCodePackageId);
+                    $totalPrice += (float)$codePackage->total_price;
+                }
+            } elseif ($request->type === 'extra_storage') {
+                if ($storagePackageId) {
+                    $storagePackage = \App\Models\StoragePackage::findOrFail($storagePackageId);
+                    $amount = $storagePackage->storage_gb;
+                    $finalPrice = $storagePackage->price;
+                    $totalPrice = $finalPrice;
+                } else {
+                    $amount = (int)$request->amount;
+                    $finalPrice = $this->calculateAddonPrice('storage', $amount);
+                    $totalPrice = $finalPrice;
+                }
+            } elseif ($request->type === 'extra_codes') {
+                if ($activationCodePackageId) {
+                    $codePackage = \App\Models\ActivationCodePackage::findOrFail($activationCodePackageId);
+                    $amount = $codePackage->number_of_codes;
+                    $finalPrice = $codePackage->total_price;
+                    $totalPrice = $finalPrice;
+                } else {
+                    $amount = (int)$request->amount;
+                    $finalPrice = $this->calculateAddonPrice('codes', $amount);
+                    $totalPrice = $finalPrice;
+                }
             }
 
             $upgradeRequest = SubscriptionRequest::create([
                 'teacher_id' => $teacher->id,
                 'type' => $request->type,
                 'requested_plan_id' => $request->type === 'plan_upgrade' ? $request->requested_plan_id : null,
-                'amount' => $request->type !== 'plan_upgrade' ? $request->amount : null,
+                'amount' => $amount,
                 'billing_period' => $billingCycle,
                 'billing_cycle' => $billingCycle,
                 'discount_percentage' => $discountPercentage,
                 'discount_amount' => $discountAmount,
                 'final_price' => $finalPrice,
                 'status' => 'Pending',
+                'duration_days' => $request->type === 'plan_upgrade' ? $durationDays : null,
+                'activation_code_package_id' => $activationCodePackageId,
+                'storage_package_id' => $storagePackageId,
+                'total_price' => $totalPrice,
             ]);
 
             // Send alert to admin
             $this->notificationService->sendNotification(
                 'طلب ترقية اشتراك جديد',
                 "المعلم {$teacher->name} أرسل طلب ترقية من نوع ({$request->type}) وبانتظار المراجعة.",
-                'admin' // Delivers to admin notification views
+                'admin'
             );
 
             return response()->json([
@@ -2036,6 +2180,154 @@ class SubscriptionController extends Controller
             'student_codes_limit' => $finalCodes,
             'extra_storage_gb' => $newStorage,
             'extra_student_codes' => $newCodes,
+        ]);
+    }
+
+    /*
+     * ----------------------------------------------------
+     * Activation Code Packages CRUD Endpoints
+     * ----------------------------------------------------
+     */
+
+    public function listActivationCodePackagesAdmin(Request $request)
+    {
+        $packages = \App\Models\ActivationCodePackage::orderBy('sort_order', 'asc')->get();
+        return response()->json($packages);
+    }
+
+    public function listActivationCodePackagesPublic(Request $request)
+    {
+        $packages = \App\Models\ActivationCodePackage::where('active', true)->orderBy('sort_order', 'asc')->get();
+        return response()->json($packages);
+    }
+
+    public function createActivationCodePackage(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'number_of_codes' => 'required|integer|min:1',
+            'price_per_code' => 'required|numeric|min:0',
+            'total_price' => 'required|numeric|min:0',
+            'active' => 'boolean',
+            'sort_order' => 'integer',
+        ]);
+
+        $package = \App\Models\ActivationCodePackage::create($validated);
+        return response()->json([
+            'message' => 'تم إنشاء باقة الأكواد بنجاح',
+            'package' => $package
+        ], 201);
+    }
+
+    public function updateActivationCodePackage(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'number_of_codes' => 'required|integer|min:1',
+            'price_per_code' => 'required|numeric|min:0',
+            'total_price' => 'required|numeric|min:0',
+            'active' => 'boolean',
+            'sort_order' => 'integer',
+        ]);
+
+        $package = \App\Models\ActivationCodePackage::findOrFail($id);
+        $package->update($validated);
+        return response()->json([
+            'message' => 'تم تحديث باقة الأكواد بنجاح',
+            'package' => $package
+        ]);
+    }
+
+    public function deleteActivationCodePackage(Request $request, $id)
+    {
+        $package = \App\Models\ActivationCodePackage::findOrFail($id);
+        $package->delete();
+        return response()->json([
+            'message' => 'تم حذف باقة الأكواد بنجاح'
+        ]);
+    }
+
+    public function toggleActivationCodePackageStatus(Request $request, $id)
+    {
+        $package = \App\Models\ActivationCodePackage::findOrFail($id);
+        $package->active = !$package->active;
+        $package->save();
+        return response()->json([
+            'message' => 'تم تغيير حالة باقة الأكواد بنجاح',
+            'package' => $package
+        ]);
+    }
+
+    /*
+     * ----------------------------------------------------
+     * Storage Packages CRUD Endpoints
+     * ----------------------------------------------------
+     */
+
+    public function listStoragePackagesAdmin(Request $request)
+    {
+        $packages = \App\Models\StoragePackage::orderBy('sort_order', 'asc')->get();
+        return response()->json($packages);
+    }
+
+    public function listStoragePackagesPublic(Request $request)
+    {
+        $packages = \App\Models\StoragePackage::where('active', true)->orderBy('sort_order', 'asc')->get();
+        return response()->json($packages);
+    }
+
+    public function createStoragePackage(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'storage_gb' => 'required|integer|min:1',
+            'price' => 'required|numeric|min:0',
+            'active' => 'boolean',
+            'sort_order' => 'integer',
+        ]);
+
+        $package = \App\Models\StoragePackage::create($validated);
+        return response()->json([
+            'message' => 'تم إنشاء باقة التخزين بنجاح',
+            'package' => $package
+        ], 201);
+    }
+
+    public function updateStoragePackage(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'storage_gb' => 'required|integer|min:1',
+            'price' => 'required|numeric|min:0',
+            'active' => 'boolean',
+            'sort_order' => 'integer',
+        ]);
+
+        $package = \App\Models\StoragePackage::findOrFail($id);
+        $package->update($validated);
+        return response()->json([
+            'message' => 'تم تحديث باقة التخزين بنجاح',
+            'package' => $package
+        ]);
+    }
+
+    public function deleteStoragePackage(Request $request, $id)
+    {
+        $package = \App\Models\StoragePackage::findOrFail($id);
+        $package->delete();
+        return response()->json([
+            'message' => 'تم حذف باقة التخزين بنجاح'
+        ]);
+    }
+
+    public function toggleStoragePackageStatus(Request $request, $id)
+    {
+        $package = \App\Models\StoragePackage::findOrFail($id);
+        $package->active = !$package->active;
+        $package->save();
+        return response()->json([
+            'message' => 'تم تغيير حالة باقة التخزين بنجاح',
+            'package' => $package
         ]);
     }
 }

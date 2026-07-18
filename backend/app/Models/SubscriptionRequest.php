@@ -18,6 +18,10 @@ class SubscriptionRequest extends Model
         'discount_amount',
         'final_price',
         'admin_response',
+        'duration_days',
+        'activation_code_package_id',
+        'storage_package_id',
+        'total_price',
     ];
 
     public function teacher()
@@ -28,5 +32,15 @@ class SubscriptionRequest extends Model
     public function requestedPlan()
     {
         return $this->belongsTo(SubscriptionPlan::class, 'requested_plan_id');
+    }
+
+    public function activationCodePackage()
+    {
+        return $this->belongsTo(ActivationCodePackage::class, 'activation_code_package_id');
+    }
+
+    public function storagePackage()
+    {
+        return $this->belongsTo(StoragePackage::class, 'storage_package_id');
     }
 }

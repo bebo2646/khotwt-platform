@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useModalStore } from '../../store/modalStore'
+import ActivationCodePackagesManager from '../../components/admin/ActivationCodePackagesManager'
+import StoragePackagesManager from '../../components/admin/StoragePackagesManager'
 
 interface Plan {
   id: number
@@ -75,6 +77,7 @@ export default function SubscriptionPlans() {
   const isSuperAdmin = !!user?.is_super_admin || !!user?.is_super
   const hasEditPermission = isSuperAdmin || (!!user?.permissions && user.permissions.includes('subscription_plans.edit'))
 
+  const [activeTab, setActiveTab] = useState<'plans' | 'codes' | 'storage'>('plans')
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -513,7 +516,7 @@ export default function SubscriptionPlans() {
               setEditingPlan(null)
               setIsFormOpen(true)
             }}
-            className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm px-6 py-3 rounded-2xl shadow-lg shadow-indigo-600/15 transition active:scale-95 cursor-pointer"
+            className={activeTab === 'plans' ? "flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-extrabold text-sm px-6 py-3 rounded-2xl shadow-lg shadow-indigo-600/15 transition active:scale-95 cursor-pointer" : "hidden"}
           >
             <Plus className="w-4 h-4" />
             <span>إنشاء باقة جديدة</span>
@@ -521,8 +524,46 @@ export default function SubscriptionPlans() {
         )}
       </div>
 
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
+      {/* Tabs */}
+      <div className="flex border-b border-slate-800/85 mb-8 gap-6 justify-start text-right" dir="rtl">
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`pb-4 text-xs font-black transition-all cursor-pointer relative ${
+            activeTab === 'plans' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>خطط اشتراك المعلمين</span>
+          {activeTab === 'plans' && (
+            <div className="absolute bottom-0 right-0 left-0 h-0.5 bg-indigo-500 rounded-full"></div>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('codes')}
+          className={`pb-4 text-xs font-black transition-all cursor-pointer relative ${
+            activeTab === 'codes' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>باقات أكواد الطلاب</span>
+          {activeTab === 'codes' && (
+            <div className="absolute bottom-0 right-0 left-0 h-0.5 bg-indigo-500 rounded-full"></div>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('storage')}
+          className={`pb-4 text-xs font-black transition-all cursor-pointer relative ${
+            activeTab === 'storage' ? 'text-indigo-500' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>باقات مساحة التخزين الإضافية</span>
+          {activeTab === 'storage' && (
+            <div className="absolute bottom-0 right-0 left-0 h-0.5 bg-indigo-500 rounded-full"></div>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'plans' ? (
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-20">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-sm text-[var(--text-secondary)] mt-4 font-bold">جاري تحميل باقات الاشتراك...</span>
         </div>
@@ -807,7 +848,7 @@ export default function SubscriptionPlans() {
             )
           })}
         </div>
-      )}
+      )) : activeTab === 'codes' ? <ActivationCodePackagesManager /> : <StoragePackagesManager />}
 
       {isFormOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
