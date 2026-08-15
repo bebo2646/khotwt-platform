@@ -156,7 +156,12 @@ class AdminController extends Controller
     public function listTeachers()
     {
         $teachers = User::where('role', 'teacher')
-            ->with(['teacherSubscription.plan'])
+            ->with([
+                'teacherSubscription.plan',
+                'teacherSubscription.addons',
+                'teacherSubscription.payments',
+                'teacherSubscription.resourceOverride'
+            ])
             ->withCount('courses')
             ->withCount(['courses as students_count' => function ($query) {
                 $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
@@ -167,39 +172,21 @@ class AdminController extends Controller
             ->latest()
             ->get();
 
-        $syncService = null;
-        try {
-            $syncService = app(\App\Services\BunnySubscriptionService::class);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error("Failed to resolve BunnySubscriptionService: " . $e->getMessage());
-        }
-
         foreach ($teachers as $t) {
             if ($t->teacherSubscription) {
-                try {
-                    if ($syncService) {
-                        $syncService->syncStorageAndCodes($t->id);
-                        $t->teacherSubscription->refresh();
-                    }
+                $sub = $t->teacherSubscription;
+                
+                // Expiration days remaining
+                $today = \Carbon\Carbon::today();
+                $endDate = $sub->end_date ? \Carbon\Carbon::parse($sub->end_date) : $today;
+                $remainingDays = $today->diffInDays($endDate, false);
 
-                    $sub = $t->teacherSubscription;
-                    
-                    // Expiration days remaining
-                    $today = \Carbon\Carbon::today();
-                    $endDate = $sub->end_date ? \Carbon\Carbon::parse($sub->end_date) : $today;
-                    $remainingDays = $today->diffInDays($endDate, false);
+                // Retrieve payment status (in-memory from eager-loaded payments)
+                $payment = $sub->payments ? $sub->payments->sortByDesc('created_at')->first() : null;
+                $paymentStatus = $payment ? $payment->payment_status : 'Pending';
 
-                    // Retrieve payment status (e.g. from recent payment)
-                    $payment = \App\Models\SubscriptionPayment::where('teacher_subscription_id', $sub->id)
-                        ->latest()
-                        ->first();
-                    $paymentStatus = $payment ? $payment->payment_status : 'Pending';
-
-                    $sub->remaining_days = max(0, $remainingDays);
-                    $sub->payment_status = $paymentStatus;
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::error("Failed to sync or enrich storage/codes for teacher {$t->id}: " . $e->getMessage());
-                }
+                $sub->remaining_days = max(0, $remainingDays);
+                $sub->payment_status = $paymentStatus;
             }
         }
 
@@ -215,9 +202,10 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|string',
             'subject' => 'required|string',
+            'category' => 'nullable|string',
             'bio' => 'nullable|string',
             'experience' => 'required|string',
-            'grades' => 'required|array|min:1',
+            'grades' => 'nullable|array',
             'avatar' => 'nullable|string',
             'email' => 'nullable|string|email|unique:users,email',
             'password' => 'nullable|string|min:6',
@@ -265,9 +253,10 @@ class AdminController extends Controller
                 'role' => 'teacher',
                 'phone' => $request->phone,
                 'subject' => $request->subject,
+                'category' => $request->category ?? 'school',
                 'bio' => $request->bio,
                 'experience' => $request->experience,
-                'grades' => $request->grades,
+                'grades' => $request->grades ?? [],
                 'avatar' => $request->avatar,
                 'must_change_password' => $mustChange,
                 'status' => $status,
@@ -408,16 +397,17 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|string',
             'subject' => 'required|string',
+            'category' => 'nullable|string',
             'bio' => 'nullable|string',
             'experience' => 'required|string',
-            'grades' => 'required|array',
+            'grades' => 'nullable|array',
             'status' => 'required|string|in:active,disabled',
             'avatar' => 'nullable|string',
             'teaching_mode' => 'nullable|string|in:online,center,both',
         ]);
 
         $teacher->update($request->only([
-            'name', 'phone', 'subject', 'bio', 'experience', 'grades', 'status', 'avatar', 'teaching_mode'
+            'name', 'phone', 'subject', 'category', 'bio', 'experience', 'grades', 'status', 'avatar', 'teaching_mode'
         ]));
 
         return response()->json([

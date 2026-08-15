@@ -73,6 +73,9 @@ class TeacherSubscription extends Model
     // Accessors
     public function getUsedCodesAttribute()
     {
+        if (array_key_exists('used_codes', $this->attributes) && $this->attributes['used_codes'] !== null) {
+            return (int) $this->attributes['used_codes'];
+        }
         $courseIds = \App\Models\Course::where('teacher_id', $this->teacher_id)->pluck('id');
         return \App\Models\Enrollment::whereIn('course_id', $courseIds)
             ->join('users', 'enrollments.student_id', '=', 'users.id')
@@ -84,6 +87,9 @@ class TeacherSubscription extends Model
 
     public function getUsedStorageBytesAttribute()
     {
+        if (array_key_exists('used_storage_bytes', $this->attributes) && $this->attributes['used_storage_bytes'] !== null) {
+            return (int) $this->attributes['used_storage_bytes'];
+        }
         return (int) \App\Models\Video::whereHas('lesson.unit.course', function ($q) {
             $q->where('teacher_id', $this->teacher_id);
         })->sum('storage_size');
@@ -91,16 +97,24 @@ class TeacherSubscription extends Model
 
     public function getExtraStorageGbAttribute()
     {
-        $addonSum = (float) ($this->addons()->where('type', 'storage')->sum('amount') ?? 0);
-        $overrideStorage = $this->resourceOverride ? (float) $this->resourceOverride->extra_storage_gb : 0;
+        $addonSum = $this->relationLoaded('addons')
+            ? (float) ($this->addons->where('type', 'storage')->sum('amount') ?? 0)
+            : (float) ($this->addons()->where('type', 'storage')->sum('amount') ?? 0);
+        $overrideStorage = $this->relationLoaded('resourceOverride')
+            ? ($this->resourceOverride ? (float) $this->resourceOverride->extra_storage_gb : 0)
+            : ($this->resourceOverride ? (float) $this->resourceOverride->extra_storage_gb : 0);
         $salesStorage = (float) ($this->allocated_storage_from_sales ?? 0);
         return $addonSum + $overrideStorage + $salesStorage;
     }
 
     public function getExtraCodesAttribute()
     {
-        $addonSum = (int) ($this->addons()->where('type', 'codes')->sum('amount') ?? 0);
-        $overrideCodes = $this->resourceOverride ? (int) $this->resourceOverride->extra_student_codes : 0;
+        $addonSum = $this->relationLoaded('addons')
+            ? (int) ($this->addons->where('type', 'codes')->sum('amount') ?? 0)
+            : (int) ($this->addons()->where('type', 'codes')->sum('amount') ?? 0);
+        $overrideCodes = $this->relationLoaded('resourceOverride')
+            ? ($this->resourceOverride ? (int) $this->resourceOverride->extra_student_codes : 0)
+            : ($this->resourceOverride ? (int) $this->resourceOverride->extra_student_codes : 0);
         return $addonSum + $overrideCodes;
     }
 

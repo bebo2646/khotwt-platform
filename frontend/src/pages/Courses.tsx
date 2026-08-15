@@ -112,11 +112,12 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
     return mapped || raw
   }, [subjectId, subjectDefault, searchParams])
 
+  const resolvedCategory = searchParams.get('category') || ''
   const searchQuery = searchParams.get('search') || ''
 
   React.useEffect(() => {
     setLoading(true)
-    const params = `grade=${resolvedGrade}&subject=${resolvedSubject}&search=${searchQuery}`
+    const params = `grade=${resolvedGrade}&subject=${resolvedSubject}&category=${resolvedCategory}&search=${searchQuery}`
     
     const fetchPromises: Promise<any>[] = [
       API.get(`/courses?${params}`),
@@ -226,36 +227,67 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
   const safeRecommendedCourses = Array.isArray(recommendedCourses) ? recommendedCourses : []
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+    <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10 text-right" dir="rtl">
       <SEO 
         title={seoInfo.title}
         description={seoInfo.description}
       />
       
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-black">كورسات ومراجعات المنصة</h1>
-        <p className="text-sm text-text-secondary font-light mt-1">تصفح المحتوى الدراسي المتاح واشترك مباشرة</p>
+      {/* Header Banner */}
+      <div className="bg-slate-950/80 border border-slate-800 p-8 rounded-[32px] shadow-xl relative overflow-hidden space-y-3">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+        <span className="px-3.5 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-black rounded-full inline-block">
+          📚 دليل المناهج المتاحة
+        </span>
+        <h1 className="text-3xl sm:text-5xl font-black text-foreground">كورسات ومراجعات المنصة</h1>
+        <p className="text-xs sm:text-sm text-slate-300 font-medium">تصفح المحتوى الدراسي المتاح لجميع المراحل واشترك مباشرة في دروس معلميك المفضلين</p>
       </div>
 
-      {/* Filters bar */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-brand-card border border-border-color p-4 rounded-2xl">
+      {/* Filters & Search Studio */}
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-950/80 border border-slate-800 p-5 rounded-2xl shadow-lg">
         
         {/* Dropdowns */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-          {/* Grade */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          {/* Category */}
           <div className="relative w-full sm:w-56">
+            <select
+              value={resolvedCategory}
+              onChange={(e) => {
+                const nextParams = new URLSearchParams(searchParams)
+                if (e.target.value) {
+                  nextParams.set('category', e.target.value)
+                } else {
+                  nextParams.delete('category')
+                }
+                setSearchParams(nextParams)
+              }}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
+            >
+              <option value="">جميع المجالات التعليمية</option>
+              <option value="school">🎓 التعليم المدرسي</option>
+              <option value="programming">💻 البرمجة والتكنولوجيا</option>
+              <option value="business">📈 التجارة والأعمال</option>
+              <option value="design">🎨 التصميم والإبداع</option>
+              <option value="languages">🌍 اللغات والترجمة</option>
+              <option value="marketing">📱 التسويق الرقمي</option>
+              <option value="skills">💼 المهارات المهنية</option>
+            </select>
+            <ChevronDown className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-slate-400" />
+          </div>
+
+          {/* Grade */}
+          <div className="relative w-full sm:w-52">
             <select
               value={resolvedGrade}
               onChange={handleGradeFilterChange}
-              className="w-full bg-brand-surface border border-border-color rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:border-brand-primary text-xs font-semibold"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
             >
               <option value="">جميع الصفوف الدراسية</option>
               {GRADES.map((g) => (
                 <option key={g.key} value={g.key}>{g.val}</option>
               ))}
             </select>
-            <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
+            <ChevronDown className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-slate-400" />
           </div>
 
           {/* Subject */}
@@ -263,30 +295,30 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
             <select
               value={resolvedSubject}
               onChange={handleSubjectFilterChange}
-              className="w-full bg-brand-surface border border-border-color rounded-xl px-4 py-2.5 appearance-none focus:outline-none focus:border-brand-primary text-xs font-semibold"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
             >
-              <option value="">جميع المواد العلمية</option>
+              <option value="">جميع المواد والتخصصات</option>
               {SUBJECTS.map((s) => (
                 <option key={s.key} value={s.key}>{s.val}</option>
               ))}
             </select>
-            <ChevronDown className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none text-slate-400" />
+            <ChevronDown className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-slate-400" />
           </div>
         </div>
 
         {/* Search Input */}
-        <form onSubmit={handleSearchChange} className="w-full md:w-80 flex gap-2">
+        <form onSubmit={handleSearchChange} className="w-full lg:w-96 flex gap-2">
           <div className="relative w-full">
             <input
               type="text"
               name="search-input"
               defaultValue={searchQuery}
-              placeholder="ابحث باسم الكورس..."
-              className="w-full bg-brand-surface border border-border-color rounded-xl pr-10 pl-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
+              placeholder="ابحث باسم الكورس أو المدرس..."
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-3 text-xs font-bold text-slate-200 focus:outline-none focus:border-brand-primary placeholder:text-slate-500"
             />
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           </div>
-          <button type="submit" className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer">
+          <button type="submit" className="px-5 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md shrink-0 cursor-pointer">
             بحث
           </button>
         </form>

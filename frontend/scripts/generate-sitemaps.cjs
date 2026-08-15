@@ -2,14 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const HOST = 'https://elm-platform.com';
-const API_URL = 'https://khotwt-platform-production.up.railway.app/api';
+const HOST = process.env.VITE_SITE_URL || 'https://elm-platform.com';
+const API_URL = process.env.VITE_API_URL || process.env.API_URL || 'https://khotwt-platform-production.up.railway.app/api';
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
+    const client = url.startsWith('https') ? https : require('http');
+    client.get(url, (res) => {
       if (res.statusCode !== 200) {
-        reject(new Error(`Failed to fetch JSON, status code: ${res.statusCode}`));
+        reject(new Error(`API HTTP ${res.statusCode} (${url})`));
         return;
       }
       let data = '';

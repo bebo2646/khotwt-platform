@@ -23,6 +23,7 @@ class PublicController extends Controller
 
         // Featured published courses (up to 6)
         $featuredCourses = Course::with('teacher')
+            ->withCount(['units', 'lessons'])
             ->where('is_published', true)
             ->latest()
             ->take(6)
@@ -53,51 +54,84 @@ class PublicController extends Controller
     }
 
     /**
-     * AJAX Cascading Filter 1: Get subjects for a grade based on published courses.
+     * AJAX Cascading Filter 1: Get subjects for a grade/category based on published courses.
      */
     public function filterSubjects(Request $request)
     {
-        $request->validate(['grade' => 'required|string']);
         $grade = $request->grade;
+        $category = $request->category;
 
-        $subjects = Course::where('grade', $grade)
-            ->where('is_published', true)
-            ->distinct()
-            ->pluck('subject');
+        $query = Course::where('is_published', true);
+
+        if ($grade) {
+            $query->where('grade', $grade);
+        }
+
+        if ($category && $category !== 'all') {
+            $query->where(function($q) use ($category) {
+                $q->where('category', $category);
+                if ($category === 'school' || $category === 'general_education') {
+                    $q->orWhereNull('category');
+                }
+            });
+        }
+
+        $subjects = $query->distinct()->pluck('subject');
 
         return response()->json($subjects);
     }
 
     /**
-     * AJAX Cascading Filter 2: Get teachers teaching a subject in a grade.
+     * AJAX Cascading Filter 2: Get teachers teaching a subject in a grade/category.
      */
     public function filterTeachers(Request $request)
     {
-        $request->validate([
-            'grade' => 'required|string',
-            'subject' => 'required|string'
-        ]);
-
         $grade = $request->grade;
         $subject = $request->subject;
+        $category = $request->category;
 
         $teachers = User::where('role', 'teacher')
             ->where('status', 'active')
-            ->where(function ($q) use ($grade, $subject) {
+            ->where(function ($q) use ($grade, $subject, $category) {
                 // Either matching course criteria
-                $q->whereHas('courses', function ($query) use ($grade, $subject) {
-                    $query->where('grade', $grade)
-                        ->where('subject', $subject)
-                        ->where('is_published', true);
+                $q->whereHas('courses', function ($query) use ($grade, $subject, $category) {
+                    if ($grade) {
+                        $query->where('grade', $grade);
+                    }
+                    if ($subject) {
+                        $query->where('subject', $subject);
+                    }
+                    if ($category && $category !== 'all') {
+                        $query->where(function($sq) use ($category) {
+                            $sq->where('category', $category);
+                            if ($category === 'school' || $category === 'general_education') {
+                                $sq->orWhereNull('category');
+                            }
+                        });
+                    }
+                    $query->where('is_published', true);
                 })
                 // Or matching explicit profile subject & grade fields
-                ->orWhere(function ($query) use ($grade, $subject) {
+                ->orWhere(function ($query) use ($grade, $subject, $category) {
                     $query->where(function ($sq) use ($subject) {
-                        $sq->where('subject', $subject)
-                           ->orWhere('subject', 'LIKE', $subject . ',%')
-                           ->orWhere('subject', 'LIKE', '%,' . $subject)
-                           ->orWhere('subject', 'LIKE', '%,' . $subject . ',%');
-                    })->whereJsonContains('grades', $grade);
+                        if ($subject) {
+                            $sq->where('subject', $subject)
+                               ->orWhere('subject', 'LIKE', $subject . ',%')
+                               ->orWhere('subject', 'LIKE', '%,' . $subject)
+                               ->orWhere('subject', 'LIKE', '%,' . $subject . ',%');
+                        }
+                    });
+                    if ($grade) {
+                        $query->whereJsonContains('grades', $grade);
+                    }
+                    if ($category && $category !== 'all') {
+                        $query->where(function($cq) use ($category) {
+                            $cq->where('category', $category);
+                            if ($category === 'school' || $category === 'general_education') {
+                                $cq->orWhereNull('category');
+                            }
+                        });
+                    }
                 });
             })
             ->withCount(['courses as published_courses_count' => function ($query) {
@@ -114,11 +148,21 @@ class PublicController extends Controller
     public function teachers(Request $request)
     {
         $teachingMode = $request->input('teaching_mode');
-        $cacheKey = 'public_teachers_list_' . ($teachingMode ?: 'all');
+        $category = $request->input('category');
+        $cacheKey = 'public_teachers_list_' . ($teachingMode ?: 'all') . '_' . ($category ?: 'all');
 
-        $teachers = \Cache::remember($cacheKey, 300, function() use ($teachingMode) {
+        $teachers = \Cache::remember($cacheKey, 300, function() use ($teachingMode, $category) {
             $query = User::where('role', 'teacher')
                 ->where('status', 'active');
+
+            if ($category && $category !== 'all') {
+                $query->where(function($q) use ($category) {
+                    $q->where('category', $category);
+                    if ($category === 'school' || $category === 'general_education') {
+                        $q->orWhereNull('category');
+                    }
+                });
+            }
 
             if ($teachingMode) {
                 if ($teachingMode === 'online') {
@@ -220,7 +264,17 @@ class PublicController extends Controller
      */
     public function courses(Request $request)
     {
-        $query = Course::with('teacher')->withCount('lessons')->where('is_published', true);
+        $query = Course::with('teacher')->withCount(['units', 'lessons'])->where('is_published', true);
+
+        if ($request->has('category') && $request->category && $request->category !== 'all') {
+            $category = $request->category;
+            $query->where(function($q) use ($category) {
+                $q->where('category', $category);
+                if ($category === 'school' || $category === 'general_education') {
+                    $q->orWhereNull('category');
+                }
+            });
+        }
 
         if ($request->has('grade') && $request->grade) {
             $query->where('grade', $request->grade);

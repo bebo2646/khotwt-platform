@@ -46,21 +46,21 @@ export default function TeacherCard({
   let teachingModeBadge = null;
   if (teaching_mode === 'online') {
     teachingModeBadge = (
-      <span className="absolute top-3 left-3 px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-[9px] text-green-400 font-black rounded-full flex items-center gap-1 z-10">
+      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
         <span>🟢</span>
         <span>أونلاين</span>
       </span>
     );
   } else if (teaching_mode === 'center') {
     teachingModeBadge = (
-      <span className="absolute top-3 left-3 px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/30 text-[9px] text-yellow-400 font-black rounded-full flex items-center gap-1 z-10">
+      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
         <span>🏫</span>
         <span>سنتر</span>
       </span>
     );
   } else if (teaching_mode === 'both') {
     teachingModeBadge = (
-      <span className="absolute top-3 left-3 px-2 py-0.5 bg-purple-500/10 border border-purple-500/30 text-[9px] text-purple-400 font-black rounded-full flex items-center gap-1 z-10">
+      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-purple-500/10 border border-purple-500/30 text-[10px] text-purple-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
         <span>🟣</span>
         <span>أونلاين + سنتر</span>
       </span>
@@ -69,16 +69,16 @@ export default function TeacherCard({
 
   return (
     <motion.div 
-      whileHover={{ y: -6, scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
-      className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 text-center space-y-4 hover:border-brand-primary/40 hover:shadow-xl hover:shadow-[0_0_25px_var(--glow-color)] transition-all duration-300 flex flex-col justify-between h-full"
+      whileHover={{ y: -5, scale: 1.01 }}
+      transition={{ type: "spring", stiffness: 350, damping: 25 }}
+      className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 text-center space-y-4 hover:border-brand-primary/40 hover:shadow-xl hover:shadow-[0_0_30px_var(--glow-color)] transition-all duration-300 flex flex-col justify-between h-full"
     >
       {teachingModeBadge}
-      <div className="absolute top-0 right-0 w-20 h-20 bg-brand-primary/5 rounded-full blur-2xl pointer-events-none"></div>
+      <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-primary/20 transition-all"></div>
       
-      <div className="space-y-4 flex flex-col items-center w-full">
+      <div className="space-y-4 flex flex-col items-center w-full relative z-10">
         {/* Avatar */}
-        <div className="h-24 w-24 rounded-full border-2 border-[var(--border-color)] group-hover:border-brand-primary transition-all duration-300 overflow-hidden bg-brand-surface shadow-md relative shrink-0">
+        <div className="h-24 w-24 rounded-full border-2 border-slate-700/60 group-hover:border-brand-primary transition-all duration-300 overflow-hidden bg-brand-surface shadow-lg relative shrink-0">
           <img 
             src={ensureHttps(avatar) || `https://api.dicebear.com/7.x/initials/svg?seed=${name}`} 
             alt={name} 
@@ -90,22 +90,24 @@ export default function TeacherCard({
         </div>
         
         {/* Info */}
-        <div className="space-y-1">
+        <div className="space-y-2 w-full">
           <h3 className="font-black text-base text-foreground group-hover:text-brand-primary transition-colors duration-200">
             {name}
           </h3>
-          <span className="inline-block px-2.5 py-0.5 bg-brand-primary/10 border border-brand-primary/20 text-[10px] text-brand-primary font-black rounded-full">
-            مدرس {displaySubject}
-          </span>
+          <div>
+            <span className="inline-block px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-[11px] text-brand-primary font-black rounded-full shadow-sm">
+              مدرس {displaySubject}
+            </span>
+          </div>
           
           {experience && (
-            <div className="text-[10px] text-foreground font-bold px-3 py-1 bg-brand-surface border border-[var(--border-color)] rounded-lg inline-block shadow-sm mt-2">
+            <div className="text-[11px] text-slate-300 font-bold px-3 py-1 bg-slate-900/60 border border-slate-800 rounded-lg inline-block shadow-sm mt-1">
               {experience}
             </div>
           )}
           
           {bio && (
-            <p className="text-xs text-text-secondary font-semibold leading-relaxed mt-2 line-clamp-2 h-10">
+            <p className="text-xs text-text-secondary font-medium leading-relaxed mt-2 line-clamp-2 min-h-[36px] opacity-90">
               {bio}
             </p>
           )}
@@ -113,27 +115,27 @@ export default function TeacherCard({
       </div>
 
       {/* Stats and Action */}
-      <div className="mt-6 pt-4 border-t border-[var(--border-color)] w-full space-y-4">
+      <div className="mt-4 pt-4 border-t border-[var(--border-color)] w-full space-y-3.5 relative z-10">
         {studentsCount !== undefined ? (
-          <div className="grid grid-cols-2 gap-2 text-[10px] text-text-secondary font-black">
-            <div className="space-y-0.5 border-l border-[var(--border-color)]">
-              <div className="text-foreground text-sm font-black">{coursesCount}</div>
-              <div>كورسات مفعّلة</div>
+          <div className="grid grid-cols-2 gap-2 text-[11px] text-text-secondary font-black bg-slate-900/30 p-2.5 rounded-2xl border border-slate-800/60">
+            <div className="space-y-0.5 border-l border-slate-800">
+              <div className="text-foreground text-sm font-black text-brand-primary">{coursesCount}</div>
+              <div className="text-[10px] opacity-80">كورسات مفعّلة</div>
             </div>
             <div className="space-y-0.5">
-              <div className="text-foreground text-sm font-black">{studentsCount}</div>
-              <div>طالب نشط</div>
+              <div className="text-foreground text-sm font-black text-emerald-400">{studentsCount}</div>
+              <div className="text-[10px] opacity-80">طالب نشط</div>
             </div>
           </div>
         ) : (
-          <div className="text-[10px] text-text-secondary font-black text-right">
-            عدد الكورسات: {coursesCount}
+          <div className="text-[11px] text-text-secondary font-black text-center bg-slate-900/30 p-2 rounded-xl border border-slate-800/60">
+            عدد الكورسات المتاحة: <span className="text-foreground">{coursesCount}</span>
           </div>
         )}
 
         <Link 
           to={`/teacher/${slug || id}`} 
-          className="block w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-center rounded-xl text-xs font-black shadow-md hover:shadow-[0_0_12px_rgba(22,196,127,0.25)] transition-all duration-200 cursor-pointer"
+          className="block w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-center rounded-xl text-xs font-black shadow-md shadow-brand-primary/20 hover:shadow-brand-primary/40 active:scale-95 transition-all duration-200 cursor-pointer"
         >
           عرض الملف الشخصي
         </Link>

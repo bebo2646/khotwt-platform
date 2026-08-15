@@ -24,6 +24,7 @@ use Laravel\Sanctum\HasApiTokens;
     'experience', 
     'avatar', 
     'subject', 
+    'category',
     'grades', 
     'status',
     'is_super',

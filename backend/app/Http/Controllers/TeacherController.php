@@ -622,13 +622,17 @@ class TeacherController extends Controller
     public function createCourse(Request $request)
     {
         $isBundle = $request->input('is_bundle') || $request->is_bundle === 'true';
+        $category = $request->input('category') || $request->user()->category || 'school';
+        $isNonSchool = $category !== 'school' && $category !== 'general_education';
+
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'grade' => $isBundle ? 'nullable|string' : 'required|string',
+            'grade' => ($isBundle || $isNonSchool) ? 'nullable|string' : 'required|string',
             'subject' => 'required|string',
+            'category' => 'nullable|string',
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
@@ -642,8 +646,9 @@ class TeacherController extends Controller
             'description' => $request->description,
             'cover_image' => $request->cover_image,
             'price' => $request->price,
-            'grade' => $request->grade ?? 'باقة مجمعة',
+            'grade' => $request->grade ?? ($isNonSchool ? 'عام' : 'باقة مجمعة'),
             'subject' => $request->subject,
+            'category' => $request->category ?? $request->user()->category ?? 'school',
             'is_published' => true,
             'enable_discount' => $request->enable_discount ?? false,
             'discount_type' => $request->discount_type,
@@ -658,10 +663,13 @@ class TeacherController extends Controller
             $notifService->sendNotification(
                 'كورس جديد',
                 "تمت إضافة كورس جديد: {$course->title} بواسطة المعلم {$request->user()->name}.",
-                'students'
+                'course',
+                $course->id,
+                true,
+                $request->user()->id
             );
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Notification error: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error("Failed sending new course notification: " . $e->getMessage());
         }
 
         return response()->json($course, 201);
@@ -673,15 +681,18 @@ class TeacherController extends Controller
     public function updateCourse(Request $request, $id)
     {
         $course = $this->verifyCourseTeacher($request, $id);
-
         $isBundle = $request->input('is_bundle') || $request->is_bundle === 'true' || $course->is_bundle;
+        $category = $request->input('category') || $course->category || $request->user()->category || 'school';
+        $isNonSchool = $category !== 'school' && $category !== 'general_education';
+
         $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'cover_image' => 'nullable|string',
             'price' => 'required|numeric|min:0',
-            'grade' => $isBundle ? 'nullable|string' : 'required|string',
+            'grade' => ($isBundle || $isNonSchool) ? 'nullable|string' : 'required|string',
             'subject' => 'required|string',
+            'category' => 'nullable|string',
             'enable_discount' => 'nullable|boolean',
             'discount_type' => 'nullable|in:percentage,fixed',
             'discount_value' => 'nullable|numeric|min:0',
@@ -694,8 +705,9 @@ class TeacherController extends Controller
             'description' => $request->description,
             'cover_image' => $request->cover_image,
             'price' => $request->price,
-            'grade' => $request->grade ?? $course->grade ?? 'باقة مجمعة',
+            'grade' => $request->grade ?? $course->grade ?? 'عام',
             'subject' => $request->subject,
+            'category' => $request->category ?? $course->category ?? $request->user()->category ?? 'school',
             'enable_discount' => $request->enable_discount ?? false,
             'discount_type' => $request->discount_type,
             'discount_value' => $request->discount_value,

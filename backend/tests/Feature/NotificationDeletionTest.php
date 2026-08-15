@@ -37,6 +37,7 @@ class NotificationDeletionTest extends TestCase
             'email' => 'admin_test_' . rand(100, 999) . '@test.com',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active'
         ]);
 
@@ -62,6 +63,7 @@ class NotificationDeletionTest extends TestCase
             'email' => 'admin_test_' . rand(100, 999) . '@test.com',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active'
         ]);
 
@@ -96,6 +98,7 @@ class NotificationDeletionTest extends TestCase
             'email' => 'admin_test_' . rand(100, 999) . '@test.com',
             'password' => bcrypt('password'),
             'role' => 'admin',
+            'is_super_admin' => true,
             'status' => 'active'
         ]);
 

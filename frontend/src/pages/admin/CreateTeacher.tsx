@@ -53,6 +53,8 @@ export default function CreateTeacher() {
   const [phone, setPhone] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [showPassword, setShowPassword] = React.useState(false)
+  const [selectedCategory, setSelectedCategory] = React.useState('school')
+  const [customSubjectInput, setCustomSubjectInput] = React.useState('')
   const [selectedSubjects, setSelectedSubjects] = React.useState<string[]>([])
   const [experience, setExperience] = React.useState('')
   const [bio, setBio] = React.useState('')
@@ -208,12 +210,20 @@ export default function CreateTeacher() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (selectedSubjects.length === 0) {
-      useModalStore.getState().showToast('يرجى تحديد مادة علمية واحدة على الأقل.', 'warning')
+
+    const finalSubjects = [...selectedSubjects]
+    if (customSubjectInput.trim() && !finalSubjects.includes(customSubjectInput.trim())) {
+      finalSubjects.push(customSubjectInput.trim())
+    }
+
+    if (finalSubjects.length === 0) {
+      useModalStore.getState().showToast('يرجى تحديد مادة علمية أو تخصص واحد على الأقل.', 'warning')
       return
     }
-    if (selectedGrades.length === 0) {
-      useModalStore.getState().showToast('يرجى تحديد مرحلة دراسية واحدة على الأقل.', 'warning')
+
+    const finalGrades = selectedGrades.length > 0 ? selectedGrades : ['all']
+    if (selectedCategory === 'school' && selectedGrades.length === 0) {
+      useModalStore.getState().showToast('يرجى تحديد مرحلة دراسية واحدة على الأقل للتعليم المدرسي.', 'warning')
       return
     }
 
@@ -223,10 +233,11 @@ export default function CreateTeacher() {
       email: email || undefined,
       phone,
       password: password || undefined,
-      subject: selectedSubjects.join(','),
+      subject: finalSubjects.join(','),
+      category: selectedCategory,
       experience,
       bio,
-      grades: selectedGrades,
+      grades: finalGrades,
       status,
       teaching_mode: teachingMode,
       avatar,
@@ -391,24 +402,31 @@ export default function CreateTeacher() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">كلمة المرور (اختياري - سيتم توليد كلمة مرور عشوائية إذا تركت فارغاً)</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="رمز المرور المؤقت"
-                    className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary text-left"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-2.5 text-[var(--text-secondary)] hover:text-[var(--text-color)]"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <label className="text-xs font-semibold text-[var(--text-color)]">المجال التعليمي / المسار <span className="text-red-500">*</span></label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary cursor-pointer font-bold"
+                >
+                  <option value="school">🎓 التعليم المدرسي (الإعدادية والثانوية)</option>
+                  <option value="programming">💻 البرمجة والتكنولوجيا</option>
+                  <option value="business">📈 التجارة والأعمال</option>
+                  <option value="design">🎨 التصميم والإبداع</option>
+                  <option value="languages">🌍 اللغات والترجمة</option>
+                  <option value="marketing">📱 التسويق الرقمي</option>
+                  <option value="skills">💼 المهارات المهنية والتطوير الذاتي</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-[var(--text-color)]">تخصص أخصائي/معلم إضافي (اختياري نصي)</label>
+                <input
+                  type="text"
+                  value={customSubjectInput}
+                  onChange={(e) => setCustomSubjectInput(e.target.value)}
+                  placeholder="مثال: Frontend React / UI UX Design / الألمانية"
+                  className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
+                />
               </div>
 
               <div className="md:col-span-2 space-y-3">

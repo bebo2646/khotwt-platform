@@ -29,6 +29,20 @@ export default function Navbar() {
   const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
+  const [isScrolled, setIsScrolled] = React.useState(false)
+
+  // Scroll detection
+  React.useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setIsScrolled(true)
+      } else {
+        setIsScrolled(false)
+      }
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // Notifications States & Logic (consumed from global context)
   const { unreadCount } = useNotifications()
@@ -90,9 +104,10 @@ export default function Navbar() {
     return (
       <Link 
         to={to} 
-        className={`font-black text-xs transition-all duration-300 relative py-1.5 px-3 rounded-lg whitespace-nowrap shrink-0 border ${
+        onClick={() => setMobileMenuOpen(false)}
+        className={`font-black text-xs transition-all duration-300 relative py-2 px-3.5 rounded-xl whitespace-nowrap shrink-0 border ${
           active 
-            ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+            ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/25 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
             : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-slate-800/40 border-transparent hover:border-slate-800/80'
         }`}
       >
@@ -161,10 +176,13 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-[1000] border-b border-slate-800/80 transition-all duration-300">
-        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md -z-10"></div>
-        <div className="max-w-[1600px] w-full mx-auto px-6 lg:px-8">
-        <div className="flex items-center justify-between h-[72px]">
+      <nav className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-300 ${
+        isScrolled 
+          ? 'bg-slate-950/95 border-b border-slate-800 shadow-xl backdrop-blur-xl py-0' 
+          : 'bg-slate-950/60 border-b border-slate-800/40 backdrop-blur-md py-1'
+      }`}>
+        <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-[70px]">
           
           {/* Logo Section */}
           <div className="flex items-center shrink-0">
@@ -179,12 +197,12 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className="hidden md:flex flex-row flex-nowrap items-center justify-center gap-6 xl:gap-8 overflow-x-auto xl:overflow-x-visible whitespace-nowrap scrollbar-none py-1 mx-6 flex-1">
+          <div className="hidden md:flex flex-row flex-nowrap items-center justify-center gap-4 lg:gap-6 overflow-x-auto whitespace-nowrap scrollbar-none py-1 mx-4 flex-1">
             {renderNavLinks()}
           </div>
 
           {/* User Controls & Mobile Toggle */}
-          <div className="flex items-center gap-4 lg:gap-5">
+          <div className="flex items-center gap-3 lg:gap-4">
             
             {/* Notifications Bell */}
             {isLoggedIn && (
@@ -195,7 +213,7 @@ export default function Navbar() {
                     setShowNotifDropdown(!showNotifDropdown);
                   }}
                   onClick={(e) => e.preventDefault()}
-                  className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 cursor-pointer text-current relative transition-all duration-200"
+                  className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 cursor-pointer text-current relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
                 >
@@ -218,7 +236,7 @@ export default function Navbar() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-slate-900/40 hover:bg-slate-900 border border-slate-800/80 cursor-pointer text-current transition-all"
+              className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 cursor-pointer text-current transition-all"
               title="تغيير المظهر"
               aria-label="تغيير المظهر"
             >
@@ -228,9 +246,9 @@ export default function Navbar() {
             {/* Auth Buttons */}
             <div className="hidden md:flex items-center gap-3">
               {isLoggedIn && user ? (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   {user.role === 'student' && user.wallet && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-brand-primary text-xs font-semibold">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-brand-primary text-xs font-bold shadow-sm">
                       <Wallet className="h-3.5 w-3.5" />
                       <span>{user.wallet.balance} ج.م</span>
                     </div>
@@ -244,7 +262,7 @@ export default function Navbar() {
                         const nextState = !showProfileDropdown;
                         setShowProfileDropdown(nextState);
                       }}
-                      className="flex items-center gap-2 px-3.5 py-1.5 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-sm transition cursor-pointer"
                     >
                       {user.avatar ? (
                         <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
@@ -253,7 +271,7 @@ export default function Navbar() {
                           {user.name.slice(0, 2)}
                         </div>
                       )}
-                      <span className="font-semibold text-xs text-[var(--text-secondary)]">{user.name}</span>
+                      <span className="font-bold text-xs text-[var(--text-secondary)]">{user.name}</span>
                       <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
                     </button>
                     
@@ -264,8 +282,8 @@ export default function Navbar() {
                 </div>
               ) : (
                 <>
-                  <Link to="/login" className="px-4 py-2 text-sm font-medium border border-[var(--border-color)] rounded-lg hover:bg-[rgba(255,255,255,0.05)]">تسجيل دخول</Link>
-                  <Link to="/register" className="px-4 py-2 text-sm font-medium bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg glow-btn">حساب جديد</Link>
+                  <Link to="/login" className="px-4 py-2 text-xs font-bold border border-slate-800 rounded-xl hover:bg-slate-900 text-foreground transition-all">تسجيل دخول</Link>
+                  <Link to="/register" className="px-4.5 py-2 text-xs font-bold bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl shadow-md shadow-brand-primary/20 active:scale-95 transition-all">حساب جديد</Link>
                 </>
               )}
             </div>
@@ -274,10 +292,10 @@ export default function Navbar() {
             <div className="flex md:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-md hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-current"
+                className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 text-current"
                 aria-label="القائمة الجانبية"
               >
-                {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
             </div>
 
