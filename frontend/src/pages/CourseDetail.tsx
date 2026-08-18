@@ -1208,40 +1208,11 @@ export default function CourseDetail() {
 
               <button
                 onClick={() => {
-                  if (units.length > 0 && units[0].lessons.length > 0) {
-                    const firstLesson = units[0].lessons[0];
-                    if (course.is_bundle) {
-                      if ((firstLesson.videos?.length ?? 0) > 0) {
-                        setSearchParams((prev) => {
-                          const next = new URLSearchParams(prev);
-                          next.set('lesson_id', firstLesson.id.toString());
-                          next.set('video_id', (firstLesson.videos?.[0]?.id ?? 0).toString());
-                          return next;
-                        });
-                      } else if ((firstLesson.pdfs?.length ?? 0) > 0) {
-                        setSearchParams((prev) => {
-                          const next = new URLSearchParams(prev);
-                          next.set('lesson_id', firstLesson.id.toString());
-                          next.set('pdf_id', (firstLesson.pdfs?.[0]?.id ?? 0).toString());
-                          return next;
-                        });
-                      } else if ((firstLesson.exams?.length ?? 0) > 0) {
-                        const ex = firstLesson.exams?.[0];
-                        if (ex) {
-                          if (ex.progress?.status === 'completed') {
-                            navigate(`/student/exams/${ex.id}/result?course_id=${course.id}`);
-                          } else {
-                            checkExamAvailability(ex.id).then((allowed) => {
-                                  if (allowed) {
-                                    navigate(`/student/exams/${ex.id}?course_id=${course.id}`);
-                                  }
-                                })
-                          }
-                        }
-                      }
-                    } else {
-                      navigate(`/student/lessons/${firstLesson.id}?course_id=${course.id}`)
-                    }
+                  const curriculumEl = document.getElementById('curriculum-section');
+                  if (curriculumEl) {
+                    curriculumEl.scrollIntoView({ behavior: 'smooth' });
+                  } else {
+                    navigate(`/course/${course.slug || course.id}`);
                   }
                 }}
                 disabled={viewLimitExceeded}
@@ -1392,7 +1363,7 @@ export default function CourseDetail() {
       )}
 
       {/* 4. Curriculum Accordion Structure */}
-      <div className="space-y-4 text-right" dir="rtl">
+      <div id="curriculum-section" className="space-y-4 text-right scroll-mt-6" dir="rtl">
         <h2 className="text-xl font-bold">منهج ومحتوى الكورس:</h2>
 
         {viewLimitExceeded ? (
