@@ -2013,105 +2013,14 @@ class TeacherController extends Controller
     public function revenueReport(Request $request)
     {
         $teacher = $request->user();
-        $courses = Course::where('teacher_id', $teacher->id)->get();
-        $courseIds = $courses->pluck('id')->toArray();
-        
-        $courseIdsStr = array_map('strval', $courseIds);
-        
-        $packageIds = Package::whereIn('course_id', $courseIds)->pluck('id')->toArray();
-        $packageIdsStr = array_map('strval', $packageIds);
-        
-        $unitIds = Unit::whereIn('course_id', $courseIds)->pluck('id');
-        $lessonIds = Lesson::whereIn('unit_id', $unitIds)->pluck('id')->toArray();
-        $lessonIdsStr = array_map('strval', $lessonIds);
-        
-        // Base query for teacher revenue
-        $baseQuery = WalletTransaction::where('type', 'purchase')
-            ->where(function($q) use ($courseIdsStr, $packageIdsStr, $lessonIdsStr) {
-                $q->where(function($sq) use ($courseIdsStr) {
-                    $sq->where('description', 'like', '%شراء كورس%')
-                       ->whereIn('reference_id', $courseIdsStr);
-                })->orWhere(function($sq) use ($packageIdsStr) {
-                    $sq->where('description', 'like', '%شراء باقة%')
-                       ->whereIn('reference_id', $packageIdsStr);
-                })->orWhere(function($sq) use ($lessonIdsStr) {
-                    $sq->where(function($lq) {
-                        $lq->where('description', 'like', '%شراء محاضرة%')
-                           ->orWhere('description', 'like', '%شراء درس%');
-                    })->whereIn('reference_id', $lessonIdsStr);
-                });
-            });
-            
-        // Base query for teacher refunds
-        $refundBaseQuery = WalletTransaction::where('type', 'refund')
-            ->where(function($q) use ($courseIdsStr, $packageIdsStr) {
-                $q->where(function($sq) use ($courseIdsStr) {
-                    $sq->where('description', 'like', '%إرجاع قيمة كورس%')
-                       ->whereIn('reference_id', $courseIdsStr);
-                })->orWhere(function($sq) use ($packageIdsStr) {
-                    $sq->where('description', 'like', '%إرجاع قيمة باقة%')
-                       ->whereIn('reference_id', $packageIdsStr);
-                });
-            });
+        $teacherId = $teacher->id;
 
-        // Calculate Revenue Summary (Total, Today, Month, Year) - net sales
-        $grossTotal = (float) (clone $baseQuery)->sum('amount');
-        $refundTotal = (float) (clone $refundBaseQuery)->sum('amount');
-        $netTotal = $grossTotal - $refundTotal;
+        $earningsQuery = \App\Models\TeacherEarning::with(['student:id,name,email,phone', 'course:id,title', 'package:id,title,type', 'lesson:id,title', 'exam:id,title'])
+            ->where('teacher_id', $teacherId);
 
-        $grossToday = (float) (clone $baseQuery)->whereDate('created_at', Carbon::today())->sum('amount');
-        $refundToday = (float) (clone $refundBaseQuery)->whereDate('created_at', Carbon::today())->sum('amount');
-        $netToday = $grossToday - $refundToday;
-
-        $grossThisMonth = (float) (clone $baseQuery)->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month)->sum('amount');
-        $refundThisMonth = (float) (clone $refundBaseQuery)->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month)->sum('amount');
-        $netThisMonth = $grossThisMonth - $refundThisMonth;
-
-        $grossThisYear = (float) (clone $baseQuery)->whereYear('created_at', Carbon::now()->year)->sum('amount');
-        $refundThisYear = (float) (clone $refundBaseQuery)->whereYear('created_at', Carbon::now()->year)->sum('amount');
-        $netThisYear = $grossThisYear - $refundThisYear;
-
-        $totalRevenue = $netTotal;
-        $revenueToday = $netToday;
-        $revenueThisMonth = $netThisMonth;
-        $revenueThisYear = $netThisYear;
-        
-        // Query for filtered transactions (including both purchases and refunds for netting)
-        $filteredQuery = WalletTransaction::with('wallet.student')
-            ->whereIn('type', ['purchase', 'refund'])
-            ->where(function($q) use ($courseIdsStr, $packageIdsStr, $lessonIdsStr) {
-                $q->where(function($purchasesQ) use ($courseIdsStr, $packageIdsStr, $lessonIdsStr) {
-                    $purchasesQ->where('type', 'purchase')
-                        ->where(function($inner) use ($courseIdsStr, $packageIdsStr, $lessonIdsStr) {
-                            $inner->where(function($sq) use ($courseIdsStr) {
-                                $sq->where('description', 'like', '%شراء كورس%')
-                                   ->whereIn('reference_id', $courseIdsStr);
-                            })->orWhere(function($sq) use ($packageIdsStr) {
-                                $sq->where('description', 'like', '%شراء باقة%')
-                                   ->whereIn('reference_id', $packageIdsStr);
-                            })->orWhere(function($sq) use ($lessonIdsStr) {
-                                $sq->where(function($lq) {
-                                    $lq->where('description', 'like', '%شراء محاضرة%')
-                                       ->orWhere('description', 'like', '%شراء درس%');
-                                })->whereIn('reference_id', $lessonIdsStr);
-                            });
-                        });
-                })->orWhere(function($refundsQ) use ($courseIdsStr, $packageIdsStr) {
-                    $refundsQ->where('type', 'refund')
-                        ->where(function($inner) use ($courseIdsStr, $packageIdsStr) {
-                            $inner->where(function($sq) use ($courseIdsStr) {
-                                $sq->where('description', 'like', '%إرجاع قيمة كورس%')
-                                   ->whereIn('reference_id', $courseIdsStr);
-                            })->orWhere(function($sq) use ($packageIdsStr) {
-                                $sq->where('description', 'like', '%إرجاع قيمة باقة%')
-                                   ->whereIn('reference_id', $packageIdsStr);
-                            });
-                        });
-                });
-            });
-            
-        // Apply filters
         $filter = $request->input('filter');
+        $filteredQuery = clone $earningsQuery;
+
         if ($filter === 'today') {
             $filteredQuery->whereDate('created_at', Carbon::today());
         } elseif ($filter === 'week') {
@@ -2128,184 +2037,157 @@ class TeacherController extends Controller
                 ]);
             }
         }
-        
-        $transactions = $filteredQuery->orderBy('created_at', 'desc')->get();
 
-        // Map refunds for fast checks in PHP
-        $refundedKeys = [];
-        foreach ($transactions as $tx) {
-            if ($tx->type === 'refund') {
-                $refId = $tx->reference_id;
-                $itemType = str_contains($tx->description, 'باقة') ? 'bundle' : 'course';
-                $refundedKeys[$tx->wallet_id][$refId][$itemType] = true;
-            }
-        }
-        
-        // Maps for fast lookups
-        $packagesMap = Package::whereIn('id', $packageIds)->pluck('title', 'id')->toArray();
-        $lessonsMap = Lesson::whereIn('id', $lessonIds)->pluck('title', 'id')->toArray();
-        $coursesMap = Course::whereIn('id', $courseIds)->pluck('title', 'id')->toArray();
-        
+        $allEarnings = (clone $earningsQuery)->get();
+        $filteredEarnings = $filteredQuery->orderBy('created_at', 'desc')->get();
+
+        // Revenue summary calculations based on TeacherEarning ledger
+        $grossTotal = (float) (clone $earningsQuery)->where('amount', '>', 0)->where('source', '!=', 'reversal')->sum('amount');
+        $refundTotal = (float) abs((clone $earningsQuery)->where(function($q) {
+            $q->where('source', 'reversal')->orWhere('amount', '<', 0);
+        })->sum('amount'));
+        $netTotal = (float) (clone $earningsQuery)->sum('amount');
+
+        $grossToday = (float) (clone $earningsQuery)->whereDate('created_at', Carbon::today())->where('amount', '>', 0)->where('source', '!=', 'reversal')->sum('amount');
+        $refundToday = (float) abs((clone $earningsQuery)->whereDate('created_at', Carbon::today())->where(function($q) {
+            $q->where('source', 'reversal')->orWhere('amount', '<', 0);
+        })->sum('amount'));
+        $netToday = $grossToday - $refundToday;
+
+        $grossThisMonth = (float) (clone $earningsQuery)->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month)->where('amount', '>', 0)->where('source', '!=', 'reversal')->sum('amount');
+        $refundThisMonth = (float) abs((clone $earningsQuery)->whereYear('created_at', Carbon::now()->year)->whereMonth('created_at', Carbon::now()->month)->where(function($q) {
+            $q->where('source', 'reversal')->orWhere('amount', '<', 0);
+        })->sum('amount'));
+        $netThisMonth = $grossThisMonth - $refundThisMonth;
+
+        $grossThisYear = (float) (clone $earningsQuery)->whereYear('created_at', Carbon::now()->year)->where('amount', '>', 0)->where('source', '!=', 'reversal')->sum('amount');
+        $refundThisYear = (float) abs((clone $earningsQuery)->whereYear('created_at', Carbon::now()->year)->where(function($q) {
+            $q->where('source', 'reversal')->orWhere('amount', '<', 0);
+        })->sum('amount'));
+        $netThisYear = $grossThisYear - $refundThisYear;
+
+        $lifetimePayouts = (float) \App\Models\TeacherPayout::where('teacher_id', $teacherId)
+            ->whereIn('status', ['completed', 'paid'])
+            ->sum('amount');
+        $availableBalance = max(0.00, round($netTotal - $lifetimePayouts, 2));
+
         $breakdown = [];
         $ledger = [];
         $bundleDetails = [];
         $lessonDetails = [];
-        
-        $grossTotal = 0;
-        $refundTotal = 0;
+        $refundsList = [];
 
-        foreach ($transactions as $tx) {
-            $studentName = $tx->wallet && $tx->wallet->student ? $tx->wallet->student->name : 'طالب محذوف';
-            $refId = (int)$tx->reference_id;
-            $desc = $tx->description;
-            
-            $paymentSource = 'المحفظة';
-            if (str_contains($desc, 'استخدام كود') || str_contains($desc, 'بواسطة كود')) {
-                $paymentSource = 'كود شحن كورس';
-            }
+        foreach ($filteredEarnings as $e) {
+            $studentName = $e->student ? $e->student->name : 'طالب محذوف';
+            $isRefund = ($e->source === 'reversal' || $e->amount < 0);
+            $amountVal = (float) abs($e->amount);
 
-            if ($tx->type === 'purchase') {
-                $purchaseType = 'Other';
-                $itemName = $desc;
-                
-                if (str_contains($desc, 'شراء كورس') || str_contains($desc, 'كورس:')) {
-                    $purchaseType = 'Course';
-                    $itemName = $coursesMap[$refId] ?? 'كورس محذوف';
-                } elseif (str_contains($desc, 'شراء باقة') || str_contains($desc, 'باقة شهرية') || str_contains($desc, 'باقة:')) {
-                    $purchaseType = 'Bundle';
-                    $itemName = $packagesMap[$refId] ?? 'باقة محذوفة';
-                    
-                    if (!isset($bundleDetails[$refId])) {
-                        $bundleDetails[$refId] = [
+            $purchaseType = 'Course';
+            $itemName = 'كورس';
+
+            if ($e->source === 'manual_adjustment') {
+                $purchaseType = 'Adjustment';
+                $itemName = $e->description ?: 'تسوية يدوية من الإدارة';
+            } elseif ($e->exam_id) {
+                $purchaseType = 'Exam';
+                $itemName = $e->exam ? $e->exam->title : 'امتحان مدفوع';
+            } elseif ($e->package_id) {
+                $purchaseType = ($e->package && $e->package->type === 'bundle') ? 'Bundle' : 'Package';
+                $itemName = $e->package ? $e->package->title : 'باقة';
+
+                if (!$isRefund && $e->package_id) {
+                    if (!isset($bundleDetails[$e->package_id])) {
+                        $bundleDetails[$e->package_id] = [
                             'bundle_name' => $itemName,
                             'purchases' => []
                         ];
                     }
-                    $bundleDetails[$refId]['purchases'][] = [
+                    $bundleDetails[$e->package_id]['purchases'][] = [
                         'student_name' => $studentName,
-                        'amount_paid' => (float)$tx->amount,
-                        'purchase_date' => $tx->created_at->toDateTimeString(),
+                        'amount_paid' => $amountVal,
+                        'purchase_date' => $e->created_at->toDateTimeString(),
                     ];
-                } elseif (str_contains($desc, 'شراء محاضرة') || str_contains($desc, 'محاضرة:') || str_contains($desc, 'شراء درس') || str_contains($desc, 'درس:')) {
-                    $purchaseType = 'Lesson';
-                    $itemName = $lessonsMap[$refId] ?? 'محاضرة محذوفة';
-                    
-                    if (!isset($lessonDetails[$refId])) {
-                        $lessonDetails[$refId] = [
+                }
+            } elseif ($e->lesson_id) {
+                $purchaseType = 'Lesson';
+                $itemName = $e->lesson ? $e->lesson->title : 'محاضرة';
+
+                if (!$isRefund && $e->lesson_id) {
+                    if (!isset($lessonDetails[$e->lesson_id])) {
+                        $lessonDetails[$e->lesson_id] = [
                             'lesson_name' => $itemName,
                             'purchases' => []
                         ];
                     }
-                    $lessonDetails[$refId]['purchases'][] = [
+                    $lessonDetails[$e->lesson_id]['purchases'][] = [
                         'student_name' => $studentName,
-                        'amount_paid' => (float)$tx->amount,
-                        'purchase_date' => $tx->created_at->toDateTimeString(),
+                        'amount_paid' => $amountVal,
+                        'purchase_date' => $e->created_at->toDateTimeString(),
                     ];
                 }
+            } elseif ($e->course_id) {
+                $purchaseType = 'Course';
+                $itemName = $e->course ? $e->course->title : 'كورس';
+            }
 
-                $grossTotal += (float)$tx->amount;
-                
+            if (!$isRefund) {
                 $breakdown[] = [
                     'student_name' => $studentName,
                     'purchase_type' => $purchaseType,
                     'item_name' => $itemName,
-                    'amount_paid' => (float)$tx->amount,
-                    'purchase_date' => $tx->created_at->toDateTimeString(),
-                    'payment_source' => $paymentSource
+                    'amount_paid' => $amountVal,
+                    'purchase_date' => $e->created_at->toDateTimeString(),
+                    'payment_source' => $e->source === 'code_activation' ? 'كود تفعيل' : 'المحفظة'
                 ];
-                
+
                 $ledger[] = [
-                    'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
+                    'transaction_id' => 'TX-' . str_pad($e->id, 6, '0', STR_PAD_LEFT),
                     'student_name' => $studentName,
                     'type' => $purchaseType,
                     'item_name' => $itemName,
-                    'amount' => (float)$tx->amount,
-                    'date' => $tx->created_at->toDateTimeString(),
+                    'amount' => $amountVal,
+                    'date' => $e->created_at->toDateTimeString(),
                     'status' => 'مكتمل'
                 ];
-            } elseif ($tx->type === 'refund') {
-                $refundType = 'Other';
-                $itemName = $desc;
-                
-                if (str_contains($desc, 'إرجاع قيمة كورس') || str_contains($desc, 'كورس:')) {
-                    $refundType = 'Course';
-                    $itemName = $coursesMap[$refId] ?? 'كورس محذوف';
-                } elseif (str_contains($desc, 'إرجاع قيمة باقة') || str_contains($desc, 'باقة:')) {
-                    $refundType = 'Bundle';
-                    $itemName = $packagesMap[$refId] ?? 'باقة محذوفة';
-                }
-
-                $refundTotal += (float)$tx->amount;
-                
-                $ledger[] = [
-                    'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
+            } else {
+                $refundsList[] = [
+                    'transaction_id' => 'TX-' . str_pad($e->id, 6, '0', STR_PAD_LEFT),
+                    'student_id' => $e->student_id,
                     'student_name' => $studentName,
-                    'type' => $refundType,
                     'item_name' => $itemName,
-                    'amount' => (float)$tx->amount,
-                    'date' => $tx->created_at->toDateTimeString(),
+                    'purchase_type' => $purchaseType,
+                    'original_amount' => $amountVal,
+                    'refunded_amount' => $amountVal,
+                    'purchase_date' => $e->created_at->toDateTimeString(),
+                    'refund_date' => $e->created_at->toDateTimeString(),
+                    'refund_reason' => $e->description ?: 'إلغاء واسترجاع إداري',
+                    'status' => 'مسترجع',
+                    'payment_method' => 'المحفظة',
+                ];
+
+                $ledger[] = [
+                    'transaction_id' => 'TX-' . str_pad($e->id, 6, '0', STR_PAD_LEFT),
+                    'student_name' => $studentName,
+                    'type' => $purchaseType,
+                    'item_name' => $itemName,
+                    'amount' => $amountVal,
+                    'date' => $e->created_at->toDateTimeString(),
                     'status' => 'مسترجع'
                 ];
             }
         }
-        
-        $netTotal = $grossTotal - $refundTotal;
-        
-        // Get full refund logs for details page / modal
-        $refundTransactions = WalletTransaction::with('wallet.student')
-            ->where('type', 'refund')
-            ->where(function($q) use ($courseIdsStr, $packageIdsStr) {
-                $q->where(function($sq) use ($courseIdsStr) {
-                    $sq->where('description', 'like', '%إرجاع قيمة كورس%')
-                       ->whereIn('reference_id', $courseIdsStr);
-                })->orWhere(function($sq) use ($packageIdsStr) {
-                    $sq->where('description', 'like', '%إرجاع قيمة باقة%')
-                       ->whereIn('reference_id', $packageIdsStr);
-                });
-            })
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        $refundsList = [];
-        foreach ($refundTransactions as $tx) {
-            $refId = (int)$tx->reference_id;
-            $desc = $tx->description;
-            $itemType = str_contains($desc, 'باقة') ? 'Bundle' : 'Course';
-            $itemName = $itemType === 'Bundle' ? ($packagesMap[$refId] ?? 'باقة محذوفة') : ($coursesMap[$refId] ?? 'كورس محذوف');
-            $student = $tx->wallet && $tx->wallet->student ? $tx->wallet->student : null;
-
-            // Find matching purchase transaction to extract original date
-            $origTx = WalletTransaction::where('wallet_id', $tx->wallet_id)
-                ->where('type', 'purchase')
-                ->where('reference_id', $tx->reference_id)
-                ->where('description', 'like', $itemType === 'Bundle' ? '%باقة%' : '%كورس%')
-                ->first();
-
-            $refundsList[] = [
-                'transaction_id' => 'TX-' . str_pad($tx->id, 6, '0', STR_PAD_LEFT),
-                'student_id' => $student ? $student->id : null,
-                'student_name' => $student ? $student->name : 'طالب محذوف',
-                'item_name' => $itemName,
-                'purchase_type' => $itemType,
-                'original_amount' => $origTx ? (float)$origTx->amount : (float)$tx->amount,
-                'refunded_amount' => (float)$tx->amount,
-                'purchase_date' => $origTx ? $origTx->created_at->toDateTimeString() : null,
-                'refund_date' => $tx->created_at->toDateTimeString(),
-                'refund_reason' => $desc,
-                'status' => 'مسترجع',
-                'payment_method' => 'المحفظة',
-            ];
-        }
 
         return response()->json([
             'summary' => [
-                'total_revenue' => $totalRevenue,
-                'revenue_today' => $revenueToday,
-                'revenue_this_month' => $revenueThisMonth,
-                'revenue_this_year' => $revenueThisYear,
+                'total_revenue' => $netTotal,
+                'revenue_today' => $netToday,
+                'revenue_this_month' => $netThisMonth,
+                'revenue_this_year' => $netThisYear,
                 'gross_revenue' => $grossTotal,
                 'refunded_revenue' => $refundTotal,
                 'net_revenue' => $netTotal,
+                'available_balance' => $availableBalance,
+                'lifetime_payouts' => $lifetimePayouts,
                 'refund_count' => count($refundsList),
                 'refund_rate' => $grossTotal > 0 ? round(($refundTotal / $grossTotal) * 100, 2) : 0,
             ],

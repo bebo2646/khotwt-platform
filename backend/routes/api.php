@@ -250,6 +250,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 // Refund & Wallet control
                 Route::get('/admin/students/{student}/enrollments', [AdminController::class, 'studentEnrollments']);
                 Route::post('/admin/enrollments/{enrollment}/refund', [AdminController::class, 'refundEnrollment']);
+                Route::post('/admin/exam-purchases/{examPurchase}/refund', [AdminController::class, 'refundExamPurchase']);
                 Route::post('/admin/students/{student}/wallet/adjust', [AdminController::class, 'adjustStudentWallet']);
                 Route::get('/admin/refund-logs', [AdminController::class, 'refundLogs']);
             });

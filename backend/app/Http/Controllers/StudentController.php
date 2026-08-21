@@ -686,8 +686,36 @@ class StudentController extends Controller
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
-        return DB::transaction(function () use ($wallet, $course, $user, $creditBalance) {
-            $deductFromCredit = min($course->final_price, $creditBalance);
+        return DB::transaction(function () use ($course, $user, $creditBalance) {
+            $wallet = Wallet::where('student_id', $user->id)->lockForUpdate()->first();
+            if (!$wallet) {
+                $wallet = Wallet::create(['student_id' => $user->id, 'balance' => 0.00]);
+            }
+
+            // Check duplicate under lock
+            $alreadyEnrolled = Enrollment::where('student_id', $user->id)
+                ->where('course_id', $course->id)
+                ->whereNull('package_id')
+                ->whereNull('lesson_id')
+                ->exists();
+
+            if ($alreadyEnrolled) {
+                return response()->json(['message' => 'أنت مشترك بالفعل في هذا الكورس.'], 422);
+            }
+
+            $currentTeacherCredit = DB::table('student_teacher_credits')
+                ->where('student_id', $user->id)
+                ->where('teacher_id', $course->teacher_id)
+                ->lockForUpdate()
+                ->first();
+            $lockedCreditBalance = $currentTeacherCredit ? (float)$currentTeacherCredit->balance : 0.00;
+
+            $totalLockedAvailable = $wallet->balance + $lockedCreditBalance;
+            if ($totalLockedAvailable < $course->final_price) {
+                return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
+            }
+
+            $deductFromCredit = min($course->final_price, $lockedCreditBalance);
             $deductFromWallet = $course->final_price - $deductFromCredit;
 
             if ($deductFromCredit > 0) {
@@ -716,6 +744,9 @@ class StudentController extends Controller
                 'enrolled_at' => Carbon::now(),
             ]);
 
+            $originalPrice = (float)$course->price;
+            $discountAmount = max(0.00, $originalPrice - (float)$course->final_price);
+
             // Split revenue
             \App\Services\RevenueSharingService::handlePurchase(
                 $user->id,
@@ -725,7 +756,10 @@ class StudentController extends Controller
                 null,
                 null,
                 null,
-                'wallet'
+                'wallet',
+                null,
+                $originalPrice,
+                $discountAmount
             );
 
             return response()->json([
@@ -1001,14 +1035,40 @@ class StudentController extends Controller
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
-        return DB::transaction(function () use ($wallet, $package, $user, $creditBalance, $course) {
-            $deductFromCredit = min($package->price, $creditBalance);
+        return DB::transaction(function () use ($package, $user, $teacherId) {
+            $wallet = Wallet::where('student_id', $user->id)->lockForUpdate()->first();
+            if (!$wallet) {
+                $wallet = Wallet::create(['student_id' => $user->id, 'balance' => 0.00]);
+            }
+
+            // Check duplicate under lock
+            $alreadyEnrolled = Enrollment::where('student_id', $user->id)
+                ->where('package_id', $package->id)
+                ->exists();
+
+            if ($alreadyEnrolled) {
+                return response()->json(['message' => 'أنت مشترك بالفعل في هذا الباقة.'], 422);
+            }
+
+            $currentTeacherCredit = DB::table('student_teacher_credits')
+                ->where('student_id', $user->id)
+                ->where('teacher_id', $teacherId)
+                ->lockForUpdate()
+                ->first();
+            $lockedCreditBalance = $currentTeacherCredit ? (float)$currentTeacherCredit->balance : 0.00;
+
+            $totalLockedAvailable = $wallet->balance + $lockedCreditBalance;
+            if ($totalLockedAvailable < $package->price) {
+                return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
+            }
+
+            $deductFromCredit = min($package->price, $lockedCreditBalance);
             $deductFromWallet = $package->price - $deductFromCredit;
 
             if ($deductFromCredit > 0) {
                 DB::table('student_teacher_credits')
                     ->where('student_id', $user->id)
-                    ->where('teacher_id', $course->teacher_id)
+                    ->where('teacher_id', $teacherId)
                     ->decrement('balance', $deductFromCredit);
             }
 
@@ -1027,21 +1087,26 @@ class StudentController extends Controller
 
             Enrollment::create([
                 'student_id' => $user->id,
-                'course_id' => null,
+                'course_id' => $package->course_id,
                 'package_id' => $package->id,
                 'enrolled_at' => Carbon::now(),
             ]);
 
+            $packagePrice = (float)$package->price;
+
             // Split revenue
             \App\Services\RevenueSharingService::handlePurchase(
                 $user->id,
-                $package->course->teacher_id,
-                $package->price,
+                $teacherId,
+                $packagePrice,
                 $package->course_id,
                 $package->id,
                 null,
                 null,
-                'wallet'
+                'wallet',
+                null,
+                $packagePrice,
+                0.00
             );
 
             return response()->json([
@@ -1135,6 +1200,7 @@ class StudentController extends Controller
             return response()->json(['message' => 'عذراً، المعلم شارف على استهلاك كامل السعة الاستيعابية للطلاب المحددة لاشتراكه حالياً. لا يمكن الاشتراك في المحاضرة.'], 422);
         }
 
+        // Wallet / Restricted teacher credit option
         $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
         $teacherCredit = DB::table('student_teacher_credits')
             ->where('student_id', $user->id)
@@ -1147,8 +1213,34 @@ class StudentController extends Controller
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
-        return DB::transaction(function () use ($wallet, $lesson, $courseId, $user, $creditBalance) {
-            $deductFromCredit = min($lesson->price, $creditBalance);
+        return DB::transaction(function () use ($lesson, $courseId, $user) {
+            $wallet = Wallet::where('student_id', $user->id)->lockForUpdate()->first();
+            if (!$wallet) {
+                $wallet = Wallet::create(['student_id' => $user->id, 'balance' => 0.00]);
+            }
+
+            // Check duplicate under lock
+            $alreadyPurchasedLesson = Enrollment::where('student_id', $user->id)
+                ->where('lesson_id', $lesson->id)
+                ->exists();
+
+            if ($alreadyPurchasedLesson) {
+                return response()->json(['message' => 'أنت مشترك بالفعل في هذه المحاضرة كمنتج مستقل.'], 422);
+            }
+
+            $currentTeacherCredit = DB::table('student_teacher_credits')
+                ->where('student_id', $user->id)
+                ->where('teacher_id', $lesson->unit->course->teacher_id)
+                ->lockForUpdate()
+                ->first();
+            $lockedCreditBalance = $currentTeacherCredit ? (float)$currentTeacherCredit->balance : 0.00;
+
+            $totalLockedAvailable = $wallet->balance + $lockedCreditBalance;
+            if ($totalLockedAvailable < $lesson->price) {
+                return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
+            }
+
+            $deductFromCredit = min($lesson->price, $lockedCreditBalance);
             $deductFromWallet = $lesson->price - $deductFromCredit;
 
             if ($deductFromCredit > 0) {
@@ -1178,16 +1270,21 @@ class StudentController extends Controller
                 'enrolled_at' => Carbon::now(),
             ]);
 
+            $lessonPrice = (float)$lesson->price;
+
             // Split revenue
             \App\Services\RevenueSharingService::handlePurchase(
                 $user->id,
                 $lesson->unit->course->teacher_id,
-                $lesson->price,
+                $lessonPrice,
                 $courseId,
                 null,
                 $lesson->id,
                 null,
-                'wallet'
+                'wallet',
+                null,
+                $lessonPrice,
+                0.00
             );
 
             return response()->json([
@@ -3266,33 +3363,43 @@ class StudentController extends Controller
     public function purchaseExam(Request $request, $examId)
     {
         $user = $request->user();
-        $exam = Exam::findOrFail($examId);
+        $exam = Exam::with('lesson.unit.course')->findOrFail($examId);
 
         if (!$exam->is_paid) {
             return response()->json(['message' => 'هذا الامتحان مجاني ولا يتطلب شراء.'], 422);
         }
 
+        $lesson = $exam->lesson;
+        $courseId = ($lesson && $lesson->unit) ? $lesson->unit->course_id : null;
+        $teacherId = ($lesson && $lesson->unit && $lesson->unit->course) ? $lesson->unit->course->teacher_id : null;
+
         // Check if student has access to the lesson (either course, package, lesson, or parent bundle level)
         $hasAccess = Enrollment::where('student_id', $user->id)
             ->where(function($q) use ($courseId, $lesson) {
                 // Course level
-                $q->where(function($q2) use ($courseId) {
-                    $q2->where('course_id', $courseId)->whereNull('package_id')->whereNull('lesson_id');
-                })
+                if ($courseId) {
+                    $q->where(function($q2) use ($courseId) {
+                        $q2->where('course_id', $courseId)->whereNull('package_id')->whereNull('lesson_id');
+                    });
+                }
                 // Lesson level
-                ->orWhere('lesson_id', $lesson->id)
-                // Package level (if the package contains the lesson)
-                ->orWhereIn('package_id', function($subQuery) use ($lesson) {
-                    $subQuery->select('package_id')
-                        ->from('package_lessons')
-                        ->where('lesson_id', $lesson->id);
-                })
+                if ($lesson) {
+                    $q->orWhere('lesson_id', $lesson->id);
+                    // Package level (if the package contains the lesson)
+                    $q->orWhereIn('package_id', function($subQuery) use ($lesson) {
+                        $subQuery->select('package_id')
+                            ->from('package_lessons')
+                            ->where('lesson_id', $lesson->id);
+                    });
+                }
                 // Parent bundle level
-                ->orWhereIn('course_id', function($subQuery) use ($courseId) {
-                    $subQuery->select('parent_id')
-                        ->from('course_bundle_items')
-                        ->where('child_id', $courseId);
-                });
+                if ($courseId) {
+                    $q->orWhereIn('course_id', function($subQuery) use ($courseId) {
+                        $subQuery->select('parent_id')
+                            ->from('course_bundle_items')
+                            ->where('child_id', $courseId);
+                    });
+                }
             })
             ->exists();
 
@@ -3300,22 +3407,25 @@ class StudentController extends Controller
             return response()->json(['message' => 'يجب عليك الاشتراك في الكورس أو الباقة أو المحاضرة أولاً.'], 403);
         }
 
-        // Check if already purchased
-        $alreadyPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
-            ->where('exam_id', $examId)
-            ->exists();
+        return DB::transaction(function () use ($exam, $user, $courseId, $lesson, $teacherId) {
+            $wallet = Wallet::where('student_id', $user->id)->lockForUpdate()->first();
+            if (!$wallet) {
+                $wallet = Wallet::create(['student_id' => $user->id, 'balance' => 0.00]);
+            }
 
-        if ($alreadyPurchased) {
-            return response()->json(['message' => 'لقد قمت بشراء هذا الامتحان مسبقاً.'], 422);
-        }
+            // Check if already purchased under lock
+            $alreadyPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
+                ->where('exam_id', $exam->id)
+                ->exists();
 
-        $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
+            if ($alreadyPurchased) {
+                return response()->json(['message' => 'لقد قمت بشراء هذا الامتحان مسبقاً.'], 422);
+            }
 
-        if ($wallet->balance < $exam->price) {
-            return response()->json(['message' => 'رصيد المحفظة غير كافٍ لشراء الامتحان. يرجى شحن المحفظة أولاً.'], 422);
-        }
+            if ($wallet->balance < $exam->price) {
+                return response()->json(['message' => 'رصيد المحفظة غير كافٍ لشراء الامتحان. يرجى شحن المحفظة أولاً.'], 422);
+            }
 
-        return DB::transaction(function () use ($wallet, $exam, $user) {
             $wallet->balance -= $exam->price;
             $wallet->save();
 
@@ -3332,6 +3442,23 @@ class StudentController extends Controller
                 'exam_id' => $exam->id,
                 'purchased_at' => Carbon::now(),
             ]);
+
+            // Split revenue through standard RevenueSharingService
+            if ($teacherId) {
+                \App\Services\RevenueSharingService::handlePurchase(
+                    $user->id,
+                    $teacherId,
+                    $exam->price,
+                    $courseId,
+                    null,
+                    $lesson ? $lesson->id : null,
+                    null,
+                    'wallet',
+                    $exam->id,
+                    $exam->price,
+                    0.00
+                );
+            }
 
             return response()->json([
                 'message' => 'تم شراء الامتحان بنجاح.',

@@ -15,9 +15,13 @@ class PaymentHistory extends Model
         'student_id',
         'teacher_id',
         'amount',
+        'original_price',
+        'discount_amount',
+        'commission_rate',
         'course_id',
         'package_id',
         'lesson_id',
+        'exam_id',
         'purchase_code_id',
         'payment_method',
         'status',
@@ -25,6 +29,9 @@ class PaymentHistory extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'original_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'commission_rate' => 'decimal:2',
     ];
 
     public function student()
@@ -50,6 +57,11 @@ class PaymentHistory extends Model
     public function lesson()
     {
         return $this->belongsTo(Lesson::class, 'lesson_id');
+    }
+
+    public function exam()
+    {
+        return $this->belongsTo(Exam::class, 'exam_id');
     }
 
     public function purchaseCode()

@@ -10,6 +10,8 @@ use App\Models\TeacherEarning;
 use App\Models\PlatformEarning;
 use App\Models\TeacherPayout;
 use App\Models\FinancialAuditLog;
+use App\Models\SubscriptionPayment;
+use App\Models\Exam;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -101,9 +103,12 @@ class FinancialController extends Controller
             if ($type === 'course') {
                 $query->whereNotNull('payment_histories.course_id')
                       ->whereNull('payment_histories.package_id')
-                      ->whereNull('payment_histories.lesson_id');
+                      ->whereNull('payment_histories.lesson_id')
+                      ->whereNull('payment_histories.exam_id');
             } elseif ($type === 'lesson') {
                 $query->whereNotNull('payment_histories.lesson_id');
+            } elseif ($type === 'exam') {
+                $query->whereNotNull('payment_histories.exam_id');
             } elseif (in_array($type, ['bundle', 'month', 'revision'])) {
                 $query->whereHas('package', function($q) use ($type) {
                     $q->where('type', $type);
@@ -157,9 +162,11 @@ class FinancialController extends Controller
         if ($request->filled('product_type')) {
             $type = $request->query('product_type');
             if ($type === 'course') {
-                $query->whereNotNull('course_id')->whereNull('package_id')->whereNull('lesson_id');
+                $query->whereNotNull('course_id')->whereNull('package_id')->whereNull('lesson_id')->whereNull('exam_id');
             } elseif ($type === 'lesson') {
                 $query->whereNotNull('lesson_id');
+            } elseif ($type === 'exam') {
+                $query->whereNotNull('exam_id');
             } elseif (in_array($type, ['bundle', 'month', 'revision'])) {
                 $query->whereHas('package', function($q) use ($type) {
                     $q->where('type', $type);
@@ -212,6 +219,43 @@ class FinancialController extends Controller
         $platformEarningQuery = $this->applyDateFilter($platformEarningQuery, $range, $startDate, $endDate, 'platform_earnings.created_at');
         $totalPlatformEarnings = $platformEarningQuery->sum('amount');
 
+        // Teacher SaaS Subscription Revenue (Segregated Platform Income)
+        $saasQuery = SubscriptionPayment::where('payment_status', 'Paid');
+        if ($startDate) {
+            $saasQuery->whereDate('payment_date', '>=', Carbon::parse($startDate));
+        }
+        if ($endDate) {
+            $saasQuery->whereDate('payment_date', '<=', Carbon::parse($endDate));
+        }
+        if (!$startDate && !$endDate) {
+            switch ($range) {
+                case 'today':
+                    $saasQuery->whereDate('payment_date', Carbon::today());
+                    break;
+                case 'yesterday':
+                    $saasQuery->whereDate('payment_date', Carbon::yesterday());
+                    break;
+                case 'last_7_days':
+                    $saasQuery->where('payment_date', '>=', Carbon::now()->subDays(7));
+                    break;
+                case 'last_30_days':
+                    $saasQuery->where('payment_date', '>=', Carbon::now()->subDays(30));
+                    break;
+                case 'this_month':
+                    $saasQuery->whereMonth('payment_date', Carbon::now()->month)->whereYear('payment_date', Carbon::now()->year);
+                    break;
+                case 'last_month':
+                    $lastMonth = Carbon::now()->subMonth();
+                    $saasQuery->whereMonth('payment_date', $lastMonth->month)->whereYear('payment_date', $lastMonth->year);
+                    break;
+                case 'this_year':
+                    $saasQuery->whereYear('payment_date', Carbon::now()->year);
+                    break;
+            }
+        }
+        $totalSaasRevenue = (float)$saasQuery->sum('amount');
+        $totalPlatformIncome = round((float)$totalPlatformEarnings + (float)$totalSaasRevenue, 2);
+
         // Payout balances
         $pendingPayouts = TeacherPayout::where('status', 'pending');
         if ($request->filled('teacher_id')) {
@@ -219,7 +263,7 @@ class FinancialController extends Controller
         }
         $pendingWithdrawals = $pendingPayouts->sum('amount');
 
-        $completedPayouts = TeacherPayout::where('status', 'completed');
+        $completedPayouts = TeacherPayout::whereIn('status', ['completed', 'paid']);
         if ($request->filled('teacher_id')) {
             $completedPayouts->where('teacher_id', $request->query('teacher_id'));
         }
@@ -271,6 +315,7 @@ class FinancialController extends Controller
             ->selectRaw('courses.subject as label, SUM(payment_histories.amount) as value')
             ->groupBy('courses.subject')
             ->orderByDesc('value')
+            ->limit(8)
             ->get();
 
         $revenuePerGrade = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
@@ -278,20 +323,23 @@ class FinancialController extends Controller
             ->selectRaw('courses.grade as label, SUM(payment_histories.amount) as value')
             ->groupBy('courses.grade')
             ->orderByDesc('value')
+            ->limit(8)
             ->get();
 
         $revenueByProductType = [
-            ['label' => 'Course', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereNotNull('payment_histories.course_id')->whereNull('payment_histories.package_id')->whereNull('payment_histories.lesson_id')->sum('payment_histories.amount')],
+            ['label' => 'Course', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereNotNull('payment_histories.course_id')->whereNull('payment_histories.package_id')->whereNull('payment_histories.lesson_id')->whereNull('payment_histories.exam_id')->sum('payment_histories.amount')],
             ['label' => 'Bundle', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereHas('package', function($q) { $q->where('type', 'bundle'); })->sum('payment_histories.amount')],
             ['label' => 'Monthly Package', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereHas('package', function($q) { $q->where('type', 'month'); })->sum('payment_histories.amount')],
             ['label' => 'Revision Package', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereHas('package', function($q) { $q->where('type', 'revision'); })->sum('payment_histories.amount')],
             ['label' => 'Standalone Lecture', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereNotNull('payment_histories.lesson_id')->sum('payment_histories.amount')],
+            ['label' => 'Paid Exam', 'value' => (float)$this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)->whereNotNull('payment_histories.exam_id')->sum('payment_histories.amount')],
         ];
 
         $topSellingCourses = $this->applyDateFilter($this->applyGeneralFilters(PaymentHistory::query(), $request), $range, $startDate, $endDate)
             ->whereNotNull('payment_histories.course_id')
             ->whereNull('payment_histories.package_id')
             ->whereNull('payment_histories.lesson_id')
+            ->whereNull('payment_histories.exam_id')
             ->join('courses', 'payment_histories.course_id', '=', 'courses.id')
             ->selectRaw('courses.title as label, COUNT(*) as sales_count, SUM(payment_histories.amount) as value')
             ->groupBy('courses.id', 'courses.title')
@@ -329,15 +377,16 @@ class FinancialController extends Controller
         
         // 1. Large Refund (> 500 EGP)
         $largeRefundsAlerts = \App\Models\RefundLog::where('amount', '>', 500.00)
-            ->with(['student:id,name', 'course:id,title'])
+            ->with(['student:id,name', 'course:id,title', 'package:id,title', 'lesson:id,title', 'exam:id,title'])
             ->latest()
             ->limit(5)
             ->get()
             ->map(function($r) {
+                $prod = $r->course ? $r->course->title : ($r->package ? $r->package->title : ($r->lesson ? $r->lesson->title : ($r->exam ? $r->exam->title : 'Product')));
                 return [
                     'id' => $r->id,
                     'student_name' => $r->student ? $r->student->name : 'N/A',
-                    'product' => $r->course ? $r->course->title : ($r->package ? $r->package->title : 'Product'),
+                    'product' => $prod,
                     'amount' => (float)$r->amount,
                     'timestamp' => $r->created_at->toDateTimeString()
                 ];
@@ -368,7 +417,7 @@ class FinancialController extends Controller
             ->groupBy('teacher_id')
             ->pluck('total', 'teacher_id');
 
-        $teacherPayoutsSum = TeacherPayout::where('status', 'completed')
+        $teacherPayoutsSum = TeacherPayout::whereIn('status', ['completed', 'paid'])
             ->selectRaw('teacher_id, SUM(amount) as total')
             ->groupBy('teacher_id')
             ->pluck('total', 'teacher_id');
@@ -388,23 +437,27 @@ class FinancialController extends Controller
             }
         }
 
-        // 4. Revenue Reconciliation Mismatch Alert (Student Payments == Teacher Share + Platform Share)
+        // 4. Revenue Reconciliation Mismatch Alert (Student Content Payments == Teacher Share + Platform Share - Adjustments)
         $totalAllStudentPayments = PaymentHistory::sum('amount');
         $totalAllTeacherShare = TeacherEarning::sum('amount');
         $totalAllPlatformShare = PlatformEarning::sum('amount');
-        $difference = round($totalAllStudentPayments - ($totalAllTeacherShare + $totalAllPlatformShare), 2);
+        $manualAdjustmentsSum = TeacherEarning::where('source', 'manual_adjustment')->sum('amount');
+        
+        $netEarningsSum = ($totalAllTeacherShare + $totalAllPlatformShare) - $manualAdjustmentsSum;
+        $difference = round($totalAllStudentPayments - $netEarningsSum, 2);
         
         $reconciliationMismatch = [
             'mismatch' => abs($difference) > 0.05,
             'student_payments' => (float)$totalAllStudentPayments,
             'teacher_earnings' => (float)$totalAllTeacherShare,
             'platform_earnings' => (float)$totalAllPlatformShare,
+            'manual_adjustments' => (float)$manualAdjustmentsSum,
             'difference' => $difference
         ];
 
         // 5. Duplicate Payments Alert (same student, same product, within 2 minutes)
-        $duplicatePaymentsCandidates = PaymentHistory::select('student_id', 'course_id', 'package_id', 'lesson_id', DB::raw('COUNT(*) as count'))
-            ->groupBy('student_id', 'course_id', 'package_id', 'lesson_id')
+        $duplicatePaymentsCandidates = PaymentHistory::select('student_id', 'course_id', 'package_id', 'lesson_id', 'exam_id', DB::raw('COUNT(*) as count'))
+            ->groupBy('student_id', 'course_id', 'package_id', 'lesson_id', 'exam_id')
             ->havingRaw('COUNT(*) > 1')
             ->limit(5)
             ->get();
@@ -415,6 +468,7 @@ class FinancialController extends Controller
                 ->where('course_id', $dp->course_id)
                 ->where('package_id', $dp->package_id)
                 ->where('lesson_id', $dp->lesson_id)
+                ->where('exam_id', $dp->exam_id)
                 ->orderBy('created_at')
                 ->get();
             
@@ -433,6 +487,9 @@ class FinancialController extends Controller
                     } elseif ($dp->lesson_id) {
                         $l = \App\Models\Lesson::find($dp->lesson_id);
                         $productName = $l ? $l->title : 'Lecture';
+                    } elseif ($dp->exam_id) {
+                        $ex = \App\Models\Exam::find($dp->exam_id);
+                        $productName = $ex ? $ex->title : 'Exam';
                     }
 
                     $duplicatePaymentAlerts[] = [
@@ -491,6 +548,8 @@ class FinancialController extends Controller
                 'platform_net_profit' => (float)$totalPlatformEarnings,
                 'teachers_earnings' => (float)$totalTeacherEarnings,
                 'platform_commission' => (float)$totalPlatformEarnings,
+                'saas_subscription_revenue' => (float)$totalSaasRevenue,
+                'total_platform_income' => (float)$totalPlatformIncome,
                 'average_commission_percentage' => $totalRevenue > 0 ? round(($totalPlatformEarnings / $totalRevenue) * 100, 2) : 0.00,
                 'pending_withdrawals' => (float)$pendingWithdrawals,
                 'completed_withdrawals' => (float)$completedWithdrawals,
@@ -530,7 +589,7 @@ class FinancialController extends Controller
         $endDate = $request->query('end_date');
         $perPage = $request->query('per_page', 20);
 
-        $query = PaymentHistory::with(['student', 'teacher', 'course', 'package', 'lesson', 'purchaseCode']);
+        $query = PaymentHistory::with(['student', 'teacher', 'course', 'package', 'lesson', 'exam', 'purchaseCode']);
         $query = $this->applyGeneralFilters($query, $request);
         $query = $this->applyDateFilter($query, $range, $startDate, $endDate);
         
@@ -561,6 +620,7 @@ class FinancialController extends Controller
                     && $e->course_id == $ph->course_id 
                     && $e->package_id == $ph->package_id 
                     && $e->lesson_id == $ph->lesson_id
+                    && $e->exam_id == $ph->exam_id
                     && abs(strtotime($e->created_at) - strtotime($ph->created_at)) < 15;
             });
 
@@ -570,13 +630,14 @@ class FinancialController extends Controller
                     && $e->course_id == $ph->course_id 
                     && $e->package_id == $ph->package_id 
                     && $e->lesson_id == $ph->lesson_id
+                    && $e->exam_id == $ph->exam_id
                     && abs(strtotime($e->created_at) - strtotime($ph->created_at)) < 15;
             });
 
             $wallet = $wallets->get($ph->student_id);
             $wtId = null;
             if ($wallet) {
-                $refId = $ph->course_id ?: ($ph->package_id ?: $ph->lesson_id);
+                $refId = $ph->course_id ?: ($ph->package_id ?: ($ph->lesson_id ?: $ph->exam_id));
                 $wt = $walletTransactions->first(function($t) use ($wallet, $ph, $refId) {
                     return $t->wallet_id == $wallet->id
                         && (float)$t->amount == (float)$ph->amount
@@ -608,20 +669,17 @@ class FinancialController extends Controller
             } elseif ($ph->lesson_id) {
                 $productType = 'Standalone Lecture';
                 $productName = $ph->lesson ? $ph->lesson->title : 'Unknown Lecture';
+            } elseif ($ph->exam_id) {
+                $productType = 'Paid Exam';
+                $productName = $ph->exam ? $ph->exam->title : 'Unknown Exam';
             }
 
-            $originalPrice = (float)$ph->amount;
-            $discount = 0.00;
-            if ($ph->course) {
-                $originalPrice = (float)$ph->course->price;
-                $discount = max(0.00, $originalPrice - (float)$ph->amount);
-            } elseif ($ph->package) {
-                $originalPrice = (float)$ph->package->price;
-                $discount = max(0.00, $originalPrice - (float)$ph->amount);
-            } elseif ($ph->lesson) {
-                $originalPrice = (float)$ph->lesson->price;
-                $discount = max(0.00, $originalPrice - (float)$ph->amount);
-            }
+            $originalPrice = $ph->original_price !== null 
+                ? (float)$ph->original_price 
+                : ($ph->course ? (float)$ph->course->price : ($ph->package ? (float)$ph->package->price : ($ph->lesson ? (float)$ph->lesson->price : ($ph->exam ? (float)$ph->exam->price : (float)$ph->amount))));
+            $discount = $ph->discount_amount !== null 
+                ? (float)$ph->discount_amount 
+                : max(0.00, $originalPrice - (float)$ph->amount);
 
             $activationTime = $ph->created_at->toDateTimeString();
             if ($ph->purchaseCode && $ph->purchaseCode->redeemed_at) {
@@ -685,11 +743,12 @@ class FinancialController extends Controller
                 DATE(payment_histories.created_at) as date, 
                 SUM(payment_histories.amount) as total_revenue,
                 COUNT(payment_histories.id) as total_purchases,
-                SUM(CASE WHEN payment_histories.course_id IS NOT NULL AND payment_histories.package_id IS NULL AND payment_histories.lesson_id IS NULL THEN 1 ELSE 0 END) as courses_sold,
+                SUM(CASE WHEN payment_histories.course_id IS NOT NULL AND payment_histories.package_id IS NULL AND payment_histories.lesson_id IS NULL AND payment_histories.exam_id IS NULL THEN 1 ELSE 0 END) as courses_sold,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'bundle' THEN 1 ELSE 0 END) as bundles_sold,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'month' THEN 1 ELSE 0 END) as monthly_packages_sold,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'revision' THEN 1 ELSE 0 END) as revision_packages_sold,
-                SUM(CASE WHEN payment_histories.lesson_id IS NOT NULL THEN 1 ELSE 0 END) as standalone_sold
+                SUM(CASE WHEN payment_histories.lesson_id IS NOT NULL THEN 1 ELSE 0 END) as standalone_sold,
+                SUM(CASE WHEN payment_histories.exam_id IS NOT NULL THEN 1 ELSE 0 END) as exams_sold
             ")
             ->groupBy('date')
             ->orderBy('date', 'desc')
@@ -704,6 +763,7 @@ class FinancialController extends Controller
         $dailyTopCourses = PaymentHistory::whereNotNull('course_id')
             ->whereNull('package_id')
             ->whereNull('lesson_id')
+            ->whereNull('exam_id')
             ->selectRaw("DATE(created_at) as date, course_id, COUNT(*) as sales_count")
             ->groupBy('date', 'course_id')
             ->orderByDesc('sales_count')
@@ -738,6 +798,8 @@ class FinancialController extends Controller
             
             $teacherShare = TeacherEarning::whereDate('created_at', $dateStr)->sum('amount');
             $platformShare = PlatformEarning::whereDate('created_at', $dateStr)->sum('amount');
+            $saasShare = SubscriptionPayment::where('payment_status', 'Paid')->whereDate('payment_date', $dateStr)->sum('amount');
+            $payoutsShare = TeacherPayout::whereIn('status', ['completed', 'paid'])->whereDate('payout_date', $dateStr)->sum('amount');
             $newStudents = User::where('role', 'student')->whereDate('created_at', $dateStr)->count();
             $refundsSum = \App\Models\RefundLog::whereDate('created_at', $dateStr)->sum('amount');
 
@@ -773,6 +835,8 @@ class FinancialController extends Controller
                 'total_revenue' => (float)$rep->total_revenue,
                 'platform_earnings' => (float)$platformShare,
                 'teachers_earnings' => (float)$teacherShare,
+                'saas_revenue' => (float)$saasShare,
+                'payouts_amount' => (float)$payoutsShare,
                 'purchases_count' => (int)$rep->total_purchases,
                 'new_students_count' => $newStudents,
                 'refunds_amount' => (float)$refundsSum,
@@ -781,6 +845,7 @@ class FinancialController extends Controller
                 'monthly_packages_sold' => (int)$rep->monthly_packages_sold,
                 'revision_packages_sold' => (int)$rep->revision_packages_sold,
                 'standalone_sold' => (int)$rep->standalone_sold,
+                'exams_sold' => (int)$rep->exams_sold,
                 'top_teacher' => $topTeacher,
                 'top_course' => $topCourse,
                 'top_bundle' => $topBundle,
@@ -822,7 +887,7 @@ class FinancialController extends Controller
             ->selectRaw("
                 teacher_id,
                 SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_payouts,
-                SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_payouts
+                SUM(CASE WHEN status IN ('completed', 'paid') THEN amount ELSE 0 END) as completed_payouts
             ")
             ->groupBy('teacher_id')
             ->get()
@@ -832,6 +897,7 @@ class FinancialController extends Controller
             ->whereNotNull('course_id')
             ->whereNull('package_id')
             ->whereNull('lesson_id')
+            ->whereNull('exam_id')
             ->selectRaw('teacher_id, course_id, COUNT(*) as sales_count')
             ->groupBy('teacher_id', 'course_id')
             ->get()
@@ -851,9 +917,17 @@ class FinancialController extends Controller
             ->get()
             ->groupBy('teacher_id');
 
+        $examSales = PaymentHistory::whereIn('teacher_id', $teacherIds)
+            ->whereNotNull('exam_id')
+            ->selectRaw('teacher_id, exam_id, COUNT(*) as sales_count')
+            ->groupBy('teacher_id', 'exam_id')
+            ->get()
+            ->groupBy('teacher_id');
+
         $courseTitles = Course::whereIn('teacher_id', $teacherIds)->pluck('title', 'id');
         $packageTitles = \App\Models\Package::pluck('title', 'id');
         $lessonTitles = \App\Models\Lesson::pluck('title', 'id');
+        $examTitles = \App\Models\Exam::pluck('title', 'id');
 
         $data = $teachers->map(function($teacher) use (
             $teacherRevenueStats, 
@@ -861,9 +935,11 @@ class FinancialController extends Controller
             $courseSales,
             $packageSales,
             $lessonSales,
+            $examSales,
             $courseTitles,
             $packageTitles,
-            $lessonTitles
+            $lessonTitles,
+            $examTitles
         ) {
             $stats = $teacherRevenueStats->get($teacher->id);
             $payouts = $teacherPayoutStats->get($teacher->id);
@@ -892,6 +968,14 @@ class FinancialController extends Controller
                 if ($ls->sales_count > $maxSales) {
                     $maxSales = $ls->sales_count;
                     $topProduct = $lessonTitles->get($ls->lesson_id) ?: 'Lecture';
+                }
+            }
+
+            $teacherExams = $examSales->get($teacher->id) ?: collect();
+            foreach ($teacherExams as $es) {
+                if ($es->sales_count > $maxSales) {
+                    $maxSales = $es->sales_count;
+                    $topProduct = $examTitles->get($es->exam_id) ?: 'Exam';
                 }
             }
 
@@ -969,11 +1053,12 @@ class FinancialController extends Controller
             ->leftJoin('packages', 'payment_histories.package_id', '=', 'packages.id')
             ->selectRaw("
                 payment_histories.student_id,
-                SUM(CASE WHEN payment_histories.course_id IS NOT NULL AND payment_histories.package_id IS NULL AND payment_histories.lesson_id IS NULL THEN 1 ELSE 0 END) as course_count,
+                SUM(CASE WHEN payment_histories.course_id IS NOT NULL AND payment_histories.package_id IS NULL AND payment_histories.lesson_id IS NULL AND payment_histories.exam_id IS NULL THEN 1 ELSE 0 END) as course_count,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'bundle' THEN 1 ELSE 0 END) as bundle_count,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'month' THEN 1 ELSE 0 END) as month_count,
                 SUM(CASE WHEN payment_histories.package_id IS NOT NULL AND packages.type = 'revision' THEN 1 ELSE 0 END) as revision_count,
-                SUM(CASE WHEN payment_histories.lesson_id IS NOT NULL THEN 1 ELSE 0 END) as lesson_count
+                SUM(CASE WHEN payment_histories.lesson_id IS NOT NULL THEN 1 ELSE 0 END) as lesson_count,
+                SUM(CASE WHEN payment_histories.exam_id IS NOT NULL THEN 1 ELSE 0 END) as exam_count
             ")
             ->groupBy('payment_histories.student_id')
             ->get()
@@ -1012,6 +1097,7 @@ class FinancialController extends Controller
                     'Monthly Package' => (int)$typeStats->month_count,
                     'Revision Package' => (int)$typeStats->revision_count,
                     'Standalone Lecture' => (int)$typeStats->lesson_count,
+                    'Paid Exam' => (int)($typeStats->exam_count ?? 0),
                 ];
                 arsort($counts);
                 $firstKey = key($counts);
@@ -1056,7 +1142,7 @@ class FinancialController extends Controller
 
         $teacher = User::where('role', 'teacher')->findOrFail($id);
         
-        $oldBalance = TeacherEarning::where('teacher_id', $teacher->id)->sum('amount') - TeacherPayout::where('teacher_id', $teacher->id)->where('status', 'completed')->sum('amount');
+        $oldBalance = TeacherEarning::where('teacher_id', $teacher->id)->sum('amount') - TeacherPayout::where('teacher_id', $teacher->id)->whereIn('status', ['completed', 'paid'])->sum('amount');
         $newBalance = $oldBalance + $request->amount;
 
         $admin = $request->user();
@@ -1101,7 +1187,7 @@ class FinancialController extends Controller
                 ->where('created_at', '<', Carbon::parse($startDate))
                 ->sum('amount');
             $prevPayouts = TeacherPayout::where('teacher_id', $teacher->id)
-                ->where('status', 'completed')
+                ->whereIn('status', ['completed', 'paid'])
                 ->where('payout_date', '<', Carbon::parse($startDate))
                 ->sum('amount');
             $openingBalance = (float)$prevEarnings - (float)$prevPayouts;
@@ -1134,6 +1220,9 @@ class FinancialController extends Controller
             } elseif ($e->source === 'reversal') {
                 $type = 'Reversal';
                 $description = 'إلغاء معاملة واسترجاع أرباح المعلم';
+            } elseif ($e->exam_id) {
+                $exam = \App\Models\Exam::find($e->exam_id);
+                $description = 'مبيعات امتحان مدفوع: ' . ($exam ? $exam->title : 'امتحان');
             } elseif ($e->course_id) {
                 $course = Course::find($e->course_id);
                 $description = 'مبيعات كورس: ' . ($course ? $course->title : 'كورس');
@@ -1175,7 +1264,7 @@ class FinancialController extends Controller
         $timeline = [];
         
         foreach ($sortedEvents as $ev) {
-            if ($ev['type'] === 'Withdrawal' && isset($ev['status']) && $ev['status'] !== 'completed') {
+            if ($ev['type'] === 'Withdrawal' && isset($ev['status']) && !in_array($ev['status'], ['completed', 'paid'])) {
                 $ev['running_balance'] = round($currentRunning, 2);
             } else {
                 $currentRunning += $ev['amount'];
@@ -1185,7 +1274,7 @@ class FinancialController extends Controller
         }
 
         $totalAllEarnings = TeacherEarning::where('teacher_id', $teacher->id)->sum('amount');
-        $totalAllPayouts = TeacherPayout::where('teacher_id', $teacher->id)->where('status', 'completed')->sum('amount');
+        $totalAllPayouts = TeacherPayout::where('teacher_id', $teacher->id)->whereIn('status', ['completed', 'paid'])->sum('amount');
         $currentBalance = (float)$totalAllEarnings - (float)$totalAllPayouts;
 
         return response()->json([
@@ -1208,7 +1297,7 @@ class FinancialController extends Controller
         $student = User::where('role', 'student')->findOrFail($id);
 
         $ledger = PaymentHistory::where('student_id', $student->id)
-            ->with(['course', 'package', 'lesson', 'teacher'])
+            ->with(['course', 'package', 'lesson', 'exam', 'teacher'])
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function($ph) {
@@ -1232,20 +1321,17 @@ class FinancialController extends Controller
                 } elseif ($ph->lesson_id) {
                     $productType = 'Standalone Lecture';
                     $productName = $ph->lesson ? $ph->lesson->title : 'Unknown Lecture';
+                } elseif ($ph->exam_id) {
+                    $productType = 'Paid Exam';
+                    $productName = $ph->exam ? $ph->exam->title : 'Unknown Exam';
                 }
 
-                $originalPrice = (float)$ph->amount;
-                $discount = 0.00;
-                if ($ph->course) {
-                    $originalPrice = (float)$ph->course->price;
-                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
-                } elseif ($ph->package) {
-                    $originalPrice = (float)$ph->package->price;
-                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
-                } elseif ($ph->lesson) {
-                    $originalPrice = (float)$ph->lesson->price;
-                    $discount = max(0.00, $originalPrice - (float)$ph->amount);
-                }
+                $originalPrice = $ph->original_price !== null 
+                    ? (float)$ph->original_price 
+                    : ($ph->course ? (float)$ph->course->price : ($ph->package ? (float)$ph->package->price : ($ph->lesson ? (float)$ph->lesson->price : ($ph->exam ? (float)$ph->exam->price : (float)$ph->amount))));
+                $discount = $ph->discount_amount !== null 
+                    ? (float)$ph->discount_amount 
+                    : max(0.00, $originalPrice - (float)$ph->amount);
 
                 return [
                     'id' => $ph->id,
@@ -1292,6 +1378,8 @@ class FinancialController extends Controller
         $totalRevenue = PaymentHistory::whereDate('created_at', $dateStr)->sum('amount');
         $teacherShare = TeacherEarning::whereDate('created_at', $dateStr)->sum('amount');
         $platformShare = PlatformEarning::whereDate('created_at', $dateStr)->sum('amount');
+        $saasRevenue = SubscriptionPayment::where('payment_status', 'Paid')->whereDate('payment_date', $dateStr)->sum('amount');
+        $payoutsSum = TeacherPayout::whereIn('status', ['completed', 'paid'])->whereDate('payout_date', $dateStr)->sum('amount');
         $refundsSum = \App\Models\RefundLog::whereDate('created_at', $dateStr)->sum('amount');
         $newStudents = User::where('role', 'student')->whereDate('created_at', $dateStr)->count();
         $purchasesCount = PaymentHistory::whereDate('created_at', $dateStr)->count();
@@ -1308,6 +1396,7 @@ class FinancialController extends Controller
             ->whereNotNull('course_id')
             ->whereNull('package_id')
             ->whereNull('lesson_id')
+            ->whereNull('exam_id')
             ->selectRaw('course_id, COUNT(*) as count')
             ->groupBy('course_id')
             ->orderByDesc('count')
@@ -1340,7 +1429,7 @@ class FinancialController extends Controller
             'Expires' => '0'
         ];
 
-        $callback = function() use ($dateStr, $totalRevenue, $platformShare, $teacherShare, $refundsSum, $purchasesCount, $newStudents, $topTeacherName, $topCourseTitle, $topBundleTitle, $topSubject) {
+        $callback = function() use ($dateStr, $totalRevenue, $platformShare, $teacherShare, $saasRevenue, $payoutsSum, $refundsSum, $purchasesCount, $newStudents, $topTeacherName, $topCourseTitle, $topBundleTitle, $topSubject) {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -1348,9 +1437,12 @@ class FinancialController extends Controller
             fputcsv($file, ['التاريخ', $dateStr]);
             fputcsv($file, []);
             fputcsv($file, ['البند المالي', 'القيمة بالجنيه المصري']);
-            fputcsv($file, ['إجمالي المبيعات (Total Sales)', $totalRevenue]);
-            fputcsv($file, ['أرباح المنصة (Platform Profit)', $platformShare]);
-            fputcsv($file, ['أرباح المدرسين (Teachers Profit)', $teacherShare]);
+            fputcsv($file, ['إجمالي مبيعات المحتوى (Student Content Sales)', $totalRevenue]);
+            fputcsv($file, ['عمولة المنصة من المحتوى (Platform Commission)', $platformShare]);
+            fputcsv($file, ['أرباح المدرسين من المحتوى (Teachers Content Earnings)', $teacherShare]);
+            fputcsv($file, ['إيرادات اشتراكات المدرسين SaaS (Teacher SaaS Subscriptions)', $saasRevenue]);
+            fputcsv($file, ['إجمالي دخل المنصة الصافي (Total Net Platform Income)', $platformShare + $saasRevenue]);
+            fputcsv($file, ['المسحوبات المنفذة للمدرسين (Teacher Payouts Disbursed)', $payoutsSum]);
             fputcsv($file, ['المبالغ المسترجعة (Refunds)', $refundsSum]);
             fputcsv($file, []);
             fputcsv($file, ['إحصائيات غير مالية', 'العدد']);

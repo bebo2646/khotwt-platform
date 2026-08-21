@@ -1724,11 +1724,164 @@ class AdminController extends Controller
     }
 
     /**
+     * Refund a paid exam purchase (Purchase Reversal System for Exams).
+     */
+    public function refundExamPurchase(Request $request, $examPurchaseId)
+    {
+        $purchase = \App\Models\ExamPurchase::with(['exam.lesson.unit.course'])->findOrFail($examPurchaseId);
+        $studentId = $purchase->student_id;
+        $exam = $purchase->exam;
+        $admin = $request->user();
+
+        return DB::transaction(function () use ($purchase, $studentId, $exam, $admin, $request) {
+            $wallet = Wallet::firstOrCreate(['student_id' => $studentId], ['balance' => 0.00]);
+            
+            $amount = (float)$exam->price;
+            $tx = WalletTransaction::where('wallet_id', $wallet->id)
+                ->where('type', 'purchase')
+                ->where('reference_id', $exam->id)
+                ->where('description', 'like', '%امتحان%')
+                ->latest()
+                ->first();
+            if ($tx) {
+                $amount = (float)$tx->amount;
+            }
+
+            // Remove exam purchase
+            $purchase->delete();
+
+            // Create Wallet Transaction
+            WalletTransaction::create([
+                'wallet_id' => $wallet->id,
+                'type' => 'refund',
+                'amount' => $amount,
+                'description' => 'إرجاع قيمة امتحان: ' . $exam->title . ' بواسطة المسؤول (استرجاع إداري)',
+                'reference_id' => $exam->id,
+            ]);
+
+            // Teacher ID
+            $lesson = $exam->lesson;
+            $courseId = ($lesson && $lesson->unit) ? $lesson->unit->course_id : null;
+            $teacherId = ($lesson && $lesson->unit && $lesson->unit->course) ? $lesson->unit->course->teacher_id : null;
+
+            if ($teacherId) {
+                $ph = \App\Models\PaymentHistory::where('student_id', $studentId)
+                    ->where('teacher_id', $teacherId)
+                    ->where('exam_id', $exam->id)
+                    ->where('status', 'paid')
+                    ->latest()
+                    ->first();
+
+                if ($ph) {
+                    $ph->update(['status' => 'refunded']);
+
+                    $te = \App\Models\TeacherEarning::where('student_id', $studentId)
+                        ->where('teacher_id', $teacherId)
+                        ->where('exam_id', $exam->id)
+                        ->latest()
+                        ->first();
+
+                    $pe = \App\Models\PlatformEarning::where('student_id', $studentId)
+                        ->where('teacher_id', $teacherId)
+                        ->where('exam_id', $exam->id)
+                        ->latest()
+                        ->first();
+
+                    $teacherAmount = $te ? (float)$te->amount : round($amount * 0.8, 2);
+                    $platformAmount = $pe ? (float)$pe->amount : round($amount * 0.2, 2);
+
+                    // Reversing Payment History
+                    \App\Models\PaymentHistory::create([
+                        'student_id' => $studentId,
+                        'teacher_id' => $teacherId,
+                        'amount' => -$amount,
+                        'course_id' => $courseId,
+                        'package_id' => null,
+                        'lesson_id' => $lesson ? $lesson->id : null,
+                        'exam_id' => $exam->id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'payment_method' => $ph->payment_method,
+                        'status' => 'refunded',
+                    ]);
+
+                    // Reversing Teacher Earning
+                    \App\Models\TeacherEarning::create([
+                        'teacher_id' => $teacherId,
+                        'amount' => -$teacherAmount,
+                        'course_id' => $courseId,
+                        'package_id' => null,
+                        'lesson_id' => $lesson ? $lesson->id : null,
+                        'exam_id' => $exam->id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'student_id' => $studentId,
+                        'source' => 'reversal',
+                        'status' => 'completed',
+                        'description' => 'إلغاء واسترجاع عملية شراء امتحان مدفوع ورصيد المحفظة',
+                    ]);
+
+                    // Reversing Platform Earning
+                    \App\Models\PlatformEarning::create([
+                        'teacher_id' => $teacherId,
+                        'amount' => -$platformAmount,
+                        'course_id' => $courseId,
+                        'package_id' => null,
+                        'lesson_id' => $lesson ? $lesson->id : null,
+                        'exam_id' => $exam->id,
+                        'purchase_code_id' => $ph->purchase_code_id,
+                        'student_id' => $studentId,
+                        'source' => 'reversal',
+                        'description' => 'إلغاء واسترجاع عملية شراء امتحان مدفوع ورصيد المحفظة',
+                    ]);
+                }
+            }
+
+            // Save Refund Log
+            \App\Models\RefundLog::create([
+                'student_id' => $studentId,
+                'course_id' => $courseId,
+                'package_id' => null,
+                'lesson_id' => $lesson ? $lesson->id : null,
+                'exam_id' => $exam->id,
+                'amount' => $amount,
+                'admin_id' => $admin->id,
+            ]);
+
+            // Create Financial Audit Log Entry
+            \App\Models\FinancialAuditLog::create([
+                'admin_id' => $admin->id,
+                'admin_name' => $admin->name,
+                'action' => "Refund Exam Purchase (Student ID: {$studentId}, Exam ID: {$exam->id})",
+                'previous_value' => "Paid Amount: {$amount} EGP",
+                'new_value' => "Reversing transaction written: -{$amount} EGP",
+                'reason' => "إلغاء شراء امتحان واسترجاع مالي للمحفظة",
+                'ip_address' => $request->ip(),
+            ]);
+
+            // Save Admin Activity Log
+            \App\Models\AdminActivityLog::create([
+                'admin_name' => $admin->name,
+                'action_type' => "Wallet Adjustment (Refund/Cancel Exam: {$amount} ج.م) to Student ID: {$studentId}",
+                'deleted_count' => 0,
+                'ip_address' => $request->ip(),
+            ]);
+
+            // Recalculate balance using dynamic transaction ledger and save it
+            $wallet->balance = $wallet->getBalanceAttribute(null);
+            $wallet->save();
+
+            return response()->json([
+                'message' => 'تم إلغاء شراء الامتحان وإعادة المبلغ إلى محفظة الطالب بنجاح.',
+                'balance' => $wallet->balance,
+            ]);
+        });
+    }
+
+    /**
      * Get refund logs (Refund history).
      */
     public function refundLogs()
     {
-        $logs = \App\Models\RefundLog::with(['student', 'course', 'package', 'admin'])
+        $logs = \App\Models\RefundLog::with(['student', 'course', 'package', 'lesson', 'exam', 'admin'])
             ->latest()
             ->get();
         return response()->json($logs);
@@ -1966,12 +2119,36 @@ class AdminController extends Controller
      */
     public function listPayouts()
     {
-        // 1. Group pending earnings by teacher
-        $pendingPayouts = \App\Models\TeacherEarning::where('status', 'pending')
-            ->select('teacher_id', DB::raw('SUM(amount) as pending_amount'))
+        // 1. Fetch all teachers and calculate available balance from ledger
+        $teachers = \App\Models\User::where('role', 'teacher')->get(['id', 'name', 'email', 'phone']);
+        $teacherIds = $teachers->pluck('id');
+
+        $earnings = \App\Models\TeacherEarning::whereIn('teacher_id', $teacherIds)
+            ->select('teacher_id', DB::raw('SUM(amount) as total_earnings'))
             ->groupBy('teacher_id')
-            ->with('teacher:id,name,email,phone')
-            ->get();
+            ->pluck('total_earnings', 'teacher_id');
+
+        $payouts = \App\Models\TeacherPayout::whereIn('teacher_id', $teacherIds)
+            ->whereIn('status', ['completed', 'paid'])
+            ->select('teacher_id', DB::raw('SUM(amount) as total_payouts'))
+            ->groupBy('teacher_id')
+            ->pluck('total_payouts', 'teacher_id');
+
+        $pendingPayouts = [];
+        foreach ($teachers as $teacher) {
+            $totalEarned = (float)($earnings[$teacher->id] ?? 0.00);
+            $totalPaid = (float)($payouts[$teacher->id] ?? 0.00);
+            $available = max(0.00, round($totalEarned - $totalPaid, 2));
+
+            if ($available > 0 || $totalPaid > 0) {
+                $pendingPayouts[] = [
+                    'teacher_id' => $teacher->id,
+                    'pending_amount' => $available,
+                    'lifetime_payouts' => $totalPaid,
+                    'teacher' => $teacher,
+                ];
+            }
+        }
 
         // 2. Fetch history of payouts
         $payoutHistory = \App\Models\TeacherPayout::with('teacher:id,name,email,phone')
@@ -1996,59 +2173,58 @@ class AdminController extends Controller
         ]);
 
         $teacherId = $request->teacher_id;
-        $amount = (float)$request->amount;
-
-        // Check if there is enough pending earnings
-        $pendingSum = (float) \App\Models\TeacherEarning::where('teacher_id', $teacherId)
-            ->where('status', 'pending')
-            ->sum('amount');
-
-        if ($pendingSum < $amount) {
-            return response()->json(['message' => 'المبلغ المحدد أكبر من الرصيد المعلق للمعلم.'], 422);
-        }
+        $amount = round((float)$request->amount, 2);
 
         return DB::transaction(function () use ($teacherId, $amount, $request) {
-            // Create payout record
+            // Lock teacher record to prevent concurrent double-payouts
+            $teacher = \App\Models\User::where('id', $teacherId)->lockForUpdate()->first();
+
+            // Calculate current available balance under lock
+            $totalEarnings = (float) \App\Models\TeacherEarning::where('teacher_id', $teacherId)->sum('amount');
+            $totalPaidOut = (float) \App\Models\TeacherPayout::where('teacher_id', $teacherId)
+                ->whereIn('status', ['completed', 'paid'])
+                ->sum('amount');
+            $availableBalance = max(0.00, round($totalEarnings - $totalPaidOut, 2));
+
+            if ($amount > $availableBalance) {
+                return response()->json([
+                    'message' => "المبلغ المحدد ({$amount} ج.م) أكبر من الرصيد المتاح للمعلم ({$availableBalance} ج.م)."
+                ], 422);
+            }
+
+            // Create payout record with canonical status 'completed'
             $payout = \App\Models\TeacherPayout::create([
                 'teacher_id' => $teacherId,
                 'amount' => $amount,
-                'status' => 'paid',
+                'status' => 'completed',
                 'payout_date' => now(),
                 'notes' => $request->notes,
             ]);
 
-            // Mark pending earnings as paid and link to payout
-            $earnings = \App\Models\TeacherEarning::where('teacher_id', $teacherId)
-                ->where('status', 'pending')
-                ->get();
+            $newRemainingBalance = max(0.00, round($availableBalance - $amount, 2));
 
-            foreach ($earnings as $earning) {
-                $earning->update([
-                    'status' => 'paid',
-                    'payout_id' => $payout->id,
-                ]);
-            }
-
-            // Create admin activity log
+            // Create Financial Audit Log Entry
             \App\Models\FinancialAuditLog::create([
                 'admin_id' => $request->user()->id,
                 'admin_name' => $request->user()->name,
                 'action' => "Teacher Earning Payout Recorded (Teacher ID: {$teacherId})",
-                'previous_value' => "Pending sum: {$pendingSum} EGP",
-                'new_value' => "Paid: {$amount} EGP",
+                'previous_value' => "Available Balance: {$availableBalance} EGP",
+                'new_value' => "Paid: {$amount} EGP, Remaining: {$newRemainingBalance} EGP",
                 'reason' => $request->notes ?: 'تحويل أرباح المعلم من الإدارة',
                 'ip_address' => $request->ip(),
             ]);
 
+            // Create Admin Activity Log
             \App\Models\AdminActivityLog::create([
                 'admin_name' => $request->user()->name,
-                'action_type' => "تسجيل عملية دفع للمعلم ID: {$teacherId} بقيمة {$amount} ج.م",
+                'action_type' => "تسجيل عملية دفع للمعلم ID: {$teacherId} بقيمة {$amount} ج.م (المتبقي: {$newRemainingBalance} ج.م)",
                 'ip_address' => $request->ip(),
             ]);
 
             return response()->json([
                 'message' => 'تم تسجيل دفعة المعلم بنجاح.',
                 'payout' => $payout,
+                'remaining_balance' => $newRemainingBalance,
             ]);
         });
     }

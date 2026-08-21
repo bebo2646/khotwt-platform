@@ -24,7 +24,10 @@ class RevenueSharingService
         $packageId = null,
         $lessonId = null,
         $purchaseCodeId = null,
-        $paymentMethod = 'wallet'
+        $paymentMethod = 'wallet',
+        $examId = null,
+        $originalPrice = null,
+        $discountAmount = 0.00
     ) {
         $amount = (float)$amount;
         if ($amount <= 0) {
@@ -52,6 +55,9 @@ class RevenueSharingService
             $platformAmount = round($amount * ($commissionPercent / 100), 2);
             $teacherAmount = round($amount - $platformAmount, 2);
 
+            $storedOriginalPrice = $originalPrice !== null ? (float)$originalPrice : $amount;
+            $storedDiscountAmount = (float)$discountAmount;
+
             // 1. Create Teacher Earning record
             $teacherEarning = TeacherEarning::create([
                 'teacher_id' => $teacherId,
@@ -59,6 +65,7 @@ class RevenueSharingService
                 'course_id' => $courseId,
                 'package_id' => $packageId,
                 'lesson_id' => $lessonId,
+                'exam_id' => $examId,
                 'purchase_code_id' => $purchaseCodeId,
                 'student_id' => $studentId,
                 'source' => $purchaseCodeId ? 'code_activation' : 'direct_purchase',
@@ -72,19 +79,24 @@ class RevenueSharingService
                 'course_id' => $courseId,
                 'package_id' => $packageId,
                 'lesson_id' => $lessonId,
+                'exam_id' => $examId,
                 'purchase_code_id' => $purchaseCodeId,
                 'student_id' => $studentId,
                 'source' => $purchaseCodeId ? 'code_activation' : 'direct_purchase',
             ]);
 
-            // 3. Create Payment History record
+            // 3. Create Payment History record with price snapshot
             $paymentHistory = PaymentHistory::create([
                 'student_id' => $studentId,
                 'teacher_id' => $teacherId,
                 'amount' => $amount,
+                'original_price' => $storedOriginalPrice,
+                'discount_amount' => $storedDiscountAmount,
+                'commission_rate' => $commissionPercent,
                 'course_id' => $courseId,
                 'package_id' => $packageId,
                 'lesson_id' => $lessonId,
+                'exam_id' => $examId,
                 'purchase_code_id' => $purchaseCodeId,
                 'payment_method' => $paymentMethod,
                 'status' => 'paid',
@@ -104,12 +116,15 @@ class RevenueSharingService
                     'student_name' => $student ? $student->name : 'Unknown',
                     'teacher_name' => $teacher ? $teacher->name : 'Unknown',
                     'amount' => $amount,
+                    'original_price' => $storedOriginalPrice,
+                    'discount_amount' => $storedDiscountAmount,
                     'commission_percent' => $commissionPercent,
                     'platform_share' => $platformAmount,
                     'teacher_share' => $teacherAmount,
                     'course_id' => $courseId,
                     'package_id' => $packageId,
                     'lesson_id' => $lessonId,
+                    'exam_id' => $examId,
                     'purchase_code_id' => $purchaseCodeId,
                 ], JSON_UNESCAPED_UNICODE),
                 'ip_address' => request()->ip(),

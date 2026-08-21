@@ -17,6 +17,7 @@ class TeacherEarning extends Model
         'course_id',
         'package_id',
         'lesson_id',
+        'exam_id',
         'purchase_code_id',
         'student_id',
         'source',
@@ -53,6 +54,11 @@ class TeacherEarning extends Model
     public function lesson()
     {
         return $this->belongsTo(Lesson::class, 'lesson_id');
+    }
+
+    public function exam()
+    {
+        return $this->belongsTo(Exam::class, 'exam_id');
     }
 
     public function purchaseCode()
