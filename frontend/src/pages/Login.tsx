@@ -132,12 +132,14 @@ export default function Login() {
         } else if (err.response.data.message) {
           setApiError(err.response.data.message)
         } else {
-          setApiError('بيانات الدخول غير صحيحة أو هناك مشكلة في الاتصال بالخادم.')
+          setApiError('حدث خطأ أثناء محاولة تسجيل الدخول.')
         }
       } else if (err.response?.data?.message) {
         setApiError(err.response.data.message)
+      } else if (err.message) {
+        setApiError(err.message)
       } else {
-        setApiError('بيانات الدخول غير صحيحة أو هناك مشكلة في الاتصال بالخادم.')
+        setApiError('حدث خطأ في الاتصال بالخادم. يرجى المحاولة لاحقاً.')
       }
     } finally {
       setSubmitting(false)
@@ -202,20 +204,16 @@ export default function Login() {
           {/* Login Form */}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             
-            {/* Email Field */}
+            {/* Email / Identifier Field */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-100">البريد الإلكتروني</label>
+              <label className="text-xs font-semibold text-slate-100">البريد الإلكتروني أو رقم الهاتف</label>
               <div className="relative">
                 <input
-                  type="email"
-                  placeholder="name@example.com"
+                  type="text"
+                  placeholder="name@example.com أو 010xxxxxxxx"
                   defaultValue={localStorage.getItem('elm_remembered_email') || ''}
                   {...register('email', { 
-                    required: 'البريد الإلكتروني مطلوب لدخول المنصة.', 
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'البريد الإلكتروني المدخل غير صالح.'
-                    }
+                    required: 'يرجى إدخال البريد الإلكتروني أو رقم الهاتف.', 
                   })}
                   className={`w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 ${errors.email ? 'is-invalid' : ''}`}
                 />
