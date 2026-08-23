@@ -278,4 +278,51 @@ class LoginErrorHandlingTest extends TestCase
         $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
         $this->assertNotEquals('The email field must be a valid email address.', $response->json('errors.identifier.0'));
     }
+
+    /**
+     * Scenario L: Arabic-Indic numerals input (٠١١٥١٩٧٠٤٩٣) resolves correctly
+     */
+    public function test_arabic_numerals_phone_login_succeeds(): void
+    {
+        $student = User::create([
+            'name' => 'Arabic Digits Student',
+            'email' => 'arabic_digits_' . uniqid() . '@test.com',
+            'phone' => '01151970493',
+            'password' => bcrypt('arabic_pass_123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        // "01151970493" in Arabic-Indic digits is "٠١١٥١٩٧٠٤٩٣"
+        $response = $this->postJson('/api/login', [
+            'identifier' => '٠١١٥١٩٧٠٤٩٣',
+            'password' => 'arabic_pass_123',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals($student->id, $response->json('user.id'));
+    }
+
+    /**
+     * Scenario M: Phone number entered with international prefix (+20 or 20) resolves correctly
+     */
+    public function test_phone_with_international_prefix_resolves_correctly(): void
+    {
+        $student = User::create([
+            'name' => 'Prefix Student',
+            'email' => 'prefix_' . uniqid() . '@test.com',
+            'phone' => '01151970493',
+            'password' => bcrypt('prefix_pass_123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'identifier' => '+201151970493',
+            'password' => 'prefix_pass_123',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals($student->id, $response->json('user.id'));
+    }
 }

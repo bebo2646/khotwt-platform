@@ -118,7 +118,12 @@ class AuthController extends Controller
             ]);
         }
 
+        // Convert Arabic/Eastern-Arabic digits (٠-٩) to standard ASCII digits (0-9) and trim
         $identifier = trim((string)$rawIdentifier);
+        $arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        $englishDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $identifier = str_replace($arabicDigits, $englishDigits, $identifier);
+
         $ip = $request->ip();
         $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
         $errorField = $request->has('identifier') ? 'identifier' : 'email';
@@ -132,27 +137,47 @@ class AuthController extends Controller
         }
 
         // Determine identifier type & search user in database:
-        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL) || str_contains($identifier, '@')) {
+            // Case 1: Email matching (case-insensitive)
             $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])->first();
         } else {
-            // Search by registered student number (phone), parent_phone, ID, or case-insensitive email fallback
+            // Case 2: Phone number / Student Number matching
             $cleanDigits = preg_replace('/\D/', '', $identifier);
-            $user = User::where(function ($query) use ($identifier, $cleanDigits) {
-                $query->where('phone', $identifier)
-                    ->orWhere('parent_phone', $identifier)
+            
+            $normalizedDigits = $cleanDigits;
+            if (str_starts_with($cleanDigits, '0020') && strlen($cleanDigits) === 14) {
+                $normalizedDigits = '0' . substr($cleanDigits, 4);
+            } elseif (str_starts_with($cleanDigits, '20') && strlen($cleanDigits) === 12) {
+                $normalizedDigits = '0' . substr($cleanDigits, 2);
+            } elseif (strlen($cleanDigits) === 10 && in_array(substr($cleanDigits, 0, 2), ['10', '11', '12', '15'])) {
+                $normalizedDigits = '0' . $cleanDigits;
+            }
+
+            $core10 = (strlen($normalizedDigits) === 11 && str_starts_with($normalizedDigits, '0')) 
+                ? substr($normalizedDigits, 1) 
+                : $normalizedDigits;
+
+            // Build all Egyptian and international phone variations
+            $phoneVariations = array_unique(array_filter([
+                $identifier,
+                $cleanDigits,
+                $normalizedDigits,
+                $core10,
+                !empty($core10) ? '0' . $core10 : null,
+                !empty($core10) ? '+20' . $core10 : null,
+                !empty($core10) ? '20' . $core10 : null,
+                !empty($core10) ? '+2' . $core10 : null,
+                !empty($core10) ? '2' . $core10 : null,
+                !empty($core10) ? '0020' . $core10 : null,
+            ]));
+
+            $user = User::where(function ($query) use ($identifier, $phoneVariations) {
+                $query->whereIn('phone', $phoneVariations)
+                    ->orWhereIn('parent_phone', $phoneVariations)
                     ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)]);
 
                 if (is_numeric($identifier) && (int)$identifier > 0 && strlen($identifier) <= 8) {
                     $query->orWhere('id', (int)$identifier);
-                }
-
-                if (!empty($cleanDigits)) {
-                    $query->orWhere('phone', $cleanDigits)
-                        ->orWhere('phone', '0' . ltrim($cleanDigits, '0'))
-                        ->orWhere('phone', '+2' . $cleanDigits)
-                        ->orWhere('phone', '2' . $cleanDigits)
-                        ->orWhere('parent_phone', $cleanDigits)
-                        ->orWhere('parent_phone', '0' . ltrim($cleanDigits, '0'));
                 }
             })->first();
         }
