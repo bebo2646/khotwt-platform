@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { 
-  ArrowLeft, 
+  ArrowLeft,
+  ArrowRight, 
   Save, 
   Copy, 
   Check, 
@@ -334,20 +335,33 @@ export default function CreateTeacher() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 space-y-8 text-right" dir="rtl">
+    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6 text-right" dir="rtl">
       
-      {/* Header Back Button */}
-      <div className="flex items-center gap-3">
-        <Link 
-          to="/admin/teachers" 
-          className="p-2.5 rounded-xl bg-[var(--card-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Link>
-        <div>
-          <h1 className="text-3xl font-black text-[var(--text-color)]">إضافة معلم جديد للمنصة</h1>
-          <p className="text-xs text-[var(--text-secondary)] font-light mt-1">تعبئة بيانات المعلم والتحكم بحجم التخزين والطلاب وخطته الشهرية</p>
+      {/* Header Back Button & Breadcrumbs */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border-color)]/60 pb-4">
+        <div className="flex items-center gap-3">
+          <Link 
+            to="/admin/teachers" 
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[var(--card-bg)] hover:bg-[var(--bg-color)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-color)] text-xs font-bold transition-all duration-200 group cursor-pointer shadow-sm active:scale-95"
+            title="العودة لإدارة المعلمين"
+          >
+            <ArrowRight className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            <span>إدارة المعلمين</span>
+          </Link>
+          
+          <nav className="hidden sm:flex items-center gap-2 text-xs text-slate-400 font-medium">
+            <Link to="/admin/dashboard" className="hover:text-white transition">الرئيسية</Link>
+            <span>/</span>
+            <Link to="/admin/teachers" className="hover:text-white transition">المعلمون</Link>
+            <span>/</span>
+            <span className="text-slate-200 font-bold">إضافة معلم جديد</span>
+          </nav>
         </div>
+      </div>
+
+      <div>
+        <h1 className="text-2xl md:text-3xl font-black text-[var(--text-color)]">إضافة معلم جديد للمنصة</h1>
+        <p className="text-xs text-[var(--text-secondary)] font-light mt-1">تعبئة بيانات المعلم والتحكم بحجم التخزين والطلاب وخطته الشهرية</p>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
