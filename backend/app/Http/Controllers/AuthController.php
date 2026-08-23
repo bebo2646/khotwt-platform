@@ -104,31 +104,44 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|string|email',
+            'email' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        $email = $request->input('email');
+        $identifier = trim($request->input('email'));
         $ip = $request->ip();
-        $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($email) . '|' . $ip;
+        $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
 
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
             throw ValidationException::withMessages([
-                'email' => ["Too many login attempts. Please try again in {$minutes} minutes."],
+                'email' => ["محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد {$minutes} دقيقة."],
             ]);
         }
 
-        $user = User::where('email', $request->email)->first();
+        // Determine whether the submitted identifier matches an existing account (email or phone)
+        $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])
+            ->orWhere('phone', $identifier)
+            ->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        // CASE 1 — ACCOUNT DOES NOT EXIST:
+        if (!$user) {
             RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
-                'email' => ['بيانات الاعتماد المدخلة غير صحيحة.'],
+                'email' => ['هذا الحساب غير موجود'],
             ]);
         }
 
+        // CASE 2 — ACCOUNT EXISTS BUT PASSWORD IS WRONG:
+        if (!Hash::check($request->password, $user->password)) {
+            RateLimiter::hit($throttleKey, 1800); // 30 minutes
+            throw ValidationException::withMessages([
+                'password' => ['كلمة المرور غير صحيحة'],
+            ]);
+        }
+
+        // CASE 3 — VALID LOGIN:
         RateLimiter::clear($throttleKey);
 
         if ($user->status === 'disabled') {

@@ -125,11 +125,17 @@ export default function Login() {
         navigate(`/rejected-account?reason=${encodeURIComponent(reason)}&email=${encodeURIComponent(email)}`, { replace: true })
         return
       }
-      if (err.response && err.response.data && err.response.data.message) {
+      if (err.response?.data?.errors) {
+        const errorList = Object.values(err.response.data.errors).flat() as string[]
+        if (errorList.length > 0 && errorList[0]) {
+          setApiError(errorList[0])
+        } else if (err.response.data.message) {
+          setApiError(err.response.data.message)
+        } else {
+          setApiError('بيانات الدخول غير صحيحة أو هناك مشكلة في الاتصال بالخادم.')
+        }
+      } else if (err.response?.data?.message) {
         setApiError(err.response.data.message)
-      } else if (err.response && err.response.data && err.response.data.errors) {
-        const errorMsg = Object.values(err.response.data.errors)[0] as string[]
-        setApiError(errorMsg[0])
       } else {
         setApiError('بيانات الدخول غير صحيحة أو هناك مشكلة في الاتصال بالخادم.')
       }

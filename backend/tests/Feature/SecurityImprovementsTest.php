@@ -97,8 +97,8 @@ class SecurityImprovementsTest extends TestCase
             ]);
 
             $response->assertStatus(422);
-            $response->assertJsonValidationErrors(['email']);
-            $response->assertJsonPath('errors.email.0', 'بيانات الاعتماد المدخلة غير صحيحة.');
+            $response->assertJsonValidationErrors(['password']);
+            $response->assertJsonPath('errors.password.0', 'كلمة المرور غير صحيحة');
         }
 
         // The 11th attempt should be blocked with rate limiting message
@@ -109,7 +109,7 @@ class SecurityImprovementsTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['email']);
-        $response->assertJsonPath('errors.email.0', 'Too many login attempts. Please try again in 30 minutes.');
+        $response->assertJsonPath('errors.email.0', 'محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد 30 دقيقة.');
 
         // Time travel 31 minutes into the future
         $this->travel(31)->minutes();
@@ -124,14 +124,14 @@ class SecurityImprovementsTest extends TestCase
         $response->assertJsonStructure(['token', 'user']);
 
         // Check that failed attempt counter has been reset on successful login
-        // If we fail again now, it should say invalid credentials, NOT too many attempts
+        // If we fail again now, it should say wrong password, NOT too many attempts
         $response = $this->postJson('/api/login', [
             'email' => 'student@test.com',
             'password' => 'wrongpassword',
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['email']);
-        $response->assertJsonPath('errors.email.0', 'بيانات الاعتماد المدخلة غير صحيحة.');
+        $response->assertJsonValidationErrors(['password']);
+        $response->assertJsonPath('errors.password.0', 'كلمة المرور غير صحيحة');
     }
 }
