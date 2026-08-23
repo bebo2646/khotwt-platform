@@ -174,6 +174,11 @@ class AuthController extends Controller
             $user = User::where(function ($query) use ($identifier, $phoneVariations) {
                 $query->whereIn('phone', $phoneVariations)
                     ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)]);
+
+                if (config('database.default') === 'pgsql') {
+                    $placeholders = implode(',', array_fill(0, count($phoneVariations), '?'));
+                    $query->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '', 'g') IN ($placeholders)", array_values($phoneVariations));
+                }
             })->first();
         }
 
