@@ -11,7 +11,7 @@ import SEO from '../components/SEO'
 import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 
 type LoginFormInputs = {
-  email: string
+  identifier: string
   password: string
 }
 
@@ -37,7 +37,11 @@ export default function Login() {
     setApiError(null)
     setSubmitting(true)
     try {
-      const res = await API.post('/login', data)
+      const res = await API.post('/login', {
+        identifier: data.identifier,
+        email: data.identifier,
+        password: data.password,
+      })
       if (import.meta.env.DEV) {
         console.log('[Login Response]:', res.data)
       }
@@ -86,7 +90,7 @@ export default function Login() {
       loginUser(freshUser, token, session_token)
       
       if (rememberMe) {
-        localStorage.setItem('elm_remembered_email', data.email)
+        localStorage.setItem('elm_remembered_email', data.identifier)
       } else {
         localStorage.removeItem('elm_remembered_email')
       }
@@ -121,8 +125,8 @@ export default function Login() {
       }
       if (err.response && err.response.data && err.response.data.status === 'rejected') {
         const reason = err.response.data.rejection_reason || 'لا يوجد سبب محدد'
-        const email = data.email
-        navigate(`/rejected-account?reason=${encodeURIComponent(reason)}&email=${encodeURIComponent(email)}`, { replace: true })
+        const identifier = data.identifier
+        navigate(`/rejected-account?reason=${encodeURIComponent(reason)}&email=${encodeURIComponent(identifier)}`, { replace: true })
         return
       }
       if (err.response?.data?.errors) {
@@ -206,21 +210,21 @@ export default function Login() {
             
             {/* Email / Identifier Field */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-100">البريد الإلكتروني أو رقم الهاتف</label>
+              <label className="text-xs font-semibold text-slate-100">البريد الإلكتروني أو رقم الطالب</label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="name@example.com أو 010xxxxxxxx"
+                  placeholder="البريد الإلكتروني أو رقم الطالب"
                   defaultValue={localStorage.getItem('elm_remembered_email') || ''}
-                  {...register('email', { 
-                    required: 'يرجى إدخال البريد الإلكتروني أو رقم الهاتف.', 
+                  {...register('identifier', { 
+                    required: 'يرجى إدخال البريد الإلكتروني أو رقم الطالب.', 
                   })}
-                  className={`w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 ${errors.email ? 'is-invalid' : ''}`}
+                  className={`w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl pr-10 pl-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 ${errors.identifier ? 'is-invalid' : ''}`}
                 />
                 <Mail className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-slate-400" />
               </div>
-              {errors.email && (
-                <p className="text-[11px] text-rose-500 font-medium">{errors.email.message}</p>
+              {errors.identifier && (
+                <p className="text-[11px] text-rose-500 font-medium">{errors.identifier.message}</p>
               )}
             </div>
 

@@ -99,37 +99,59 @@ class AuthController extends Controller
     }
 
     /**
-     * Log in a user (Admin, Teacher, or Student).
+     * Log in a user (Admin, Teacher, or Student) by Email, Student Number / Phone, or ID.
      */
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|string',
+            'identifier' => 'required_without:email|string',
+            'email' => 'required_without:identifier|string',
             'password' => 'required|string',
+        ], [
+            'identifier.required_without' => 'يرجى إدخال البريد الإلكتروني أو رقم الطالب.',
+            'email.required_without' => 'يرجى إدخال البريد الإلكتروني أو رقم الطالب.',
+            'password.required' => 'كلمة المرور مطلوبة.',
         ]);
 
-        $identifier = trim($request->input('email'));
+        $identifier = trim($request->input('identifier') ?? $request->input('email') ?? '');
         $ip = $request->ip();
         $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
+        $errorField = $request->has('identifier') ? 'identifier' : 'email';
 
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
             throw ValidationException::withMessages([
-                'email' => ["محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد {$minutes} دقيقة."],
+                $errorField => ["محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد {$minutes} دقيقة."],
             ]);
         }
 
-        // Determine whether the submitted identifier matches an existing account (email or phone)
-        $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])
-            ->orWhere('phone', $identifier)
-            ->first();
+        // Determine identifier type & search user in database:
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
+            $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])->first();
+        } else {
+            // Search by registered student number (phone), ID, parent_phone, or case-insensitive email fallback
+            $cleanDigits = preg_replace('/\D/', '', $identifier);
+            $user = User::where('phone', $identifier)
+                ->orWhere('parent_phone', $identifier)
+                ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)])
+                ->when(is_numeric($identifier) && (int)$identifier > 0 && strlen($identifier) <= 8, function ($q) use ($identifier) {
+                    $q->orWhere('id', (int)$identifier);
+                })
+                ->when(!empty($cleanDigits), function ($q) use ($cleanDigits) {
+                    $q->orWhere('phone', $cleanDigits)
+                      ->orWhere('phone', '0' . ltrim($cleanDigits, '0'))
+                      ->orWhere('phone', '+2' . $cleanDigits)
+                      ->orWhere('phone', '2' . $cleanDigits);
+                })
+                ->first();
+        }
 
         // CASE 1 — ACCOUNT DOES NOT EXIST:
         if (!$user) {
             RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
-                'email' => ['هذا الحساب غير موجود'],
+                $errorField => ['هذا الحساب غير موجود'],
             ]);
         }
 
