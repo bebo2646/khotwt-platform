@@ -60,15 +60,37 @@ class AcademicYearResetService
             $archiveFilePath = $archiveResult['file_path'];
             $archiveFileName = $archiveResult['file_name'];
 
-            // 5. Execute destructive reset inside a database transaction
-            $affectedCounts = DB::transaction(function () use ($adminUser, $ipAddress, $archiveFileName) {
+            // 5. Count preserved teachers and admins before reset
+            $preservedTeachersCount = DB::table('users')->where('role', 'teacher')->count();
+            $preservedAdminsCount = DB::table('users')->where(function ($q) {
+                $q->where('role', 'admin')->orWhere('role', 'super_admin')->orWhere('is_super_admin', true)->orWhere('is_super', true);
+            })->count();
+
+            // 6. Execute destructive reset inside a database transaction
+            $affectedCounts = DB::transaction(function () use ($adminUser, $ipAddress, $archiveFileName, $preservedTeachersCount, $preservedAdminsCount) {
                 $counts = [];
 
-                // 5.1. Retrieve student IDs
-                $studentIds = DB::table('users')->where('role', 'student')->pluck('id')->toArray();
-                $counts['students_count'] = count($studentIds);
+                // 6.1. Retrieve all student user IDs robustly across any role casing/variant
+                $studentIds = DB::table('users')
+                    ->where(function ($q) {
+                        $q->whereRaw("LOWER(TRIM(role)) = 'student'")
+                          ->orWhere('role', 'student')
+                          ->orWhere('role', 'Student')
+                          ->orWhere('role', 'STUDENT')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->where('is_super_admin', false)
+                    ->where('is_super', false)
+                    ->where(function ($q) {
+                        $q->whereNull('role')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->pluck('id')
+                    ->toArray();
 
-                // 5.2. Delete Exam Interactions: student_answers -> student_exams
+                $counts['identified_students_count'] = count($studentIds);
+
+                // 6.2. Delete Exam Interactions: student_answers -> student_exams
                 if (Schema::hasTable('student_answers')) {
                     $counts['student_answers'] = DB::table('student_answers')->delete();
                 }
@@ -76,12 +98,12 @@ class AcademicYearResetService
                     $counts['student_exams'] = DB::table('student_exams')->delete();
                 }
 
-                // 5.3. Delete Exam Purchases
+                // 6.3. Delete Exam Purchases
                 if (Schema::hasTable('exam_purchases')) {
                     $counts['exam_purchases'] = DB::table('exam_purchases')->delete();
                 }
 
-                // 5.4. Delete Student Learning Progress & View Sessions
+                // 6.4. Delete Student Learning Progress & View Sessions
                 if (Schema::hasTable('video_progresses')) {
                     $counts['video_progresses'] = DB::table('video_progresses')->delete();
                 }
@@ -95,12 +117,12 @@ class AcademicYearResetService
                     $counts['student_course_view_limits'] = DB::table('student_course_view_limits')->delete();
                 }
 
-                // 5.5. Delete Course & Bundle Enrollments
+                // 6.5. Delete Course & Bundle Enrollments
                 if (Schema::hasTable('enrollments')) {
                     $counts['enrollments'] = DB::table('enrollments')->delete();
                 }
 
-                // 5.6. Delete Operational Financial Records
+                // 6.6. Delete Operational Financial Records
                 if (Schema::hasTable('refund_logs')) {
                     $counts['refund_logs'] = DB::table('refund_logs')->delete();
                 }
@@ -123,7 +145,7 @@ class AcademicYearResetService
                     $counts['student_teacher_credits'] = DB::table('student_teacher_credits')->delete();
                 }
 
-                // 5.7. Delete Student Wallets & Wallet Transactions
+                // 6.7. Delete Student Wallets & Wallet Transactions
                 if (Schema::hasTable('wallet_transactions')) {
                     $counts['wallet_transactions'] = DB::table('wallet_transactions')->delete();
                 }
@@ -131,7 +153,7 @@ class AcademicYearResetService
                     $counts['wallets'] = DB::table('wallets')->delete();
                 }
 
-                // 5.8. Delete Notifications: notification_reads before notifications
+                // 6.8. Delete Notifications: notification_reads before notifications
                 if (Schema::hasTable('notification_reads')) {
                     $counts['notification_reads'] = DB::table('notification_reads')->delete();
                 }
@@ -139,7 +161,7 @@ class AcademicYearResetService
                     $counts['notifications'] = DB::table('notifications')->delete();
                 }
 
-                // 5.9. Reset Purchase Codes usage linkage
+                // 6.9. Reset Purchase Codes usage linkage
                 if (Schema::hasTable('purchase_codes')) {
                     $counts['purchase_codes_reset'] = DB::table('purchase_codes')->update([
                         'is_redeemed' => false,
@@ -148,7 +170,7 @@ class AcademicYearResetService
                     ]);
                 }
 
-                // 5.10. Delete Sessions and Personal Access Tokens for students
+                // 6.10. Delete Sessions and Personal Access Tokens for students
                 if (!empty($studentIds)) {
                     if (Schema::hasTable('sessions')) {
                         DB::table('sessions')->whereIn('user_id', $studentIds)->delete();
@@ -156,7 +178,6 @@ class AcademicYearResetService
                     if (Schema::hasTable('personal_access_tokens')) {
                         DB::table('personal_access_tokens')
                             ->whereIn('tokenable_id', $studentIds)
-                            ->where('tokenable_type', 'App\\Models\\User')
                             ->delete();
                     }
                 }
@@ -167,10 +188,59 @@ class AcademicYearResetService
                     DB::table('password_reset_tokens')->delete();
                 }
 
-                // 5.11. Delete Student Accounts
-                $counts['deleted_students'] = DB::table('users')->where('role', 'student')->delete();
+                // 6.11. Permanently Delete All Student User Accounts
+                $counts['deleted_students'] = DB::table('users')
+                    ->where(function ($q) use ($studentIds) {
+                        $q->whereIn('id', $studentIds)
+                          ->orWhereRaw("LOWER(TRIM(role)) = 'student'")
+                          ->orWhere('role', 'student')
+                          ->orWhere('role', 'Student')
+                          ->orWhere('role', 'STUDENT')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->where('is_super_admin', false)
+                    ->where('is_super', false)
+                    ->where(function ($q) {
+                        $q->whereNull('role')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->delete();
 
-                // 5.12. Record Activity & Financial Audit Logs
+                // 6.12. CRITICAL VERIFICATION: Ensure 0 student accounts remain
+                $remainingStudents = DB::table('users')
+                    ->where(function ($q) {
+                        $q->whereRaw("LOWER(TRIM(role)) = 'student'")
+                          ->orWhere('role', 'student')
+                          ->orWhere('role', 'Student')
+                          ->orWhere('role', 'STUDENT')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->where('is_super_admin', false)
+                    ->where('is_super', false)
+                    ->where(function ($q) {
+                        $q->whereNull('role')
+                          ->orWhereNotIn('role', ['teacher', 'admin', 'super_admin']);
+                    })
+                    ->count();
+
+                if ($remainingStudents > 0) {
+                    throw new \RuntimeException("تعذر حذف كافة حسابات الطلاب ({$remainingStudents} حساب متبقي). تم التراجع عن العملية لضمان السلامة.");
+                }
+
+                // 6.13. VERIFY TEACHERS & ADMINS ARE FULLY PRESERVED
+                $currentTeachersCount = DB::table('users')->where('role', 'teacher')->count();
+                if ($currentTeachersCount < $preservedTeachersCount) {
+                    throw new \RuntimeException('خطأ فادح: تم اكتشاف نقص في عدد حسابات المعلمين أثناء التهيئة. تم التراجع عن العملية فوراً.');
+                }
+
+                $currentAdminsCount = DB::table('users')->where(function ($q) {
+                    $q->where('role', 'admin')->orWhere('role', 'super_admin')->orWhere('is_super_admin', true)->orWhere('is_super', true);
+                })->count();
+                if ($currentAdminsCount < $preservedAdminsCount) {
+                    throw new \RuntimeException('خطأ فادح: تم اكتشاف نقص في عدد حسابات المشرفين أثناء التهيئة. تم التراجع عن العملية فوراً.');
+                }
+
+                // 6.14. Record Activity & Financial Audit Logs
                 AdminActivityLog::create([
                     'admin_name' => $adminUser->name,
                     'action_type' => 'Reset Academic Year',
@@ -184,7 +254,7 @@ class AcademicYearResetService
                         'admin_name' => $adminUser->name,
                         'action' => 'academic_year_reset',
                         'previous_value' => 'Active Academic Year Data (Archived to: ' . $archiveFileName . ')',
-                        'new_value' => 'Clean Academic Year Initialized (0.00 EGP Balances)',
+                        'new_value' => 'Clean Academic Year Initialized (0.00 EGP Balances, 0 Students)',
                         'reason' => 'Admin initiated New Academic Year Reset with confirmation: ' . self::REQUIRED_CONFIRMATION,
                         'ip_address' => $ipAddress,
                     ]);
@@ -202,7 +272,7 @@ class AcademicYearResetService
             return [
                 'success' => true,
                 'status' => 200,
-                'message' => 'تمت تهيئة السنة الدراسية الجديدة بنجاح! تم أرشفة السجلات المالية التاريخية، وتصفير الأرصدة والاشتراكات، والاحتفاظ بكافة المعلمين والكورسات والمحتوى التعليمي.',
+                'message' => 'تمت تهيئة السنة الدراسية الجديدة بنجاح! تم حذف كافة حسابات الطلاب السابقة، وأرشفة السجلات المالية التاريخية، وتصفير الأرصدة والاشتراكات، والاحتفاظ بكافة المعلمين والكورسات والمحتوى التعليمي.',
                 'archive_file' => $archiveFileName,
                 'affected_counts' => $affectedCounts,
             ];

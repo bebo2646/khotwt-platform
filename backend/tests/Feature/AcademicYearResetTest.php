@@ -437,4 +437,51 @@ class AcademicYearResetTest extends TestCase
             $lock->release();
         }
     }
+
+    /**
+     * Explicit verification that all student accounts are deleted and old student login fails.
+     */
+    public function test_student_accounts_are_permanently_deleted_and_cannot_login(): void
+    {
+        $admin = $this->createAdmin(true);
+
+        $oldStudentEmail = 'old_student_' . uniqid() . '@test.com';
+        $oldStudent = User::create([
+            'name' => 'Old Student',
+            'email' => $oldStudentEmail,
+            'password' => bcrypt('secret123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $teacher = User::create([
+            'name' => 'Teacher Preserved',
+            'email' => 'teacher_preserved_' . uniqid() . '@test.com',
+            'password' => bcrypt('password123'),
+            'role' => 'teacher',
+            'status' => 'active',
+        ]);
+
+        // Student count before reset >= 1
+        $this->assertGreaterThan(0, DB::table('users')->where('role', 'student')->count());
+
+        // Execute reset
+        $response = $this->actingAs($admin)->postJson('/api/admin/reset-year', [
+            'confirmation' => AcademicYearResetService::REQUIRED_CONFIRMATION,
+        ]);
+        $response->assertStatus(200);
+
+        // Explicit Check: SELECT COUNT(*) FROM users WHERE role = 'student' === 0
+        $studentCount = DB::table('users')->where('role', 'student')->count();
+        $this->assertEquals(0, $studentCount, 'Student count must be 0 after reset');
+
+        // Verify that old student user record does NOT exist in database
+        $this->assertNull(User::find($oldStudent->id));
+        $this->assertNull(User::where('email', $oldStudentEmail)->first());
+
+        // Verify that teacher and admin still exist
+        $this->assertNotNull(User::find($teacher->id));
+        $this->assertNotNull(User::find($admin->id));
+    }
 }
+
