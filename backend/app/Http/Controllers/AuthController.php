@@ -104,16 +104,21 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'identifier' => 'required_without:email|string',
-            'email' => 'required_without:identifier|string',
+            'identifier' => 'nullable|string',
+            'email' => 'nullable|string',
             'password' => 'required|string',
         ], [
-            'identifier.required_without' => 'يرجى إدخال البريد الإلكتروني أو رقم الطالب.',
-            'email.required_without' => 'يرجى إدخال البريد الإلكتروني أو رقم الطالب.',
             'password.required' => 'كلمة المرور مطلوبة.',
         ]);
 
-        $identifier = trim($request->input('identifier') ?? $request->input('email') ?? '');
+        $rawIdentifier = $request->input('identifier') ?? $request->input('email');
+        if ($rawIdentifier === null || trim((string)$rawIdentifier) === '') {
+            throw ValidationException::withMessages([
+                'identifier' => ['يرجى إدخال البريد الإلكتروني أو رقم الطالب.'],
+            ]);
+        }
+
+        $identifier = trim((string)$rawIdentifier);
         $ip = $request->ip();
         $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
         $errorField = $request->has('identifier') ? 'identifier' : 'email';
@@ -130,21 +135,26 @@ class AuthController extends Controller
         if (filter_var($identifier, FILTER_VALIDATE_EMAIL)) {
             $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])->first();
         } else {
-            // Search by registered student number (phone), ID, parent_phone, or case-insensitive email fallback
+            // Search by registered student number (phone), parent_phone, ID, or case-insensitive email fallback
             $cleanDigits = preg_replace('/\D/', '', $identifier);
-            $user = User::where('phone', $identifier)
-                ->orWhere('parent_phone', $identifier)
-                ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)])
-                ->when(is_numeric($identifier) && (int)$identifier > 0 && strlen($identifier) <= 8, function ($q) use ($identifier) {
-                    $q->orWhere('id', (int)$identifier);
-                })
-                ->when(!empty($cleanDigits), function ($q) use ($cleanDigits) {
-                    $q->orWhere('phone', $cleanDigits)
-                      ->orWhere('phone', '0' . ltrim($cleanDigits, '0'))
-                      ->orWhere('phone', '+2' . $cleanDigits)
-                      ->orWhere('phone', '2' . $cleanDigits);
-                })
-                ->first();
+            $user = User::where(function ($query) use ($identifier, $cleanDigits) {
+                $query->where('phone', $identifier)
+                    ->orWhere('parent_phone', $identifier)
+                    ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)]);
+
+                if (is_numeric($identifier) && (int)$identifier > 0 && strlen($identifier) <= 8) {
+                    $query->orWhere('id', (int)$identifier);
+                }
+
+                if (!empty($cleanDigits)) {
+                    $query->orWhere('phone', $cleanDigits)
+                        ->orWhere('phone', '0' . ltrim($cleanDigits, '0'))
+                        ->orWhere('phone', '+2' . $cleanDigits)
+                        ->orWhere('phone', '2' . $cleanDigits)
+                        ->orWhere('parent_phone', $cleanDigits)
+                        ->orWhere('parent_phone', '0' . ltrim($cleanDigits, '0'));
+                }
+            })->first();
         }
 
         // CASE 1 — ACCOUNT DOES NOT EXIST:

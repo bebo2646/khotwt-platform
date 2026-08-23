@@ -37,11 +37,15 @@ export default function Login() {
     setApiError(null)
     setSubmitting(true)
     try {
-      const res = await API.post('/login', {
-        identifier: data.identifier,
-        email: data.identifier,
+      const trimmedIdentifier = (data.identifier || '').trim()
+      const payload: { identifier: string; email?: string; password: string } = {
+        identifier: trimmedIdentifier,
         password: data.password,
-      })
+      }
+      if (trimmedIdentifier.includes('@')) {
+        payload.email = trimmedIdentifier
+      }
+      const res = await API.post('/login', payload)
       if (import.meta.env.DEV) {
         console.log('[Login Response]:', res.data)
       }

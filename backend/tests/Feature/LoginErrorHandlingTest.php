@@ -214,7 +214,8 @@ class LoginErrorHandlingTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier', 'email']);
+        $response->assertJsonValidationErrors(['identifier']);
+        $this->assertEquals('يرجى إدخال البريد الإلكتروني أو رقم الطالب.', $response->json('errors.identifier.0'));
     }
 
     /**
@@ -237,5 +238,44 @@ class LoginErrorHandlingTest extends TestCase
 
         $response->assertStatus(200);
         $this->assertEquals($student->id, $response->json('user.id'));
+    }
+
+    /**
+     * Scenario J: Student number sent in legacy 'email' field does NOT trigger email format validation error
+     */
+    public function test_student_number_sent_in_email_field_does_not_trigger_email_validation_error(): void
+    {
+        $student = User::create([
+            'name' => 'Student Phone In Email Field',
+            'email' => 'student_phone_' . uniqid() . '@test.com',
+            'phone' => '01151970493',
+            'password' => bcrypt('phone_pass_123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        $response = $this->postJson('/api/login', [
+            'email' => '01151970493',
+            'password' => 'phone_pass_123',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals($student->id, $response->json('user.id'));
+    }
+
+    /**
+     * Scenario K: Student number containing only digits does not trigger "valid email address" error even for nonexistent
+     */
+    public function test_nonexistent_student_number_does_not_trigger_email_validation_error(): void
+    {
+        $response = $this->postJson('/api/login', [
+            'identifier' => '01151970493',
+            'password' => 'anypassword',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['identifier']);
+        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
+        $this->assertNotEquals('The email field must be a valid email address.', $response->json('errors.identifier.0'));
     }
 }
