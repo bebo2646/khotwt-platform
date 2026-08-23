@@ -244,7 +244,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/admin/users/{id}/disable', [AdminController::class, 'disableUser']);
                 Route::post('/admin/users/{id}/enable', [AdminController::class, 'enableUser']);
                 Route::post('/admin/bulk/students', [AdminController::class, 'bulkDeleteStudents']);
-                Route::post('/admin/reset-academic-year', [AdminController::class, 'resetAcademicYear']);
+                Route::middleware('permission:academic_year.initialize')->post('/admin/reset-academic-year', [AdminController::class, 'resetAcademicYear']);
                 Route::get('/admin/export-database', [AdminController::class, 'exportDatabase']);
                 
                 // Refund & Wallet control

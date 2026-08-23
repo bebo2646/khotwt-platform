@@ -33,6 +33,11 @@ export default function AdminManagement() {
   const [formOpen, setFormOpen] = React.useState(false)
   const [editingAdmin, setEditingAdmin] = React.useState<AdminUser | null>(null)
   
+  // Year Reset state
+  const [yearResetModalOpen, setYearResetModalOpen] = React.useState(false)
+  const [resetConfirmationInput, setResetConfirmationInput] = React.useState('')
+  const [yearResetLoading, setYearResetLoading] = React.useState(false)
+  
   // Audit logs state
   const [logs, setLogs] = React.useState<any[]>([])
   const [logsLoading, setLogsLoading] = React.useState(false)
@@ -313,34 +318,46 @@ export default function AdminManagement() {
       })
   }
 
-  const handleYearReset = () => {
-    showConfirm({
-      title: 'تهيئة السنة الجديدة',
-      description: '⚠️ سيتم حذف جميع البيانات الدراسية الخاصة بالسنة الحالية. هل أنت متأكد؟',
-      type: 'delete',
-      onConfirm: async () => {
-        setLoading(true)
-        try {
-          const res = await API.post('/admin/reset-year')
-          showAlert({
-            title: 'تمت التهيئة بنجاح',
-            description: res.data.message || 'تم حذف كافة اشتراكات ومحاولات وتقارير السنة الدراسية بنجاح.',
-            type: 'success'
-          })
-          fetchAdmins()
-          fetchLogs()
-        } catch (err: any) {
-          console.error(err)
-          showAlert({
-            title: 'فشلت التهيئة',
-            description: err.response?.data?.message || 'حدث خطأ أثناء محاولة تهيئة السنة الدراسية.',
-            type: 'error'
-          })
-        } finally {
-          setLoading(false)
-        }
-      }
-    })
+  const handleOpenYearReset = () => {
+    setResetConfirmationInput('')
+    setYearResetModalOpen(true)
+  }
+
+  const handleExecuteYearReset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (resetConfirmationInput !== 'RESET NEW ACADEMIC YEAR') {
+      showAlert({
+        title: 'تأكيد غير صحيح',
+        description: 'يرجى كتابة نص التأكيد بدقة: RESET NEW ACADEMIC YEAR',
+        type: 'warning'
+      })
+      return
+    }
+
+    setYearResetLoading(true)
+    try {
+      const res = await API.post('/admin/reset-year', {
+        confirmation: resetConfirmationInput
+      })
+      showAlert({
+        title: 'تمت تهيئة السنة الدراسية الجديدة بنجاح',
+        description: res.data.message || 'تمت أرشفة السجلات المالية وتصفير الحسابات الأكاديمية بنجاح.',
+        type: 'success'
+      })
+      setYearResetModalOpen(false)
+      setResetConfirmationInput('')
+      fetchAdmins()
+      fetchLogs()
+    } catch (err: any) {
+      console.error(err)
+      showAlert({
+        title: 'فشلت التهيئة',
+        description: err.response?.data?.message || 'حدث خطأ أثناء محاولة تهيئة السنة الدراسية.',
+        type: 'error'
+      })
+    } finally {
+      setYearResetLoading(false)
+    }
   }
 
   return (
@@ -536,7 +553,7 @@ export default function AdminManagement() {
                 </div>
 
                 <button
-                  onClick={handleYearReset}
+                  onClick={handleOpenYearReset}
                   className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-lg shadow-red-600/10 shrink-0 self-end sm:self-center"
                 >
                   تهيئة السنة الجديدة
@@ -878,6 +895,70 @@ export default function AdminManagement() {
                   className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all duration-200"
                 >
                   حفظ التعديلات
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Year Reset Modal */}
+      {yearResetModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 rtl">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-40" onClick={() => !yearResetLoading && setYearResetModalOpen(false)} />
+          <div className="bg-brand-card border border-red-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-xl space-y-6 shadow-2xl relative z-50 text-right animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 border-b border-[var(--border-color)] pb-4 text-red-400">
+              <Shield className="h-7 w-7 text-red-500 shrink-0" />
+              <div>
+                <h2 className="text-lg sm:text-xl font-black text-slate-100">تهيئة السنة الدراسية الجديدة</h2>
+                <p className="text-xs text-slate-400 font-light mt-0.5">بدء دورة دراسية ومحاسبية جديدة ونظيفة للمنصة</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed bg-red-500/5 border border-red-500/20 p-4 rounded-2xl">
+              <p className="font-bold text-red-400">⚠️ تنبيه هام للغاية قبل المتابعة:</p>
+              <ul className="list-disc list-inside space-y-1.5 text-slate-300 font-light pr-2">
+                <li><strong className="text-emerald-400">سيتم الحفاظ دائماً على:</strong> المعلمين، الكورسات، الباقات، الفيديوهات، الملفات، الامتحانات، وبنوك الأسئلة، واشتراكات المعلمين.</li>
+                <li><strong className="text-amber-400">سيتم أرشفة:</strong> كافة السجلات المالية والمدفوعات السابقة في ملف نسخة احتياطية آمن على الخادم.</li>
+                <li><strong className="text-rose-400">سيتم تصفير:</strong> اشتراكات الطلاب، نسب المشاهدة، محاولات الامتحانات، ومحافظ الطلاب، لتبدأ السنة الجديدة من 0.00 جنيه.</li>
+              </ul>
+            </div>
+
+            <form onSubmit={handleExecuteYearReset} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-slate-300 block">
+                  لتأكيد العملية، يرجى كتابة العبارة التالية بدقة في الحقل أدناه:
+                </label>
+                <div className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-center font-mono font-bold text-xs text-rose-400 select-all">
+                  RESET NEW ACADEMIC YEAR
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="RESET NEW ACADEMIC YEAR"
+                  value={resetConfirmationInput}
+                  onChange={(e) => setResetConfirmationInput(e.target.value)}
+                  disabled={yearResetLoading}
+                  className="w-full px-4 py-3 bg-slate-900 border border-red-500/40 rounded-xl text-xs text-slate-100 text-center font-mono focus:outline-none focus:border-red-500 transition-all font-bold"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-[var(--border-color)]">
+                <button
+                  type="button"
+                  disabled={yearResetLoading}
+                  onClick={() => setYearResetModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl text-xs font-semibold transition-all duration-200 cursor-pointer disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetConfirmationInput !== 'RESET NEW ACADEMIC YEAR' || yearResetLoading}
+                  className="px-6 py-2.5 bg-red-600 hover:bg-red-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer flex items-center gap-2 shadow-lg shadow-red-600/20"
+                >
+                  {yearResetLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                  <span>{yearResetLoading ? 'جاري تهيئة المنصة وأرشفة البيانات...' : 'تأكيد تهيئة السنة الجديدة'}</span>
                 </button>
               </div>
             </form>

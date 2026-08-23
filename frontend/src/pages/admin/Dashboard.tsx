@@ -166,7 +166,7 @@ export default function Dashboard() {
   }
 
   const handleAcademicYearReset = async () => {
-    if (resetConfirmationText !== 'RESET ACADEMIC YEAR') return;
+    if (resetConfirmationText !== 'RESET NEW ACADEMIC YEAR') return;
 
     useModalStore.getState().showConfirm({
       title: 'تأكيد تهيئة السنة الدراسية الجديدة',
@@ -1030,13 +1030,13 @@ export default function Dashboard() {
                 </p>
 
                 <label className="text-xs font-semibold text-slate-300 block font-bold">
-                  لتأكيد تهيئة السنة الدراسية الجديدة، يرجى كتابة عبارة <span className="text-rose-400 font-bold select-all">RESET ACADEMIC YEAR</span> في الحقل أدناه:
+                  لتأكيد تهيئة السنة الدراسية الجديدة، يرجى كتابة عبارة <span className="text-rose-400 font-bold select-all">RESET NEW ACADEMIC YEAR</span> في الحقل أدناه:
                 </label>
                 <input
                   type="text"
                   value={resetConfirmationText}
                   onChange={(e) => setResetConfirmationText(e.target.value)}
-                  placeholder="RESET ACADEMIC YEAR"
+                  placeholder="RESET NEW ACADEMIC YEAR"
                   className="w-full bg-[rgba(255,255,255,0.02)] border border-rose-500/30 rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-center font-bold tracking-wider"
                 />
                 
@@ -1044,7 +1044,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={handleAcademicYearReset}
-                    disabled={resetConfirmationText !== 'RESET ACADEMIC YEAR' || resettingYear}
+                    disabled={resetConfirmationText !== 'RESET NEW ACADEMIC YEAR' || resettingYear}
                     className="px-6 py-3 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-black rounded-2xl shadow-lg active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
                   >
                     {resettingYear ? 'جاري تهيئة المنصة...' : 'بدء تهيئة السنة الدراسية'}

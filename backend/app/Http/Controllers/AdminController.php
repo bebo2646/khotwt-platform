@@ -14,6 +14,7 @@ use App\Models\Unit;
 use App\Models\Lesson;
 use App\Services\ReportService;
 use App\Services\CourseService;
+use App\Services\AcademicYearResetService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -1176,55 +1177,19 @@ class AdminController extends Controller
     }
 
     /**
-     * Reset the platform for a new academic year.
+     * Reset the platform for a new academic year (Canonical Service).
      */
-    public function resetYear(Request $request)
+    public function resetYear(Request $request, AcademicYearResetService $resetService)
     {
-        // Enforce Super Admin or admins.manage permission check
-        if (!$request->user()->is_super_admin && !$request->user()->hasPermission('admins.manage')) {
-            return response()->json(['message' => 'عذراً، لا تملك الصلاحية لإجراء هذا الإجراء الخطير.'], 403);
-        }
+        $confirmation = $request->input('confirmation', '');
+        $result = $resetService->executeReset($request->user(), $confirmation, $request->ip());
 
-        $adminName = $request->user()->name;
-        $ipAddress = $request->ip();
-
-        return DB::transaction(function () use ($adminName, $ipAddress) {
-            // Remove all student enrollments (course and package subscriptions)
-            DB::table('enrollments')->delete();
-
-            // Remove exam attempts and results, and homework submissions
-            DB::table('student_answers')->delete();
-            DB::table('student_exams')->delete();
-
-            // Remove exam purchases
-            DB::table('exam_purchases')->delete();
-
-            // Remove watch progress
-            DB::table('video_progresses')->delete();
-
-            // Remove temporary reports (by clearing wallet transactions)
-            DB::table('wallet_transactions')->delete();
-
-            // Reset student wallets to 0
-            DB::table('wallets')->update(['balance' => 0.00]);
-
-            // Remove notifications (if a notifications table exists)
-            if (\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
-                DB::table('notifications')->delete();
-            }
-
-            // Log activity
-            \App\Models\AdminActivityLog::create([
-                'admin_name' => $adminName,
-                'action_type' => 'Reset Academic Year',
-                'deleted_count' => 0,
-                'ip_address' => $ipAddress,
-            ]);
-
-            return response()->json([
-                'message' => 'تم تهيئة المنصة للسنة الجديدة بنجاح وحذف كافة الاشتراكات والمحاولات والتقارير المؤقتة.',
-            ]);
-        });
+        return response()->json([
+            'success' => $result['success'],
+            'message' => $result['message'],
+            'archive_file' => $result['archive_file'] ?? null,
+            'affected_counts' => $result['affected_counts'] ?? null,
+        ], $result['status']);
     }
 
     /**
@@ -2644,86 +2609,11 @@ class AdminController extends Controller
     }
 
     /**
-     * Reset the academic year (Admin only).
+     * Reset the academic year (Canonical unified endpoint).
      */
-    public function resetAcademicYear(Request $request)
+    public function resetAcademicYear(Request $request, AcademicYearResetService $resetService)
     {
-        $request->validate([
-            'confirmation' => 'required|string',
-        ]);
-
-        if ($request->input('confirmation') !== 'RESET ACADEMIC YEAR') {
-            return response()->json(['message' => 'تأكيد التهيئة غير صحيح. يرجى كتابة RESET ACADEMIC YEAR بدقة.'], 422);
-        }
-
-        \DB::transaction(function () {
-            // Get student IDs
-            $studentIds = \DB::table('users')->where('role', 'student')->pluck('id')->toArray();
-
-            // 1. Delete student progress, attempts, messages, transactions
-            \DB::table('video_progresses')->delete();
-            if (\Schema::hasTable('student_pdf_progresses')) {
-                \DB::table('student_pdf_progresses')->delete();
-            }
-            \DB::table('student_answers')->delete();
-            \DB::table('student_exams')->delete();
-            \DB::table('enrollments')->delete();
-            \DB::table('wallet_transactions')->delete();
-            \DB::table('wallets')->delete();
-            if (\Schema::hasTable('exam_purchases')) {
-                \DB::table('exam_purchases')->delete();
-            }
-            if (\Schema::hasTable('refund_logs')) {
-                \DB::table('refund_logs')->delete();
-            }
-            
-            // Teacher earnings, payouts, platform earnings, payment histories
-            if (\Schema::hasTable('teacher_payouts')) {
-                \DB::table('teacher_payouts')->delete();
-            }
-            if (\Schema::hasTable('teacher_earnings')) {
-                \DB::table('teacher_earnings')->delete();
-            }
-            if (\Schema::hasTable('platform_earnings')) {
-                \DB::table('platform_earnings')->delete();
-            }
-            if (\Schema::hasTable('payment_histories')) {
-                \DB::table('payment_histories')->delete();
-            }
-            if (\Schema::hasTable('purchase_audit_logs')) {
-                \DB::table('purchase_audit_logs')->delete();
-            }
-
-            // Notifications
-            \DB::table('notification_reads')->delete();
-            \DB::table('notifications')->delete();
-
-            // Reset purchase codes usage
-            \DB::table('purchase_codes')->update([
-                'is_redeemed' => false,
-                'redeemed_by' => null,
-                'redeemed_at' => null,
-            ]);
-
-            // Delete sessions and tokens for students
-            if (!empty($studentIds)) {
-                \DB::table('sessions')->whereIn('user_id', $studentIds)->delete();
-                \DB::table('personal_access_tokens')
-                    ->whereIn('tokenable_id', $studentIds)
-                    ->where('tokenable_type', 'App\\Models\\User')
-                    ->delete();
-            }
-            \DB::table('sessions')->whereNull('user_id')->delete();
-            \DB::table('password_reset_tokens')->delete();
-
-            // Finally delete the student users
-            \DB::table('users')->where('role', 'student')->delete();
-        });
-
-        return response()->json([
-            'success' => true,
-            'message' => 'تم تهيئة السنة الدراسية الجديدة بنجاح وتصفير السجلات المالية والطلاب مع الاحتفاظ بالمحتوى التعليمي.'
-        ]);
+        return $this->resetYear($request, $resetService);
     }
 }
 

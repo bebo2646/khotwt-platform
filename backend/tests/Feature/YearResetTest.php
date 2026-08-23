@@ -94,7 +94,9 @@ class YearResetTest extends TestCase
 
         // Run Year Reset
         $response = $this->actingAs($admin)
-                         ->postJson('/api/admin/reset-year');
+                         ->postJson('/api/admin/reset-year', [
+                             'confirmation' => \App\Services\AcademicYearResetService::REQUIRED_CONFIRMATION,
+                         ]);
 
         $response->assertStatus(200)
                  ->assertJsonStructure(['message']);
@@ -108,7 +110,7 @@ class YearResetTest extends TestCase
         // Verify critical entities are kept
         $this->assertGreaterThan(0, User::where('role', 'admin')->count());
         $this->assertGreaterThan(0, User::where('role', 'teacher')->count());
-        $this->assertGreaterThan(0, User::where('role', 'student')->count());
+        $this->assertEquals(0, User::where('role', 'student')->count());
         $this->assertGreaterThan(0, Course::count());
     }
 }
