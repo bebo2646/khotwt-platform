@@ -99,7 +99,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Log in a user (Admin, Teacher, or Student) by Email, Student Number / Phone, or ID.
+     * Log in a user (Admin, Teacher, or Student) by Registered Email or Registered Student Phone Number.
      */
     public function login(Request $request)
     {
