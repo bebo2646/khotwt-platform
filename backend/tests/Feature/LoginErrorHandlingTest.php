@@ -325,4 +325,55 @@ class LoginErrorHandlingTest extends TestCase
         $response->assertStatus(200);
         $this->assertEquals($student->id, $response->json('user.id'));
     }
+
+    /**
+     * Scenario N: Student parent_phone must NOT be usable to log into the student's account
+     */
+    public function test_student_parent_phone_cannot_login_to_student_account(): void
+    {
+        $student = User::create([
+            'name' => 'Parent Phone Security Student',
+            'email' => 'parent_sec_' . uniqid() . '@test.com',
+            'phone' => '01151970493',
+            'parent_phone' => '01011223344',
+            'password' => bcrypt('student_pass_123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        // Attempt login using parent's phone
+        $response = $this->postJson('/api/login', [
+            'identifier' => '01011223344',
+            'password' => 'student_pass_123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['identifier']);
+        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
+    }
+
+    /**
+     * Scenario O: Database primary ID must NOT be usable as login identifier
+     */
+    public function test_database_primary_id_cannot_login_to_student_account(): void
+    {
+        $student = User::create([
+            'name' => 'ID Security Student',
+            'email' => 'id_sec_' . uniqid() . '@test.com',
+            'phone' => '01151970493',
+            'password' => bcrypt('student_pass_123'),
+            'role' => 'student',
+            'status' => 'active',
+        ]);
+
+        // Attempt login using database integer ID
+        $response = $this->postJson('/api/login', [
+            'identifier' => (string)$student->id,
+            'password' => 'student_pass_123',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['identifier']);
+        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
+    }
 }

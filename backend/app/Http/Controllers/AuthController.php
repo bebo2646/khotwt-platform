@@ -141,7 +141,7 @@ class AuthController extends Controller
             // Case 1: Email matching (case-insensitive)
             $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])->first();
         } else {
-            // Case 2: Phone number / Student Number matching
+            // Case 2: Phone number / Student Number matching (strictly registered phone)
             $cleanDigits = preg_replace('/\D/', '', $identifier);
             
             $normalizedDigits = $cleanDigits;
@@ -173,12 +173,7 @@ class AuthController extends Controller
 
             $user = User::where(function ($query) use ($identifier, $phoneVariations) {
                 $query->whereIn('phone', $phoneVariations)
-                    ->orWhereIn('parent_phone', $phoneVariations)
                     ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)]);
-
-                if (is_numeric($identifier) && (int)$identifier > 0 && strlen($identifier) <= 8) {
-                    $query->orWhere('id', (int)$identifier);
-                }
             })->first();
         }
 
