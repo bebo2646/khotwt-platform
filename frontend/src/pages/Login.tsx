@@ -38,12 +38,10 @@ export default function Login() {
     setSubmitting(true)
     try {
       const trimmedIdentifier = (data.identifier || '').trim()
-      const payload: { identifier: string; email?: string; password: string } = {
+      const payload = {
         identifier: trimmedIdentifier,
+        email: trimmedIdentifier,
         password: data.password,
-      }
-      if (trimmedIdentifier.includes('@')) {
-        payload.email = trimmedIdentifier
       }
       const res = await API.post('/login', payload)
       if (import.meta.env.DEV) {
