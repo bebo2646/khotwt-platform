@@ -18,42 +18,25 @@ class LoginErrorHandlingTest extends TestCase
     }
 
     /**
-     * Scenario A: Completely nonexistent email + any password
-     * Expected: "هذا الحساب غير موجود"
+     * Scenario 1: Completely nonexistent email + any password
+     * Expected: HTTP 422 with "هذا الحساب غير موجود"
      */
     public function test_nonexistent_email_returns_account_does_not_exist_error(): void
     {
         $response = $this->postJson('/api/login', [
-            'identifier' => 'completely_nonexistent_' . uniqid() . '@test.com',
+            'email' => 'completely_nonexistent_' . uniqid() . '@test.com',
             'password' => 'somepassword123',
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $response->assertJsonPath('errors.identifier.0', 'هذا الحساب غير موجود');
+        $response->assertJsonValidationErrors(['email']);
+        $response->assertJsonPath('errors.email.0', 'هذا الحساب غير موجود');
         $response->assertJsonPath('message', 'هذا الحساب غير موجود');
     }
 
     /**
-     * Scenario F: Completely nonexistent student number / phone + any password
-     * Expected: "هذا الحساب غير موجود"
-     */
-    public function test_nonexistent_student_number_returns_account_does_not_exist_error(): void
-    {
-        $response = $this->postJson('/api/login', [
-            'identifier' => '01199998888',
-            'password' => 'somepassword123',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $response->assertJsonPath('errors.identifier.0', 'هذا الحساب غير موجود');
-        $response->assertJsonPath('message', 'هذا الحساب غير موجود');
-    }
-
-    /**
-     * Scenario B: Existing student account + wrong password (using email)
-     * Expected: "كلمة المرور غير صحيحة"
+     * Scenario 2: Existing student account + wrong password (using email)
+     * Expected: HTTP 422 with "كلمة المرور غير صحيحة"
      */
     public function test_existing_student_with_wrong_password_using_email_returns_incorrect_password(): void
     {
@@ -67,7 +50,7 @@ class LoginErrorHandlingTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/login', [
-            'identifier' => $student->email,
+            'email' => $student->email,
             'password' => 'wrong_password_xyz',
         ]);
 
@@ -78,34 +61,8 @@ class LoginErrorHandlingTest extends TestCase
     }
 
     /**
-     * Scenario D: Existing student account + wrong password (using student number / phone)
-     * Expected: "كلمة المرور غير صحيحة"
-     */
-    public function test_existing_student_with_wrong_password_using_student_number_returns_incorrect_password(): void
-    {
-        $student = User::create([
-            'name' => 'Student Test',
-            'email' => 'student_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('correct_password_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        $response = $this->postJson('/api/login', [
-            'identifier' => '01151970493',
-            'password' => 'wrong_password_xyz',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['password']);
-        $response->assertJsonPath('errors.password.0', 'كلمة المرور غير صحيحة');
-        $response->assertJsonPath('message', 'كلمة المرور غير صحيحة');
-    }
-
-    /**
-     * Scenario A/C: Existing student account + correct password (using email)
-     * Expected: Successful login
+     * Scenario 3: Existing student account + correct password (using email)
+     * Expected: HTTP 200 Successful login
      */
     public function test_student_login_using_email_success(): void
     {
@@ -119,7 +76,7 @@ class LoginErrorHandlingTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/login', [
-            'identifier' => $student->email,
+            'email' => $student->email,
             'password' => 'correct_password_123',
         ]);
 
@@ -133,43 +90,62 @@ class LoginErrorHandlingTest extends TestCase
     }
 
     /**
-     * Scenario B: Student logs in using registered student number (phone) + correct password
-     * Expected: Successful login
+     * Scenario 4: Phone number entered into email field
+     * Expected: HTTP 422 with "The email field must be a valid email address."
      */
-    public function test_student_login_using_student_number_success(): void
+    public function test_phone_number_in_email_field_returns_valid_email_validation_error(): void
     {
-        $student = User::create([
-            'name' => 'Student Test Number',
-            'email' => 'student_num_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('correct_password_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
         $response = $this->postJson('/api/login', [
-            'identifier' => '01151970493',
-            'password' => 'correct_password_123',
+            'email' => '01151970493',
+            'password' => 'anypassword',
         ]);
 
-        $response->assertStatus(200);
-        $response->assertJsonStructure([
-            'token',
-            'user' => ['id', 'name', 'email', 'role'],
-            'session_token',
-        ]);
-        $this->assertEquals($student->id, $response->json('user.id'));
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+        $this->assertEquals('The email field must be a valid email address.', $response->json('errors.email.0'));
     }
 
     /**
-     * Scenario G: Existing teacher & admin successful logins using identifier
+     * Scenario 5: Empty email field
+     * Expected: HTTP 422 with "The email field is required."
      */
-    public function test_teacher_and_admin_login_using_identifier_success(): void
+    public function test_empty_email_returns_required_validation_error(): void
+    {
+        $response = $this->postJson('/api/login', [
+            'email' => '',
+            'password' => 'somepass',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+        $this->assertEquals('The email field is required.', $response->json('errors.email.0'));
+    }
+
+    /**
+     * Scenario 6: Invalid email format
+     * Expected: HTTP 422 with "The email field must be a valid email address."
+     */
+    public function test_invalid_email_format_returns_validation_error(): void
+    {
+        $response = $this->postJson('/api/login', [
+            'email' => 'not-an-email',
+            'password' => 'somepass',
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email']);
+        $this->assertEquals('The email field must be a valid email address.', $response->json('errors.email.0'));
+    }
+
+    /**
+     * Scenario 7: Teacher and Admin login using email
+     * Expected: HTTP 200 Successful login
+     */
+    public function test_teacher_and_admin_login_using_email_success(): void
     {
         $teacher = User::create([
-            'name' => 'Teacher Test 2',
-            'email' => 'teacher2_' . uniqid() . '@test.com',
-            'phone' => '01222334455',
+            'name' => 'Teacher Test Email',
+            'email' => 'teacher_email_' . uniqid() . '@test.com',
             'password' => bcrypt('teacher_pass_456'),
             'role' => 'teacher',
             'status' => 'active',
@@ -178,9 +154,8 @@ class LoginErrorHandlingTest extends TestCase
         ]);
 
         $admin = User::create([
-            'name' => 'Admin Test 2',
-            'email' => 'admin2_' . uniqid() . '@test.com',
-            'phone' => '01299887766',
+            'name' => 'Admin Test Email',
+            'email' => 'admin_email_' . uniqid() . '@test.com',
             'password' => bcrypt('admin_pass_456'),
             'role' => 'admin',
             'status' => 'active',
@@ -188,192 +163,18 @@ class LoginErrorHandlingTest extends TestCase
 
         // Teacher by email
         $teacherResponse = $this->postJson('/api/login', [
-            'identifier' => $teacher->email,
+            'email' => $teacher->email,
             'password' => 'teacher_pass_456',
         ]);
         $teacherResponse->assertStatus(200);
         $this->assertEquals('teacher', $teacherResponse->json('user.role'));
 
-        // Admin by phone/identifier
+        // Admin by email
         $adminResponse = $this->postJson('/api/login', [
-            'identifier' => '01299887766',
+            'email' => $admin->email,
             'password' => 'admin_pass_456',
         ]);
         $adminResponse->assertStatus(200);
         $this->assertEquals('admin', $adminResponse->json('user.role'));
-    }
-
-    /**
-     * Scenario H: Empty identifier validation error
-     */
-    public function test_empty_identifier_returns_validation_error(): void
-    {
-        $response = $this->postJson('/api/login', [
-            'identifier' => '',
-            'password' => 'somepass',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $this->assertEquals('يرجى إدخال البريد الإلكتروني أو رقم الطالب.', $response->json('errors.identifier.0'));
-    }
-
-    /**
-     * Scenario I: Backward compatibility - sending email key works identically
-     */
-    public function test_legacy_email_payload_key_works(): void
-    {
-        $student = User::create([
-            'name' => 'Legacy Student',
-            'email' => 'legacy_' . uniqid() . '@test.com',
-            'password' => bcrypt('legacy_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        $response = $this->postJson('/api/login', [
-            'email' => $student->email,
-            'password' => 'legacy_pass_123',
-        ]);
-
-        $response->assertStatus(200);
-        $this->assertEquals($student->id, $response->json('user.id'));
-    }
-
-    /**
-     * Scenario J: Student number sent in legacy 'email' field does NOT trigger email format validation error
-     */
-    public function test_student_number_sent_in_email_field_does_not_trigger_email_validation_error(): void
-    {
-        $student = User::create([
-            'name' => 'Student Phone In Email Field',
-            'email' => 'student_phone_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('phone_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        $response = $this->postJson('/api/login', [
-            'email' => '01151970493',
-            'password' => 'phone_pass_123',
-        ]);
-
-        $response->assertStatus(200);
-        $this->assertEquals($student->id, $response->json('user.id'));
-    }
-
-    /**
-     * Scenario K: Student number containing only digits does not trigger "valid email address" error even for nonexistent
-     */
-    public function test_nonexistent_student_number_does_not_trigger_email_validation_error(): void
-    {
-        $response = $this->postJson('/api/login', [
-            'identifier' => '01151970493',
-            'password' => 'anypassword',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
-        $this->assertNotEquals('The email field must be a valid email address.', $response->json('errors.identifier.0'));
-    }
-
-    /**
-     * Scenario L: Arabic-Indic numerals input (٠١١٥١٩٧٠٤٩٣) resolves correctly
-     */
-    public function test_arabic_numerals_phone_login_succeeds(): void
-    {
-        $student = User::create([
-            'name' => 'Arabic Digits Student',
-            'email' => 'arabic_digits_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('arabic_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        // "01151970493" in Arabic-Indic digits is "٠١١٥١٩٧٠٤٩٣"
-        $response = $this->postJson('/api/login', [
-            'identifier' => '٠١١٥١٩٧٠٤٩٣',
-            'password' => 'arabic_pass_123',
-        ]);
-
-        $response->assertStatus(200);
-        $this->assertEquals($student->id, $response->json('user.id'));
-    }
-
-    /**
-     * Scenario M: Phone number entered with international prefix (+20 or 20) resolves correctly
-     */
-    public function test_phone_with_international_prefix_resolves_correctly(): void
-    {
-        $student = User::create([
-            'name' => 'Prefix Student',
-            'email' => 'prefix_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('prefix_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        $response = $this->postJson('/api/login', [
-            'identifier' => '+201151970493',
-            'password' => 'prefix_pass_123',
-        ]);
-
-        $response->assertStatus(200);
-        $this->assertEquals($student->id, $response->json('user.id'));
-    }
-
-    /**
-     * Scenario N: Student parent_phone must NOT be usable to log into the student's account
-     */
-    public function test_student_parent_phone_cannot_login_to_student_account(): void
-    {
-        $student = User::create([
-            'name' => 'Parent Phone Security Student',
-            'email' => 'parent_sec_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'parent_phone' => '01011223344',
-            'password' => bcrypt('student_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        // Attempt login using parent's phone
-        $response = $this->postJson('/api/login', [
-            'identifier' => '01011223344',
-            'password' => 'student_pass_123',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
-    }
-
-    /**
-     * Scenario O: Database primary ID must NOT be usable as login identifier
-     */
-    public function test_database_primary_id_cannot_login_to_student_account(): void
-    {
-        $student = User::create([
-            'name' => 'ID Security Student',
-            'email' => 'id_sec_' . uniqid() . '@test.com',
-            'phone' => '01151970493',
-            'password' => bcrypt('student_pass_123'),
-            'role' => 'student',
-            'status' => 'active',
-        ]);
-
-        // Attempt login using database integer ID
-        $response = $this->postJson('/api/login', [
-            'identifier' => (string)$student->id,
-            'password' => 'student_pass_123',
-        ]);
-
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['identifier']);
-        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.identifier.0'));
     }
 }
