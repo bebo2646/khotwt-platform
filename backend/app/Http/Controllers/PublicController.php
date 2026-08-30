@@ -180,7 +180,8 @@ class PublicController extends Controller
                 ->withCount(['courses as published_courses_count' => function ($query) {
                     $query->where('is_published', true);
                 }])
-                ->get();
+                ->get()
+                ->toArray();
         });
 
         return response()->json($teachers);

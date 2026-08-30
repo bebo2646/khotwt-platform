@@ -124,6 +124,7 @@ export default function Navbar() {
           {navLink("/", "الرئيسية")}
           {navLink("/courses", "الكورسات")}
           {navLink("/teachers", "المعلمون")}
+          {navLink("/exams", "الامتحانات")}
         </>
       )
     }
@@ -138,6 +139,7 @@ export default function Navbar() {
           {hasPerm('teachers.manage') && navLink("/admin/teachers", "المعلمون")}
           {hasPerm('students.manage') && navLink("/admin/students", "الطلاب")}
           {hasPerm('courses.manage') && navLink("/admin/courses", "الكورسات")}
+          {hasPerm('exams.manage') && navLink("/admin/monthly-exams", "الامتحانات الشهرية")}
           {hasPerm('coupons.manage') && navLink("/admin/codes", "أكواد الشحن")}
           {hasPerm('reports.view') && navLink("/admin/reports", "التقارير")}
           {navLink("/admin/notifications", "إرسال الإشعارات")}
@@ -155,6 +157,7 @@ export default function Navbar() {
           {navLink("/teacher/dashboard", "الرئيسية")}
           {navLink("/teacher/courses", "كورساتي")}
           {navLink("/teacher/bundles", "الكورسات المجمعة")}
+          {navLink("/teacher/monthly-exams", "الامتحانات الشهرية")}
           {navLink("/teacher/students", "الطلاب")}
           {navLink("/teacher/revenue", "تقرير الأرباح")}
           {navLink("/teacher/subscription", "اشتراكي")}
@@ -169,6 +172,7 @@ export default function Navbar() {
       <>
         {navLink("/student/dashboard", "الرئيسية")}
         {navLink("/student/courses", "كورساتي")}
+        {navLink("/exams", "الامتحانات")}
         {navLink("/student/wallet", "المحفظة")}
       </>
     )

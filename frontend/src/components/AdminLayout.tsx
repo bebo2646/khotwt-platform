@@ -15,6 +15,7 @@ import {
   Users,
   GraduationCap,
   BookOpen,
+  FileText,
   ClipboardList,
   Ticket,
   BarChart3,
@@ -145,6 +146,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/teachers')) return 'إدارة شؤون المعلمين'
     if (path.startsWith('/admin/students')) return 'إدارة حسابات الطلاب'
     if (path.startsWith('/admin/courses')) return 'إدارة الكورسات والمناهج'
+    if (path.startsWith('/admin/monthly-exams')) return 'إدارة الامتحانات الشهرية'
     if (path.startsWith('/admin/subscriptions/requests')) return 'طلبات اشتراكات المعلمين'
     if (path.startsWith('/admin/codes')) return 'إدارة أكواد الشحن'
     if (path.startsWith('/admin/financial')) return 'التحليلات المالية والأرباح'
@@ -199,6 +201,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           path: '/admin/courses',
           icon: <BookOpen className="w-5 h-5 shrink-0" />,
           visible: hasPerm('courses.manage')
+        },
+        {
+          label: 'الامتحانات الشهرية',
+          path: '/admin/monthly-exams',
+          icon: <FileText className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('exams.manage')
         }
       ]
     },

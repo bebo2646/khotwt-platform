@@ -11,9 +11,17 @@ class Exam extends Model
 
     protected $fillable = [
         'lesson_id',
+        'course_id',
+        'teacher_id',
         'title',
+        'description',
         'type', // quiz, homework, monthly_exam
         'homework_type', // normal, bubble_sheet
+        'stage',
+        'grade',
+        'subject',
+        'category',
+        'month',
         'time_limit_minutes',
         'max_score',
         'start_date',
@@ -35,6 +43,15 @@ class Exam extends Model
         'enable_copy_protection',
         'is_paid',
         'price',
+        'is_active',
+        'is_published',
+        'included_in_course',
+        'randomize_questions',
+        'randomize_options',
+        'use_question_bank',
+        'questions_per_attempt',
+        'show_result_immediately',
+        'show_answers_after_submission',
     ];
 
     protected $casts = [
@@ -50,11 +67,29 @@ class Exam extends Model
         'submission_deadline' => 'datetime',
         'is_paid' => 'boolean',
         'price' => 'decimal:2',
+        'is_active' => 'boolean',
+        'is_published' => 'boolean',
+        'included_in_course' => 'boolean',
+        'randomize_questions' => 'boolean',
+        'randomize_options' => 'boolean',
+        'use_question_bank' => 'boolean',
+        'show_result_immediately' => 'boolean',
+        'show_answers_after_submission' => 'boolean',
     ];
 
     public function lesson()
     {
         return $this->belongsTo(Lesson::class);
+    }
+
+    public function course()
+    {
+        return $this->belongsTo(Course::class);
+    }
+
+    public function teacher()
+    {
+        return $this->belongsTo(User::class, 'teacher_id');
     }
 
     public function questions()
@@ -65,5 +100,15 @@ class Exam extends Model
     public function attempts()
     {
         return $this->hasMany(StudentExam::class);
+    }
+
+    public function purchases()
+    {
+        return $this->hasMany(ExamPurchase::class);
+    }
+
+    public function violations()
+    {
+        return $this->hasMany(ExamViolation::class);
     }
 }

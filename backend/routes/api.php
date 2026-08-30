@@ -8,6 +8,7 @@ use App\Http\Controllers\TeacherController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\SubscriptionController;
+use App\Http\Controllers\MonthlyExamsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,6 +21,8 @@ Route::get('/teachers/{teacher}', [PublicController::class, 'teacherProfile']);
 Route::get('/courses', [PublicController::class, 'courses']);
 Route::get('/courses/{course}', [PublicController::class, 'courseDetail']);
 Route::get('/packages', [PublicController::class, 'packages']);
+Route::get('/monthly-exams', [MonthlyExamsController::class, 'index']);
+Route::get('/monthly-exams/{id}', [MonthlyExamsController::class, 'show']);
 
 // Cascading Filter
 Route::get('/filter/subjects', [PublicController::class, 'filterSubjects']);
@@ -97,6 +100,14 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/exams/{exam}/purchase', [StudentController::class, 'purchaseExam']);
             Route::get('/student/results', [StudentController::class, 'examResults']);
             Route::post('/student/profile/update', [StudentController::class, 'updateProfile']);
+
+            // Standalone Monthly Exams Student Actions
+            Route::post('/monthly-exams/{id}/purchase', [MonthlyExamsController::class, 'purchase']);
+            Route::post('/monthly-exams/{id}/start', [MonthlyExamsController::class, 'start']);
+            Route::post('/monthly-exams/{id}/save-draft', [MonthlyExamsController::class, 'saveDraft']);
+            Route::post('/monthly-exams/{id}/log-violation', [MonthlyExamsController::class, 'logViolation']);
+            Route::post('/monthly-exams/{id}/submit', [MonthlyExamsController::class, 'submit']);
+            Route::get('/monthly-exams/{id}/results', [MonthlyExamsController::class, 'results']);
         });
 
         /*
@@ -111,6 +122,11 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/teacher/exams/{exam}', [TeacherController::class, 'getExam']);
             Route::get('/teacher/exams/{exam}/attempts', [TeacherController::class, 'examAttempts']);
             Route::get('/teacher/exams/{exam}/report', [TeacherController::class, 'examReport']);
+            Route::get('/teacher/monthly-exams', [MonthlyExamsController::class, 'adminList']);
+            Route::post('/teacher/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
+            Route::put('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
+            Route::delete('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
+            Route::post('/teacher/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::get('/teacher/students', [TeacherController::class, 'students']);
             Route::get('/teacher/students/{student}/analytics', [TeacherController::class, 'studentAnalytics']);
 
@@ -269,6 +285,15 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::get('/admin/packages', [AdminController::class, 'listPackages']);
                 Route::put('/admin/packages/{package}', [AdminController::class, 'updatePackage']);
                 Route::delete('/admin/packages/{package}', [AdminController::class, 'deletePackage']);
+            });
+
+            // Monthly Exams Management
+            Route::middleware('permission:exams.manage')->group(function () {
+                Route::get('/admin/monthly-exams', [MonthlyExamsController::class, 'adminList']);
+                Route::post('/admin/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
+                Route::put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
+                Route::delete('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
+                Route::post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             });
 
             // Coupons/Codes Management

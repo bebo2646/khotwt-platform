@@ -25,6 +25,7 @@ const Login = React.lazy(() => import('./pages/Login'))
 const Register = React.lazy(() => import('./pages/Register'))
 const Courses = React.lazy(() => import('./pages/Courses'))
 const CourseDetail = React.lazy(() => import('./pages/CourseDetail'))
+const MonthlyExams = React.lazy(() => import('./pages/MonthlyExams'))
 const Teachers = React.lazy(() => import('./pages/Teachers'))
 const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
@@ -39,8 +40,10 @@ const StudentDashboard = React.lazy(() => import('./pages/student/Dashboard'))
 const EnrolledCourses = React.lazy(() => import('./pages/student/EnrolledCourses'))
 const WalletPage = React.lazy(() => import('./pages/student/WalletPage'))
 const ExamResults = React.lazy(() => import('./pages/student/ExamResults'))
+const MonthlyExamResults = React.lazy(() => import('./pages/student/MonthlyExamResults'))
 const LessonViewer = React.lazy(() => import('./pages/student/LessonViewer'))
 const ExamPlayer = React.lazy(() => import('./pages/student/ExamPlayer'))
+const MonthlyExamPlayer = React.lazy(() => import('./pages/student/MonthlyExamPlayer'))
 const ProfileDashboard = React.lazy(() => import('./pages/student/ProfileDashboard'))
 const PdfViewerPage = React.lazy(() => import('./pages/student/PdfViewerPage'))
 
@@ -62,6 +65,7 @@ const AdminTeachersList = React.lazy(() => import('./pages/admin/TeachersList'))
 const AdminCreateTeacher = React.lazy(() => import('./pages/admin/CreateTeacher'))
 const AdminStudentsList = React.lazy(() => import('./pages/admin/StudentsList'))
 const AdminCoursesList = React.lazy(() => import('./pages/admin/CoursesList'))
+const MonthlyExamsManagement = React.lazy(() => import('./pages/admin/MonthlyExamsManagement'))
 const PurchaseCodes = React.lazy(() => import('./pages/admin/PurchaseCodes'))
 const ReportsPage = React.lazy(() => import('./pages/admin/ReportsPage'))
 const AdminFinancialAnalytics = React.lazy(() => import('./pages/admin/FinancialAnalytics'))
@@ -258,6 +262,8 @@ function App() {
         <Route path="/courses" element={<Layout><Courses /></Layout>} />
         <Route path="/course/:id" element={<Layout><CourseDetail /></Layout>} />
         <Route path="/courses/:id" element={<Layout><CourseDetail /></Layout>} />
+        <Route path="/exams" element={<Layout><MonthlyExams /></Layout>} />
+        <Route path="/monthly-exams" element={<Layout><MonthlyExams /></Layout>} />
         <Route path="/teachers" element={<Layout><Teachers /></Layout>} />
         <Route path="/teacher/:id" element={<Layout><TeacherProfile /></Layout>} />
         <Route path="/teachers/:id" element={<Layout><TeacherProfile /></Layout>} />
@@ -306,6 +312,16 @@ function App() {
         <Route path="/student/exams/:id/result" element={
           <ProtectedRoute allowedRoles={['student']}>
             <Layout><ExamResults /></Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/monthly-exams/:id/player" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <MonthlyExamPlayer />
+          </ProtectedRoute>
+        } />
+        <Route path="/monthly-exams/:id/results" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <Layout><MonthlyExamResults /></Layout>
           </ProtectedRoute>
         } />
         <Route path="/student/profile" element={
@@ -387,6 +403,11 @@ function App() {
             <Layout><RevenueReport /></Layout>
           </ProtectedRoute>
         } />
+        <Route path="/teacher/monthly-exams" element={
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <Layout><MonthlyExamsManagement /></Layout>
+          </ProtectedRoute>
+        } />
         <Route path="/teacher/videos" element={
           <ProtectedRoute allowedRoles={['teacher']}>
             <Layout><TeacherVideosManager /></Layout>
@@ -449,6 +470,11 @@ function App() {
         <Route path="/admin/courses" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="courses.manage">
             <AdminLayout><AdminCoursesList /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/monthly-exams" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="exams.manage">
+            <AdminLayout><MonthlyExamsManagement /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/codes" element={
