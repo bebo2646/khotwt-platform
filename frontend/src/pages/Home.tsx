@@ -115,6 +115,12 @@ const CATEGORY_ICONS: Record<string, any> = {
   skills: Briefcase,
 }
 
+const formatStatCount = (count?: number | null) => {
+  const num = Number(count || 0)
+  const rounded = Math.max(10, Math.ceil(num / 10) * 10)
+  return `+${rounded}`
+}
+
 export default function Home() {
   const navigate = useNavigate()
   const { isLoggedIn, user } = useAuthStore()
@@ -411,7 +417,7 @@ export default function Home() {
 
             </div>
 
-            {/* Left Side: Interactive Live Spotlight Deck */}
+            {/* Left Side: Original Stats Block */}
             <div className="lg:col-span-5 relative">
               
               <motion.div
@@ -422,59 +428,59 @@ export default function Home() {
               >
                 <div className="absolute top-0 left-0 w-48 h-48 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none"></div>
 
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-black">
-                      <Layers className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-black text-sm text-foreground">التعلم متعدد المجالات</h3>
-                      <span className="text-[10px] text-emerald-400 font-bold block">منصة موحدة ومجالات متنوعة</span>
-                    </div>
+                <div className="flex items-center gap-3 border-b border-slate-800/80 pb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-black">
+                    <Sparkles className="h-5 w-5" />
                   </div>
-                  <span className="px-3 py-1 bg-slate-900 border border-slate-800 text-[10px] font-black text-slate-300 rounded-full">
-                    Khotwtk Multi-Category
-                  </span>
+                  <div>
+                    <h3 className="font-black text-lg text-foreground">أرقامنا بتتكلم</h3>
+                    <p className="text-xs text-slate-400 font-medium">إحصائيات حية ومباشرة من قاعدة بيانات المنصة</p>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
-                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-black">
-                      <span className="text-slate-300">مسارات التعلم والتفوق</span>
-                      <span className="text-brand-primary">7 مجالات رئيسية</span>
+                  {/* Card 1: Students */}
+                  <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl flex items-center gap-4 text-right hover:border-brand-primary/30 transition-all group">
+                    <div className="p-3.5 bg-brand-primary/10 text-brand-primary rounded-2xl group-hover:bg-brand-primary group-hover:text-white transition-all shrink-0">
+                      <Users className="h-6 w-6" />
                     </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
-                      <div className="bg-gradient-to-r from-brand-primary via-brand-secondary to-emerald-400 h-full rounded-full w-full"></div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-sm text-foreground">الطلاب المسجلون</span>
+                        <span className="text-2xl font-black text-brand-primary">{formatStatCount(stats?.students_count)}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-light mt-0.5">طالب يدرس ويتفوق معنا عبر المنصة</p>
                     </div>
-                    <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-                      سواء كنت تطمح للنجاح والتفوق المدرسي، أو تريد احتراف البرمجة والتصميم والتجارة الرقمية، المنصة توفر لك كل شيء.
-                    </p>
                   </div>
 
-                  {stats && (
-                    <div className="grid grid-cols-3 gap-3 text-center">
-                      <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl">
-                        <div className="text-lg font-black text-brand-primary">{stats.students_count}+</div>
-                        <div className="text-[10px] text-slate-400 font-bold">طالب</div>
-                      </div>
-                      <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl">
-                        <div className="text-lg font-black text-brand-secondary">{stats.courses_count}+</div>
-                        <div className="text-[10px] text-slate-400 font-bold">كورس</div>
-                      </div>
-                      <div className="bg-slate-900/40 border border-slate-800 p-3 rounded-2xl">
-                        <div className="text-lg font-black text-emerald-400">{stats.teachers_count}+</div>
-                        <div className="text-[10px] text-slate-400 font-bold">معلم وخبير</div>
-                      </div>
+                  {/* Card 2: Courses */}
+                  <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl flex items-center gap-4 text-right hover:border-brand-secondary/30 transition-all group">
+                    <div className="p-3.5 bg-brand-secondary/10 text-brand-secondary rounded-2xl group-hover:bg-brand-secondary group-hover:text-white transition-all shrink-0">
+                      <BookOpen className="h-6 w-6" />
                     </div>
-                  )}
-                </div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-sm text-foreground">الكورسات والمحاضرات</span>
+                        <span className="text-2xl font-black text-brand-secondary">{formatStatCount(stats?.courses_count)}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-light mt-0.5">محاضرة وكورس مسجل وشروحات شاملة</p>
+                    </div>
+                  </div>
 
-                <a 
-                  href="#categories-explore"
-                  className="block w-full py-3 text-center bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/20 text-brand-primary rounded-xl text-xs font-black transition-all cursor-pointer"
-                >
-                  استكشف المجالات التعليمية الشاملة
-                </a>
+                  {/* Card 3: Teachers */}
+                  <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl flex items-center gap-4 text-right hover:border-emerald-500/30 transition-all group">
+                    <div className="p-3.5 bg-emerald-500/10 text-emerald-400 rounded-2xl group-hover:bg-emerald-500 group-hover:text-white transition-all shrink-0">
+                      <Award className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-bold text-sm text-foreground">نخبة المعلمين والخبراء</span>
+                        <span className="text-2xl font-black text-emerald-400">{formatStatCount(stats?.teachers_count)}</span>
+                      </div>
+                      <p className="text-xs text-slate-400 font-light mt-0.5">معلم وخبير معتمد في مختلف التخصصات</p>
+                    </div>
+                  </div>
+                </div>
 
               </motion.div>
 
