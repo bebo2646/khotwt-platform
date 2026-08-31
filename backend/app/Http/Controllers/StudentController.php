@@ -3479,7 +3479,7 @@ class StudentController extends Controller
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
             'phone' => 'required|string',
             'parent_phone' => 'required|string',
-            'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
+            'grade' => 'required|string|max:100',
             'student_type' => 'nullable|string|in:online,center',
         ]);
 

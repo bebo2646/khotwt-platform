@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 import { 
   ArrowLeft,
   ArrowRight, 
@@ -29,15 +30,6 @@ const SUBJECTS = [
   { key: 'english', val: 'اللغة الإنجليزية' },
 ]
 
-const GRADES = [
-  { key: 'first_preparatory', val: 'الأول الإعدادي' },
-  { key: 'second_preparatory', val: 'الثاني الإعدادي' },
-  { key: 'third_preparatory', val: 'الثالث الإعدادي' },
-  { key: 'first_secondary', val: 'الأول الثانوي' },
-  { key: 'second_secondary', val: 'الثاني الثانوي' },
-  { key: 'third_secondary', val: 'الثالث الثانوي' },
-]
-
 const PLANS = [
   { id: 1, name: 'Starter', storage: 10, codes: 50, price: 199 },
   { id: 2, name: 'Basic', storage: 25, codes: 100, price: 399 },
@@ -47,6 +39,11 @@ const PLANS = [
 
 export default function CreateTeacher() {
   const navigate = useNavigate()
+  const { departments, stages, grades, fetchTaxonomy } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
 
   // Form states
   const [name, setName] = React.useState('')
@@ -422,13 +419,11 @@ export default function CreateTeacher() {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary cursor-pointer font-bold"
                 >
-                  <option value="school">🎓 التعليم المدرسي (الإعدادية والثانوية)</option>
-                  <option value="programming">💻 البرمجة والتكنولوجيا</option>
-                  <option value="business">📈 التجارة والأعمال</option>
-                  <option value="design">🎨 التصميم والإبداع</option>
-                  <option value="languages">🌍 اللغات والترجمة</option>
-                  <option value="marketing">📱 التسويق الرقمي</option>
-                  <option value="skills">💼 المهارات المهنية والتطوير الذاتي</option>
+                  {departments.filter(d => d.is_active).map((dept) => (
+                    <option key={dept.id || dept.slug} value={dept.slug}>
+                      {dept.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -547,20 +542,20 @@ export default function CreateTeacher() {
                 اختر المراحل الدراسية للمعلم <span className="text-red-500">*</span>
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {GRADES.map((g) => {
-                  const isChecked = selectedGrades.includes(g.key)
+                {grades.filter(g => g.is_active).map((g) => {
+                  const isChecked = selectedGrades.includes(g.slug)
                   return (
                     <button
                       type="button"
-                      key={g.key}
-                      onClick={() => handleGradeToggle(g.key)}
+                      key={g.id || g.slug}
+                      onClick={() => handleGradeToggle(g.slug)}
                       className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
                         isChecked
                           ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
                           : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
                       }`}
                     >
-                      {g.val}
+                      {g.name}
                     </button>
                   )
                 })}

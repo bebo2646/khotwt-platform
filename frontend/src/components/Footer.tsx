@@ -70,8 +70,10 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="font-black text-sm text-foreground border-r-2 border-brand-primary pr-3">روابط سريعة</h4>
             <ul className="space-y-2.5 text-xs font-semibold text-text-secondary">
+              <li><Link to="/departments" className="hover:text-brand-primary transition-colors">أقسام المنصة</Link></li>
               <li><Link to="/courses" className="hover:text-brand-primary transition-colors">تصفح الكورسات</Link></li>
               <li><Link to="/teachers" className="hover:text-brand-primary transition-colors">معلمو المنصة</Link></li>
+              <li><Link to="/monthly-exams" className="hover:text-brand-primary transition-colors">الامتحانات الشهرية</Link></li>
               <li><Link to="/login" className="hover:text-brand-primary transition-colors">بوابة الدخول</Link></li>
               <li><Link to="/register" className="hover:text-brand-primary transition-colors">تسجيل حساب طالب</Link></li>
             </ul>

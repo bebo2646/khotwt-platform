@@ -35,7 +35,8 @@ import {
   UserCheck,
   AlertTriangle,
   Wallet,
-  Coins
+  Coins,
+  FolderTree
 } from 'lucide-react'
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -155,6 +156,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/subscription-plans')) return 'إعدادات باقات الاشتراك'
     if (path.startsWith('/admin/bunny')) return 'إحصائيات مساحات تخزين Bunny Stream'
     if (path.startsWith('/admin/payouts')) return 'إدارة مستحقات ومدفوعات المعلمين'
+    if (path.startsWith('/admin/taxonomy')) return 'إدارة الأقسام والمراحل الدراسية'
     if (path.startsWith('/admin/manage')) return 'إدارة صلاحيات المشرفين'
     return 'لوحة الإدارة'
   }
@@ -201,6 +203,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           path: '/admin/courses',
           icon: <BookOpen className="w-5 h-5 shrink-0" />,
           visible: hasPerm('courses.manage')
+        },
+        {
+          label: 'الأقسام والمراحل',
+          path: '/admin/taxonomy',
+          icon: <FolderTree className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('settings.manage') || hasPerm('courses.manage')
         },
         {
           label: 'الامتحانات الشهرية',

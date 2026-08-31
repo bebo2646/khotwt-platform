@@ -26,6 +26,8 @@ const Register = React.lazy(() => import('./pages/Register'))
 const Courses = React.lazy(() => import('./pages/Courses'))
 const CourseDetail = React.lazy(() => import('./pages/CourseDetail'))
 const MonthlyExams = React.lazy(() => import('./pages/MonthlyExams'))
+const Departments = React.lazy(() => import('./pages/Departments'))
+const DepartmentDetail = React.lazy(() => import('./pages/DepartmentDetail'))
 const Teachers = React.lazy(() => import('./pages/Teachers'))
 const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
@@ -78,6 +80,7 @@ const AdminBunnyDashboard = React.lazy(() => import('./pages/admin/BunnyDashboar
 const AdminPayouts = React.lazy(() => import('./pages/admin/Payouts'))
 const PendingStudents = React.lazy(() => import('./pages/admin/PendingStudents'))
 const PlatformSettings = React.lazy(() => import('./pages/admin/PlatformSettings'))
+const AdminTaxonomyManagement = React.lazy(() => import('./pages/admin/TaxonomyManagement'))
 
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
@@ -262,6 +265,8 @@ function App() {
         <Route path="/courses" element={<Layout><Courses /></Layout>} />
         <Route path="/course/:id" element={<Layout><CourseDetail /></Layout>} />
         <Route path="/courses/:id" element={<Layout><CourseDetail /></Layout>} />
+        <Route path="/departments" element={<Layout><Departments /></Layout>} />
+        <Route path="/departments/:slug" element={<Layout><DepartmentDetail /></Layout>} />
         <Route path="/exams" element={<Layout><MonthlyExams /></Layout>} />
         <Route path="/monthly-exams" element={<Layout><MonthlyExams /></Layout>} />
         <Route path="/teachers" element={<Layout><Teachers /></Layout>} />
@@ -510,6 +515,11 @@ function App() {
         <Route path="/admin/settings" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="settings.manage">
             <AdminLayout><PlatformSettings /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/taxonomy" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="settings.manage">
+            <AdminLayout><AdminTaxonomyManagement /></AdminLayout>
           </ProtectedRoute>
         } />
 

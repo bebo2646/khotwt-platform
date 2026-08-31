@@ -122,6 +122,7 @@ export default function Navbar() {
       return (
         <>
           {navLink("/", "الرئيسية")}
+          {navLink("/departments", "الأقسام")}
           {navLink("/courses", "الكورسات")}
           {navLink("/teachers", "المعلمون")}
           {navLink("/exams", "الامتحانات")}
@@ -171,6 +172,7 @@ export default function Navbar() {
     return (
       <>
         {navLink("/student/dashboard", "الرئيسية")}
+        {navLink("/departments", "الأقسام")}
         {navLink("/student/courses", "كورساتي")}
         {navLink("/exams", "الامتحانات")}
         {navLink("/student/wallet", "المحفظة")}

@@ -39,7 +39,7 @@ import CourseCard from '../components/ui/CourseCard'
 import TeacherCard from '../components/ui/TeacherCard'
 import SEO from '../components/SEO'
 import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
-import { CategoriesConfig, type CategoryDefinition } from '../constants/categories'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 
 interface HomeStats {
   teachers_count: number
@@ -85,15 +85,6 @@ interface TeacherItem {
   teaching_mode?: 'online' | 'center' | 'both'
 }
 
-const GRADES = [
-  { key: 'first_preparatory', val: 'الصف الأول الإعدادي', badge: '١إ' },
-  { key: 'second_preparatory', val: 'الصف الثاني الإعدادي', badge: '٢إ' },
-  { key: 'third_preparatory', val: 'الصف الثالث الإعدادي', badge: '٣إ' },
-  { key: 'first_secondary', val: 'الصف الأول الثانوي', badge: '١ث' },
-  { key: 'second_secondary', val: 'الصف الثاني الثانوي', badge: '٢ث' },
-  { key: 'third_secondary', val: 'الصف الثالث الثانوي', badge: '٣ث' },
-]
-
 const SUBJECTS_TRANSLATION: Record<string, string> = {
   chemistry: 'الكيمياء',
   physics: 'الفيزياء',
@@ -103,12 +94,6 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   science: 'العلوم',
   arabic: 'اللغة العربية',
   english: 'اللغة الإنجليزية',
-  web_dev: 'تطوير المواقع',
-  frontend: 'تطوير الواجهات Frontend',
-  backend: 'تطوير الخلفيات Backend',
-  mobile_dev: 'تطبيقات الموبايل',
-  python_ai: 'بايثون والذكاء الاصطناعي',
-  cybersecurity: 'الأمن السيبراني',
   ecommerce: 'التجارة الإلكترونية',
   project_mgmt: 'إدارة المشاريع',
   accounting: 'المحاسبة والمالية',
@@ -133,6 +118,11 @@ const CATEGORY_ICONS: Record<string, any> = {
 export default function Home() {
   const navigate = useNavigate()
   const { isLoggedIn, user } = useAuthStore()
+  const { departments, grades, fetchTaxonomy } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
   
   // States
   const [stats, setStats] = React.useState<HomeStats | null>(null)
@@ -193,15 +183,7 @@ export default function Home() {
       try {
         const res = await API.get(`/filter/subjects?category=${catKey}`)
         const fetchedSubs = Array.isArray(res.data) ? res.data : []
-        if (fetchedSubs.length > 0) {
-          setSubjects(fetchedSubs)
-        } else {
-          // Fallback to static specializations defined for this category
-          const catDef = CategoriesConfig.getCategoryByKey(catKey)
-          if (catDef) {
-            setSubjects(catDef.specializations.map(s => s.name))
-          }
-        }
+        setSubjects(fetchedSubs)
       } catch (err) {
         console.error(err)
       } finally {
@@ -367,11 +349,11 @@ export default function Home() {
 
               {/* Category Badges Pills preview in Hero */}
               <div className="flex flex-wrap gap-2 pt-1">
-                {CategoriesConfig.CATEGORIES.map((cat) => (
+                {departments.filter(d => d.is_active).map((cat) => (
                   <button
-                    key={cat.key}
+                    key={cat.id || cat.slug}
                     onClick={() => {
-                      handleCategorySelect(cat.key)
+                      handleCategorySelect(cat.slug)
                       const el = document.getElementById('advanced-filter')
                       if (el) el.scrollIntoView({ behavior: 'smooth' })
                     }}
@@ -521,14 +503,14 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {CategoriesConfig.CATEGORIES.map((cat) => {
-            const IconComp = CATEGORY_ICONS[cat.key] || GraduationCap
-            const isActive = selectedCategory === cat.key
+          {departments.filter(d => d.is_active).map((cat) => {
+            const IconComp = CATEGORY_ICONS[cat.slug] || GraduationCap
+            const isActive = selectedCategory === cat.slug
             return (
               <button
-                key={cat.key}
+                key={cat.id || cat.slug}
                 onClick={() => {
-                  handleCategorySelect(cat.key)
+                  handleCategorySelect(cat.slug)
                   const el = document.getElementById('advanced-filter')
                   if (el) el.scrollIntoView({ behavior: 'smooth' })
                 }}
@@ -551,7 +533,7 @@ export default function Home() {
                       ? 'bg-white/20 text-white border-white/30'
                       : 'bg-slate-900 text-slate-400 border-slate-800'
                   }`}>
-                    {cat.badge}
+                    {cat.badge || 'مسار تعليمي'}
                   </span>
                 </div>
 
@@ -630,12 +612,12 @@ export default function Home() {
                 🌐 جميع المجالات
               </button>
 
-              {CategoriesConfig.CATEGORIES.map((cat) => {
-                const isActive = selectedCategory === cat.key
+              {departments.filter(d => d.is_active).map((cat) => {
+                const isActive = selectedCategory === cat.slug
                 return (
                   <button
-                    key={cat.key}
-                    onClick={() => handleCategorySelect(cat.key)}
+                    key={cat.id || cat.slug}
+                    onClick={() => handleCategorySelect(cat.slug)}
                     className={`px-4 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
                       isActive
                         ? 'bg-brand-primary text-white border-brand-primary shadow-md'
@@ -658,20 +640,20 @@ export default function Home() {
               </label>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                {GRADES.map((g) => {
-                  const isActive = selectedGrade === g.key
+                {grades.filter(g => g.is_active).map((g) => {
+                  const isActive = selectedGrade === g.slug
                   return (
                     <button
-                      key={g.key}
-                      onClick={() => fetchSubjectsForGrade(g.key)}
+                      key={g.id || g.slug}
+                      onClick={() => fetchSubjectsForGrade(g.slug)}
                       className={`p-3.5 rounded-2xl border text-right transition-all cursor-pointer flex flex-col justify-between h-20 ${
                         isActive
                           ? 'bg-brand-primary text-white border-brand-primary shadow-lg shadow-brand-primary/20 scale-[1.02]'
                           : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
                       }`}
                     >
-                      <span className="text-[10px] font-black opacity-80">{g.badge}</span>
-                      <span className="text-xs font-black leading-snug">{g.val}</span>
+                      <span className="text-[10px] font-black opacity-80">{g.short_code || ''}</span>
+                      <span className="text-xs font-black leading-snug">{g.name}</span>
                     </button>
                   )
                 })}

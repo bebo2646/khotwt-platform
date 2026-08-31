@@ -3,6 +3,7 @@ import API from '../services/api'
 import EmptyState from '../components/EmptyState'
 import TeacherCard from '../components/ui/TeacherCard'
 import SEO from '../components/SEO'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 
 interface TeacherItem {
   id: number
@@ -19,10 +20,15 @@ interface TeacherItem {
 }
 
 export default function Teachers() {
+  const { departments, fetchTaxonomy } = useTaxonomyStore()
   const [teachers, setTeachers] = React.useState<TeacherItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [filterMode, setFilterMode] = React.useState<string>('')
   const [filterCategory, setFilterCategory] = React.useState<string>('')
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
 
   React.useEffect(() => {
     setLoading(true)
@@ -89,24 +95,21 @@ export default function Teachers() {
         <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-800/80 text-xs font-black">
           {[
             { label: '🌐 جميع المجالات', value: '' },
-            { label: '🎓 التعليم المدرسي', value: 'school' },
-            { label: '💻 البرمجة والتكنولوجيا', value: 'programming' },
-            { label: '📈 التجارة والأعمال', value: 'business' },
-            { label: '🎨 التصميم والإبداع', value: 'design' },
-            { label: '🌍 اللغات والترجمة', value: 'languages' },
-            { label: '📱 التسويق الرقمي', value: 'marketing' },
-            { label: '💼 المهارات المهنية', value: 'skills' }
+            ...departments.filter(d => d.is_active).map(dept => ({
+              label: dept.name,
+              value: dept.slug
+            }))
           ].map((catPill) => (
             <button
               key={catPill.value}
               onClick={() => setFilterCategory(catPill.value)}
-              className={`px-3.5 py-2 rounded-xl border transition-all duration-200 cursor-pointer ${
+              className={`px-3.5 py-2 rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-1.5 ${
                 filterCategory === catPill.value
-                  ? 'bg-brand-secondary text-white border-brand-secondary shadow-md'
-                  : 'bg-slate-900/40 hover:bg-slate-900 border-slate-800/60 text-slate-400 hover:text-slate-200'
+                  ? 'bg-brand-primary text-white border-brand-primary shadow-sm'
+                  : 'bg-slate-900/40 hover:bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
-              {catPill.label}
+              <span>{catPill.label}</span>
             </button>
           ))}
         </div>

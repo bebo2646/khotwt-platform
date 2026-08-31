@@ -23,19 +23,7 @@ import {
   Phone,
   Wallet
 } from 'lucide-react'
-
-const GRADES_OPTIONS = {
-  preparatory: [
-    { value: 'first_preparatory', label: 'الصف الأول الإعدادي' },
-    { value: 'second_preparatory', label: 'الصف الثاني الإعدادي' },
-    { value: 'third_preparatory', label: 'الصف الثالث الإعدادي' },
-  ],
-  secondary: [
-    { value: 'first_secondary', label: 'الصف الأول الثانوي' },
-    { value: 'second_secondary', label: 'الصف الثاني الثانوي' },
-    { value: 'third_secondary', label: 'الصف الثالث الثانوي' },
-  ]
-}
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface CourseProgress {
   id: number
@@ -87,12 +75,19 @@ type ChangePasswordFormInputs = {
 
 export default function ProfileDashboard() {
   const { user, updateUser } = useAuthStore()
+  const { stages, grades, fetchTaxonomy } = useTaxonomyStore()
   const [data, setData] = React.useState<ProfileStatsData | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [walletTransactions, setWalletTransactions] = React.useState<any[]>([])
 
   const [coursesIndex, setCoursesIndex] = React.useState(0)
   const [visibleSlides, setVisibleSlides] = React.useState(2)
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
+
+  const activeStages = stages.filter(s => s.is_active)
 
   React.useEffect(() => {
     const handleResize = () => {
@@ -135,14 +130,20 @@ export default function ProfileDashboard() {
   
   // Determine initial stage and grade
   const getInitialGradeAndStage = () => {
-    const initialGrade = user?.grades && user.grades.length > 0 ? user.grades[0] : 'first_preparatory'
-    const initialStage = initialGrade.includes('secondary') ? 'secondary' : 'preparatory'
+    const initialGrade = user?.grades && user.grades.length > 0 ? user.grades[0] : 'first_secondary'
+    const foundGrade = grades.find(g => g.slug === initialGrade)
+    const initialStage = foundGrade?.stage?.slug || (initialGrade.includes('preparatory') ? 'preparatory' : (initialGrade.includes('primary') ? 'primary' : 'secondary'))
     return { initialGrade, initialStage }
   }
 
   const { initialGrade, initialStage } = getInitialGradeAndStage()
-  const [profileStage, setProfileStage] = React.useState<'preparatory' | 'secondary'>(initialStage as any)
+  const [profileStage, setProfileStage] = React.useState<string>(initialStage)
   const [profileGrade, setProfileGrade] = React.useState(initialGrade)
+
+  const currentStage = stages.find(s => s.slug === profileStage || String(s.id) === profileStage)
+  const availableGrades = grades.filter(g => 
+    g.is_active && (currentStage ? g.stage_id === currentStage.id : true)
+  )
 
   const [profileSuccess, setProfileSuccess] = React.useState<string | null>(null)
   const [profileError, setProfileError] = React.useState<string | null>(null)
@@ -171,19 +172,19 @@ export default function ProfileDashboard() {
       setProfilePhone(user.phone || '')
       setProfileParentPhone(user.parent_phone || '')
       const { initialGrade, initialStage } = getInitialGradeAndStage()
-      setProfileStage(initialStage as any)
+      setProfileStage(initialStage)
       setProfileGrade(initialGrade)
     }
-  }, [user])
+  }, [user, grades])
 
   React.useEffect(() => {
-    // When stage changes, adjust grade to default for that stage if current grade doesn't belong to it
-    if (profileStage === 'preparatory' && !profileGrade.includes('preparatory')) {
-      setProfileGrade('first_preparatory')
-    } else if (profileStage === 'secondary' && !profileGrade.includes('secondary')) {
-      setProfileGrade('first_secondary')
+    if (availableGrades.length > 0) {
+      const existsInAvailable = availableGrades.some(g => g.slug === profileGrade)
+      if (!existsInAvailable) {
+        setProfileGrade(availableGrades[0].slug)
+      }
     }
-  }, [profileStage])
+  }, [profileStage, availableGrades])
 
   React.useEffect(() => {
     fetchProfileStats()
@@ -751,11 +752,14 @@ export default function ProfileDashboard() {
                 <label className="text-xs font-semibold text-slate-300">المرحلة الدراسية</label>
                 <select
                   value={profileStage}
-                  onChange={(e) => setProfileStage(e.target.value as any)}
+                  onChange={(e) => setProfileStage(e.target.value)}
                   className="w-full bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-xl px-4 py-3 text-sm focus:outline-none text-right text-slate-100 cursor-pointer"
                 >
-                  <option value="preparatory">المرحلة الإعدادية</option>
-                  <option value="secondary">المرحلة الثانوية</option>
+                  {activeStages.map((stage) => (
+                    <option key={stage.id || stage.slug} value={stage.slug}>
+                      {stage.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -767,8 +771,10 @@ export default function ProfileDashboard() {
                   onChange={(e) => setProfileGrade(e.target.value)}
                   className="w-full bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-xl px-4 py-3 text-sm focus:outline-none text-right text-slate-100 cursor-pointer"
                 >
-                  {GRADES_OPTIONS[profileStage].map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {availableGrades.map((grade) => (
+                    <option key={grade.id || grade.slug} value={grade.slug}>
+                      {grade.name}
+                    </option>
                   ))}
                 </select>
               </div>

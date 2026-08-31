@@ -7,6 +7,7 @@ import { useConfigStore } from '../store/configStore'
 import { Mail, Lock, User, Phone, ShieldCheck, AlertCircle, Loader2, Sparkles, BookOpen, GraduationCap, CheckCircle } from 'lucide-react'
 import SEO from '../components/SEO'
 import { useModalStore } from '../store/modalStore'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 
 type RegisterFormInputs = {
@@ -14,24 +15,11 @@ type RegisterFormInputs = {
   email: string
   phone: string
   parent_phone: string
-  stage: 'preparatory' | 'secondary'
+  stage: string
   grade: string
   password: string
   password_confirmation: string
   student_type: 'online' | 'center'
-}
-
-const GRADES_OPTIONS = {
-  preparatory: [
-    { value: 'first_preparatory', label: 'الصف الأول الإعدادي' },
-    { value: 'second_preparatory', label: 'الصف الثاني الإعدادي' },
-    { value: 'third_preparatory', label: 'الصف الثالث الإعدادي' },
-  ],
-  secondary: [
-    { value: 'first_secondary', label: 'الصف الأول الثانوي' },
-    { value: 'second_secondary', label: 'الصف الثاني الثانوي' },
-    { value: 'third_secondary', label: 'الصف الثالث الثانوي' },
-  ]
 }
 
 const normalizePhone = (num: string): string => {
@@ -52,8 +40,15 @@ const normalizePhone = (num: string): string => {
 export default function Register() {
   const navigate = useNavigate()
   const loginUser = useAuthStore((state) => state.login)
+  const { stages, grades, fetchTaxonomy } = useTaxonomyStore()
   const [apiError, setApiError] = React.useState<string | null>(null)
   const [submitting, setSubmitting] = React.useState(false)
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
+
+  const activeStages = stages.filter(s => s.is_active)
 
   const {
     register,
@@ -64,8 +59,8 @@ export default function Register() {
     formState: { errors },
   } = useForm<RegisterFormInputs>({
     defaultValues: {
-      stage: 'preparatory',
-      grade: 'first_preparatory',
+      stage: 'secondary',
+      grade: 'first_secondary',
       student_type: 'online'
     }
   })
@@ -73,14 +68,23 @@ export default function Register() {
   const selectedStage = watch('stage')
   const password = watch('password')
 
+  const currentStage = stages.find(s => s.slug === selectedStage || String(s.id) === selectedStage)
+  const availableGrades = grades.filter(g => 
+    g.is_active && (
+      currentStage ? g.stage_id === currentStage.id : true
+    )
+  )
+
   // Auto select first grade option when stage changes
   React.useEffect(() => {
-    if (selectedStage === 'preparatory') {
-      setValue('grade', 'first_preparatory')
-    } else {
-      setValue('grade', 'first_secondary')
+    if (availableGrades.length > 0) {
+      const currentGradeVal = getValues('grade')
+      const existsInAvailable = availableGrades.some(g => g.slug === currentGradeVal)
+      if (!existsInAvailable) {
+        setValue('grade', availableGrades[0].slug)
+      }
     }
-  }, [selectedStage, setValue])
+  }, [selectedStage, availableGrades, setValue, getValues])
 
   const onSubmit = async (data: RegisterFormInputs) => {
     setApiError(null)
@@ -312,8 +316,11 @@ export default function Register() {
                   {...register('stage', { required: 'يرجى تحديد المرحلة الدراسية.' })}
                   className="w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 cursor-pointer"
                 >
-                  <option value="preparatory">المرحلة الإعدادية</option>
-                  <option value="secondary">المرحلة الثانوية</option>
+                  {activeStages.map((stage) => (
+                    <option key={stage.id || stage.slug} value={stage.slug}>
+                      {stage.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -324,8 +331,10 @@ export default function Register() {
                   {...register('grade', { required: 'الصف الدراسي مطلوب.' })}
                   className="w-full bg-brand-surface/40 hover:bg-brand-surface/60 focus:bg-brand-surface border border-[var(--border-color)] focus:border-brand-primary rounded-2xl px-4 py-3 text-sm focus:outline-none transition-all duration-300 text-slate-100 cursor-pointer"
                 >
-                  {GRADES_OPTIONS[selectedStage || 'preparatory'].map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  {availableGrades.map((grade) => (
+                    <option key={grade.id || grade.slug} value={grade.slug}>
+                      {grade.name}
+                    </option>
                   ))}
                 </select>
               </div>

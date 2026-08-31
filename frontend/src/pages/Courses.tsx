@@ -7,6 +7,7 @@ import CourseCard from '../components/ui/CourseCard'
 import PackageCard from '../components/ui/PackageCard'
 import SEO from '../components/SEO'
 import { useAuthStore } from '../store/authStore'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 
 interface CourseItem {
   id: number
@@ -29,15 +30,6 @@ interface CourseItem {
   lessons_count?: number
   is_bundle?: boolean | number | string
 }
-
-const GRADES = [
-  { key: 'first_preparatory', val: 'الصف الأول الإعدادي' },
-  { key: 'second_preparatory', val: 'الصف الثاني الإعدادي' },
-  { key: 'third_preparatory', val: 'الصف الثالث الإعدادي' },
-  { key: 'first_secondary', val: 'الصف الأول الثانوي' },
-  { key: 'second_secondary', val: 'الصف الثاني الثانوي' },
-  { key: 'third_secondary', val: 'الصف الثالث الثانوي' },
-]
 
 const SUBJECTS = [
   { key: 'chemistry', val: 'الكيمياء' },
@@ -86,6 +78,7 @@ interface CoursesProps {
 
 export default function Courses({ subjectDefault, gradeDefault }: CoursesProps = {}) {
   const { user } = useAuthStore()
+  const { departments, stages, grades, fetchTaxonomy, getGradeName, getDepartmentName } = useTaxonomyStore()
   const { subjectId, gradeId } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -94,9 +87,13 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
   const [packages, setPackages] = React.useState<any[]>([])
   const [recommendedCourses, setRecommendedCourses] = React.useState<CourseItem[]>([])
   const [loading, setLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
   
   const studentGradeKey = user?.grades?.[0] || ''
-  const studentGradeVal = GRADES.find(g => g.key === studentGradeKey)?.val || ''
+  const studentGradeVal = getGradeName(studentGradeKey)
   const hasGrade = !!studentGradeKey
 
   // Map and translate route param or prop defaults
@@ -138,15 +135,16 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [resolvedGrade, resolvedSubject, searchQuery, user])
+  }, [resolvedGrade, resolvedSubject, resolvedCategory, searchQuery, user])
 
   // Dynamic SEO Tag Info
   const seoInfo = React.useMemo(() => {
-    const gradeText = GRADES.find(g => g.key === resolvedGrade)?.val
+    const gradeText = getGradeName(resolvedGrade)
     const subjectText = SUBJECTS.find(s => s.key === resolvedSubject)?.val
+    const categoryText = getDepartmentName(resolvedCategory)
     
     let title = 'تصفح الكورسات والمحاضرات'
-    let description = 'استكشف المناهج والشروحات العلمية المتوفرة على منصة خطوتك للمرحلتين الإعدادية والثانوية مع نخبة من أفضل الأساتذة.'
+    let description = 'استكشف المناهج والشروحات العلمية المتوفرة على منصة خطوتك لجميع المراحل التعليمية والتخصصات مع نخبة من أفضل الأساتذة.'
     
     if (gradeText && subjectText) {
       title = `كورسات مادة ${subjectText} - ${gradeText} | منصة خطوتك`
@@ -154,13 +152,16 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
     } else if (gradeText) {
       title = `كورسات ${gradeText} | منصة خطوتك`
       description = `شروحات ومناهج دراسية متكاملة لطلاب ${gradeText} على منصة خطوتك التعليمية مع نخبة من الموجهين والمعلمين.`
+    } else if (categoryText && categoryText !== 'التعليم المدرسي') {
+      title = `دورات ${categoryText} | منصة خطوتك`
+      description = `تصفح دورات وكورسات تخصص ${categoryText} على منصة خطوتك التعليمية.`
     } else if (subjectText) {
       title = `كورسات مادة ${subjectText} | منصة خطوتك`
-      description = `شروحات ومحاضرات مادة ${subjectText} لجميع الصفوف الإعدادية والثانوية على منصة خطوتك التعليمية.`
+      description = `شروحات ومحاضرات مادة ${subjectText} لجميع الصفوف على منصة خطوتك التعليمية.`
     }
     
     return { title, description }
-  }, [resolvedGrade, resolvedSubject])
+  }, [resolvedGrade, resolvedSubject, resolvedCategory, getGradeName, getDepartmentName])
 
   const handleGradeFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value
@@ -264,13 +265,11 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
             >
               <option value="">جميع المجالات التعليمية</option>
-              <option value="school">🎓 التعليم المدرسي</option>
-              <option value="programming">💻 البرمجة والتكنولوجيا</option>
-              <option value="business">📈 التجارة والأعمال</option>
-              <option value="design">🎨 التصميم والإبداع</option>
-              <option value="languages">🌍 اللغات والترجمة</option>
-              <option value="marketing">📱 التسويق الرقمي</option>
-              <option value="skills">💼 المهارات المهنية</option>
+              {departments.filter(d => d.is_active).map((dept) => (
+                <option key={dept.id || dept.slug} value={dept.slug}>
+                  {dept.name}
+                </option>
+              ))}
             </select>
             <ChevronDown className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-slate-400" />
           </div>
@@ -283,8 +282,10 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
             >
               <option value="">جميع الصفوف الدراسية</option>
-              {GRADES.map((g) => (
-                <option key={g.key} value={g.key}>{g.val}</option>
+              {grades.filter(g => g.is_active).map((g) => (
+                <option key={g.id || g.slug} value={g.slug}>
+                  {g.name}
+                </option>
               ))}
             </select>
             <ChevronDown className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-slate-400" />

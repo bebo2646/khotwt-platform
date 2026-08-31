@@ -22,7 +22,7 @@ class AuthController extends Controller
             'password' => 'required|string|min:6',
             'phone' => 'required|string',
             'parent_phone' => 'required|string',
-            'grade' => 'required|string|in:first_preparatory,second_preparatory,third_preparatory,first_secondary,second_secondary,third_secondary',
+            'grade' => 'required|string|max:100',
             'student_type' => 'required|string|in:online,center',
         ]);
 
@@ -99,39 +99,94 @@ class AuthController extends Controller
     }
 
     /**
-     * Log in a user (Admin, Teacher, or Student) by Email and Password.
+     * Log in a user (Admin, Teacher, or Student) by Registered Email or Registered Student Phone Number.
      */
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'identifier' => 'nullable|string',
+            'email' => 'nullable|string',
             'password' => 'required|string',
         ], [
-            'email.required' => 'The email field is required.',
-            'email.email' => 'The email field must be a valid email address.',
             'password.required' => 'كلمة المرور مطلوبة.',
         ]);
 
-        $email = trim((string)$request->email);
+        $rawIdentifier = $request->input('identifier') ?? $request->input('email');
+        if ($rawIdentifier === null || trim((string)$rawIdentifier) === '') {
+            throw ValidationException::withMessages([
+                'identifier' => ['يرجى إدخال البريد الإلكتروني أو رقم الطالب.'],
+            ]);
+        }
+
+        // Convert Arabic/Eastern-Arabic digits (٠-٩) to standard ASCII digits (0-9) and trim
+        $identifier = trim((string)$rawIdentifier);
+        $arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
+        $englishDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+        $identifier = str_replace($arabicDigits, $englishDigits, $identifier);
+
         $ip = $request->ip();
-        $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($email) . '|' . $ip;
+        $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
+        $errorField = $request->has('identifier') ? 'identifier' : 'email';
 
         if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
             $seconds = RateLimiter::availableIn($throttleKey);
             $minutes = ceil($seconds / 60);
             throw ValidationException::withMessages([
-                'email' => ["محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد {$minutes} دقيقة."],
+                $errorField => ["محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد {$minutes} دقيقة."],
             ]);
         }
 
-        // Search user in database by email only (case-insensitive)
-        $user = User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
+        // Determine identifier type & search user in database:
+        if (filter_var($identifier, FILTER_VALIDATE_EMAIL) || str_contains($identifier, '@')) {
+            // Case 1: Email matching (case-insensitive)
+            $user = User::whereRaw('LOWER(email) = ?', [strtolower($identifier)])->first();
+        } else {
+            // Case 2: Phone number / Student Number matching (strictly registered phone)
+            $cleanDigits = preg_replace('/\D/', '', $identifier);
+            
+            $normalizedDigits = $cleanDigits;
+            if (str_starts_with($cleanDigits, '0020') && strlen($cleanDigits) === 14) {
+                $normalizedDigits = '0' . substr($cleanDigits, 4);
+            } elseif (str_starts_with($cleanDigits, '20') && strlen($cleanDigits) === 12) {
+                $normalizedDigits = '0' . substr($cleanDigits, 2);
+            } elseif (strlen($cleanDigits) === 10 && in_array(substr($cleanDigits, 0, 2), ['10', '11', '12', '15'])) {
+                $normalizedDigits = '0' . $cleanDigits;
+            }
+
+            $core10 = (strlen($normalizedDigits) === 11 && str_starts_with($normalizedDigits, '0')) 
+                ? substr($normalizedDigits, 1) 
+                : $normalizedDigits;
+
+            // Build all Egyptian and international phone variations
+            $phoneVariations = array_unique(array_filter([
+                $identifier,
+                $cleanDigits,
+                $normalizedDigits,
+                $core10,
+                !empty($core10) ? '0' . $core10 : null,
+                !empty($core10) ? '+20' . $core10 : null,
+                !empty($core10) ? '20' . $core10 : null,
+                !empty($core10) ? '+2' . $core10 : null,
+                !empty($core10) ? '2' . $core10 : null,
+                !empty($core10) ? '0020' . $core10 : null,
+            ]));
+
+            $user = User::where(function ($query) use ($identifier, $phoneVariations) {
+                $query->whereIn('phone', $phoneVariations)
+                    ->orWhereRaw('LOWER(email) = ?', [strtolower($identifier)]);
+
+                if (config('database.default') === 'pgsql') {
+                    $placeholders = implode(',', array_fill(0, count($phoneVariations), '?'));
+                    $query->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '', 'g') IN ($placeholders)", array_values($phoneVariations));
+                }
+            })->first();
+        }
 
         // CASE 1 — ACCOUNT DOES NOT EXIST:
         if (!$user) {
             RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
-                'email' => ['هذا الحساب غير موجود'],
+                $errorField => ['هذا الحساب غير موجود'],
             ]);
         }
 

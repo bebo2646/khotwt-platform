@@ -6,6 +6,7 @@ import EmptyState from '../components/EmptyState'
 import CourseCard from '../components/ui/CourseCard'
 import PackageCard from '../components/ui/PackageCard'
 import SEO from '../components/SEO'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 
 interface TeacherItem {
   id: number
@@ -69,17 +70,13 @@ const getSubjectTranslation = (subjectStr: string) => {
   return subjectStr.split(',').map(s => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ');
 };
 
-const GRADES_TRANSLATION: Record<string, string> = {
-  first_preparatory: 'الصف الأول الإعدادي',
-  second_preparatory: 'الصف الثاني الإعدادي',
-  third_preparatory: 'الصف الثالث الإعدادي',
-  first_secondary: 'الصف الأول الثانوي',
-  second_secondary: 'الصف الثاني الثانوي',
-  third_secondary: 'الصف الثالث الثانوي',
-}
-
 export default function TeacherProfile() {
   const { id } = useParams()
+  const { getGradeName, fetchTaxonomy } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
   
   const [teacher, setTeacher] = React.useState<TeacherItem | null>(null)
   const [courses, setCourses] = React.useState<CourseItem[]>([])
@@ -256,7 +253,7 @@ export default function TeacherProfile() {
                       to={`/grade/${gradeKey.replace('_', '-')}`} 
                       className="px-2 py-0.5 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-lg text-[10px] font-semibold hover:bg-brand-primary/20 transition-colors"
                     >
-                      {GRADES_TRANSLATION[gradeKey] || gradeKey}
+                      {getGradeName(gradeKey) || gradeKey}
                     </Link>
                   ))}
                 </div>

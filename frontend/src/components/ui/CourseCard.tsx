@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { getCourseDisplayPrice } from '../../utils/pricing'
 import { ensureHttps } from '../../utils/urls'
 import { useAuthStore } from '../../store/authStore'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface CourseCardProps {
   id: number
@@ -37,15 +38,6 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   science: 'العلوم',
   arabic: 'اللغة العربية',
   english: 'اللغة الإنجليزية',
-}
-
-const GRADES_MAP: Record<string, string> = {
-  first_preparatory: 'الصف الأول الإعدادي',
-  second_preparatory: 'الصف الثاني الإعدادي',
-  third_preparatory: 'الصف الثالث الإعدادي',
-  first_secondary: 'الصف الأول الثانوي',
-  second_secondary: 'الصف الثاني الثانوي',
-  third_secondary: 'الصف الثالث الثانوي',
 }
 
 export default function CourseCard({
@@ -102,7 +94,7 @@ export default function CourseCard({
           </div>
           {grade && (
             <div className="px-3 py-1 bg-indigo-600/90 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-400/30 shadow-sm">
-              {GRADES_MAP[grade] || grade}
+              {useTaxonomyStore.getState().getGradeName(grade) || grade}
             </div>
           )}
           {(() => {

@@ -18,6 +18,7 @@ import {
   Settings
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface CourseItem {
   id: number
@@ -48,21 +49,17 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   english: 'اللغة الإنجليزية',
 }
 
-const GRADES_TRANSLATION: Record<string, string> = {
-  first_preparatory: 'الصف الأول الإعدادي',
-  second_preparatory: 'الصف الثاني الإعدادي',
-  third_preparatory: 'الصف الثالث الإعدادي',
-  first_secondary: 'الصف الأول الثانوي',
-  second_secondary: 'الصف الثاني الثانوي',
-  third_secondary: 'الصف الثالث الثانوي',
-}
-
 export default function CoursesList() {
+  const { grades, fetchTaxonomy, getGradeName } = useTaxonomyStore()
   const [courses, setCourses] = React.useState<CourseItem[]>([])
   const [loading, setLoading] = React.useState(true)
   const [searchQuery, setSearchQuery] = React.useState('')
   const [selectedGrade, setSelectedGrade] = React.useState('all')
   const [selectedSubject, setSelectedSubject] = React.useState('all')
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
 
   // Detailed view of syllabus structure
   const [viewCourse, setViewCourse] = React.useState<CourseItem | null>(null)
@@ -207,9 +204,9 @@ export default function CoursesList() {
               onChange={(e) => setSelectedGrade(e.target.value)}
               className="bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
-              <option value="all">كل المراحل الدراسية</option>
-              {Object.entries(GRADES_TRANSLATION).map(([key, name]) => (
-                <option key={key} value={key}>{name}</option>
+              <option value="all">كل المراحل والصفوف الدراسية</option>
+              {grades.filter(g => g.is_active).map((g) => (
+                <option key={g.id || g.slug} value={g.slug}>{g.name}</option>
               ))}
             </select>
 
@@ -290,7 +287,7 @@ export default function CoursesList() {
 
                     {/* Grade */}
                     <td className="p-4 sm:p-6 text-slate-400 text-xs font-light">
-                      {GRADES_TRANSLATION[c.grade] || c.grade}
+                      {getGradeName(c.grade)}
                     </td>
 
                     {/* Price */}

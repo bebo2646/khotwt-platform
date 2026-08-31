@@ -24,12 +24,21 @@ import {
   Zap,
   CheckCircle2,
   Calendar,
-  ChevronLeft
+  ChevronLeft,
+  Code,
+  Palette,
+  Globe,
+  Share2,
+  Briefcase,
+  Layers,
+  Compass,
+  Users
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import CourseCard from '../../components/ui/CourseCard'
 import TeacherCard from '../../components/ui/TeacherCard'
 import { useAuthStore } from '../../store/authStore'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 import { DashboardSkeleton } from '../../components/ui/Skeleton'
 
 interface CourseProgress {
@@ -174,6 +183,26 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   english: 'اللغة الإنجليزية',
 }
 
+const DEPT_ICONS: Record<string, any> = {
+  GraduationCap,
+  Code,
+  TrendingUp,
+  Palette,
+  Globe,
+  Share2,
+  Briefcase,
+  BookOpen,
+  Users,
+  Sparkles,
+  Layers,
+  Compass
+}
+
+const getDeptIcon = (iconName?: string) => {
+  if (!iconName) return GraduationCap
+  return DEPT_ICONS[iconName] || GraduationCap
+}
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
@@ -193,6 +222,7 @@ const cardItemVariants = {
 
 export default function StudentDashboard() {
   const { user } = useAuthStore()
+  const { departments, fetchTaxonomy } = useTaxonomyStore()
   const navigate = useNavigate()
   const [dbData, setDbData] = React.useState<DashboardData | null>(null)
   const [teachers, setTeachers] = React.useState<Teacher[]>([])
@@ -211,16 +241,8 @@ export default function StudentDashboard() {
   const [searchQuery, setSearchQuery] = React.useState('')
   const [selectedSubject, setSelectedSubject] = React.useState('all')
 
-  const GRADES = [
-    { key: 'first_preparatory', val: 'الصف الأول الإعدادي' },
-    { key: 'second_preparatory', val: 'الصف الثاني الإعدادي' },
-    { key: 'third_preparatory', val: 'الصف الثالث الإعدادي' },
-    { key: 'first_secondary', val: 'الصف الأول الثانوي' },
-    { key: 'second_secondary', val: 'الصف الثاني الثانوي' },
-    { key: 'third_secondary', val: 'الصف الثالث الثانوي' },
-  ]
   const studentGradeKey = user?.grades?.[0] || ''
-  const studentGradeVal = GRADES.find(g => g.key === studentGradeKey)?.val || ''
+  const studentGradeVal = useTaxonomyStore.getState().getGradeName(studentGradeKey) || ''
   const hasGrade = !!studentGradeKey
 
   const [error, setError] = React.useState<string | null>(null)
@@ -228,6 +250,7 @@ export default function StudentDashboard() {
   const fetchData = async () => {
     setLoading(true)
     setError(null)
+    fetchTaxonomy()
     try {
       const [dbRes, teachersRes, recRes] = await Promise.all([
         API.get('/student/dashboard'),
@@ -550,39 +573,54 @@ export default function StudentDashboard() {
         )}
 
         {/* ====================================
-            4. CATEGORIES SECTION (Subjects Grid)
+            4. DEPARTMENTS SECTION ("الأقسام")
             ==================================== */}
         <div className="space-y-6">
-          <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-            <span>تصفح حسب المواد العلمية</span>
-          </h2>
-          
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-none snap-x snap-mandatory">
-            <button 
-              onClick={() => setSelectedSubject('all')}
-              className={`p-4 rounded-2xl text-center border font-black text-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-2 shrink-0 w-28 snap-start ${
-                selectedSubject === 'all' 
-                  ? 'bg-brand-primary border-brand-primary text-white shadow-[0_0_15px_rgba(22,196,127,0.25)]' 
-                  : 'bg-brand-card border-border-color text-slate-350 hover:border-brand-primary/30 hover:bg-brand-card/85'
-              }`}
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
+              <span>أقسام وتخصصات المنصة</span>
+              <span className="text-[10px] text-slate-400 font-light mt-1">تصفح مسارات وتخصصات التعلم المتنوعة</span>
+            </h2>
+            <Link 
+              to="/departments" 
+              className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1"
             >
-              <Sparkles className="h-5 w-5" />
-              <span>الجميع</span>
-            </button>
-            {Object.entries(SUBJECTS_TRANSLATION).map(([key, name]) => (
-              <button 
-                key={key}
-                onClick={() => setSelectedSubject(key)}
-                className={`p-4 rounded-2xl text-center border font-black text-xs transition-all duration-200 cursor-pointer flex flex-col items-center justify-center gap-2 shrink-0 w-28 snap-start ${
-                  selectedSubject === key 
-                    ? 'bg-brand-primary border-brand-primary text-white shadow-[0_0_15px_rgba(22,196,127,0.25)]' 
-                    : 'bg-brand-card border-border-color text-slate-350 hover:border-brand-primary/30 hover:bg-brand-card/85'
-                }`}
-              >
-                <BookOpen className="h-5 w-5 opacity-70" />
-                <span>{name}</span>
-              </button>
-            ))}
+              <span>عرض جميع الأقسام</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+            {(departments.length > 0 ? departments : []).filter(d => d.is_active !== false).map((dept) => {
+              const IconComp = getDeptIcon(dept.icon)
+              return (
+                <Link
+                  key={dept.id || dept.slug}
+                  to={`/departments/${dept.slug}`}
+                  className="group bg-slate-900/50 hover:bg-slate-800/80 backdrop-blur-md border border-slate-800/80 hover:border-brand-primary/40 rounded-3xl p-5 flex flex-col items-center justify-between text-center space-y-3 transition-all duration-300 hover:-translate-y-1 shadow-lg hover:shadow-[0_10px_25px_rgba(99,102,241,0.15)] relative overflow-hidden"
+                >
+                  <div className="p-3.5 rounded-2xl bg-brand-primary/10 text-brand-primary border border-brand-primary/20 group-hover:bg-brand-primary group-hover:text-white transition-all duration-300 shadow-sm">
+                    <IconComp className="h-6 w-6" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-xs font-black text-foreground group-hover:text-brand-primary transition-colors leading-tight">
+                      {dept.name}
+                    </h3>
+                    {dept.badge && (
+                      <span className="text-[9px] font-bold text-slate-400 block truncate max-w-full">
+                        {dept.badge}
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-[10px] font-bold text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    <span>استكشف</span>
+                    <ChevronLeft className="w-3 h-3" />
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         </div>
 

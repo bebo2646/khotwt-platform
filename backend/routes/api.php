@@ -9,6 +9,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\MonthlyExamsController;
+use App\Http\Controllers\TaxonomyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,6 +24,13 @@ Route::get('/courses/{course}', [PublicController::class, 'courseDetail']);
 Route::get('/packages', [PublicController::class, 'packages']);
 Route::get('/monthly-exams', [MonthlyExamsController::class, 'index']);
 Route::get('/monthly-exams/{id}', [MonthlyExamsController::class, 'show']);
+
+// Platform Taxonomy (Dynamic Departments, Stages, Grades)
+Route::get('/taxonomy', [TaxonomyController::class, 'getTaxonomy']);
+Route::get('/departments', [TaxonomyController::class, 'getDepartments']);
+Route::get('/departments/{slug}', [TaxonomyController::class, 'getDepartmentBySlug']);
+Route::get('/academic-stages', [TaxonomyController::class, 'getAcademicStages']);
+Route::get('/academic-grades', [TaxonomyController::class, 'getAcademicGrades']);
 
 // Cascading Filter
 Route::get('/filter/subjects', [PublicController::class, 'filterSubjects']);
@@ -346,12 +354,33 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/admin/payouts', [AdminController::class, 'createPayout']);
             });
 
-            // Platform Settings
+            // Platform Settings & Taxonomy Management
             Route::middleware('permission:settings.manage')->group(function () {
                 Route::get('/admin/enterprise-settings', [AdminController::class, 'getEnterpriseSettings']);
                 Route::post('/admin/enterprise-settings', [AdminController::class, 'updateEnterpriseSettings']);
                 Route::get('/admin/maintenance-settings', [AdminController::class, 'getMaintenanceSettings']);
                 Route::post('/admin/maintenance-settings', [AdminController::class, 'updateMaintenanceSettings']);
+
+                // Departments
+                Route::get('/admin/departments', [TaxonomyController::class, 'listDepartmentsAdmin']);
+                Route::post('/admin/departments', [TaxonomyController::class, 'createDepartment']);
+                Route::put('/admin/departments/{id}', [TaxonomyController::class, 'updateDepartment']);
+                Route::delete('/admin/departments/{id}', [TaxonomyController::class, 'deleteDepartment']);
+                Route::post('/admin/departments/{id}/toggle', [TaxonomyController::class, 'toggleDepartmentStatus']);
+
+                // Academic Stages
+                Route::get('/admin/academic-stages', [TaxonomyController::class, 'listAcademicStagesAdmin']);
+                Route::post('/admin/academic-stages', [TaxonomyController::class, 'createAcademicStage']);
+                Route::put('/admin/academic-stages/{id}', [TaxonomyController::class, 'updateAcademicStage']);
+                Route::delete('/admin/academic-stages/{id}', [TaxonomyController::class, 'deleteAcademicStage']);
+                Route::post('/admin/academic-stages/{id}/toggle', [TaxonomyController::class, 'toggleAcademicStageStatus']);
+
+                // Academic Grades
+                Route::get('/admin/academic-grades', [TaxonomyController::class, 'listAcademicGradesAdmin']);
+                Route::post('/admin/academic-grades', [TaxonomyController::class, 'createAcademicGrade']);
+                Route::put('/admin/academic-grades/{id}', [TaxonomyController::class, 'updateAcademicGrade']);
+                Route::delete('/admin/academic-grades/{id}', [TaxonomyController::class, 'deleteAcademicGrade']);
+                Route::post('/admin/academic-grades/{id}/toggle', [TaxonomyController::class, 'toggleAcademicGradeStatus']);
             });
 
             // Watch limits (Course view limits per student, Course view limits config)

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import API from '../../services/api'
 import { Check, X, ShieldAlert, Calendar, User, Phone, Mail, FileText, AlertCircle } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface PendingStudent {
   id: number
@@ -14,19 +15,15 @@ interface PendingStudent {
   status: string
 }
 
-const GRADES_TRANSLATION: Record<string, string> = {
-  first_preparatory: 'الصف الأول الإعدادي',
-  second_preparatory: 'الصف الثاني الإعدادي',
-  third_preparatory: 'الصف الثالث الإعدادي',
-  first_secondary: 'الصف الأول الثانوي',
-  second_secondary: 'الصف الثاني الثانوي',
-  third_secondary: 'الصف الثالث الثانوي',
-}
-
 export default function PendingStudents() {
+  const { getGradeName, fetchTaxonomy } = useTaxonomyStore()
   const [students, setStudents] = useState<PendingStudent[]>([])
   const [loading, setLoading] = useState(true)
   const [processingId, setProcessingId] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
   
   // Rejection modal state
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -157,7 +154,7 @@ export default function PendingStudents() {
                     <div className="flex items-center gap-2">
                       <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
                       <span className="font-bold text-[var(--text-color)]">المرحلة الدراسية:</span>
-                      <span>{GRADES_TRANSLATION[student.grades?.[0] || ''] || 'غير محدد'}</span>
+                      <span>{getGradeName(student.grades?.[0] || '') || 'غير محدد'}</span>
                     </div>
 
                     <div className="flex items-center gap-2 md:col-span-2">

@@ -12,6 +12,7 @@ import LessonViewer from './student/LessonViewer'
 import ExamPlayer from './student/ExamPlayer'
 import ExamResults from './student/ExamResults'
 import { formatDurationArabic, formatWatchedTimeArabic } from '../utils/video'
+import { useTaxonomyStore } from '../store/taxonomyStore'
 
 interface CourseItem {
   id: number
@@ -884,7 +885,7 @@ export default function CourseDetail() {
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
         title={`${course.title}`}
-        description={`${course.description || `كورس ومحاضرات مادة ${SUBJECTS_TRANSLATION[course.subject] || course.subject} لطلاب ${GRADES_TRANSLATION[course.grade] || course.grade} مع الأستاذ ${course.teacher.name} على منصة خطوتك.`}`}
+        description={`${course.description || `كورس ومحاضرات مادة ${SUBJECTS_TRANSLATION[course.subject] || course.subject} لطلاب ${useTaxonomyStore.getState().getGradeName(course.grade) || course.grade} مع الأستاذ ${course.teacher.name} على منصة خطوتك.`}`}
         keywords={`${course.title}, كورس ${SUBJECTS_TRANSLATION[course.subject] || course.subject}, ${course.teacher.name}, منصة خطوتك`}
         ogImage={course.cover_image}
         schema={{
