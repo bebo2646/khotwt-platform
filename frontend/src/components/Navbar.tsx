@@ -184,8 +184,8 @@ export default function Navbar() {
     <>
       <nav className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-300 ${
         isScrolled 
-          ? 'bg-slate-950/95 border-b border-slate-800 shadow-xl backdrop-blur-xl py-0' 
-          : 'bg-slate-950/60 border-b border-slate-800/40 backdrop-blur-md py-1'
+          ? 'bg-[var(--bg-color)]/95 border-b border-[var(--border-color)] shadow-sm backdrop-blur-xl py-0' 
+          : 'bg-[var(--bg-color)]/80 border-b border-[var(--border-color)] backdrop-blur-md py-1'
       }`}>
         <div className="max-w-[1600px] w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-[70px]">
@@ -198,7 +198,7 @@ export default function Navbar() {
                 alt="شعار خطوتك" 
                 className="h-9 w-9 object-contain shrink-0"
               />
-              <span className="text-2xl font-black tracking-wider text-brand-primary bg-clip-text">خطوتك</span>
+              <span className="text-2xl font-black tracking-wider text-foreground">خطوتك</span>
             </Link>
           </div>
 
@@ -219,13 +219,13 @@ export default function Navbar() {
                     setShowNotifDropdown(!showNotifDropdown);
                   }}
                   onClick={(e) => e.preventDefault()}
-                  className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 cursor-pointer text-current relative transition-all duration-200"
+                  className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-foreground relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
                 >
                   <Bell className="h-5 w-5 text-indigo-400" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-slate-950 animate-pulse">
+                    <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-[var(--bg-color)] animate-pulse">
                       {unreadCount}
                     </span>
                   )}
@@ -242,7 +242,7 @@ export default function Navbar() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 cursor-pointer text-current transition-all"
+              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-foreground transition-all"
               title="تغيير المظهر"
               aria-label="تغيير المظهر"
             >
@@ -268,7 +268,7 @@ export default function Navbar() {
                         const nextState = !showProfileDropdown;
                         setShowProfileDropdown(nextState);
                       }}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 hover:bg-slate-800 border border-slate-800 rounded-xl text-sm transition cursor-pointer"
+                      className="flex items-center gap-2 px-3 py-1.5 bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer text-foreground"
                     >
                       {user.avatar ? (
                         <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
@@ -288,7 +288,7 @@ export default function Navbar() {
                 </div>
               ) : (
                 <>
-                  <Link to="/login" className="px-4 py-2 text-xs font-bold border border-slate-800 rounded-xl hover:bg-slate-900 text-foreground transition-all">تسجيل دخول</Link>
+                  <Link to="/login" className="px-4 py-2 text-xs font-bold border border-[var(--border-color)] rounded-xl hover:bg-[var(--surface-bg)] text-foreground transition-all">تسجيل دخول</Link>
                   <Link to="/register" className="px-4.5 py-2 text-xs font-bold bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl shadow-md shadow-brand-primary/20 active:scale-95 transition-all">حساب جديد</Link>
                 </>
               )}
@@ -298,10 +298,10 @@ export default function Navbar() {
             <div className="flex md:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2.5 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 text-current"
+                className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] text-foreground cursor-pointer"
                 aria-label="القائمة الجانبية"
               >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                {mobileMenuOpen ? <X className="h-5 w-5 text-foreground" /> : <Menu className="h-5 w-5 text-foreground" />}
               </button>
             </div>
 
@@ -340,13 +340,13 @@ export default function Navbar() {
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-[var(--border-color)]">
                 <div className="flex items-center gap-2.5">
                   <img src="/logo.png" alt="شعار خطوتك" className="h-8 w-8 object-contain" />
-                  <span className="text-lg font-black text-brand-primary">خطوتك</span>
+                  <span className="text-lg font-black text-foreground">خطوتك</span>
                 </div>
                 <button 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] border border-[var(--border-color)] text-[var(--text-color)] cursor-pointer"
+                  className="p-1.5 rounded-lg bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/50 border border-[var(--border-color)] text-foreground cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-foreground" />
                 </button>
               </div>
               

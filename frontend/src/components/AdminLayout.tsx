@@ -300,7 +300,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
         {!sidebarCollapsed ? (
           <Link to="/admin/dashboard" className="flex items-center gap-2.5">
             <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-            <span className="text-xl font-black text-brand-primary bg-clip-text">خطوتك</span>
+            <span className="text-xl font-black text-foreground">خطوتك</span>
           </Link>
         ) : (
           <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
