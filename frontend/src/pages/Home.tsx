@@ -45,6 +45,8 @@ interface HomeStats {
   teachers_count: number
   courses_count: number
   students_count: number
+  lessons_count?: number
+  courses_and_lessons_count?: number
 }
 
 interface CourseItem {
@@ -120,8 +122,8 @@ const CATEGORY_ICONS: Record<string, any> = {
 
 const formatStatCount = (count?: number | null) => {
   const num = Number(count || 0)
-  const rounded = Math.max(10, Math.ceil(num / 10) * 10)
-  return `+${rounded}`
+  if (num <= 0) return '0'
+  return `+${num.toLocaleString()}`
 }
 
 export default function Home() {
@@ -449,14 +451,18 @@ export default function Home() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-baseline justify-between">
-                        <span className="font-bold text-sm text-foreground">الطلاب المسجلون</span>
-                        <span className="text-2xl font-black text-brand-primary">{formatStatCount(stats?.students_count)}</span>
+                        <span className="font-bold text-sm text-foreground">الطلاب المستفيدون</span>
+                        {loading ? (
+                          <div className="h-8 w-12 bg-slate-800/80 animate-pulse rounded-lg" />
+                        ) : (
+                          <span className="text-2xl font-black text-brand-primary">{formatStatCount(stats?.students_count)}</span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-400 font-light mt-0.5">طالب يدرس ويتفوق معنا عبر المنصة</p>
                     </div>
                   </div>
 
-                  {/* Card 2: Courses */}
+                  {/* Card 2: Courses & Lectures */}
                   <div className="p-5 bg-slate-900/60 border border-slate-800/80 rounded-2xl flex items-center gap-4 text-right hover:border-brand-secondary/30 transition-all group">
                     <div className="p-3.5 bg-brand-secondary/10 text-brand-secondary rounded-2xl group-hover:bg-brand-secondary group-hover:text-white transition-all shrink-0">
                       <BookOpen className="h-6 w-6" />
@@ -464,7 +470,13 @@ export default function Home() {
                     <div className="flex-1">
                       <div className="flex items-baseline justify-between">
                         <span className="font-bold text-sm text-foreground">الكورسات والمحاضرات</span>
-                        <span className="text-2xl font-black text-brand-secondary">{formatStatCount(stats?.courses_count)}</span>
+                        {loading ? (
+                          <div className="h-8 w-12 bg-slate-800/80 animate-pulse rounded-lg" />
+                        ) : (
+                          <span className="text-2xl font-black text-brand-secondary">
+                            {formatStatCount(stats?.courses_and_lessons_count ?? (Number(stats?.courses_count || 0) + Number(stats?.lessons_count || 0)))}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-400 font-light mt-0.5">محاضرة وكورس مسجل وشروحات شاملة</p>
                     </div>
@@ -478,7 +490,11 @@ export default function Home() {
                     <div className="flex-1">
                       <div className="flex items-baseline justify-between">
                         <span className="font-bold text-sm text-foreground">نخبة المعلمين والخبراء</span>
-                        <span className="text-2xl font-black text-emerald-400">{formatStatCount(stats?.teachers_count)}</span>
+                        {loading ? (
+                          <div className="h-8 w-12 bg-slate-800/80 animate-pulse rounded-lg" />
+                        ) : (
+                          <span className="text-2xl font-black text-emerald-400">{formatStatCount(stats?.teachers_count)}</span>
+                        )}
                       </div>
                       <p className="text-xs text-slate-400 font-light mt-0.5">معلم وخبير معتمد في مختلف التخصصات</p>
                     </div>

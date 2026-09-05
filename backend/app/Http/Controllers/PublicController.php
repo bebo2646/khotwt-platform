@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Course;
+use App\Models\Lesson;
 use App\Models\Enrollment;
 use App\Models\VideoProgress;
 use Illuminate\Http\Request;
@@ -19,7 +20,10 @@ class PublicController extends Controller
         // Database statistics
         $teachersCount = User::where('role', 'teacher')->where('status', 'active')->count();
         $coursesCount = Course::where('is_published', true)->count();
-        $studentsCount = User::where('role', 'student')->count();
+        $lessonsCount = Lesson::whereHas('unit.course', function ($q) {
+            $q->where('is_published', true);
+        })->count();
+        $studentsCount = User::where('role', 'student')->where('status', 'active')->count();
 
         // Featured published courses (up to 6)
         $featuredCourses = Course::with('teacher')
@@ -46,10 +50,33 @@ class PublicController extends Controller
             'stats' => [
                 'teachers_count' => $teachersCount,
                 'courses_count' => $coursesCount,
+                'lessons_count' => $lessonsCount,
+                'courses_and_lessons_count' => $coursesCount + $lessonsCount,
                 'students_count' => $studentsCount,
             ],
             'featured_courses' => $featuredCourses,
             'popular_teachers' => $popularTeachers,
+        ]);
+    }
+
+    /**
+     * Dedicated public statistics endpoint.
+     */
+    public function statistics()
+    {
+        $teachersCount = User::where('role', 'teacher')->where('status', 'active')->count();
+        $coursesCount = Course::where('is_published', true)->count();
+        $lessonsCount = Lesson::whereHas('unit.course', function ($q) {
+            $q->where('is_published', true);
+        })->count();
+        $studentsCount = User::where('role', 'student')->where('status', 'active')->count();
+
+        return response()->json([
+            'teachers_count' => $teachersCount,
+            'courses_count' => $coursesCount,
+            'lessons_count' => $lessonsCount,
+            'courses_and_lessons_count' => $coursesCount + $lessonsCount,
+            'students_count' => $studentsCount,
         ]);
     }
 

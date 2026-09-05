@@ -17,6 +17,7 @@ use App\Http\Controllers\TaxonomyController;
 |--------------------------------------------------------------------------
 */
 Route::get('/home', [PublicController::class, 'home']);
+Route::get('/public/statistics', [PublicController::class, 'statistics']);
 Route::get('/teachers', [PublicController::class, 'teachers']);
 Route::get('/teachers/{teacher}', [PublicController::class, 'teacherProfile']);
 Route::get('/courses', [PublicController::class, 'courses']);
