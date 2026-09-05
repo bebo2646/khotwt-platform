@@ -29,6 +29,8 @@ interface CourseItem {
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
   final_price?: number | null
+  bundle_original_price?: number | string | null
+  bundle_savings?: number | string | null
   teacher: {
     id: number
     name: string
@@ -1061,9 +1063,26 @@ export default function CourseDetail() {
             <p className="text-sm text-slate-300 font-light leading-relaxed">{course.description}</p>
           </div>
 
+          {course.is_bundle && childCourses.length > 0 && (
+            <div className="p-4 bg-slate-900/40 border border-[var(--border-color)] rounded-2xl space-y-2">
+              <div className="text-xs font-black text-brand-primary flex items-center gap-1.5">
+                <span>📦</span>
+                <span>الكورسات المتضمنة في هذه الباقة ({childCourses.length}):</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {childCourses.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between p-2.5 bg-slate-950/40 rounded-xl border border-slate-800 text-xs">
+                    <span className="font-bold text-slate-200">{c.title}</span>
+                    <span className="text-slate-400 font-semibold">{c.final_price || c.price} ج.م</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Stats Grid */}
-          <div className={`grid grid-cols-2 ${course.is_bundle ? 'md:grid-cols-4' : 'md:grid-cols-5'} gap-4 pt-6 border-t border-[var(--border-color)]`}>
-            <div className={`p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center ${course.is_bundle ? 'hidden' : ''}`}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-6 border-t border-[var(--border-color)]">
+            <div className="p-4 bg-slate-900/30 border border-[var(--border-color)] rounded-2xl text-center">
               <span className="text-[10px] text-slate-400 block font-bold mb-1">الأسابيع (الوحدات)</span>
               <span className="text-sm sm:text-base font-black text-slate-200">{displayUnitsCount}</span>
             </div>
@@ -1125,9 +1144,23 @@ export default function CourseDetail() {
           </div>
 
           <div className="space-y-4">
-            <div className="text-xs text-slate-400">سعر الاشتراك للكورس بالكامل:</div>
+            <div className="text-xs text-slate-400">
+              {course.is_bundle ? 'سعر الباقة المجمعة:' : 'سعر الاشتراك للكورس بالكامل:'}
+            </div>
             {(() => {
-              const pricing = getCourseDisplayPrice(course)
+              const standardPricing = getCourseDisplayPrice(course)
+              const numFinalPrice = Number(course.final_price || course.price || 0)
+              const numBundleOriginal = Number(course.bundle_original_price || (childCourses.length > 0 ? childCourses.reduce((acc, c) => acc + Number(c.final_price || c.price || 0), 0) : 0))
+              const numBundleSavings = Number(course.bundle_savings || Math.max(0, numBundleOriginal - numFinalPrice))
+              const isBundleWithSavings = course.is_bundle && numBundleOriginal > numFinalPrice && numBundleOriginal > 0
+
+              const pricing = isBundleWithSavings ? {
+                hasDiscount: true,
+                discountText: `وفر ${Math.round(numBundleSavings)} ج.م`,
+                formattedOriginalPrice: `${numBundleOriginal} ج.م`,
+                formattedFinalPrice: `${numFinalPrice} ج.م`,
+              } : standardPricing
+
               return pricing.hasDiscount ? (
                 <div className="flex flex-col gap-1 select-none">
                   {/* Original Price */}
@@ -1405,29 +1438,29 @@ export default function CourseDetail() {
                     if (unit.child_course_id) {
                       lastChildCourseId = unit.child_course_id;
                     }
-                    const isExpanded = course.is_bundle ? true : !!expandedUnits[unit.id]
+                    const isExpanded = course.is_bundle ? (expandedUnits[unit.id] !== false) : !!expandedUnits[unit.id]
 
                     return (
                       <div key={unit.id} className="space-y-4">
                         {showCourseHeader && (
-                          <div className="pt-6 pb-2 border-b border-[var(--border-color)]">
-                            <h3 className="text-sm font-black text-brand-primary flex items-center gap-2">
-                              <span>📚</span>
-                              <span>كورس: {unit.child_course_title}</span>
-                            </h3>
+                          <div className="pt-8 pb-3 border-b border-[var(--border-color)] flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">📚</span>
+                              <h3 className="text-base font-black text-foreground">
+                                كورس: <span className="text-brand-primary">{unit.child_course_title}</span>
+                              </h3>
+                            </div>
                           </div>
                         )}
                         
-                        <div className={course.is_bundle ? "" : "border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300"}>
+                        <div className="border border-[var(--border-color)] bg-brand-card rounded-3xl overflow-hidden transition-all duration-300">
                           {/* Unit Title Header */}
                           <button
                             onClick={() => toggleUnit(unit.id)}
-                            className={`w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors ${course.is_bundle ? 'hidden' : ''}`}
+                            className="w-full flex items-center justify-between p-6 text-right font-bold text-sm sm:text-base cursor-pointer hover:bg-slate-900/10 transition-colors"
                           >
                             <div className="flex items-center gap-3">
-                              {!course.is_bundle && (
-                                <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
-                              )}
+                              <span className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary text-xs font-black rounded-lg">الأسبوع {unit.order}</span>
                               <span className="text-slate-100 font-black">{unit.title}</span>
                             </div>
                             <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />

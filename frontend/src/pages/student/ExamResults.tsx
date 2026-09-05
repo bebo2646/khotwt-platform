@@ -1,8 +1,8 @@
 import React from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
-import { Calendar, HelpCircle, CheckCircle2, Clock, AlertCircle, ChevronDown, Check, X, Award, Percent, BookOpen, Star, Sparkles, User, Play, Trophy } from 'lucide-react'
+import { Calendar, HelpCircle, CheckCircle2, Clock, AlertCircle, ChevronDown, Check, X, Award, Percent, BookOpen, Star, Sparkles, User, Play, Trophy, ArrowLeft } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
 interface AnswerItem {
@@ -59,6 +59,8 @@ interface ExamResultsProps {
 
 export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
   const { id: routeId } = useParams()
+  const [searchParams] = useSearchParams()
+  const courseId = searchParams.get('course_id')
   const id = overrideExamId ? overrideExamId.toString() : routeId
   const [attempts, setAttempts] = React.useState<AttemptItem[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -157,6 +159,15 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
           </h1>
           <p className="text-sm text-slate-400 font-light mt-1">تتبع درجاتك في الكويزات، والواجبات المنزلية، والامتحانات الشهرية</p>
         </div>
+        {courseId && (
+          <Link
+            to={`/course/${courseId}`}
+            className="px-4 py-2 bg-[rgba(255,255,255,0.04)] border border-[var(--border-color)] hover:bg-[rgba(255,255,255,0.08)] text-slate-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all w-fit"
+          >
+            <span>العودة لصفحة الكورس</span>
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

@@ -68,7 +68,7 @@ class Course extends Model
         'is_bundle' => 'boolean',
     ];
 
-    protected $appends = ['final_price', 'units_count', 'lessons_count'];
+    protected $appends = ['final_price', 'units_count', 'lessons_count', 'bundle_original_price', 'bundle_savings'];
 
     public function getFinalPriceAttribute()
     {
@@ -312,13 +312,13 @@ class Course extends Model
 
     public function getUnitsCountAttribute()
     {
-        if (array_key_exists('units_count', $this->attributes) && $this->attributes['units_count'] !== null) {
-            return (int)$this->attributes['units_count'];
-        }
         if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
             return $this->relationLoaded('childCourses')
                 ? $this->childCourses->reduce(function ($carry, $child) { return $carry + $child->units_count; }, 0)
                 : $this->childCourses()->get()->reduce(function ($carry, $child) { return $carry + $child->units_count; }, 0);
+        }
+        if (array_key_exists('units_count', $this->attributes) && $this->attributes['units_count'] !== null) {
+            return (int)$this->attributes['units_count'];
         }
         if ($this->relationLoaded('units')) {
             return $this->units->count();
@@ -328,13 +328,13 @@ class Course extends Model
 
     public function getLessonsCountAttribute()
     {
-        if (array_key_exists('lessons_count', $this->attributes) && $this->attributes['lessons_count'] !== null) {
-            return (int)$this->attributes['lessons_count'];
-        }
         if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
             return $this->relationLoaded('childCourses')
                 ? $this->childCourses->reduce(function ($carry, $child) { return $carry + $child->lessons_count; }, 0)
                 : $this->childCourses()->get()->reduce(function ($carry, $child) { return $carry + $child->lessons_count; }, 0);
+        }
+        if (array_key_exists('lessons_count', $this->attributes) && $this->attributes['lessons_count'] !== null) {
+            return (int)$this->attributes['lessons_count'];
         }
         if ($this->relationLoaded('lessons')) {
             return $this->lessons->count();
@@ -344,13 +344,13 @@ class Course extends Model
 
     public function getPdfsCountAttribute()
     {
-        if (array_key_exists('pdfs_count', $this->attributes) && $this->attributes['pdfs_count'] !== null) {
-            return (int)$this->attributes['pdfs_count'];
-        }
         if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
             return $this->relationLoaded('childCourses')
                 ? $this->childCourses->reduce(function ($carry, $child) { return $carry + $child->pdfs_count; }, 0)
                 : $this->childCourses()->get()->reduce(function ($carry, $child) { return $carry + $child->pdfs_count; }, 0);
+        }
+        if (array_key_exists('pdfs_count', $this->attributes) && $this->attributes['pdfs_count'] !== null) {
+            return (int)$this->attributes['pdfs_count'];
         }
         return \App\Models\Pdf::whereIn('lesson_id', function ($query) {
             $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
@@ -361,13 +361,13 @@ class Course extends Model
 
     public function getExamsCountAttribute()
     {
-        if (array_key_exists('exams_count', $this->attributes) && $this->attributes['exams_count'] !== null) {
-            return (int)$this->attributes['exams_count'];
-        }
         if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
             return $this->relationLoaded('childCourses')
                 ? $this->childCourses->reduce(function ($carry, $child) { return $carry + $child->exams_count; }, 0)
                 : $this->childCourses()->get()->reduce(function ($carry, $child) { return $carry + $child->exams_count; }, 0);
+        }
+        if (array_key_exists('exams_count', $this->attributes) && $this->attributes['exams_count'] !== null) {
+            return (int)$this->attributes['exams_count'];
         }
         return \App\Models\Exam::whereIn('lesson_id', function ($query) {
             $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
@@ -378,18 +378,39 @@ class Course extends Model
 
     public function getVideosCountAttribute()
     {
-        if (array_key_exists('videos_count', $this->attributes) && $this->attributes['videos_count'] !== null) {
-            return (int)$this->attributes['videos_count'];
-        }
         if ($this->is_bundle || $this->is_bundle === 1 || $this->is_bundle === '1') {
             return $this->relationLoaded('childCourses')
                 ? $this->childCourses->reduce(function ($carry, $child) { return $carry + $child->videos_count; }, 0)
                 : $this->childCourses()->get()->reduce(function ($carry, $child) { return $carry + $child->videos_count; }, 0);
+        }
+        if (array_key_exists('videos_count', $this->attributes) && $this->attributes['videos_count'] !== null) {
+            return (int)$this->attributes['videos_count'];
         }
         return \App\Models\Video::whereIn('lesson_id', function ($query) {
             $query->select('id')->from('lessons')->whereIn('unit_id', function ($sub) {
                 $sub->select('id')->from('units')->where('course_id', $this->id);
             });
         })->count();
+    }
+
+    public function getBundleOriginalPriceAttribute()
+    {
+        if (!$this->is_bundle && $this->is_bundle !== 1 && $this->is_bundle !== '1') {
+            return null;
+        }
+        $children = $this->relationLoaded('childCourses') ? $this->childCourses : $this->childCourses()->get();
+        return (float)$children->reduce(function ($carry, $child) {
+            return $carry + (float)($child->final_price ?? $child->price ?? 0);
+        }, 0);
+    }
+
+    public function getBundleSavingsAttribute()
+    {
+        if (!$this->is_bundle && $this->is_bundle !== 1 && $this->is_bundle !== '1') {
+            return null;
+        }
+        $original = (float)$this->bundle_original_price;
+        $final = (float)$this->final_price;
+        return max(0.0, round($original - $final, 2));
     }
 }

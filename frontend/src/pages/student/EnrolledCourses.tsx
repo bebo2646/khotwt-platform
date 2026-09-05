@@ -78,8 +78,15 @@ export default function EnrolledCourses() {
             <div key={enr.id} className="bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden hover:border-brand-primary/30 transition-all group">
               <div className="aspect-video bg-slate-800 relative overflow-hidden">
                 <img src={enr.course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} alt={enr.course.title} className="object-cover w-full h-full group-hover:scale-105 transition-transform" />
-                <div className="absolute top-3 right-3 px-3 py-1 bg-black/75 rounded-full text-xs font-semibold text-brand-primary">
-                  {SUBJECTS_TRANSLATION[enr.course.subject] || enr.course.subject}
+                <div className="absolute top-3 right-3 flex flex-col gap-1.5 items-end z-10">
+                  {enr.product_type === 'bundle' && (
+                    <div className="px-3 py-1 bg-gradient-to-r from-brand-primary to-brand-secondary text-white rounded-full text-[10px] font-black tracking-wide border border-white/20 shadow-lg backdrop-blur-md">
+                      📦 كورس مجمع
+                    </div>
+                  )}
+                  <div className="px-3 py-1 bg-black/75 rounded-full text-xs font-semibold text-brand-primary">
+                    {SUBJECTS_TRANSLATION[enr.course.subject] || enr.course.subject}
+                  </div>
                 </div>
               </div>
               <div className="p-6 space-y-4">

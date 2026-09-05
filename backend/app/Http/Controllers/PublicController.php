@@ -265,7 +265,12 @@ class PublicController extends Controller
      */
     public function courses(Request $request)
     {
-        $query = Course::with('teacher')->withCount(['units', 'lessons'])->where('is_published', true);
+        $query = Course::with([
+            'teacher',
+            'childCourses' => function ($q) {
+                $q->withCount(['units', 'lessons']);
+            }
+        ])->withCount(['units', 'lessons'])->where('is_published', true);
 
         if ($request->has('category') && $request->category && $request->category !== 'all') {
             $category = $request->category;
@@ -278,15 +283,42 @@ class PublicController extends Controller
         }
 
         if ($request->has('grade') && $request->grade) {
-            $query->where('grade', $request->grade);
+            $grade = $request->grade;
+            $query->where(function($q) use ($grade) {
+                $q->where('grade', $grade)
+                  ->orWhere(function($bq) use ($grade) {
+                      $bq->where('is_bundle', true)
+                         ->whereHas('childCourses', function($cq) use ($grade) {
+                             $cq->where('grade', $grade);
+                         });
+                  });
+            });
         }
 
         if ($request->has('subject') && $request->subject) {
-            $query->where('subject', $request->subject);
+            $subject = $request->subject;
+            $query->where(function($q) use ($subject) {
+                $q->where('subject', $subject)
+                  ->orWhere(function($bq) use ($subject) {
+                      $bq->where('is_bundle', true)
+                         ->whereHas('childCourses', function($cq) use ($subject) {
+                             $cq->where('subject', $subject);
+                         });
+                  });
+            });
         }
 
         if ($request->has('teacher_id') && $request->teacher_id) {
-            $query->where('teacher_id', $request->teacher_id);
+            $teacherId = $request->teacher_id;
+            $query->where(function($q) use ($teacherId) {
+                $q->where('teacher_id', $teacherId)
+                  ->orWhere(function($bq) use ($teacherId) {
+                      $bq->where('is_bundle', true)
+                         ->whereHas('childCourses', function($cq) use ($teacherId) {
+                             $cq->where('teacher_id', $teacherId);
+                         });
+                  });
+            });
         }
 
         if ($request->has('availability') && $request->availability) {

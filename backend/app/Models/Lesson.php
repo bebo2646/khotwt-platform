@@ -54,7 +54,7 @@ class Lesson extends Model
         return $this->belongsToMany(Package::class, 'package_lessons');
     }
 
-    public function isLockedForStudent($studentId)
+    public function isLockedForStudent($studentId, $bundleId = null)
     {
         if (!$studentId) {
             return false;
@@ -65,14 +65,22 @@ class Lesson extends Model
 
         // Package and standalone access validation (including null course_id enrollments)
         $enrollments = Enrollment::where('student_id', $studentId)
-            ->where(function($query) use ($courseId) {
-                $query->where('course_id', $courseId)
-                    ->orWhereIn('course_id', function($sub) use ($courseId) {
-                        $sub->select('parent_id')
-                            ->from('course_bundle_items')
-                            ->where('child_id', $courseId);
-                    })
-                    ->orWhereIn('package_id', function($sub) use ($courseId) {
+            ->where(function($query) use ($courseId, $bundleId) {
+                $query->where('course_id', $courseId);
+
+                // Only consider bundle enrollment if student is viewing within bundle context
+                if ($bundleId) {
+                    $query->orWhere(function($bq) use ($bundleId, $courseId) {
+                        $bq->where('course_id', $bundleId)
+                           ->whereIn('course_id', function($sub) use ($courseId) {
+                               $sub->select('parent_id')
+                                   ->from('course_bundle_items')
+                                   ->where('child_id', $courseId);
+                           });
+                    });
+                }
+
+                $query->orWhereIn('package_id', function($sub) use ($courseId) {
                         $sub->select('id')->from('packages')->where('course_id', $courseId);
                     })
                     ->orWhereIn('lesson_id', function($sub) use ($courseId) {

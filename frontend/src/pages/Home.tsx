@@ -69,6 +69,9 @@ interface CourseItem {
   availability?: 'online' | 'center' | 'both'
   lessons_count?: number
   is_bundle?: boolean | number | string
+  child_courses?: Array<{ id: number; title: string; price?: number | string; final_price?: number | string }>
+  bundle_original_price?: number | string | null
+  bundle_savings?: number | string | null
 }
 
 interface TeacherItem {
@@ -800,6 +803,9 @@ export default function Home() {
                     availability={course.availability}
                     lessonsCount={course.lessons_count}
                     isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                    childCourses={course.child_courses}
+                    bundleOriginalPrice={course.bundle_original_price}
+                    bundleSavings={course.bundle_savings}
                   />
                 ))}
               </div>
@@ -921,6 +927,9 @@ export default function Home() {
                 availability={course.availability}
                 lessonsCount={course.lessons_count}
                 isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                childCourses={course.child_courses}
+                bundleOriginalPrice={course.bundle_original_price}
+                bundleSavings={course.bundle_savings}
               />
             ))}
           </div>

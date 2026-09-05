@@ -29,6 +29,9 @@ interface CourseItem {
   availability?: 'online' | 'center' | 'both'
   lessons_count?: number
   is_bundle?: boolean | number | string
+  child_courses?: Array<{ id: number; title: string; price?: number | string; final_price?: number | string }>
+  bundle_original_price?: number | string
+  bundle_savings?: number | string
 }
 
 const SUBJECTS = [
@@ -86,6 +89,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
   const [courses, setCourses] = React.useState<CourseItem[]>([])
   const [packages, setPackages] = React.useState<any[]>([])
   const [recommendedCourses, setRecommendedCourses] = React.useState<CourseItem[]>([])
+  const [enrolledCourseIds, setEnrolledCourseIds] = React.useState<Set<number>>(new Set())
   const [loading, setLoading] = React.useState(true)
 
   React.useEffect(() => {
@@ -123,14 +127,18 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
     
     if (user && user.role === 'student') {
       fetchPromises.push(API.get('/student/recommended-courses'))
+      fetchPromises.push(API.get('/student/courses'))
     }
     
     Promise.all(fetchPromises)
-      .then(([coursesRes, packagesRes, recRes]) => {
+      .then(([coursesRes, packagesRes, recRes, enrolledRes]) => {
         setCourses(coursesRes.data)
         setPackages(packagesRes.data)
         if (recRes) {
           setRecommendedCourses(recRes.data.recommended || [])
+        }
+        if (enrolledRes && Array.isArray(enrolledRes.data)) {
+          setEnrolledCourseIds(new Set(enrolledRes.data.map((e: any) => e.course?.id).filter(Boolean)))
         }
       })
       .catch((err) => console.error(err))
@@ -372,6 +380,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                       subject={course.subject}
                       teacherName={course.teacher.name}
                       teacherAvatar={course.teacher.avatar}
+                      isSubscribed={enrolledCourseIds.has(course.id)}
                       enableDiscount={course.enable_discount === true}
                       discountType={course.discount_type ?? undefined}
                       discountValue={course.discount_value ?? undefined}
@@ -380,6 +389,9 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                       availability={course.availability}
                       lessonsCount={course.lessons_count}
                       isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                      childCourses={course.child_courses}
+                      bundleOriginalPrice={course.bundle_original_price}
+                      bundleSavings={course.bundle_savings}
                     />
                   ))}
                 </div>
@@ -418,6 +430,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     subject={course.subject}
                     teacherName={course.teacher.name}
                     teacherAvatar={course.teacher.avatar}
+                    isSubscribed={enrolledCourseIds.has(course.id)}
                     enableDiscount={course.enable_discount === true}
                     discountType={course.discount_type ?? undefined}
                     discountValue={course.discount_value ?? undefined}
@@ -426,6 +439,9 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     availability={course.availability}
                     lessonsCount={course.lessons_count}
                     isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                    childCourses={course.child_courses}
+                    bundleOriginalPrice={course.bundle_original_price}
+                    bundleSavings={course.bundle_savings}
                   />
                 ))}
               </div>

@@ -377,7 +377,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
               document.exitFullscreen().catch(() => {})
             }
             if (onCompleted) onCompleted()
-            else navigate(`/student/exams/${exam.id}/result`)
+            else navigate(`/student/exams/${exam.id}/result${courseId ? `?course_id=${courseId}` : ''}`)
           }
         })
       } else if (remaining === 1) {
@@ -491,7 +491,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       
       useModalStore.getState().showToast('تم تسليم إجاباتك بنجاح!', 'success')
       if (onCompleted) onCompleted()
-      else navigate(`/student/exams/${exam?.id}/result`)
+      else navigate(`/student/exams/${exam?.id}/result${courseId ? `?course_id=${courseId}` : ''}`)
     } catch (err: any) {
       console.error(err)
       const errorMsg = err.response?.data?.message || 'حدث خطأ أثناء إرسال الإجابات. يرجى المحاولة مجدداً.'

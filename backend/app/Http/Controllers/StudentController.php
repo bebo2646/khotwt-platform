@@ -39,7 +39,8 @@ class StudentController extends Controller
 
             if ($enrollment->course) {
                 $course = $enrollment->course;
-                $typeLabel = 'course';
+                $isBundle = (bool)$course->is_bundle;
+                $typeLabel = $isBundle ? 'bundle' : 'course';
                 $productTitle = $course->title;
                 $coverImage = $course->cover_image;
             } elseif ($enrollment->package) {
@@ -55,12 +56,14 @@ class StudentController extends Controller
                         'product_title' => $productTitle,
                         'package_id' => $enrollment->package_id,
                         'lesson_id' => null,
+                        'is_bundle' => true,
                         'course' => [
                             'id' => 'bundle-' . $enrollment->package_id,
                             'title' => $productTitle,
                             'description' => $enrollment->package->description,
                             'cover_image' => $enrollment->package->package_thumbnail ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
                             'subject' => 'باقة مجمعة',
+                            'is_bundle' => true,
                             'teacher' => [
                                 'name' => $teacher ? $teacher->name : 'معلم محذوف',
                             ],
@@ -79,19 +82,23 @@ class StudentController extends Controller
                 return null;
             }
 
+            $isBundleCourse = (bool)($course->is_bundle ?? false);
+
             return [
                 'id' => $enrollment->id,
                 'enrolled_at' => $enrollment->enrolled_at ? $enrollment->enrolled_at->toIso8601String() : null,
-                'product_type' => $typeLabel,
+                'product_type' => $isBundleCourse ? 'bundle' : $typeLabel,
                 'product_title' => $productTitle,
                 'package_id' => $enrollment->package_id,
                 'lesson_id' => $enrollment->lesson_id,
+                'is_bundle' => $isBundleCourse,
                 'course' => [
                     'id' => $course->id,
                     'title' => $productTitle,
                     'description' => $course->description,
                     'cover_image' => $coverImage ?: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500',
                     'subject' => $course->subject,
+                    'is_bundle' => $isBundleCourse,
                     'teacher' => [
                         'name' => $course->teacher ? $course->teacher->name : 'معلم محذوف',
                     ],
@@ -1392,7 +1399,7 @@ class StudentController extends Controller
                 ]);
             }
 
-            if ($courseIdParam && $lesson->isLockedForStudent($user->id)) {
+            if ($courseIdParam && $lesson->isLockedForStudent($user->id, $courseIdParam)) {
                 return response()->json([
                     'message' => 'يجب إكمال متطلبات الدرس السابق أولاً (مشاهدة المحاضرات وحل الواجب).',
                     'is_locked' => true
@@ -3561,22 +3568,40 @@ class StudentController extends Controller
         $cacheKey = 'recommended_courses_' . ($studentGrade ?? 'none');
 
         $data = \Cache::remember($cacheKey, 300, function() use ($studentGrade) {
+            $eagerRelations = [
+                'teacher',
+                'childCourses' => function ($q) {
+                    $q->withCount(['units', 'lessons']);
+                }
+            ];
+
             $recommended = [];
             if ($studentGrade) {
-                $recommended = \App\Models\Course::with('teacher')
+                $recommended = \App\Models\Course::with($eagerRelations)
+                    ->withCount(['units', 'lessons'])
                     ->where('is_published', true)
-                    ->where('grade', $studentGrade)
+                    ->where(function($q) use ($studentGrade) {
+                        $q->where('grade', $studentGrade)
+                          ->orWhere(function($bq) use ($studentGrade) {
+                              $bq->where('is_bundle', true)
+                                 ->whereHas('childCourses', function($cq) use ($studentGrade) {
+                                     $cq->where('grade', $studentGrade);
+                                 });
+                          });
+                    })
                     ->latest()
                     ->get();
             }
 
-            $latest = \App\Models\Course::with('teacher')
+            $latest = \App\Models\Course::with($eagerRelations)
+                ->withCount(['units', 'lessons'])
                 ->where('is_published', true)
                 ->latest()
                 ->take(6)
                 ->get();
 
-            $allCourses = \App\Models\Course::with('teacher')
+            $allCourses = \App\Models\Course::with($eagerRelations)
+                ->withCount(['units', 'lessons'])
                 ->where('is_published', true)
                 ->latest()
                 ->get();

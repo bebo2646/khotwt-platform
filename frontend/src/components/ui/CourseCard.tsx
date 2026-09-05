@@ -27,6 +27,9 @@ interface CourseCardProps {
   grade?: string
   availability?: 'online' | 'center' | 'both'
   isBundle?: boolean
+  childCourses?: Array<{ id: number; title: string; price?: number | string; final_price?: number | string }>
+  bundleOriginalPrice?: number | string | null
+  bundleSavings?: number | string | null
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -60,14 +63,29 @@ export default function CourseCard({
   grade,
   availability,
   isBundle = false,
+  childCourses,
+  bundleOriginalPrice,
+  bundleSavings,
 }: CourseCardProps) {
-  const pricing = getCourseDisplayPrice({
+  const standardPricing = getCourseDisplayPrice({
     price,
     enable_discount: enableDiscount,
     discount_type: discountType,
     discount_value: discountValue,
     final_price: finalPrice,
   })
+
+  const numFinalPrice = Number(finalPrice || price || 0)
+  const numBundleOriginal = Number(bundleOriginalPrice || (childCourses ? childCourses.reduce((acc, c) => acc + Number(c.final_price || c.price || 0), 0) : 0))
+  const numBundleSavings = Number(bundleSavings || Math.max(0, numBundleOriginal - numFinalPrice))
+  const isBundleWithSavings = isBundle && numBundleOriginal > numFinalPrice && numBundleOriginal > 0
+
+  const pricing = isBundleWithSavings ? {
+    hasDiscount: true,
+    discountText: `وفر ${Math.round(numBundleSavings)} ج.م`,
+    formattedOriginalPrice: `${numBundleOriginal} ج.م`,
+    formattedFinalPrice: `${numFinalPrice} ج.م`,
+  } : standardPricing
   
   return (
     <div 
@@ -169,6 +187,21 @@ export default function CourseCard({
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full"
               ></motion.div>
+            </div>
+          </div>
+        )}
+
+        {isBundle && childCourses && childCourses.length > 0 && (
+          <div className="pt-3 border-t border-[var(--border-color)] space-y-1.5 text-right">
+            <span className="text-[10px] text-text-secondary font-bold block">
+              📦 الكورسات المتضمنة ({childCourses.length}):
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {childCourses.map((c) => (
+                <span key={c.id} className="text-[9px] font-bold px-2 py-0.5 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-md">
+                  {c.title}
+                </span>
+              ))}
             </div>
           </div>
         )}
