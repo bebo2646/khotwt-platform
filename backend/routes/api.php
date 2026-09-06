@@ -139,6 +139,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/teacher/exams/{exam}/attempts', [TeacherController::class, 'examAttempts']);
             Route::get('/teacher/exams/{exam}/report', [TeacherController::class, 'examReport']);
             Route::get('/teacher/monthly-exams', [MonthlyExamsController::class, 'adminList']);
+            Route::get('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminShow']);
             Route::post('/teacher/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
             Route::put('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
             Route::delete('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
@@ -162,6 +163,10 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/teacher/courses/{course}', [TeacherController::class, 'deleteCourse']);
                 Route::post('/teacher/courses/{course}/link-courses', [TeacherController::class, 'linkBundleCourses']);
                 Route::post('/teacher/courses/{course}/units', [TeacherController::class, 'addUnit']);
+                Route::put('/teacher/units/{unit}', [TeacherController::class, 'updateUnit']);
+                Route::delete('/teacher/units/{unit}', [TeacherController::class, 'deleteUnit']);
+                Route::put('/teacher/courses/{course}/units/{unit}', [TeacherController::class, 'updateUnit']);
+                Route::delete('/teacher/courses/{course}/units/{unit}', [TeacherController::class, 'deleteUnit']);
                 Route::post('/teacher/units/{unit}/lessons', [TeacherController::class, 'addLesson']);
                 Route::put('/teacher/lessons/{lesson}', [TeacherController::class, 'updateLesson']);
                 Route::delete('/teacher/lessons/{lesson}', [TeacherController::class, 'deleteLesson']);
@@ -317,6 +322,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Monthly Exams Management
             Route::middleware('permission:exams.manage')->group(function () {
                 Route::get('/admin/monthly-exams', [MonthlyExamsController::class, 'adminList']);
+                Route::get('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminShow']);
                 Route::post('/admin/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
                 Route::put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
                 Route::delete('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);

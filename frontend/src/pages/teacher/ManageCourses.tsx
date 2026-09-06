@@ -100,6 +100,7 @@ export default function ManageCourses() {
   const [showCourseForm, setShowCourseForm] = React.useState(false)
   const [editCourseMode, setEditCourseMode] = React.useState<CourseItem | null>(null)
   const [showUnitForm, setShowUnitForm] = React.useState(false)
+  const [editUnitMode, setEditUnitMode] = React.useState<UnitItem | null>(null)
   const [showLessonForm, setShowLessonForm] = React.useState<number | null>(null) // unitId
   const [editLessonMode, setEditLessonMode] = React.useState<any>(null)
   const [showVideoForm, setShowVideoForm] = React.useState<number | null>(null) // lessonId
@@ -236,7 +237,7 @@ export default function ManageCourses() {
       .catch((err) => console.error('Failed to load configuration:', err))
   }, [])
 
-  const handleSelectCourse = (course: CourseItem) => {
+  const handleSelectCourse = (course: CourseItem, preserveExpanded = false) => {
     setSelectedCourse(course)
     // Fetch curriculum
     API.get(`/courses/${course.id}`)
@@ -244,11 +245,13 @@ export default function ManageCourses() {
         setUnits(res.data.units || [])
         setChildCourses(res.data.child_courses || [])
         setPackages(res.data.packages || [])
-        // Expand first unit
-        if (res.data.units && res.data.units.length > 0) {
-          setExpandedUnits({ [res.data.units[0].id]: true })
-        } else {
-          setExpandedUnits({})
+        if (!preserveExpanded) {
+          // Expand first unit
+          if (res.data.units && res.data.units.length > 0) {
+            setExpandedUnits({ [res.data.units[0].id]: true })
+          } else {
+            setExpandedUnits({})
+          }
         }
       })
       .catch((err) => console.error(err))
@@ -464,22 +467,75 @@ export default function ManageCourses() {
     setCourseDiscountValue('')
   }
 
-  // Unit handler
+  // Unit handlers
+  const handleEditUnitClick = (unit: UnitItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditUnitMode(unit)
+    setUnitTitle(unit.title)
+    setShowUnitForm(true)
+  }
+
+  const handleDeleteUnit = (unit: UnitItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const lessonsCount = unit.lessons?.length || 0
+    const description = lessonsCount > 0
+      ? `تحذير هام: تحتوي هذه الوحدة على (${lessonsCount}) محاضرات/دروس بكل ما تتضمنه من فيديوهات وملفات واختبارات. حذف الوحدة سيؤدي إلى حذف جميع هذه المحاضرات ومحتوياتها بشكل نهائي. هل أنت متأكد من الحذف؟`
+      : 'هل أنت متأكد من حذف هذه الوحدة نهائياً؟ (الوحدة فارغة ولا تحتوي على أي محاضرات).'
+
+    useModalStore.getState().showConfirm({
+      title: 'حذف الوحدة الدراسية',
+      description,
+      confirmText: 'حذف الوحدة',
+      cancelText: 'إلغاء',
+      type: 'delete',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await API.delete(`/teacher/units/${unit.id}`)
+          if (selectedCourse) {
+            handleSelectCourse(selectedCourse, true)
+          }
+          useModalStore.getState().showToast('تم حذف الوحدة الدراسية بنجاح.', 'success')
+        } catch (err: any) {
+          console.error(err)
+          const msg = err.response?.data?.message || 'فشل حذف الوحدة.'
+          useModalStore.getState().showToast(msg, 'error')
+        } finally {
+          setLoading(false)
+        }
+      }
+    })
+  }
+
   const handleSaveUnit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedCourse || !unitTitle.trim()) return
+    if (!selectedCourse || !unitTitle.trim()) {
+      useModalStore.getState().showToast('اسم الوحدة مطلوب ولا يمكن أن يكون فارغاً.', 'error')
+      return
+    }
 
     setActionLoading(true)
     try {
-      await API.post(`/teacher/courses/${selectedCourse.id}/units`, {
-        title: unitTitle,
-        order: units.length + 1,
-      })
+      if (editUnitMode) {
+        await API.put(`/teacher/units/${editUnitMode.id}`, {
+          title: unitTitle.trim(),
+        })
+        useModalStore.getState().showToast('تم تعديل اسم الوحدة بنجاح.', 'success')
+      } else {
+        await API.post(`/teacher/courses/${selectedCourse.id}/units`, {
+          title: unitTitle.trim(),
+          order: units.length + 1,
+        })
+        useModalStore.getState().showToast('تم إضافة الوحدة بنجاح.', 'success')
+      }
       setUnitTitle('')
+      setEditUnitMode(null)
       setShowUnitForm(false)
-      handleSelectCourse(selectedCourse)
-    } catch (err) {
+      handleSelectCourse(selectedCourse, true)
+    } catch (err: any) {
       console.error(err)
+      const msg = err.response?.data?.message || 'حدث خطأ أثناء حفظ الوحدة.'
+      useModalStore.getState().showToast(msg, 'error')
     } finally {
       setActionLoading(false)
     }
@@ -1314,7 +1370,11 @@ export default function ManageCourses() {
                   <div className="flex justify-between items-center">
                     <h4 className="font-bold text-sm">الوحدات والدروس المضافة:</h4>
                   <button
-                    onClick={() => setShowUnitForm(true)}
+                    onClick={() => {
+                      setEditUnitMode(null)
+                      setUnitTitle('')
+                      setShowUnitForm(true)
+                    }}
                     className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     <FolderPlus className="h-4 w-4" /> <span>إضافة وحدة دراسية</span>
@@ -1334,18 +1394,42 @@ export default function ManageCourses() {
                           
                           {/* Unit Title Header */}
                           <div className="flex justify-between items-center p-4 bg-[rgba(255,255,255,0.01)] border-b border-[var(--border-color)]">
-                            <button
-                              onClick={() => toggleUnitAccordion(unit.id)}
-                              className="flex items-center gap-2 font-bold text-xs sm:text-sm text-right cursor-pointer text-slate-200 hover:text-white"
-                            >
-                              <Folder className="h-4 w-4 text-brand-primary" />
-                              <span>{unit.title}</span>
-                              <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                            </button>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <button
+                                onClick={() => toggleUnitAccordion(unit.id)}
+                                className="flex items-center gap-2 font-bold text-xs sm:text-sm text-right cursor-pointer text-slate-200 hover:text-white"
+                              >
+                                <Folder className="h-4 w-4 text-brand-primary" />
+                                <span>{unit.title}</span>
+                                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              </button>
+
+                              {/* Unit Actions: Edit & Delete */}
+                              <div className="flex items-center gap-1.5 mr-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleEditUnitClick(unit, e)}
+                                  className="p-1 px-2 bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/10 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="تعديل اسم الوحدة"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                  <span>تعديل</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDeleteUnit(unit, e)}
+                                  className="p-1 px-2 bg-red-500/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/10 rounded text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="حذف الوحدة"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+                            </div>
                             
                             <button
                               onClick={() => setShowLessonForm(unit.id)}
-                              className="text-[10px] font-bold text-brand-primary hover:underline flex items-center gap-0.5"
+                              className="text-[10px] font-bold text-brand-primary hover:underline flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
                             >
                               <Plus className="h-3 w-3" /> إضافة درس
                             </button>
@@ -1776,26 +1860,41 @@ export default function ManageCourses() {
       {/* Unit Form Modal */}
       {showUnitForm && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-transparent" onClick={() => setShowUnitForm(false)} />
+          <div className="fixed inset-0 bg-transparent" onClick={() => { setShowUnitForm(false); setEditUnitMode(null); }} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-sm w-full space-y-6 shadow-2xl z-10 text-right">
-            <h3 className="text-base font-black">إضافة وحدة دراسية جديدة</h3>
+            <h3 className="text-base font-black">
+              {editUnitMode ? 'تعديل اسم الوحدة الدراسية' : 'إضافة وحدة دراسية جديدة'}
+            </h3>
             
             <form onSubmit={handleSaveUnit} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">عنوان الوحدة</label>
+                <label className="text-xs font-semibold text-slate-300">اسم الوحدة / المجلد *</label>
                 <input
                   type="text"
                   required
                   value={unitTitle}
                   onChange={(e) => setUnitTitle(e.target.value)}
-                  placeholder="مثال: الباب الأول: الكهربية التيارية..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
+                  placeholder="مثال: الباب الأول - الكهربية التيارية..."
+                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
                 />
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button type="button" onClick={() => setShowUnitForm(false)} className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
-                <button type="submit" className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl">حفظ</button>
+                <button
+                  type="button"
+                  onClick={() => { setShowUnitForm(false); setEditUnitMode(null); }}
+                  className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl hover:bg-white/5 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl hover:bg-brand-primary/90 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+                >
+                  {actionLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+                  <span>{editUnitMode ? 'حفظ التعديل' : 'حفظ'}</span>
+                </button>
               </div>
             </form>
           </div>

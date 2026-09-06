@@ -621,6 +621,20 @@ class MonthlyExamsController extends Controller
     }
 
     /**
+     * Admin / Teacher: Show a single monthly exam with questions for editing.
+     */
+    public function adminShow(Request $request, $id)
+    {
+        $user = $request->user();
+        $query = Exam::where('type', 'monthly_exam')->with(['questions', 'teacher']);
+        if ($user->role === 'teacher') {
+            $query->where('teacher_id', $user->id);
+        }
+        $exam = $query->findOrFail($id);
+        return response()->json($exam);
+    }
+
+    /**
      * Admin / Teacher: Create a new standalone monthly exam.
      */
     public function adminStore(Request $request)
@@ -649,42 +663,65 @@ class MonthlyExamsController extends Controller
             'enable_copy_protection' => 'nullable|boolean',
             'randomize_questions' => 'nullable|boolean',
             'randomize_options' => 'nullable|boolean',
+            'questions' => 'nullable|array',
+            'questions.*.text' => 'required|string',
+            'questions.*.type' => 'required|string|in:mcq,true_false,essay',
+            'questions.*.options' => 'nullable|array',
+            'questions.*.correct_answer' => 'nullable|string',
+            'questions.*.score' => 'required|numeric|min:0',
         ]);
 
         $teacherId = $user->role === 'teacher' ? $user->id : ($validated['teacher_id'] ?? null);
         $isPaid = (float)$validated['price'] > 0;
 
-        $exam = Exam::create([
-            'title' => $validated['title'],
-            'description' => $validated['description'] ?? null,
-            'type' => 'monthly_exam',
-            'month' => $validated['month'],
-            'stage' => $validated['stage'] ?? null,
-            'grade' => $validated['grade'],
-            'subject' => $validated['subject'],
-            'category' => $validated['category'] ?? 'school',
-            'teacher_id' => $teacherId,
-            'time_limit_minutes' => $validated['time_limit_minutes'],
-            'max_score' => $validated['max_score'],
-            'passing_score' => $validated['passing_score'] ?? (int)($validated['max_score'] * 0.5),
-            'price' => $validated['price'],
-            'is_paid' => $isPaid,
-            'is_published' => $validated['is_published'] ?? true,
-            'is_active' => $validated['is_active'] ?? true,
-            'allowed_violations' => $validated['allowed_violations'] ?? 3,
-            'enable_fullscreen' => $validated['enable_fullscreen'] ?? true,
-            'enable_anti_tab_switching' => $validated['enable_anti_tab_switching'] ?? true,
-            'enable_copy_protection' => $validated['enable_copy_protection'] ?? true,
-            'randomize_questions' => $validated['randomize_questions'] ?? true,
-            'randomize_options' => $validated['randomize_options'] ?? true,
-            'max_attempts' => 1,
-        ]);
+        return DB::transaction(function () use ($validated, $teacherId, $isPaid, $request) {
+            $exam = Exam::create([
+                'title' => $validated['title'],
+                'description' => $validated['description'] ?? null,
+                'type' => 'monthly_exam',
+                'month' => $validated['month'],
+                'stage' => $validated['stage'] ?? null,
+                'grade' => $validated['grade'],
+                'subject' => $validated['subject'],
+                'category' => $validated['category'] ?? 'school',
+                'teacher_id' => $teacherId,
+                'course_id' => null,
+                'lesson_id' => null,
+                'time_limit_minutes' => $validated['time_limit_minutes'],
+                'max_score' => $validated['max_score'],
+                'passing_score' => $validated['passing_score'] ?? (int)($validated['max_score'] * 0.5),
+                'price' => $validated['price'],
+                'is_paid' => $isPaid,
+                'is_published' => $validated['is_published'] ?? true,
+                'is_active' => $validated['is_active'] ?? true,
+                'allowed_violations' => $validated['allowed_violations'] ?? 3,
+                'enable_fullscreen' => $validated['enable_fullscreen'] ?? true,
+                'enable_anti_tab_switching' => $validated['enable_anti_tab_switching'] ?? true,
+                'enable_copy_protection' => $validated['enable_copy_protection'] ?? true,
+                'randomize_questions' => $validated['randomize_questions'] ?? true,
+                'randomize_options' => $validated['randomize_options'] ?? true,
+                'max_attempts' => 1,
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'تم إنشاء الامتحان الشهري بنجاح.',
-            'exam' => $exam,
-        ], 201);
+            if ($request->has('questions') && is_array($request->questions)) {
+                foreach ($request->questions as $qData) {
+                    Question::create([
+                        'exam_id' => $exam->id,
+                        'text' => $qData['text'],
+                        'type' => $qData['type'],
+                        'options' => $qData['options'] ?? null,
+                        'correct_answer' => $qData['correct_answer'] ?? null,
+                        'score' => $qData['score'],
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إنشاء الامتحان الشهري بنجاح.',
+                'exam' => $exam->load(['questions', 'teacher']),
+            ], 201);
+        });
     }
 
     /**
@@ -721,41 +758,66 @@ class MonthlyExamsController extends Controller
             'enable_copy_protection' => 'nullable|boolean',
             'randomize_questions' => 'nullable|boolean',
             'randomize_options' => 'nullable|boolean',
+            'questions' => 'nullable|array',
+            'questions.*.text' => 'required|string',
+            'questions.*.type' => 'required|string|in:mcq,true_false,essay',
+            'questions.*.options' => 'nullable|array',
+            'questions.*.correct_answer' => 'nullable|string',
+            'questions.*.score' => 'required|numeric|min:0',
         ]);
 
-        if ($user->role === 'admin' && isset($validated['teacher_id'])) {
-            $exam->teacher_id = $validated['teacher_id'];
-        }
+        return DB::transaction(function () use ($validated, $exam, $user, $request) {
+            if ($user->role === 'admin' && isset($validated['teacher_id'])) {
+                $exam->teacher_id = $validated['teacher_id'];
+            }
 
-        $exam->title = $validated['title'];
-        $exam->description = $validated['description'] ?? $exam->description;
-        $exam->month = $validated['month'];
-        $exam->stage = $validated['stage'] ?? $exam->stage;
-        $exam->grade = $validated['grade'];
-        $exam->subject = $validated['subject'];
-        $exam->category = $validated['category'] ?? $exam->category;
-        $exam->time_limit_minutes = $validated['time_limit_minutes'];
-        $exam->max_score = $validated['max_score'];
-        $exam->passing_score = $validated['passing_score'] ?? $exam->passing_score;
-        $exam->price = $validated['price'];
-        $exam->is_paid = (float)$validated['price'] > 0;
-        
-        if (isset($validated['is_published'])) $exam->is_published = $validated['is_published'];
-        if (isset($validated['is_active'])) $exam->is_active = $validated['is_active'];
-        if (isset($validated['allowed_violations'])) $exam->allowed_violations = $validated['allowed_violations'];
-        if (isset($validated['enable_fullscreen'])) $exam->enable_fullscreen = $validated['enable_fullscreen'];
-        if (isset($validated['enable_anti_tab_switching'])) $exam->enable_anti_tab_switching = $validated['enable_anti_tab_switching'];
-        if (isset($validated['enable_copy_protection'])) $exam->enable_copy_protection = $validated['enable_copy_protection'];
-        if (isset($validated['randomize_questions'])) $exam->randomize_questions = $validated['randomize_questions'];
-        if (isset($validated['randomize_options'])) $exam->randomize_options = $validated['randomize_options'];
+            $exam->title = $validated['title'];
+            $exam->description = $validated['description'] ?? $exam->description;
+            $exam->month = $validated['month'];
+            $exam->stage = $validated['stage'] ?? $exam->stage;
+            $exam->grade = $validated['grade'];
+            $exam->subject = $validated['subject'];
+            $exam->category = $validated['category'] ?? $exam->category;
+            $exam->time_limit_minutes = $validated['time_limit_minutes'];
+            $exam->max_score = $validated['max_score'];
+            $exam->passing_score = $validated['passing_score'] ?? $exam->passing_score;
+            $exam->price = $validated['price'];
+            $exam->is_paid = (float)$validated['price'] > 0;
+            $exam->course_id = null;
+            $exam->lesson_id = null;
+            $exam->type = 'monthly_exam';
+            
+            if (isset($validated['is_published'])) $exam->is_published = $validated['is_published'];
+            if (isset($validated['is_active'])) $exam->is_active = $validated['is_active'];
+            if (isset($validated['allowed_violations'])) $exam->allowed_violations = $validated['allowed_violations'];
+            if (isset($validated['enable_fullscreen'])) $exam->enable_fullscreen = $validated['enable_fullscreen'];
+            if (isset($validated['enable_anti_tab_switching'])) $exam->enable_anti_tab_switching = $validated['enable_anti_tab_switching'];
+            if (isset($validated['enable_copy_protection'])) $exam->enable_copy_protection = $validated['enable_copy_protection'];
+            if (isset($validated['randomize_questions'])) $exam->randomize_questions = $validated['randomize_questions'];
+            if (isset($validated['randomize_options'])) $exam->randomize_options = $validated['randomize_options'];
 
-        $exam->save();
+            $exam->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'تم تحديث الامتحان الشهري بنجاح.',
-            'exam' => $exam,
-        ]);
+            if ($request->has('questions') && is_array($request->questions)) {
+                $exam->questions()->delete();
+                foreach ($request->questions as $qData) {
+                    Question::create([
+                        'exam_id' => $exam->id,
+                        'text' => $qData['text'],
+                        'type' => $qData['type'],
+                        'options' => $qData['options'] ?? null,
+                        'correct_answer' => $qData['correct_answer'] ?? null,
+                        'score' => $qData['score'],
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تحديث الامتحان الشهري بنجاح.',
+                'exam' => $exam->load(['questions', 'teacher']),
+            ]);
+        });
     }
 
     /**

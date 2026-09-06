@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   FileText, 
@@ -159,58 +160,16 @@ export default function MonthlyExamsManagement() {
     fetchTeachers()
   }, [])
 
-  // Open Create Modal
+  const navigate = useNavigate()
+
+  // Open Create in ExamBuilder
   const openCreateModal = () => {
-    setEditingExam(null)
-    setFormData({
-      title: '',
-      description: '',
-      month: 'شهر أكتوبر',
-      stage: 'المرحلة الثانوية',
-      grade: 'third_secondary',
-      subject: 'الكيمياء',
-      teacher_id: teachers.length > 0 ? String(teachers[0].id) : '',
-      time_limit_minutes: 60,
-      max_score: 50,
-      passing_score: 25,
-      price: 30,
-      is_published: true,
-      is_active: true,
-      allowed_violations: 3,
-      enable_fullscreen: true,
-      enable_anti_tab_switching: true,
-      enable_copy_protection: true,
-      randomize_questions: true,
-      randomize_options: true,
-    })
-    setModalOpen(true)
+    navigate('/teacher/exams/create?context=monthly_standalone')
   }
 
-  // Open Edit Modal
+  // Open Edit in ExamBuilder
   const openEditModal = (exam: AdminMonthlyExam) => {
-    setEditingExam(exam)
-    setFormData({
-      title: exam.title,
-      description: exam.description || '',
-      month: exam.month,
-      stage: exam.stage || 'المرحلة الثانوية',
-      grade: exam.grade,
-      subject: exam.subject,
-      teacher_id: exam.teacher_id ? String(exam.teacher_id) : '',
-      time_limit_minutes: exam.time_limit_minutes,
-      max_score: exam.max_score,
-      passing_score: exam.passing_score || Math.round(exam.max_score * 0.5),
-      price: parseFloat(String(exam.price)),
-      is_published: exam.is_published,
-      is_active: exam.is_active,
-      allowed_violations: exam.allowed_violations || 3,
-      enable_fullscreen: exam.enable_fullscreen,
-      enable_anti_tab_switching: exam.enable_anti_tab_switching,
-      enable_copy_protection: exam.enable_copy_protection,
-      randomize_questions: exam.randomize_questions,
-      randomize_options: exam.randomize_options,
-    })
-    setModalOpen(true)
+    navigate(`/teacher/exams/edit/${exam.id}?context=monthly_standalone`)
   }
 
   // Save Exam (Create / Update)

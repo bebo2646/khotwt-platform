@@ -1,5 +1,5 @@
 import React from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import {
@@ -16,7 +16,10 @@ import {
   Upload,
   Loader2,
   Sparkles,
-  Layers
+  Layers,
+  ShieldAlert,
+  Calendar,
+  DollarSign
 } from 'lucide-react'
 
 interface Question {
@@ -45,10 +48,46 @@ interface LessonItem {
   is_locked?: boolean
 }
 
+const MONTHS_LIST = [
+  'شهر سبتمبر',
+  'شهر أكتوبر',
+  'شهر نوفمبر',
+  'شهر ديسمبر',
+  'شهر يناير',
+  'شهر فبراير',
+  'شهر مارس',
+  'شهر أبريل',
+  'شهر مايو',
+]
+
+const GRADES_LIST = [
+  { value: 'first_secondary', label: 'الصف الأول الثانوي' },
+  { value: 'second_secondary', label: 'الصف الثاني الثانوي' },
+  { value: 'third_secondary', label: 'الصف الثالث الثانوي' },
+  { value: 'third_prep', label: 'الصف الثالث الإعدادي' },
+  { value: 'second_prep', label: 'الصف الثاني الإعدادي' },
+  { value: 'first_prep', label: 'الصف الأول الإعدادي' },
+]
+
+const STAGES_LIST = [
+  'المرحلة الثانوية',
+  'المرحلة الإعدادية',
+  'المرحلة الابتدائية',
+  'تعليم عام / جامعي',
+]
+
 export default function ExamBuilder() {
   const { id } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const isEdit = !!id
+
+  const initialContext = (searchParams.get('context') === 'monthly_standalone' || searchParams.get('type') === 'monthly_exam')
+    ? 'monthly_standalone'
+    : 'course'
+
+  const [assessmentContext, setAssessmentContext] = React.useState<'course' | 'monthly_standalone'>(initialContext)
+  const isMonthlyStandalone = assessmentContext === 'monthly_standalone'
 
   // Courses & Lessons lists
   const [courses, setCourses] = React.useState<CourseItem[]>([])
@@ -58,13 +97,27 @@ export default function ExamBuilder() {
 
   // Form Fields
   const [title, setTitle] = React.useState('')
-  const [type, setType] = React.useState<'quiz' | 'homework' | 'monthly_exam'>('quiz')
-  const [timeLimit, setTimeLimit] = React.useState('')
+  const [type, setType] = React.useState<'quiz' | 'homework' | 'monthly_exam'>(isMonthlyStandalone ? 'monthly_exam' : 'quiz')
+  const [timeLimit, setTimeLimit] = React.useState(isMonthlyStandalone ? '60' : '')
   const [maxScore, setMaxScore] = React.useState('20')
   const [courseId, setCourseId] = React.useState('')
   const [lessonId, setLessonId] = React.useState('')
-  const [isPaid, setIsPaid] = React.useState(false)
+  const [isPaid, setIsPaid] = React.useState(isMonthlyStandalone)
   const [price, setPrice] = React.useState('50')
+
+  // Standalone Monthly Exam fields
+  const [month, setMonth] = React.useState('شهر أكتوبر')
+  const [stage, setStage] = React.useState('المرحلة الثانوية')
+  const [grade, setGrade] = React.useState('third_secondary')
+  const [subject, setSubject] = React.useState('الكيمياء')
+  const [description, setDescription] = React.useState('')
+  const [allowedViolations, setAllowedViolations] = React.useState(3)
+  const [enableFullscreen, setEnableFullscreen] = React.useState(true)
+  const [enableAntiTabSwitching, setEnableAntiTabSwitching] = React.useState(true)
+  const [enableCopyProtection, setEnableCopyProtection] = React.useState(true)
+  const [randomizeQuestions, setRandomizeQuestions] = React.useState(true)
+  const [randomizeOptions, setRandomizeOptions] = React.useState(true)
+  const [isPublished, setIsPublished] = React.useState(true)
 
   // Date/Time settings
   const [startDate, setStartDate] = React.useState('')
@@ -139,13 +192,42 @@ export default function ExamBuilder() {
   // Load exam details for Edit mode
   const fetchExamDetails = async (examId: string, currentCourses: CourseItem[]) => {
     try {
-      const res = await API.get(`/teacher/exams/${examId}`)
-      const exam = res.data
+      let exam: any = null
+      try {
+        const res = await API.get(`/teacher/exams/${examId}`)
+        exam = res.data
+      } catch (e) {
+        const res = await API.get(`/teacher/monthly-exams/${examId}`)
+        exam = res.data
+      }
+
+      if (!exam) return
+
+      setTitle(exam.title || '')
+      setDescription(exam.description || '')
+
+      const isStandaloneExam = exam.type === 'monthly_exam' || !exam.lesson_id
+      if (isStandaloneExam) {
+        setAssessmentContext('monthly_standalone')
+        setType('monthly_exam')
+        setMonth(exam.month || 'شهر أكتوبر')
+        setStage(exam.stage || 'المرحلة الثانوية')
+        setGrade(exam.grade || 'third_secondary')
+        setSubject(exam.subject || '')
+        setAllowedViolations(exam.allowed_violations || 3)
+        setEnableFullscreen(exam.enable_fullscreen !== false)
+        setEnableAntiTabSwitching(exam.enable_anti_tab_switching !== false)
+        setEnableCopyProtection(exam.enable_copy_protection !== false)
+        setRandomizeQuestions(exam.randomize_questions !== false)
+        setRandomizeOptions(exam.randomize_options !== false)
+        setIsPublished(exam.is_published !== false)
+      } else {
+        setAssessmentContext('course')
+        setType(exam.type || 'quiz')
+      }
       
-      setTitle(exam.title)
-      setType(exam.type)
       setTimeLimit(exam.time_limit_minutes ? exam.time_limit_minutes.toString() : '')
-      setMaxScore(exam.max_score.toString())
+      setMaxScore(exam.max_score ? exam.max_score.toString() : '20')
       setIsPaid(!!exam.is_paid)
       setPrice(exam.price ? exam.price.toString() : '50')
       
@@ -184,6 +266,7 @@ export default function ExamBuilder() {
 
       if (exam.questions && exam.questions.length > 0) {
         const mappedQuestions = exam.questions.map((q: any) => ({
+          id: q.id,
           text: q.text,
           type: q.type,
           options: q.options || ['', '', '', ''],
@@ -399,9 +482,84 @@ export default function ExamBuilder() {
   // Save Exam
   const handleSave = async () => {
     if (!title.trim()) {
-      useModalStore.getState().showToast('يرجى إدخال عنوان الاختبار أولاً.', 'warning')
+      useModalStore.getState().showToast(isMonthlyStandalone ? 'يرجى إدخال عنوان الامتحان الشهري أولاً.' : 'يرجى إدخال عنوان الاختبار أولاً.', 'warning')
       return
     }
+
+    if (questions.length === 0) {
+      useModalStore.getState().showToast('يجب إضافة سؤال واحد على الأقل قبل الحفظ.', 'warning')
+      return
+    }
+
+    // Check if MCQ questions have correct answers
+    const invalidMcq = questions.find(q => q.type === 'mcq' && !q.correct_answer)
+    if (invalidMcq) {
+      useModalStore.getState().showToast(`السؤال "${invalidMcq.text.slice(0, 30)}..." يحتاج إلى تحديد الإجابة الصحيحة.`, 'warning')
+      return
+    }
+
+    // Branch 1: Standalone Monthly Exam
+    if (isMonthlyStandalone) {
+      if (!grade) {
+        useModalStore.getState().showToast('الرجاء اختيار الصف الدراسي.', 'warning')
+        return
+      }
+      if (!subject.trim()) {
+        useModalStore.getState().showToast('الرجاء إدخال اسم المادة الدراسية.', 'warning')
+        return
+      }
+
+      setSaving(true)
+      const payload = {
+        title: title.trim(),
+        description: description.trim() || null,
+        type: 'monthly_exam',
+        month,
+        stage,
+        grade,
+        subject: subject.trim(),
+        time_limit_minutes: timeLimit ? Number(timeLimit) : 60,
+        max_score: Number(maxScore) || 20,
+        passing_score: Number(passingScore) || Math.round((Number(maxScore) || 20) * 0.5),
+        price: isPaid ? Number(price) : 0.00,
+        is_paid: isPaid,
+        is_published: isPublished,
+        is_active: true,
+        allowed_violations: Number(allowedViolations) || 3,
+        enable_fullscreen: enableFullscreen,
+        enable_anti_tab_switching: enableAntiTabSwitching,
+        enable_copy_protection: enableCopyProtection,
+        randomize_questions: randomizeQuestions,
+        randomize_options: randomizeOptions,
+        questions: questions.map(q => ({
+          text: q.text,
+          type: q.type,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          score: Number(q.score) || 1
+        }))
+      }
+
+      try {
+        if (isEdit && id) {
+          await API.put(`/teacher/monthly-exams/${id}`, payload)
+          useModalStore.getState().showToast('تم تعديل وحفظ الامتحان الشهري بنجاح.', 'success')
+        } else {
+          await API.post('/teacher/monthly-exams', payload)
+          useModalStore.getState().showToast('تم إنشاء وحفظ الامتحان الشهري بنجاح مع كافة الأسئلة.', 'success')
+        }
+        navigate('/teacher/monthly-exams')
+      } catch (err: any) {
+        console.error(err)
+        const msg = err.response?.data?.message || 'حدث خطأ أثناء حفظ الامتحان الشهري.'
+        useModalStore.getState().showToast(msg, 'error')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
+    // Branch 2: Course / Lesson Quiz / Homework
     if (!lessonId) {
       useModalStore.getState().showToast('الرجاء اختيار الدرس / المحاضرة المرتبطة.', 'warning')
       return
@@ -409,14 +567,20 @@ export default function ExamBuilder() {
 
     setSaving(true)
     const payload = {
-      title,
-      type,
+      title: title.trim(),
+      type: type === 'monthly_exam' ? 'quiz' : type,
       time_limit_minutes: timeLimit ? Number(timeLimit) : null,
       max_score: Number(maxScore) || 20,
       lesson_id: Number(lessonId),
       is_paid: isPaid,
       price: isPaid ? Number(price) : 0.00,
-      questions,
+      questions: questions.map(q => ({
+        text: q.text,
+        type: q.type,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        score: Number(q.score) || 1
+      })),
       
       // Advanced settings
       start_date: startDate || null,
@@ -484,27 +648,35 @@ export default function ExamBuilder() {
       
       {/* STICKY HEADER */}
       <header className="sticky top-0 z-40 bg-slate-900 border-b border-[var(--border-color)] px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-4 w-full md:w-auto">
+        <div className="flex items-center gap-4 w-full md:w-auto flex-grow max-w-3xl">
           <button 
-            onClick={() => navigate('/teacher/exams')}
+            onClick={() => navigate(isMonthlyStandalone ? '/teacher/monthly-exams' : '/teacher/exams')}
             className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-xl transition-all cursor-pointer shrink-0"
+            title="رجوع"
           >
             <ArrowRight className="h-5 w-5" />
           </button>
           
-          <div className="flex-grow">
+          <div className="flex-grow flex items-center gap-2">
             <input 
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="أدخل عنوان الاختبار المتميز هنا..."
-              className="bg-transparent text-xl font-black text-slate-100 placeholder-slate-500 focus:outline-none w-full border-b border-transparent focus:border-brand-primary transition-all pb-0.5"
+              placeholder={isMonthlyStandalone ? "أدخل عنوان الامتحان الشهري (مثال: امتحان الكيمياء الشامل لشهر أكتوبر)..." : "أدخل عنوان الاختبار المتميز هنا..."}
+              className="bg-transparent text-lg md:text-xl font-black text-slate-100 placeholder-slate-500 focus:outline-none w-full border-b border-transparent focus:border-brand-primary transition-all pb-0.5"
             />
+            <span className={`shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${
+              isMonthlyStandalone 
+                ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' 
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+            }`}>
+              {isMonthlyStandalone ? 'امتحان شهري مستقل' : 'اختبار للدرس'}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-3 w-full md:w-auto justify-end shrink-0">
           <span className="text-xs font-semibold text-slate-400 ml-2 hidden lg:inline">
             الأسئلة: <span className="text-brand-primary font-black">{questions.length}</span> | الدرجة الكلية: <span className="text-emerald-400 font-black">{maxScore}</span>
           </span>
@@ -522,7 +694,7 @@ export default function ExamBuilder() {
             ) : (
               <>
                 <Save className="h-4.5 w-4.5" />
-                <span>{isEdit ? 'تعديل وحفظ التغييرات' : 'حفظ ونشر الامتحان'}</span>
+                <span>{isEdit ? 'تعديل وحفظ التغييرات' : (isMonthlyStandalone ? 'حفظ ونشر الامتحان الشهري' : 'حفظ ونشر الاختبار')}</span>
               </>
             )}
           </button>
@@ -915,277 +1087,575 @@ export default function ExamBuilder() {
             {activeTab === 'settings' && (
               <div className="space-y-6 max-w-4xl animate-fadeIn">
                 
-                {/* Meta details */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
-                  <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">إعدادات الامتحان الأساسية:</h4>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Context Switcher (if not editing an existing exam) */}
+                {!isEdit && (
+                  <div className="bg-brand-card border border-[var(--border-color)] p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-center gap-3">
                     <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">نوع الاختبار</label>
-                      <select
-                        value={type}
-                        onChange={(e: any) => setType(e.target.value)}
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
+                      <span className="text-xs font-black text-slate-200 block">سياق ونوع الاختبار:</span>
+                      <span className="text-[11px] text-slate-400">حدد ما إذا كان هذا الاختبار كويز/واجب يتبع درساً محدداً، أو امتحاناً شهرياً مستقلاً يُباع كمنتج منفصل.</span>
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1 rounded-xl text-xs shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssessmentContext('course')
+                          setType('quiz')
+                        }}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                          !isMonthlyStandalone ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                        }`}
                       >
-                        <option value="quiz">كويز قصير</option>
-                        <option value="homework">واجب منزلي</option>
-                        <option value="monthly_exam">امتحان شهري</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">الوقت المحدد (بالدقائق)</label>
-                      <input
-                        type="number"
-                        value={timeLimit}
-                        onChange={(e) => setTimeLimit(e.target.value)}
-                        placeholder="اتركها فارغة لوقت مفتوح"
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">الدرجة الكلية القصوى</label>
-                      <input
-                        type="number"
-                        disabled
-                        value={maxScore}
-                        placeholder="20"
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-500 focus:outline-none text-center"
-                      />
-                      <span className="text-[9px] text-slate-500 mt-1 block">تُحسب تلقائياً من درجات الأسئلة</span>
+                        اختبار تابع لدرس
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssessmentContext('monthly_standalone')
+                          setType('monthly_exam')
+                          setCourseId('')
+                          setLessonId('')
+                        }}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                          isMonthlyStandalone ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        امتحان شهري مستقل
+                      </button>
                     </div>
                   </div>
+                )}
 
-                  {/* Mapping courses/lessons */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">الكورس الدراسي</label>
-                      <select
-                        required
-                        value={courseId}
-                        onChange={(e) => handleCourseChange(e.target.value)}
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
-                      >
-                        <option value="">اختر الكورس...</option>
-                        {courses.map((c) => (
-                          <option key={c.id} value={c.id}>{c.title}</option>
-                        ))}
-                      </select>
-                    </div>
+                {/* STANDALONE MONTHLY EXAM CONFIGURATION */}
+                {isMonthlyStandalone ? (
+                  <>
+                    {/* Standalone Basic Details */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
+                      <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
+                        <Calendar className="h-4.5 w-4.5 text-indigo-400" />
+                        <span>بيانات الامتحان الشهري المستقل:</span>
+                      </h4>
 
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">المحاضرة (الدرس)</label>
-                      <select
-                        required
-                        value={lessonId}
-                        onChange={(e) => setLessonId(e.target.value)}
-                        disabled={!courseId}
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none disabled:opacity-45"
-                      >
-                        <option value="">اختر المحاضرة...</option>
-                        {lessons.map((l) => (
-                          <option key={l.id} value={l.id}>{l.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الشهر الدراسي</label>
+                          <select
+                            value={month}
+                            onChange={(e) => setMonth(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          >
+                            {MONTHS_LIST.map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                {/* Paid vs Free Pricing info */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
-                  <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">سعر وتصنيف الامتحان:</h4>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-300 block mb-1.5">فئة التسعير</label>
-                      <select
-                        value={isPaid ? 'paid' : 'free'}
-                        onChange={(e) => setIsPaid(e.target.value === 'paid')}
-                        className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
-                      >
-                        <option value="free">مجاني مع الكورس (Free)</option>
-                        <option value="paid">مدفوع بشكل منفصل (Paid)</option>
-                      </select>
-                    </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">المرحلة الدراسية</label>
+                          <select
+                            value={stage}
+                            onChange={(e) => setStage(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          >
+                            {STAGES_LIST.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                    {isPaid && (
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">السعر بالجنيه المصري</label>
-                        <input
-                          type="number"
-                          required
-                          min="1"
-                          value={price}
-                          onChange={(e) => setPrice(e.target.value)}
-                          placeholder="مثال: 50"
-                          className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الصف الدراسي</label>
+                          <select
+                            value={grade}
+                            onChange={(e) => setGrade(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          >
+                            {GRADES_LIST.map((g) => (
+                              <option key={g.value} value={g.value}>{g.label}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                {/* Advanced Dates & Lock Settings */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
-                  <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">إعدادات النشر ومكافحة الغش:</h4>
-
-                  {/* Homework Type selector (only for homework) */}
-                  {type === 'homework' && (
-                    <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-3">
-                      <label className="text-xs font-bold text-slate-350 block">نوع الواجب الدراسي</label>
-                      <div className="flex gap-6 items-center">
-                        <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">المادة الدراسية</label>
                           <input
-                            type="radio"
-                            name="homework_type"
-                            checked={homeworkType === 'normal'}
-                            onChange={() => setHomeworkType('normal')}
-                            className="accent-brand-primary"
+                            type="text"
+                            required
+                            value={subject}
+                            onChange={(e) => setSubject(e.target.value)}
+                            placeholder="مثال: الكيمياء أو الفيزياء"
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                           />
-                          <span>واجب تقليدي (Normal Homework)</span>
-                        </label>
-                        <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الوقت المحدد (بالدقائق)</label>
                           <input
-                            type="radio"
-                            name="homework_type"
-                            checked={homeworkType === 'bubble_sheet'}
-                            onChange={() => setHomeworkType('bubble_sheet')}
-                            className="accent-brand-primary"
+                            type="number"
+                            min="1"
+                            max="300"
+                            value={timeLimit}
+                            onChange={(e) => setTimeLimit(e.target.value)}
+                            placeholder="60"
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-center font-bold"
                           />
-                          <span>واجب بابل شيت (Bubble Sheet Homework)</span>
-                        </label>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الدرجة الكلية القصوى</label>
+                          <input
+                            type="number"
+                            disabled
+                            value={maxScore}
+                            placeholder="20"
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-500 focus:outline-none text-center font-bold"
+                          />
+                          <span className="text-[9px] text-slate-500 mt-1 block">تُحسب تلقائياً من مجموع درجات الأسئلة</span>
+                        </div>
+
+                        <div className="md:col-span-3">
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">وصف وملاحظات الامتحان للطلاب (اختياري)</label>
+                          <textarea
+                            rows={2}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="توجيهات وملاحظات للطلاب قبل بدء الامتحان الشهري..."
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl p-3 text-xs text-slate-200 focus:outline-none leading-relaxed"
+                          />
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Scheduling Section for BOTH Exams & Homeworks */}
-                  <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-4">
-                    <label className="text-xs font-bold text-slate-350 select-none cursor-pointer flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={enableSchedule}
-                        onChange={(e) => setEnableSchedule(e.target.checked)}
-                        className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
-                      />
-                      <span>تفعيل جدول المواعيد (Enable Schedule)</span>
-                    </label>
+                    {/* Standalone Independent Pricing */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+                      <div className="border-b border-[var(--border-color)] pb-3">
+                        <h4 className="text-base font-black text-slate-200 flex items-center gap-2">
+                          <DollarSign className="h-4.5 w-4.5 text-emerald-400" />
+                          <span>تسعير الامتحان المستقل (منتج منفصل):</span>
+                        </h4>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          الامتحان الشهري منتج مستقل تماماً لا يتبع أي كورس، ولا يُضاف سعره لكورس، ولا يُفتح تلقائياً بشراء أي كورس.
+                        </p>
+                      </div>
 
-                    {enableSchedule && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">نوع التسعير</label>
+                          <select
+                            value={isPaid ? 'paid' : 'free'}
+                            onChange={(e) => setIsPaid(e.target.value === 'paid')}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                          >
+                            <option value="paid">مدفوع بشكل مستقل (Paid)</option>
+                            <option value="free">مجاني لجميع الطلاب (Free)</option>
+                          </select>
+                        </div>
+
+                        {isPaid && (
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1.5">سعر الامتحان (بالجنيه المصري)</label>
+                            <input
+                              type="number"
+                              required
+                              min="1"
+                              value={price}
+                              onChange={(e) => setPrice(e.target.value)}
+                              placeholder="مثال: 50"
+                              className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-center font-black text-emerald-400"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Standalone Anti-Cheat & Security Settings */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+                      <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
+                        <ShieldAlert className="h-4.5 w-4.5 text-amber-400" />
+                        <span>إعدادات المراقبة الذكية ومكافحة الغش:</span>
+                      </h4>
+
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-450 block">تاريخ الفتح (Open Date)</label>
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
                           <input
-                            type="date"
-                            value={openDate}
-                            onChange={(e) => setOpenDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                            type="checkbox"
+                            checked={enableFullscreen}
+                            onChange={(e) => setEnableFullscreen(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">وضع ملء الشاشة الإجباري</div>
+                            <div className="text-[10px] text-slate-400">إلزام الطالب بفتح الامتحان في وضع ملء الشاشة</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={enableAntiTabSwitching}
+                            onChange={(e) => setEnableAntiTabSwitching(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">منع مغادرة التبويب</div>
+                            <div className="text-[10px] text-slate-400">احتساب مخالفة وتنبيه عند التبديل لنافذة أخرى</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={enableCopyProtection}
+                            onChange={(e) => setEnableCopyProtection(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">منع النسخ وتحديد النصوص</div>
+                            <div className="text-[10px] text-slate-400">تعطيل تحديد الأسئلة أو نسخها خارج المنصة</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={randomizeQuestions}
+                            onChange={(e) => setRandomizeQuestions(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">خلط ترتيب الأسئلة</div>
+                            <div className="text-[10px] text-slate-400">ترتيب عشوائي للأسئلة لكل طالب</div>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={randomizeOptions}
+                            onChange={(e) => setRandomizeOptions(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">خلط ترتيب الخيارات (MCQ)</div>
+                            <div className="text-[10px] text-slate-400">ترتيب عشوائي للبدائل داخل كل سؤال</div>
+                          </div>
+                        </label>
+
+                        <div className="p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 flex flex-col justify-center">
+                          <label className="text-xs font-bold text-slate-200 block mb-1">الحد الأقصى للمخالفات</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={allowedViolations}
+                            onChange={(e) => setAllowedViolations(Number(e.target.value) || 3)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none text-center font-bold"
+                          />
+                          <div className="text-[10px] text-slate-500 mt-1">يتم إنهاء وسحب الامتحان تلقائياً عند تجاوزه</div>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">نسبة درجة النجاح (%)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={passingScore}
+                            onChange={(e) => setPassingScore(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-center font-bold"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-450 block">وقت الفتح (Open Time)</label>
+
+                        <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none">
                           <input
-                            type="time"
-                            value={openTime}
-                            onChange={(e) => setOpenTime(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                            type="checkbox"
+                            checked={isPublished}
+                            onChange={(e) => setIsPublished(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <div>
+                            <div className="text-xs font-bold text-slate-200">نشر الامتحان للطلاب</div>
+                            <div className="text-[10px] text-slate-400">ظهور الامتحان في صفحة الامتحانات الشهرية</div>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  /* COURSE LESSON ASSESSMENT CONFIGURATION */
+                  <>
+                    {/* Meta details */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
+                      <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">إعدادات الاختبار الأساسية:</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">نوع الاختبار</label>
+                          <select
+                            value={type}
+                            onChange={(e: any) => setType(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
+                          >
+                            <option value="quiz">كويز قصير</option>
+                            <option value="homework">واجب منزلي</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الوقت المحدد (بالدقائق)</label>
+                          <input
+                            type="number"
+                            value={timeLimit}
+                            onChange={(e) => setTimeLimit(e.target.value)}
+                            placeholder="اتركها فارغة لوقت مفتوح"
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-450 block">تاريخ الإغلاق (Close Date)</label>
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الدرجة الكلية القصوى</label>
                           <input
-                            type="date"
-                            value={closeDate}
-                            onChange={(e) => setCloseDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                            type="number"
+                            disabled
+                            value={maxScore}
+                            placeholder="20"
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-500 focus:outline-none text-center"
                           />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-slate-450 block">وقت الإغلاق (Close Time)</label>
-                          <input
-                            type="time"
-                            value={closeTime}
-                            onChange={(e) => setCloseTime(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
-                          />
+                          <span className="text-[9px] text-slate-500 mt-1 block">تُحسب تلقائياً من درجات الأسئلة</span>
                         </div>
                       </div>
-                    )}
-                  </div>
 
-                  {/* Standard date settings for Quiz if not scheduled */}
-                  {type !== 'homework' && !enableSchedule && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400">تاريخ البدء</label>
-                          <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none text-right"
-                          />
+                      {/* Mapping courses/lessons */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الكورس الدراسي</label>
+                          <select
+                            required
+                            value={courseId}
+                            onChange={(e) => handleCourseChange(e.target.value)}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
+                          >
+                            <option value="">اختر الكورس...</option>
+                            {courses.map((c) => (
+                              <option key={c.id} value={c.id}>{c.title}</option>
+                            ))}
+                          </select>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400">وقت البدء</label>
-                          <input
-                            type="time"
-                            value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400">تاريخ النهاية</label>
-                          <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none text-right"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-semibold text-slate-400">وقت النهاية</label>
-                          <input
-                            type="time"
-                            value={endTime}
-                            onChange={(e) => setEndTime(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none"
-                          />
+
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">المحاضرة (الدرس)</label>
+                          <select
+                            required
+                            value={lessonId}
+                            onChange={(e) => setLessonId(e.target.value)}
+                            disabled={!courseId}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none disabled:opacity-45"
+                          >
+                            <option value="">اختر المحاضرة...</option>
+                            {lessons.map((l) => (
+                              <option key={l.id} value={l.id}>{l.title}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Attempts & Passing score (only for quiz / monthly_exam) */}
-                  {type !== 'homework' && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl">
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">الحد الأقصى للمحاولات</label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={maxAttempts}
-                          onChange={(e) => setMaxAttempts(e.target.value)}
-                          className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-300 block mb-1.5">درجة النجاح المحددة (%)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={passingScore}
-                          onChange={(e) => setPassingScore(e.target.value)}
-                          className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
-                        />
+                    {/* Paid vs Free Pricing info */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
+                      <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">سعر وتصنيف الاختبار:</h4>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">فئة التسعير</label>
+                          <select
+                            value={isPaid ? 'paid' : 'free'}
+                            onChange={(e) => setIsPaid(e.target.value === 'paid')}
+                            className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none"
+                          >
+                            <option value="free">مجاني مع الكورس (Free)</option>
+                            <option value="paid">مدفوع بشكل منفصل (Paid)</option>
+                          </select>
+                        </div>
+
+                        {isPaid && (
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1.5">السعر بالجنيه المصري</label>
+                            <input
+                              type="number"
+                              required
+                              min="1"
+                              value={price}
+                              onChange={(e) => setPrice(e.target.value)}
+                              placeholder="مثال: 50"
+                              className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
+
+                    {/* Advanced Dates & Lock Settings */}
+                    <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-6 shadow-sm">
+                      <h4 className="text-base font-black text-slate-200 border-b border-[var(--border-color)] pb-3">إعدادات النشر ومكافحة الغش:</h4>
+
+                      {/* Homework Type selector (only for homework) */}
+                      {type === 'homework' && (
+                        <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-3">
+                          <label className="text-xs font-bold text-slate-350 block">نوع الواجب الدراسي</label>
+                          <div className="flex gap-6 items-center">
+                            <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                              <input
+                                type="radio"
+                                name="homework_type"
+                                checked={homeworkType === 'normal'}
+                                onChange={() => setHomeworkType('normal')}
+                                className="accent-brand-primary"
+                              />
+                              <span>واجب تقليدي (Normal Homework)</span>
+                            </label>
+                            <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer select-none">
+                              <input
+                                type="radio"
+                                name="homework_type"
+                                checked={homeworkType === 'bubble_sheet'}
+                                onChange={() => setHomeworkType('bubble_sheet')}
+                                className="accent-brand-primary"
+                              />
+                              <span>واجب بابل شيت (Bubble Sheet Homework)</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Scheduling Section for BOTH Exams & Homeworks */}
+                      <div className="bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl space-y-4">
+                        <label className="text-xs font-bold text-slate-350 select-none cursor-pointer flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={enableSchedule}
+                            onChange={(e) => setEnableSchedule(e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950"
+                          />
+                          <span>تفعيل جدول المواعيد (Enable Schedule)</span>
+                        </label>
+
+                        {enableSchedule && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-450 block">تاريخ الفتح (Open Date)</label>
+                              <input
+                                type="date"
+                                value={openDate}
+                                onChange={(e) => setOpenDate(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-450 block">وقت الفتح (Open Time)</label>
+                              <input
+                                type="time"
+                                value={openTime}
+                                onChange={(e) => setOpenTime(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-450 block">تاريخ الإغلاق (Close Date)</label>
+                              <input
+                                type="date"
+                                value={closeDate}
+                                onChange={(e) => setCloseDate(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-right"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-slate-450 block">وقت الإغلاق (Close Time)</label>
+                              <input
+                                type="time"
+                                value={closeTime}
+                                onChange={(e) => setCloseTime(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Standard date settings for Quiz if not scheduled */}
+                      {type !== 'homework' && !enableSchedule && (
+                        <div className="space-y-6">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-slate-400">تاريخ البدء</label>
+                              <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none text-right"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-slate-400">وقت البدء</label>
+                              <input
+                                type="time"
+                                value={startTime}
+                                onChange={(e) => setStartTime(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-slate-400">تاريخ النهاية</label>
+                              <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none text-right"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-slate-400">وقت النهاية</label>
+                              <input
+                                type="time"
+                                value={endTime}
+                                onChange={(e) => setEndTime(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Attempts & Passing score (only for quiz) */}
+                      {type !== 'homework' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-900/30 p-5 border border-[var(--border-color)] rounded-2xl">
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1.5">الحد الأقصى للمحاولات</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={maxAttempts}
+                              onChange={(e) => setMaxAttempts(e.target.value)}
+                              className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-slate-300 block mb-1.5">درجة النجاح المحددة (%)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={passingScore}
+                              onChange={(e) => setPassingScore(e.target.value)}
+                              className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-202 focus:outline-none text-center"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                   {/* Standard deadline setting for Homework if not scheduled */}
-                  {type === 'homework' && !enableSchedule && (
+                  {!isMonthlyStandalone && type === 'homework' && !enableSchedule && (
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div>
@@ -1220,9 +1690,7 @@ export default function ExamBuilder() {
                     </div>
                   )}
                 </div>
-
-              </div>
-            )}
+              )}
 
             {/* TAB CONTENT: BULK QUICK CREATOR */}
             {activeTab === 'bulk' && (

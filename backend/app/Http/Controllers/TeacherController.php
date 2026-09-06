@@ -52,7 +52,11 @@ class TeacherController extends Controller
     private function verifyCourseTeacher(Request $request, $courseId)
     {
         $course = Course::findOrFail($courseId);
-        if ($course->teacher_id !== $request->user()->id) {
+        $user = $request->user();
+        if ($user && ($user->is_super_admin || $user->is_super || $user->role === 'admin' || $user->role === 'super_admin')) {
+            return $course;
+        }
+        if ($course->teacher_id !== $user->id) {
             abort(403, 'غير مصرح لك بتعديل بيانات هذا الكورس.');
         }
         return $course;
@@ -753,6 +757,106 @@ class TeacherController extends Controller
         ]);
 
         return response()->json($unit, 201);
+    }
+
+    /**
+     * Update Unit.
+     */
+    public function updateUnit(Request $request, $param1, $param2 = null)
+    {
+        $unitId = $param2 ?? $param1;
+        $courseIdParam = $param2 ? $param1 : null;
+
+        $unit = Unit::with('course')->findOrFail($unitId);
+
+        if ($courseIdParam && (int)$unit->course_id !== (int)$courseIdParam) {
+            abort(404, 'الوحدة غير موجودة في هذا الكورس.');
+        }
+
+        $this->verifyCourseTeacher($request, $unit->course_id);
+
+        $request->validate([
+            'title' => 'required|string|max:255',
+        ], [
+            'title.required' => 'اسم الوحدة مطلوب.',
+        ]);
+
+        $title = trim((string)$request->input('title'));
+        if ($title === '') {
+            return response()->json([
+                'message' => 'اسم الوحدة لا يمكن أن يكون فارغاً.',
+                'errors' => ['title' => ['اسم الوحدة لا يمكن أن يكون فارغاً.']]
+            ], 422);
+        }
+
+        $unit->update([
+            'title' => $title,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم تعديل اسم الوحدة بنجاح.',
+            'unit' => $unit,
+        ]);
+    }
+
+    /**
+     * Delete Unit.
+     */
+    public function deleteUnit(Request $request, $param1, $param2 = null)
+    {
+        $unitId = $param2 ?? $param1;
+        $courseIdParam = $param2 ? $param1 : null;
+
+        $unit = Unit::with(['course', 'lessons.videos'])->findOrFail($unitId);
+
+        if ($courseIdParam && (int)$unit->course_id !== (int)$courseIdParam) {
+            abort(404, 'الوحدة غير موجودة في هذا الكورس.');
+        }
+
+        $this->verifyCourseTeacher($request, $unit->course_id);
+
+        $teacherId = $unit->course->teacher_id;
+        $courseId = $unit->course_id;
+
+        DB::transaction(function () use ($unit, $teacherId, $courseId) {
+            $bunnyService = new \App\Services\BunnyStreamService();
+
+            // Delete external videos in Bunny Stream for all lessons in this unit
+            foreach ($unit->lessons as $lesson) {
+                foreach ($lesson->videos as $video) {
+                    $bunnyVideoId = $video->bunny_video_id ?: $video->bunny_stream_id;
+                    if (!empty($bunnyVideoId)) {
+                        try {
+                            $bunnyService->deleteVideo($bunnyVideoId);
+                        } catch (\Exception $e) {
+                            \Log::error("Failed to delete video {$bunnyVideoId} on unit delete: " . $e->getMessage());
+                        }
+                    }
+                }
+            }
+
+            // Delete unit (cascades database delete for lessons, videos, pdfs, exams, etc.)
+            $unit->delete();
+
+            // Recalculate storage for the teacher
+            try {
+                $bunnyService->recalculateStorage($teacherId);
+            } catch (\Exception $e) {
+                \Log::error("Failed to recalculate storage on unit delete: " . $e->getMessage());
+            }
+
+            // Reorder remaining units in the course
+            $remainingUnits = Unit::where('course_id', $courseId)->orderBy('order')->get();
+            foreach ($remainingUnits as $index => $u) {
+                $u->update(['order' => $index]);
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم حذف الوحدة الدراسية وجميع محتوياتها بنجاح.',
+        ]);
     }
 
     /**
@@ -1497,16 +1601,20 @@ class TeacherController extends Controller
     }
 
     /**
-     * Add Exam (Quiz, Homework, Monthly Exam) with Questions.
+     * Add Exam (Quiz, Homework) with Questions inside a course lesson.
      */
     public function addExam(Request $request, $lessonId)
     {
         $lesson = Lesson::with('unit')->findOrFail($lessonId);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
+        if ($request->type === 'monthly_exam' || $request->type === 'monthly_standalone') {
+            return response()->json(['message' => 'الامتحانات الشهرية مستقلة ولا يمكن ربطها بدرس داخل كورس. يرجى إنشاؤها من قسم الامتحانات الشهرية.'], 422);
+        }
+
         $request->validate([
             'title' => 'required|string|max:255',
-            'type' => 'required|string|in:quiz,homework,monthly_exam',
+            'type' => 'required|string|in:quiz,homework',
             'homework_type' => 'nullable|string|in:normal,bubble_sheet',
             'time_limit_minutes' => 'nullable|integer',
             'max_score' => 'required|integer|min:1',
@@ -1532,9 +1640,11 @@ class TeacherController extends Controller
             'questions.*.score' => 'required|integer|min:1',
         ]);
 
-        return DB::transaction(function () use ($request, $lessonId) {
+        return DB::transaction(function () use ($request, $lessonId, $lesson) {
             $exam = Exam::create([
                 'lesson_id' => $lessonId,
+                'course_id' => $lesson->unit ? $lesson->unit->course_id : null,
+                'teacher_id' => $request->user()->id,
                 'title' => $request->title,
                 'type' => $request->type,
                 'homework_type' => $request->homework_type ?? 'normal',
@@ -2205,7 +2315,14 @@ class TeacherController extends Controller
     public function getExam(Request $request, $examId)
     {
         $exam = Exam::with(['questions', 'lesson.unit'])->findOrFail($examId);
-        $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        if ($exam->lesson_id && $exam->lesson && $exam->lesson->unit) {
+            $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        } else {
+            $user = $request->user();
+            if ($exam->teacher_id !== $user->id && !$user->isAdmin()) {
+                abort(403, 'غير مصرح لك بعرض هذا الامتحان.');
+            }
+        }
         return response()->json($exam);
     }
 
@@ -2215,11 +2332,20 @@ class TeacherController extends Controller
     public function updateExam(Request $request, $examId)
     {
         $exam = Exam::with('lesson.unit')->findOrFail($examId);
-        $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        $isStandalone = empty($exam->lesson_id) || $exam->type === 'monthly_exam';
 
-        $request->validate([
+        if (!$isStandalone && $exam->lesson && $exam->lesson->unit) {
+            $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        } else {
+            $user = $request->user();
+            if ($exam->teacher_id !== $user->id && !$user->isAdmin()) {
+                abort(403, 'غير مصرح لك بتعديل هذا الامتحان.');
+            }
+        }
+
+        $rules = [
             'title' => 'required|string|max:255',
-            'type' => 'required|string|in:quiz,homework,monthly_exam',
+            'type' => $isStandalone ? 'required|string|in:monthly_exam' : 'required|string|in:quiz,homework',
             'homework_type' => 'nullable|string|in:normal,bubble_sheet',
             'time_limit_minutes' => 'nullable|integer',
             'max_score' => 'required|integer|min:1',
@@ -2243,12 +2369,16 @@ class TeacherController extends Controller
             'questions.*.options' => 'nullable|array',
             'questions.*.correct_answer' => 'nullable|string',
             'questions.*.score' => 'required|integer|min:1',
-            'lesson_id' => 'required|exists:lessons,id',
-        ]);
+        ];
 
-        return DB::transaction(function () use ($request, $exam) {
-            $exam->update([
-                'lesson_id' => $request->lesson_id,
+        if (!$isStandalone) {
+            $rules['lesson_id'] = 'required|exists:lessons,id';
+        }
+
+        $request->validate($rules);
+
+        return DB::transaction(function () use ($request, $exam, $isStandalone) {
+            $updateData = [
                 'title' => $request->title,
                 'type' => $request->type,
                 'homework_type' => $request->homework_type ?? 'normal',
@@ -2268,7 +2398,20 @@ class TeacherController extends Controller
                 'submission_deadline' => $request->submission_deadline,
                 'is_paid' => $request->is_paid ?? false,
                 'price' => $request->price ?? 0.00,
-            ]);
+            ];
+
+            if ($isStandalone) {
+                $updateData['lesson_id'] = null;
+                $updateData['course_id'] = null;
+                if ($request->filled('month')) $updateData['month'] = $request->month;
+                if ($request->filled('stage')) $updateData['stage'] = $request->stage;
+                if ($request->filled('grade')) $updateData['grade'] = $request->grade;
+                if ($request->filled('subject')) $updateData['subject'] = $request->subject;
+            } else {
+                $updateData['lesson_id'] = $request->lesson_id;
+            }
+
+            $exam->update($updateData);
 
             // Sync questions
             $exam->questions()->delete();
@@ -2294,8 +2437,16 @@ class TeacherController extends Controller
     public function deleteExam(Request $request, $examId)
     {
         $exam = Exam::with('lesson.unit')->findOrFail($examId);
-        $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        if ($exam->lesson_id && $exam->lesson && $exam->lesson->unit) {
+            $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        } else {
+            $user = $request->user();
+            if ($exam->teacher_id !== $user->id && !$user->isAdmin()) {
+                abort(403, 'غير مصرح لك بحذف هذا الامتحان.');
+            }
+        }
 
+        $exam->questions()->delete();
         $exam->delete();
         return response()->json(['message' => 'تم حذف الامتحان بنجاح']);
     }
