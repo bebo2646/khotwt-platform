@@ -7,13 +7,41 @@ interface EducationalElement {
   accent: 'purple' | 'orange' | 'green' | 'cyan' | 'pink' | 'blue'
   desktopPos: { top: number; left?: number; right?: number }
   size: number
-  color: string
   rotation: number
   duration: number
   delay: number
   layer: 1 | 2 | 3
-  svg: React.ReactNode
   mobileClass?: string
+  renderSvg: (color: string) => React.ReactNode
+}
+
+// Saturated, theme-optimized educational accent color palette
+// Directly passed to SVG vector strokes and fills for 100% WebKit/iOS Safari reliability
+const ACCENT_PALETTE: Record<'purple' | 'orange' | 'green' | 'cyan' | 'pink' | 'blue', { dark: string; light: string }> = {
+  purple: {
+    dark: '#c084fc', // purple-400 (vibrant lavender)
+    light: '#7c3aed', // purple-600 (rich royal purple)
+  },
+  orange: {
+    dark: '#fb923c', // orange-400 (vibrant amber)
+    light: '#ea580c', // orange-600 (deep warm orange)
+  },
+  green: {
+    dark: '#34d399', // emerald-400 (vibrant emerald)
+    light: '#059669', // emerald-600 (deep emerald)
+  },
+  cyan: {
+    dark: '#22d3ee', // cyan-400 (electric cyan)
+    light: '#0891b2', // cyan-600 (deep ocean cyan)
+  },
+  pink: {
+    dark: '#f472b6', // pink-400 (vibrant rose pink)
+    light: '#db2777', // pink-600 (rich rose)
+  },
+  blue: {
+    dark: '#60a5fa', // blue-400 (vibrant sky blue)
+    light: '#2563eb', // blue-600 (royal blue)
+  },
 }
 
 export default function EducationalHeroBackground() {
@@ -43,16 +71,15 @@ export default function EducationalHeroBackground() {
       accent: 'purple',
       desktopPos: { top: 95, left: 36 },
       size: 70,
-      color: 'rgba(167, 139, 250, 0.95)', // Violet
       rotation: 14,
       duration: 19,
       delay: 0,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-0',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <polygon points="15,85 85,85 85,15" />
-          <path d="M78,85 L78,78 L85,78" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
+          <polygon points="18,82 82,82 82,18" />
+          <path d="M74,82 L74,74 L82,74" />
         </svg>
       )
     },
@@ -63,15 +90,14 @@ export default function EducationalHeroBackground() {
       accent: 'orange',
       desktopPos: { top: 115, left: 220 },
       size: 66,
-      color: 'rgba(245, 158, 11, 0.95)', // Amber
       rotation: 10,
       duration: 21,
       delay: 1.2,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15,25 Q35,30 50,22 Q65,30 85,25 L85,75 Q65,80 50,70 Q35,80 15,75 Z" />
-          <path d="M50,22 L50,70" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
+          <path d="M16,26 Q35,32 50,24 Q65,32 84,26 L84,74 Q65,80 50,72 Q35,80 16,74 Z" />
+          <path d="M50,24 L50,72" />
         </svg>
       )
     },
@@ -82,19 +108,18 @@ export default function EducationalHeroBackground() {
       accent: 'cyan',
       desktopPos: { top: 88, left: 450 },
       size: 72,
-      color: 'rgba(34, 211, 238, 0.95)', // Sky Cyan
       rotation: -12,
       duration: 23,
       delay: 0.9,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-4',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2">
-          <circle cx="50" cy="50" r="35" />
-          <ellipse cx="50" cy="50" rx="35" ry="12" />
-          <ellipse cx="50" cy="50" rx="12" ry="35" />
-          <line x1="15" y1="50" x2="85" y2="50" />
-          <line x1="50" y1="15" x2="50" y2="85" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.0" className="edu-svg-icon">
+          <circle cx="50" cy="50" r="34" />
+          <ellipse cx="50" cy="50" rx="34" ry="13" />
+          <ellipse cx="50" cy="50" rx="13" ry="34" />
+          <line x1="16" y1="50" x2="84" y2="50" />
+          <line x1="50" y1="16" x2="50" y2="84" />
         </svg>
       )
     },
@@ -105,14 +130,13 @@ export default function EducationalHeroBackground() {
       accent: 'pink',
       desktopPos: { top: 88, right: 450 },
       size: 64,
-      color: 'rgba(251, 113, 133, 0.95)', // Coral Pink
       rotation: -8,
       duration: 17,
       delay: 0.8,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-          <path d="M25,30 L75,30 M35,30 Q35,70 30,70 M42,30 L42,70 M60,30 Q60,70 68,70" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
+          <path d="M22,30 L78,30 M36,30 Q36,70 30,70 M44,30 L44,70 M62,30 Q62,70 70,70" />
         </svg>
       )
     },
@@ -123,19 +147,18 @@ export default function EducationalHeroBackground() {
       accent: 'green',
       desktopPos: { top: 115, right: 220 },
       size: 68,
-      color: 'rgba(52, 211, 153, 0.95)', // Emerald Green
       rotation: 10,
       duration: 21,
       delay: 0.6,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-2',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
           <path d="M42,20 L42,35 L20,78 Q17,84 23,84 L77,84 Q83,84 80,78 L58,35 L58,20" />
           <path d="M38,20 L62,20" />
-          <path d="M28,68 L72,68" strokeDasharray="3 3" />
-          <circle cx="44" cy="55" r="3.5" fill="currentColor" stroke="none" />
-          <circle cx="56" cy="62" r="2.5" fill="currentColor" stroke="none" />
+          <path d="M28,68 L72,68" strokeDasharray="4 3" />
+          <circle cx="44" cy="55" r="3.5" fill={color} stroke="none" />
+          <circle cx="56" cy="62" r="2.5" fill={color} stroke="none" />
         </svg>
       )
     },
@@ -146,17 +169,16 @@ export default function EducationalHeroBackground() {
       accent: 'blue',
       desktopPos: { top: 95, right: 36 },
       size: 68,
-      color: 'rgba(96, 165, 250, 0.95)', // Sky Blue
       rotation: -10,
       duration: 22,
       delay: 1.0,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-5',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="25" y="25" width="50" height="35" rx="3" />
-          <path d="M15,65 L85,65 L80,72 L20,72 Z" />
-          <line x1="45" y1="65" x2="55" y2="65" strokeWidth="3" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
+          <rect x="24" y="24" width="52" height="36" rx="3" />
+          <path d="M14,66 L86,66 L80,74 L20,74 Z" />
+          <line x1="44" y1="66" x2="56" y2="66" strokeWidth="3.5" />
         </svg>
       )
     },
@@ -171,16 +193,15 @@ export default function EducationalHeroBackground() {
       accent: 'orange',
       desktopPos: { top: 230, left: 45 },
       size: 70,
-      color: 'rgba(251, 146, 60, 0.95)', // Warm Orange
       rotation: -10,
       duration: 18,
       delay: 0.3,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-1',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M75,30 Q80,60 50,75 Q20,90 20,55 C20,35 30,30 35,45" />
-          <circle cx="48" cy="38" r="5.5" fill="currentColor" stroke="none" />
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.4" strokeLinecap="round" className="edu-svg-icon">
+          <path d="M75,30 Q80,62 50,76 Q20,90 20,55 C20,35 30,30 35,45" />
+          <circle cx="48" cy="38" r="5.5" fill={color} stroke="none" />
         </svg>
       )
     },
@@ -191,15 +212,14 @@ export default function EducationalHeroBackground() {
       accent: 'green',
       desktopPos: { top: 300, left: 210 },
       size: 68,
-      color: 'rgba(16, 185, 129, 0.95)', // Jade Green
       rotation: 5,
       duration: 26,
       delay: 2.0,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinejoin="round" className="edu-svg-icon">
           <polygon points="50,15 80,32 80,68 50,85 20,68 20,32" />
-          <polygon points="50,23 74,37 74,63 50,77 26,63 26,37" strokeWidth="1" strokeDasharray="4 2" />
+          <polygon points="50,24 73,37 73,63 50,76 27,63 27,37" strokeWidth="1.8" strokeDasharray="5 3" />
         </svg>
       )
     },
@@ -214,18 +234,17 @@ export default function EducationalHeroBackground() {
       accent: 'pink',
       desktopPos: { top: 915, left: 45 },
       size: 72,
-      color: 'rgba(244, 114, 182, 0.95)', // Rose Pink
       rotation: 25,
       duration: 25,
       delay: 1.5,
       layer: 2,
       mobileClass: 'edu-mob-card edu-mob-pos-3',
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.0">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="2.8" className="edu-svg-icon">
           <ellipse cx="50" cy="50" rx="42" ry="14" transform="rotate(30, 50, 50)" />
           <ellipse cx="50" cy="50" rx="42" ry="14" transform="rotate(90, 50, 50)" />
           <ellipse cx="50" cy="50" rx="42" ry="14" transform="rotate(150, 50, 50)" />
-          <circle cx="50" cy="50" r="7.5" fill="currentColor" />
+          <circle cx="50" cy="50" r="7" fill={color} stroke="none" />
         </svg>
       )
     },
@@ -236,13 +255,12 @@ export default function EducationalHeroBackground() {
       accent: 'cyan',
       desktopPos: { top: 955, left: 220 },
       size: 70,
-      color: 'rgba(45, 212, 191, 0.95)', // Teal
       rotation: 35,
       duration: 24,
       delay: 1.4,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" className="edu-svg-icon">
           <path d="M20,20 Q35,50 50,50 T80,80" />
           <path d="M20,80 Q35,50 50,50 T80,20" />
           <line x1="28" y1="32" x2="28" y2="68" />
@@ -259,13 +277,12 @@ export default function EducationalHeroBackground() {
       accent: 'purple',
       desktopPos: { top: 915, left: 400 },
       size: 70,
-      color: 'rgba(192, 132, 252, 0.95)', // Soft Purple
       rotation: -10,
       duration: 27,
       delay: 2.2,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" className="edu-svg-icon">
           <path d="M25,20 L75,20 M30,20 L30,80 M40,20 L40,80 M50,20 L50,80 M60,20 L60,80 M70,20 L70,80 M25,80 L75,80 M20,85 L80,85" />
         </svg>
       )
@@ -281,17 +298,16 @@ export default function EducationalHeroBackground() {
       accent: 'blue',
       desktopPos: { top: 1040, right: 180 },
       size: 66,
-      color: 'rgba(129, 140, 248, 0.95)', // Indigo
       rotation: -14,
       duration: 25,
       delay: 1.8,
       layer: 1,
-      svg: (
-        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      renderSvg: (color) => (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" stroke={color} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" className="edu-svg-icon">
           <rect x="25" y="15" width="55" height="70" rx="5" />
-          <line x1="25" y1="30" x2="15" y2="30" strokeWidth="3" />
-          <line x1="25" y1="45" x2="15" y2="45" strokeWidth="3" />
-          <line x1="25" y1="60" x2="15" y2="60" strokeWidth="3" />
+          <line x1="25" y1="30" x2="15" y2="30" strokeWidth="3.5" />
+          <line x1="25" y1="45" x2="15" y2="45" strokeWidth="3.5" />
+          <line x1="25" y1="60" x2="15" y2="60" strokeWidth="3.5" />
           <line x1="38" y1="30" x2="70" y2="30" />
           <line x1="38" y1="45" x2="70" y2="45" />
           <line x1="38" y1="60" x2="70" y2="60" />
@@ -338,10 +354,6 @@ export default function EducationalHeroBackground() {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--base-rot)); -webkit-transform: translate3d(0, 0, 0) rotate(var(--base-rot)); }
           50% { transform: translate3d(0, -16px, 0) rotate(calc(var(--base-rot) + 5deg)); -webkit-transform: translate3d(0, -16px, 0) rotate(calc(var(--base-rot) + 5deg)); }
         }
-        @keyframes eduBreathe {
-          0%, 100% { opacity: 0.88; transform: scale(0.98); }
-          50% { opacity: 1.0; transform: scale(1.02); }
-        }
         @keyframes particleDrift {
           0% { transform: translate3d(0, 0, 0); -webkit-transform: translate3d(0, 0, 0); opacity: 0; }
           20% { opacity: 0.75; }
@@ -353,17 +365,16 @@ export default function EducationalHeroBackground() {
           -webkit-animation: eduFloat var(--float-dur) infinite ease-in-out;
           animation-delay: var(--float-delay);
           will-change: transform;
-        }
-        .edu-breathe-element {
-          animation: eduBreathe 6s infinite ease-in-out;
-          -webkit-animation: eduBreathe 6s infinite ease-in-out;
-          animation-delay: var(--float-delay);
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
         }
         .glow-particle {
           animation: particleDrift var(--part-dur) infinite linear;
           -webkit-animation: particleDrift var(--part-dur) infinite linear;
           animation-delay: var(--part-delay);
         }
+
+        /* Glass Card Base */
         .luminous-glass-card {
           width: 100%;
           height: 100%;
@@ -374,7 +385,38 @@ export default function EducationalHeroBackground() {
           display: flex;
           align-items: center;
           justify-content: center;
+          position: relative;
+          -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
           transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Dedicated Hardware-Accelerated Vector Host (Immune to WebKit culling/collapse) */
+        .edu-icon-host {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          z-index: 5;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
+          pointer-events: none;
+          overflow: visible;
+        }
+
+        /* Direct SVG rendering rules */
+        .edu-svg-icon {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          display: block !important;
+          overflow: visible !important;
+          pointer-events: none !important;
+          transform: translateZ(0);
+          -webkit-transform: translateZ(0);
         }
 
         /* ----------------------------------------------------
@@ -383,7 +425,7 @@ export default function EducationalHeroBackground() {
         /* 1. Purple / Violet */
         .glass-accent-purple.dark-glass,
         html:not(.light-theme) .glass-accent-purple {
-          background: linear-gradient(135deg, rgba(49, 46, 129, 0.55) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(139, 92, 246, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(49, 46, 129, 0.55) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(139, 92, 246, 0.25) 100%) !important;
           border: 1.5px solid rgba(167, 139, 250, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(139, 92, 246, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -397,7 +439,7 @@ export default function EducationalHeroBackground() {
         /* 2. Orange / Amber */
         .glass-accent-orange.dark-glass,
         html:not(.light-theme) .glass-accent-orange {
-          background: linear-gradient(135deg, rgba(120, 53, 15, 0.5) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(245, 158, 11, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(120, 53, 15, 0.5) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(245, 158, 11, 0.25) 100%) !important;
           border: 1.5px solid rgba(251, 146, 60, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(245, 158, 11, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -411,7 +453,7 @@ export default function EducationalHeroBackground() {
         /* 3. Green / Emerald */
         .glass-accent-green.dark-glass,
         html:not(.light-theme) .glass-accent-green {
-          background: linear-gradient(135deg, rgba(6, 78, 59, 0.5) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(16, 185, 129, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(6, 78, 59, 0.5) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(16, 185, 129, 0.25) 100%) !important;
           border: 1.5px solid rgba(52, 211, 153, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(16, 185, 129, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -425,7 +467,7 @@ export default function EducationalHeroBackground() {
         /* 4. Cyan / Teal */
         .glass-accent-cyan.dark-glass,
         html:not(.light-theme) .glass-accent-cyan {
-          background: linear-gradient(135deg, rgba(22, 78, 99, 0.5) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(6, 182, 212, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(22, 78, 99, 0.5) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(6, 182, 212, 0.25) 100%) !important;
           border: 1.5px solid rgba(34, 211, 238, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(6, 182, 212, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -439,7 +481,7 @@ export default function EducationalHeroBackground() {
         /* 5. Pink / Rose */
         .glass-accent-pink.dark-glass,
         html:not(.light-theme) .glass-accent-pink {
-          background: linear-gradient(135deg, rgba(131, 24, 67, 0.5) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(236, 72, 153, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(131, 24, 67, 0.5) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(236, 72, 153, 0.25) 100%) !important;
           border: 1.5px solid rgba(244, 114, 182, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(236, 72, 153, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -453,7 +495,7 @@ export default function EducationalHeroBackground() {
         /* 6. Blue / Sky */
         .glass-accent-blue.dark-glass,
         html:not(.light-theme) .glass-accent-blue {
-          background: linear-gradient(135deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.82) 55%, rgba(59, 130, 246, 0.25) 100%) !important;
+          background: linear-gradient(135deg, rgba(30, 58, 138, 0.5) 0%, rgba(15, 23, 42, 0.85) 55%, rgba(59, 130, 246, 0.25) 100%) !important;
           border: 1.5px solid rgba(96, 165, 250, 0.5) !important;
           box-shadow: 0 6px 22px -2px rgba(59, 130, 246, 0.35), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
         }
@@ -464,12 +506,7 @@ export default function EducationalHeroBackground() {
           box-shadow: 0 4px 18px -2px rgba(59, 130, 246, 0.22), inset 0 1px 2px rgba(255, 255, 255, 0.95) !important;
         }
 
-        .luminous-icon-glow {
-          filter: drop-shadow(0 0 6px currentColor);
-          -webkit-filter: drop-shadow(0 0 6px currentColor);
-        }
-
-        /* Mobile-only perimeter positioning & hardware-safe rendering (< 768px) */
+        /* Mobile-only perimeter positioning & WebKit/iOS Safari-safe rendering (< 768px) */
         @media (max-width: 767px) {
           .edu-mob-card {
             display: block !important;
@@ -481,8 +518,9 @@ export default function EducationalHeroBackground() {
             transition: none !important;
             will-change: auto !important;
             pointer-events: none !important;
-            z-index: 0 !important;
+            z-index: 1 !important;
           }
+
           /* EXACTLY 6 curated icons on mobile placed strictly in verified negative space */
           /* Icon 0 (Purple Math Tri): Top Left between navbar & ticker */
           .edu-mob-pos-0 { left: 14px !important; right: auto !important; top: 92px !important; }
@@ -512,9 +550,68 @@ export default function EducationalHeroBackground() {
             -webkit-animation: eduFloatMobile var(--float-dur) infinite ease-in-out !important;
             will-change: transform;
           }
+
+          /* Mobile glass cards: disable backdrop-filter to prevent WebKit vector dropping */
           .edu-mob-card .luminous-glass-card {
-            border-radius: 0.8rem !important;
-            padding: 0.38rem !important;
+            border-radius: 0.85rem !important;
+            padding: 0.42rem !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+          }
+
+          /* Solid semi-opaque backgrounds for flawless rendering on all mobile iOS Safari devices */
+          html:not(.light-theme) .edu-mob-card .glass-accent-purple,
+          .edu-mob-card .glass-accent-purple.dark-glass {
+            background: linear-gradient(135deg, rgba(30, 27, 75, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-purple,
+          .edu-mob-card .glass-accent-purple.light-glass {
+            background: linear-gradient(135deg, rgba(245, 243, 255, 0.98) 0%, rgba(238, 242, 255, 0.98) 100%) !important;
+          }
+
+          html:not(.light-theme) .edu-mob-card .glass-accent-orange,
+          .edu-mob-card .glass-accent-orange.dark-glass {
+            background: linear-gradient(135deg, rgba(67, 20, 7, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-orange,
+          .edu-mob-card .glass-accent-orange.light-glass {
+            background: linear-gradient(135deg, rgba(255, 251, 235, 0.98) 0%, rgba(254, 243, 199, 0.98) 100%) !important;
+          }
+
+          html:not(.light-theme) .edu-mob-card .glass-accent-green,
+          .edu-mob-card .glass-accent-green.dark-glass {
+            background: linear-gradient(135deg, rgba(6, 78, 59, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-green,
+          .edu-mob-card .glass-accent-green.light-glass {
+            background: linear-gradient(135deg, rgba(236, 253, 245, 0.98) 0%, rgba(209, 250, 229, 0.98) 100%) !important;
+          }
+
+          html:not(.light-theme) .edu-mob-card .glass-accent-cyan,
+          .edu-mob-card .glass-accent-cyan.dark-glass {
+            background: linear-gradient(135deg, rgba(22, 78, 99, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-cyan,
+          .edu-mob-card .glass-accent-cyan.light-glass {
+            background: linear-gradient(135deg, rgba(236, 254, 255, 0.98) 0%, rgba(207, 250, 254, 0.98) 100%) !important;
+          }
+
+          html:not(.light-theme) .edu-mob-card .glass-accent-pink,
+          .edu-mob-card .glass-accent-pink.dark-glass {
+            background: linear-gradient(135deg, rgba(76, 5, 25, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-pink,
+          .edu-mob-card .glass-accent-pink.light-glass {
+            background: linear-gradient(135deg, rgba(253, 242, 248, 0.98) 0%, rgba(252, 231, 243, 0.98) 100%) !important;
+          }
+
+          html:not(.light-theme) .edu-mob-card .glass-accent-blue,
+          .edu-mob-card .glass-accent-blue.dark-glass {
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.95) 0%, rgba(15, 23, 42, 0.96) 100%) !important;
+          }
+          html.light-theme .edu-mob-card .glass-accent-blue,
+          .edu-mob-card .glass-accent-blue.light-glass {
+            background: linear-gradient(135deg, rgba(239, 246, 255, 0.98) 0%, rgba(219, 234, 254, 0.98) 100%) !important;
           }
         }
       `}} />
@@ -526,6 +623,7 @@ export default function EducationalHeroBackground() {
           const pxTransX = mousePos.x * factor
           const pxTransY = mousePos.y * factor
           const isMobile = !!el.mobileClass
+          const activeColor = theme === 'light' ? ACCENT_PALETTE[el.accent].light : ACCENT_PALETTE[el.accent].dark
 
           return (
             <div
@@ -556,11 +654,8 @@ export default function EducationalHeroBackground() {
                 } as any}
               >
                 <div className={`luminous-glass-card glass-accent-${el.accent} ${theme === 'light' ? 'light-glass' : 'dark-glass'}`}>
-                  <div 
-                    className="w-full h-full edu-breathe-element flex items-center justify-center luminous-icon-glow"
-                    style={{ color: el.color }}
-                  >
-                    {el.svg}
+                  <div className="edu-icon-host">
+                    {el.renderSvg(activeColor)}
                   </div>
                 </div>
               </div>
