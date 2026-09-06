@@ -64,10 +64,14 @@ class AdminController extends Controller
             ->get();
 
         // Monthly sales for chart (NET sales)
+        $monthExpr = config('database.default') === 'sqlite'
+            ? "strftime('%Y-%m', created_at) as month"
+            : "TO_CHAR(created_at, 'YYYY-MM') as month";
+
         $monthlyChart = WalletTransaction::whereIn('type', ['purchase', 'refund'])
             ->select(
                 DB::raw("COALESCE(SUM(CASE WHEN type = 'purchase' THEN amount ELSE -amount END), 0) as total"),
-                DB::raw("TO_CHAR(created_at, 'YYYY-MM') as month")
+                DB::raw($monthExpr)
             )
             ->groupBy('month')
             ->orderBy('month', 'asc')

@@ -194,7 +194,7 @@ export default function CourseCard({
         {isBundle && childCourses && childCourses.length > 0 && (
           <div className="pt-3 border-t border-[var(--border-color)] space-y-1.5 text-right">
             <span className="text-[10px] text-text-secondary font-bold block">
-              📦 الكورسات المتضمنة ({childCourses.length}):
+              📦 يشمل {childCourses.length} كورسات:
             </span>
             <div className="flex flex-wrap gap-1">
               {childCourses.map((c) => (
@@ -237,7 +237,9 @@ export default function CourseCard({
               <div className="price-box flex flex-col justify-center">
                 {pricing.hasDiscount && (
                   <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md w-fit mb-0.5">
-                    {discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`}
+                    {isBundle && isBundleWithSavings 
+                      ? pricing.discountText 
+                      : (discountType === 'percentage' ? `خصم ${discountValue}%` : `خصم ${discountValue} ج.م`)}
                   </span>
                 )}
                 

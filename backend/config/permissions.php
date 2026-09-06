@@ -58,6 +58,10 @@ return [
             'group' => 'students_management',
             'label' => 'مراجعة وقبول الطلاب الجدد',
         ],
+        'student_activity.view' => [
+            'group' => 'students_management',
+            'label' => 'عرض ومراقبة نشاط وسجلات الطلاب',
+        ],
         'watch_limits.manage' => [
             'group' => 'students_management',
             'label' => 'تعديل حدود مشاهدات الطلاب',

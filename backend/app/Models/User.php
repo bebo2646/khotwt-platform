@@ -177,4 +177,14 @@ class User extends Authenticatable
         }
         return max(0, ($this->bunny_storage_limit_gb ?? 0) - ($this->bunny_storage_used_gb ?? 0));
     }
+
+    public function activityLogs()
+    {
+        return $this->hasMany(StudentActivityLog::class, 'student_id');
+    }
+
+    public function studentSessions()
+    {
+        return $this->hasMany(StudentSession::class, 'student_id');
+    }
 }

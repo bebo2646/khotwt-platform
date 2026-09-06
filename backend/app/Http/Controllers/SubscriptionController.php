@@ -1293,6 +1293,9 @@ class SubscriptionController extends Controller
     public function markNotificationAsRead(Request $request, $id)
     {
         $this->notificationService->markAsRead($request->user(), $id);
+        if ($request->user() && $request->user()->role === 'student') {
+            \App\Services\StudentActivityService::logNotificationOpened($request->user(), (int)$id, $request);
+        }
         return response()->json(['message' => 'تم تعيين الإشعار كمقروء']);
     }
 

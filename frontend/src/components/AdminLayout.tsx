@@ -36,7 +36,8 @@ import {
   AlertTriangle,
   Wallet,
   Coins,
-  FolderTree
+  FolderTree,
+  Activity
 } from 'lucide-react'
 
 export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -147,6 +148,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/teachers')) return 'إدارة شؤون المعلمين'
     if (path.startsWith('/admin/students')) return 'إدارة حسابات الطلاب'
     if (path.startsWith('/admin/courses')) return 'إدارة الكورسات والمناهج'
+    if (path.startsWith('/admin/student-activity')) return 'سجل ومراقبة نشاط الطلاب'
     if (path.startsWith('/admin/monthly-exams')) return 'إدارة الامتحانات الشهرية'
     if (path.startsWith('/admin/subscriptions/requests')) return 'طلبات اشتراكات المعلمين'
     if (path.startsWith('/admin/codes')) return 'إدارة أكواد الشحن'
@@ -158,6 +160,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/payouts')) return 'إدارة مستحقات ومدفوعات المعلمين'
     if (path.startsWith('/admin/taxonomy')) return 'إدارة الأقسام والمراحل الدراسية'
     if (path.startsWith('/admin/manage')) return 'إدارة صلاحيات المشرفين'
+    if (path.startsWith('/admin/security')) return 'الأمان ومكافحة التهديدات'
     return 'لوحة الإدارة'
   }
 
@@ -190,6 +193,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'الطلاب',
           path: '/admin/students',
           icon: <GraduationCap className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('students.manage')
+        },
+        {
+          label: 'نشاط الطلاب',
+          path: '/admin/student-activity',
+          icon: <Activity className="w-5 h-5 shrink-0" />,
           visible: hasPerm('students.manage')
         },
         {
@@ -284,6 +293,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
       path: '/admin/manage',
       icon: <ShieldAlert className="w-4 h-4 shrink-0" />,
       visible: hasPerm('admins.manage')
+    },
+    {
+      label: 'الأمان ومكافحة التهديدات',
+      path: '/admin/security',
+      icon: <ShieldAlert className="w-4 h-4 shrink-0 text-red-400" />,
+      visible: hasPerm('admins.manage') || hasPerm('dashboard.view')
     },
     {
       label: 'إعدادات المنصة',

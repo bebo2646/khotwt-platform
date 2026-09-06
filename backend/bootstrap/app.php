@@ -13,7 +13,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust all reverse proxies (Vercel, Railway, Cloudflare, Nginx) so client IP is accurately extracted
+        $middleware->trustProxies(at: '*');
+
+        $middleware->prepend(\App\Http\Middleware\AssignRequestId::class);
         $middleware->append(\App\Http\Middleware\CheckMaintenanceMode::class);
+        $middleware->append(\App\Http\Middleware\SecurityMonitoringMiddleware::class);
+
         $middleware->alias([
             'role' => \App\Http\Middleware\CheckRole::class,
             'must_change_password' => \App\Http\Middleware\EnforcePasswordChange::class,
@@ -43,11 +49,39 @@ return Application::configure(basePath: dirname(__DIR__))
                     $status = 403;
                 }
 
-                return response()->json([
-                    'message' => $e->getMessage() ?: 'Server Error',
-                    'exception' => get_class($e),
-                    'errors' => method_exists($e, 'errors') ? $e->errors() : null
-                ], $status);
+                $isDebug = config('app.debug', false);
+
+                // Safe message without leaking internal framework/SQL details
+                $message = $e->getMessage();
+                if ($status === 404) {
+                    $message = 'المسار المطلوب غير موجود';
+                } elseif ($status === 401) {
+                    $message = 'غير مصرح لك بالوصول (يرجى تسجيل الدخول)';
+                } elseif ($status === 403) {
+                    $message = $message ?: 'عذراً، ليس لديك الصلاحية الكافية لإجراء هذه العملية';
+                } elseif ($status === 500 && !$isDebug) {
+                    $message = 'حدث خطأ غير متوقع في الخادم. يرجى المحاولة لاحقاً.';
+                }
+
+                $data = [
+                    'message' => $message ?: 'خطأ في معالجة الطلب',
+                ];
+
+                if (method_exists($e, 'errors') && $e->errors()) {
+                    $data['errors'] = $e->errors();
+                }
+
+                if ($isDebug) {
+                    $data['exception'] = get_class($e);
+                }
+
+                $response = response()->json($data, $status);
+                $requestId = \App\Services\SecurityMonitoringService::getRequestId($request);
+                if ($requestId) {
+                    $response->header('X-Request-ID', $requestId);
+                }
+
+                return $response;
             }
         });
     })->create();

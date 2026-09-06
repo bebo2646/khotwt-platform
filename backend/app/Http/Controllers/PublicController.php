@@ -25,8 +25,13 @@ class PublicController extends Controller
         })->count();
         $studentsCount = User::where('role', 'student')->where('status', 'active')->count();
 
-        // Featured published courses (up to 6)
-        $featuredCourses = Course::with('teacher')
+        // Featured published courses and bundles (up to 6)
+        $featuredCourses = Course::with([
+            'teacher',
+            'childCourses' => function ($q) {
+                $q->withCount(['units', 'lessons']);
+            }
+        ])
             ->withCount(['units', 'lessons'])
             ->where('is_published', true)
             ->latest()

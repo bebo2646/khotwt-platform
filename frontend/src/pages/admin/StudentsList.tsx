@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { useAuthStore } from '../../store/authStore'
@@ -483,6 +484,13 @@ export default function StudentsList() {
                         >
                           <Eye className="h-4.5 w-4.5" />
                         </button>
+                        <Link
+                          to={`/admin/student-activity?student_id=${st.id}`}
+                          className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-emerald-400 cursor-pointer"
+                          title="سجل ومراقبة نشاط الطالب"
+                        >
+                          <Activity className="h-4.5 w-4.5" />
+                        </Link>
                         <button
                           onClick={() => handleOpenStudentLimitModal(st)}
                           className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-400 cursor-pointer"
@@ -598,6 +606,14 @@ export default function StudentsList() {
                     <span className="text-[10px] text-slate-400">{studentAnalytics.student.email} | {studentAnalytics.student.phone}</span>
                   </div>
                 </div>
+
+                <Link
+                  to={`/admin/student-activity?student_id=${viewStudentItem.id}`}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 px-4 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Activity className="h-4 w-4" />
+                  <span>فتح الخط الزمني الكامل لنشاط الطالب والجلسات (Timeline) &larr;</span>
+                </Link>
 
                 {/* Progress Overview stats */}
                 <div className="grid grid-cols-3 gap-4">

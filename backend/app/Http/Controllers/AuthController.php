@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\StudentActivityService;
+use App\Services\SecurityMonitoringService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -124,6 +126,11 @@ class AuthController extends Controller
         $englishDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
         $identifier = str_replace($arabicDigits, $englishDigits, $identifier);
 
+        // Security: Check if client IP is currently blocked by brute-force protection
+        if ($bruteForceResponse = SecurityMonitoringService::checkLoginBruteForce($request, $rawIdentifier)) {
+            return $bruteForceResponse;
+        }
+
         $ip = $request->ip();
         $throttleKey = 'login_attempts:' . \Illuminate\Support\Str::lower($identifier) . '|' . $ip;
         $errorField = $request->has('identifier') ? 'identifier' : 'email';
@@ -184,6 +191,10 @@ class AuthController extends Controller
 
         // CASE 1 — ACCOUNT DOES NOT EXIST:
         if (!$user) {
+            StudentActivityService::logFailedLogin($identifier, 'الحساب غير موجود', $request);
+            if ($blockResponse = SecurityMonitoringService::handleFailedLogin($request, $identifier, 'الحساب غير موجود')) {
+                return $blockResponse;
+            }
             RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
                 $errorField => ['هذا الحساب غير موجود'],
@@ -192,6 +203,10 @@ class AuthController extends Controller
 
         // CASE 2 — ACCOUNT EXISTS BUT PASSWORD IS WRONG:
         if (!Hash::check($request->password, $user->password)) {
+            StudentActivityService::logFailedLogin($user->email ?? $identifier, 'كلمة المرور غير صحيحة', $request);
+            if ($blockResponse = SecurityMonitoringService::handleFailedLogin($request, $user->email ?? $identifier, 'كلمة المرور غير صحيحة')) {
+                return $blockResponse;
+            }
             RateLimiter::hit($throttleKey, 1800); // 30 minutes
             throw ValidationException::withMessages([
                 'password' => ['كلمة المرور غير صحيحة'],
@@ -236,6 +251,13 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        if ($user->role === 'student') {
+            StudentActivityService::startSession($user, $request);
+            StudentActivityService::logLogin($user, $request);
+        }
+
+        SecurityMonitoringService::handleSuccessfulLogin($request, $user);
+
         return response()->json([
             'user' => $user,
             'token' => $token,
@@ -251,6 +273,9 @@ class AuthController extends Controller
     {
         $user = $request->user();
         if ($user) {
+            if ($user->role === 'student') {
+                StudentActivityService::endSession($user, $request);
+            }
             $user->update([
                 'current_session_token' => null
             ]);
@@ -300,6 +325,10 @@ class AuthController extends Controller
         $user->password = Hash::make($request->password);
         $user->must_change_password = false;
         $user->save();
+
+        if ($user->role === 'student') {
+            StudentActivityService::logAccountEvent($user, 'changed_password', 'قام بتغيير كلمة المرور بنجاح', $request);
+        }
 
         return response()->json([
             'user' => $user,

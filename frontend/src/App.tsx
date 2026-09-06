@@ -66,6 +66,7 @@ const AdminDashboard = React.lazy(() => import('./pages/admin/Dashboard'))
 const AdminTeachersList = React.lazy(() => import('./pages/admin/TeachersList'))
 const AdminCreateTeacher = React.lazy(() => import('./pages/admin/CreateTeacher'))
 const AdminStudentsList = React.lazy(() => import('./pages/admin/StudentsList'))
+const StudentActivity = React.lazy(() => import('./pages/admin/StudentActivity'))
 const AdminCoursesList = React.lazy(() => import('./pages/admin/CoursesList'))
 const MonthlyExamsManagement = React.lazy(() => import('./pages/admin/MonthlyExamsManagement'))
 const PurchaseCodes = React.lazy(() => import('./pages/admin/PurchaseCodes'))
@@ -81,6 +82,7 @@ const AdminPayouts = React.lazy(() => import('./pages/admin/Payouts'))
 const PendingStudents = React.lazy(() => import('./pages/admin/PendingStudents'))
 const PlatformSettings = React.lazy(() => import('./pages/admin/PlatformSettings'))
 const AdminTaxonomyManagement = React.lazy(() => import('./pages/admin/TaxonomyManagement'))
+const AdminSecurityMonitoring = React.lazy(() => import('./pages/admin/SecurityMonitoring'))
 
 // Main Layout Wrapper
 function Layout({ children }: { children: React.ReactNode }) {
@@ -177,6 +179,29 @@ function App() {
       window.removeEventListener('elm_session_invalid', handleSessionInvalid)
     }
   }, [initTheme])
+
+  // Student presence heartbeat (every 90s + throttled on focus)
+  React.useEffect(() => {
+    if (!isLoggedIn || user?.role !== 'student') return
+
+    let lastSent = 0
+    const sendHeartbeat = () => {
+      const now = Date.now()
+      // Throttle: don't send if sent within the last 45 seconds
+      if (now - lastSent < 45000) return
+      lastSent = now
+      API.post('/student/activity/heartbeat', {}).catch(() => {})
+    }
+
+    sendHeartbeat()
+    const interval = setInterval(sendHeartbeat, 90000)
+    window.addEventListener('focus', sendHeartbeat)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('focus', sendHeartbeat)
+    }
+  }, [isLoggedIn, user?.role])
 
   // Handle orientation change and resize events to prevent height/layout bugs (e.g. vh bugs on iOS)
   React.useEffect(() => {
@@ -470,6 +495,16 @@ function App() {
         <Route path="/admin/students" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
             <AdminLayout><AdminStudentsList /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/student-activity" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
+            <AdminLayout><StudentActivity /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/security" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="admins.manage">
+            <AdminLayout><AdminSecurityMonitoring /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/courses" element={

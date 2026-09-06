@@ -14,6 +14,7 @@ use App\Models\VideoProgress;
 use App\Models\Exam;
 use App\Models\StudentExam;
 use App\Models\StudentAnswer;
+use App\Services\StudentActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -527,6 +528,8 @@ class StudentController extends Controller
                         'code'
                     );
 
+                    StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, $amount, 'code', request());
+
                     return response()->json([
                         'message' => 'تم الاشتراك في الكورس بنجاح.',
                         'balance' => $wallet->balance,
@@ -690,6 +693,7 @@ class StudentController extends Controller
         $totalAvailable = $wallet->balance + $creditBalance;
 
         if ($totalAvailable < $course->final_price) {
+            StudentActivityService::logPurchaseFailed($user, $course->is_bundle ? 'bundle' : 'course', $course, 'رصيد المحفظة غير كافٍ للاشتراك', $request);
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
@@ -768,6 +772,8 @@ class StudentController extends Controller
                 $originalPrice,
                 $discountAmount
             );
+
+            StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, (float)$course->final_price, 'wallet', request());
 
             return response()->json([
                 'message' => 'تم الاشتراك في الكورس بنجاح.',
@@ -1217,6 +1223,7 @@ class StudentController extends Controller
         $totalAvailable = $wallet->balance + $creditBalance;
 
         if ($totalAvailable < $lesson->price) {
+            StudentActivityService::logPurchaseFailed($user, 'lesson', $lesson, 'رصيد المحفظة غير كافٍ للاشتراك', $request);
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
@@ -1293,6 +1300,8 @@ class StudentController extends Controller
                 $lessonPrice,
                 0.00
             );
+
+            StudentActivityService::logPurchase($user, 'lesson', $lesson, $lessonPrice, 'wallet', request());
 
             return response()->json([
                 'message' => 'تم الاشتراك في المحاضرة بنجاح.',
@@ -1405,6 +1414,9 @@ class StudentController extends Controller
                     'is_locked' => true
                 ], 403);
             }
+
+            $bundleId = $parentBundle && $parentBundle->is_bundle ? $parentBundle->id : null;
+            StudentActivityService::logLessonOpened($user, $lesson, $course->id, $bundleId, $request);
         } elseif ($user->role === 'teacher') {
             if ($course->teacher_id !== $user->id) {
                 return response()->json(['message' => 'غير مصرح لك بمشاهدة محتوى درس لا يخص كورساتك.'], 403);
@@ -1808,6 +1820,28 @@ class StudentController extends Controller
             ]
         );
 
+        if ($user->role === 'student') {
+            $bundleId = $contextCourse && $contextCourse->is_bundle ? $contextCourse->id : null;
+            $childCourseId = $lesson && $lesson->unit ? $lesson->unit->course_id : ($contextCourse && !$contextCourse->is_bundle ? $contextCourse->id : null);
+            
+            // Log video started
+            if ($finalWatchedSeconds > 0) {
+                StudentActivityService::logVideoStarted($user, $video, $childCourseId, $bundleId, $request);
+            }
+
+            // Log video milestones (25%, 50%, 75%) or completion
+            StudentActivityService::logVideoProgress(
+                $user,
+                $video,
+                (float)$percentage,
+                (int)$finalWatchedSeconds,
+                (bool)$completed,
+                $childCourseId,
+                $bundleId,
+                $request
+            );
+        }
+
         $videoViewLimitDetails = null;
         $totalAllowed = -1;
         $viewsUsed = 0;
@@ -1898,6 +1932,15 @@ class StudentController extends Controller
         $progress->increment('open_count');
         $progress->last_opened_at = \Carbon\Carbon::now();
         $progress->save();
+
+        if ($user->role === 'student') {
+            $bundleId = null;
+            if ($courseIdParam) {
+                $c = Course::find($courseIdParam);
+                if ($c && $c->is_bundle) $bundleId = $c->id;
+            }
+            StudentActivityService::logPdfOpened($user, $pdf, $contextCourseId, $bundleId, $request);
+        }
 
         return response()->json([
             'message' => 'تم تسجيل فتح الملف بنجاح.',
@@ -2232,6 +2275,10 @@ class StudentController extends Controller
             $answersFormatted[$ans->question_id] = $ans->answer_text;
         }
 
+        if ($user->role === 'student') {
+            StudentActivityService::logExamEvent($user, $exam, 'started', $attempt, [], $request);
+        }
+
         return response()->json([
             'attempt_id' => $attempt->id,
             'exam' => [
@@ -2475,6 +2522,10 @@ class StudentController extends Controller
                 }
             }
 
+            if ($user->role === 'student') {
+                StudentActivityService::logExamEvent($user, $exam, 'submitted', $attempt, ['score' => $attempt->score], $request);
+            }
+
             return response()->json([
                 'message' => 'تم تسليم الإجابات بنجاح.',
                 'attempt' => $attempt,
@@ -2523,9 +2574,16 @@ class StudentController extends Controller
         $timestamps[] = $violationData;
         $attempt->violation_timestamps = $timestamps;
 
+        if ($user->role === 'student') {
+            StudentActivityService::logAntiCheat($user, $exam, $request->violation_type, $violationData, $request);
+        }
+
         $reachedLimit = $attempt->violation_count >= ($exam->allowed_violations ?? 3);
         
         if ($reachedLimit && $request->violation_type !== 'returned') {
+            if ($user->role === 'student') {
+                StudentActivityService::logAntiCheat($user, $exam, 'terminated_for_cheating', array_merge($violationData, ['reason' => 'تجاوز الحد الأقصى للمخالفات']), $request);
+            }
             $attempt->is_suspicious = true;
             if ($exam->auto_submit_on_violation) {
                 // Auto-submit and grade current answers when locked out due to violations

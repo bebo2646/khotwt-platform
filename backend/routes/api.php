@@ -10,6 +10,8 @@ use App\Http\Controllers\UploadController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\MonthlyExamsController;
 use App\Http\Controllers\TaxonomyController;
+use App\Http\Controllers\StudentActivityController;
+use App\Http\Controllers\SecurityMonitoringController;
 
 /*
 |--------------------------------------------------------------------------
@@ -117,6 +119,11 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/monthly-exams/{id}/log-violation', [MonthlyExamsController::class, 'logViolation']);
             Route::post('/monthly-exams/{id}/submit', [MonthlyExamsController::class, 'submit']);
             Route::get('/monthly-exams/{id}/results', [MonthlyExamsController::class, 'results']);
+
+            // Student Activity & Presence Heartbeat
+            Route::post('/student/activity/heartbeat', [StudentActivityController::class, 'heartbeat']);
+            Route::post('/student/heartbeat', [StudentActivityController::class, 'heartbeat']);
+            Route::post('/student/activity/log', [StudentActivityController::class, 'logClientActivity']);
         });
 
         /*
@@ -202,6 +209,12 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/admin/active-sessions/logout-all', [AdminController::class, 'forceLogoutAllSessions']);
                 Route::post('/admin/active-sessions/{id}/logout', [AdminController::class, 'forceLogoutSession']);
                 Route::get('/admin/logs', [AdminController::class, 'activityLogs']);
+
+                // Security & Threat Monitoring
+                Route::get('/admin/security/stats', [SecurityMonitoringController::class, 'stats']);
+                Route::get('/admin/security/events', [SecurityMonitoringController::class, 'index']);
+                Route::get('/admin/security/blocked-ips', [SecurityMonitoringController::class, 'blockedIps']);
+                Route::post('/admin/security/unblock-ip', [SecurityMonitoringController::class, 'unblockIp']);
             });
 
             // Teachers Management
@@ -264,6 +277,11 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:students.manage')->group(function () {
                 Route::get('/admin/students', [AdminController::class, 'listStudents']);
                 Route::get('/admin/students/{student}/analytics', [AdminController::class, 'studentAnalytics']);
+                Route::get('/admin/student-activity', [StudentActivityController::class, 'index']);
+                Route::get('/admin/student-activity/stats', [StudentActivityController::class, 'stats']);
+                Route::get('/admin/student-activity/sessions', [StudentActivityController::class, 'sessions']);
+                Route::get('/admin/students/{student}/activity', [StudentActivityController::class, 'studentActivity']);
+                Route::get('/admin/students/{student}/security-events', [SecurityMonitoringController::class, 'studentSecurityEvents']);
                 Route::post('/admin/students/{id}/reset-password', [AdminController::class, 'resetStudentPassword']);
                 Route::delete('/admin/students/{id}', [AdminController::class, 'deleteStudent']);
                 Route::post('/admin/users/{id}/disable', [AdminController::class, 'disableUser']);
@@ -397,4 +415,18 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
         });
 
     });
+});
+
+/*
+|--------------------------------------------------------------------------
+| API Fallback Route (Safe 404 for Unknown Endpoints)
+|--------------------------------------------------------------------------
+*/
+Route::fallback(function (\Illuminate\Http\Request $request) {
+    return response()->json([
+        'message' => 'نقطة النهاية المطلوبة غير موجودة على المنصة.',
+        'code' => 'ENDPOINT_NOT_FOUND',
+        'status' => 404,
+        'request_id' => \App\Services\SecurityMonitoringService::getRequestId($request),
+    ], 404);
 });
