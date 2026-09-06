@@ -26,6 +26,7 @@ import API from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useModalStore } from '../store/modalStore'
 import SEO from '../components/SEO'
+import { formatGradeName, formatSubjectName } from '../utils/formatters'
 
 interface MonthlyExam {
   id: number
@@ -198,7 +199,7 @@ export default function MonthlyExams() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background text-foreground py-10 px-4 sm:px-6 lg:px-8 text-right" dir="rtl">
       <SEO 
         title="الامتحانات الشهرية الشاملة | منصة خطوتك التعليمية"
         description="اختبر مستواك الدراسي مع الامتحانات الشهرية التفاعلية بنظام التقييم الفوري ونظام منع الغش الذكي."
@@ -207,37 +208,37 @@ export default function MonthlyExams() {
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Header Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-900/40 via-slate-900/80 to-purple-900/30 border border-indigo-500/20 p-8 sm:p-12 backdrop-blur-xl shadow-2xl">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-primary/10 via-[var(--surface-bg)] to-brand-secondary/10 border border-[var(--border-color)] p-8 sm:p-12 backdrop-blur-xl shadow-lg">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-3 text-center md:text-right">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-black">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>التقييمات والاختبارات الشهرية المعتمدة</span>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">
                 الامتحانات الشهرية الشاملة
               </h1>
-              <p className="text-slate-400 text-sm sm:text-base max-w-2xl leading-relaxed">
+              <p className="text-[var(--text-secondary)] text-sm sm:text-base max-w-2xl leading-relaxed font-medium">
                 امتحانات شهرية مستقلة تحاكي مواصفات الامتحانات الرسمية، مع تصحيح ذكي فوري، وتحليل أداء تفصيلي لكل مادة.
               </p>
             </div>
 
             {/* Student Wallet Quick Card */}
             {isLoggedIn && user?.role === 'student' && (
-              <div className="shrink-0 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-4 shadow-lg">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <div className="shrink-0 bg-[var(--surface-bg)] border border-[var(--border-color)] rounded-2xl p-4 flex items-center gap-4 shadow-sm">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 dark:text-emerald-400">
                   <Wallet className="w-6 h-6" />
                 </div>
                 <div>
-                  <div className="text-xs text-slate-400 font-medium">رصيد محفظتك الحالي</div>
-                  <div className="text-xl font-black text-emerald-400">
+                  <div className="text-xs text-[var(--text-muted)] font-medium">رصيد محفظتك الحالي</div>
+                  <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
                     {userWalletBalance !== null ? `${userWalletBalance.toFixed(2)} ج.م` : 'جاري التحميل...'}
                   </div>
                 </div>
                 <Link
                   to="/student/wallet"
-                  className="mr-2 px-3 py-1.5 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-xs font-bold border border-indigo-500/30 transition-colors"
+                  className="mr-2 px-3.5 py-1.5 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary text-xs font-bold border border-brand-primary/30 transition-colors"
                 >
                   شحن المحفظة
                 </Link>
@@ -247,7 +248,7 @@ export default function MonthlyExams() {
         </div>
 
         {/* Filter & Search Bar */}
-        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 sm:p-6 backdrop-blur-md shadow-lg space-y-4">
+        <div className="bg-[var(--surface-bg)] border border-[var(--border-color)] rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             
             {/* Search Input */}
@@ -257,9 +258,9 @@ export default function MonthlyExams() {
                 placeholder="ابحث باسم الامتحان أو المعلم..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pr-10 pl-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl pr-10 pl-4 py-2.5 text-sm text-[var(--input-text)] placeholder-[var(--placeholder-color)] focus:outline-none focus:border-brand-primary transition-colors"
               />
-              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+              <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" />
             </div>
 
             {/* Month Filter */}
@@ -267,10 +268,10 @@ export default function MonthlyExams() {
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--input-text)] focus:outline-none focus:border-brand-primary transition-colors cursor-pointer"
               >
                 {MONTHS_LIST.map((m) => (
-                  <option key={m} value={m} className="bg-slate-900">{m}</option>
+                  <option key={m} value={m} className="bg-[var(--surface-bg)] text-foreground">{m}</option>
                 ))}
               </select>
             </div>
@@ -280,10 +281,10 @@ export default function MonthlyExams() {
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--input-text)] focus:outline-none focus:border-brand-primary transition-colors cursor-pointer"
               >
                 {GRADES_LIST.map((g) => (
-                  <option key={g.value} value={g.value} className="bg-slate-900">{g.label}</option>
+                  <option key={g.value} value={g.value} className="bg-[var(--surface-bg)] text-foreground">{g.label}</option>
                 ))}
               </select>
             </div>
@@ -293,11 +294,11 @@ export default function MonthlyExams() {
               <select
                 value={selectedSubject}
                 onChange={(e) => setSelectedSubject(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[var(--input-bg)] border border-[var(--input-border)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--input-text)] focus:outline-none focus:border-brand-primary transition-colors cursor-pointer"
               >
-                <option value="all" className="bg-slate-900">جميع المواد الدراسية</option>
+                <option value="all" className="bg-[var(--surface-bg)] text-foreground">جميع المواد الدراسية</option>
                 {availableSubjects.filter(s => s !== 'all').map((s) => (
-                  <option key={s} value={s} className="bg-slate-900">{s}</option>
+                  <option key={s} value={s} className="bg-[var(--surface-bg)] text-foreground">{formatSubjectName(s)}</option>
                 ))}
               </select>
             </div>
@@ -309,21 +310,21 @@ export default function MonthlyExams() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-72 rounded-2xl bg-slate-900/40 border border-slate-800/60 animate-pulse p-6 space-y-4">
-                <div className="h-6 bg-slate-800 rounded-md w-3/4" />
-                <div className="h-4 bg-slate-800/60 rounded-md w-1/2" />
-                <div className="h-20 bg-slate-800/30 rounded-xl" />
-                <div className="h-10 bg-slate-800 rounded-xl w-full" />
+              <div key={i} className="h-72 rounded-2xl bg-[var(--surface-bg)] border border-[var(--border-color)] animate-pulse p-6 space-y-4">
+                <div className="h-6 bg-[var(--border-color)] rounded-md w-3/4" />
+                <div className="h-4 bg-[var(--border-color)]/70 rounded-md w-1/2" />
+                <div className="h-20 bg-[var(--border-color)]/40 rounded-xl" />
+                <div className="h-10 bg-[var(--border-color)]/60 rounded-xl w-full" />
               </div>
             ))}
           </div>
         ) : filteredExams.length === 0 ? (
-          <div className="text-center py-16 bg-slate-900/30 border border-slate-800 rounded-3xl p-8 space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+          <div className="text-center py-16 bg-[var(--surface-bg)] border border-[var(--border-color)] rounded-3xl p-8 space-y-4 shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 text-brand-primary flex items-center justify-center mx-auto">
               <FileText className="w-8 h-8" />
             </div>
-            <h3 className="text-lg font-bold text-slate-200">لا توجد امتحانات شهرية مطابقة</h3>
-            <p className="text-sm text-slate-400 max-w-md mx-auto">
+            <h3 className="text-lg font-black text-foreground">لا توجد امتحانات شهرية مطابقة</h3>
+            <p className="text-sm text-[var(--text-secondary)] max-w-md mx-auto">
               لم نتمكن من العثور على امتحانات شهرية تطابق معايير البحث المحددة. جرب تغيير الفلاتر.
             </p>
           </div>
@@ -342,25 +343,25 @@ export default function MonthlyExams() {
                   key={exam.id}
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex flex-col justify-between bg-slate-900/70 hover:bg-slate-900/90 border border-slate-800 hover:border-indigo-500/40 rounded-2xl p-6 transition-all duration-300 shadow-xl group relative overflow-hidden"
+                  className="flex flex-col justify-between bg-[var(--surface-bg)] hover:bg-[var(--surface-bg)] border border-[var(--border-color)] hover:border-brand-primary/40 rounded-2xl p-6 transition-all duration-300 shadow-sm hover:shadow-md group relative overflow-hidden"
                 >
                   {/* Subtle Glow */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-colors pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-brand-primary/5 rounded-full blur-2xl group-hover:bg-brand-primary/10 transition-colors pointer-events-none" />
 
                   {/* Top Badges */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-black">
                         <Calendar className="w-3.5 h-3.5" />
                         {exam.month}
                       </span>
 
                       {isFree ? (
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-black">
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-black">
                           مجاني
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-black">
+                        <span className="px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black">
                           {priceNum} ج.م
                         </span>
                       )}
@@ -368,14 +369,16 @@ export default function MonthlyExams() {
 
                     {/* Title & Subject */}
                     <div>
-                      <div className="text-xs text-indigo-400 font-semibold mb-1">
-                        {exam.subject} • {exam.grade}
+                      <div className="text-xs text-brand-primary font-bold mb-1 flex items-center gap-1.5" dir="rtl">
+                        <span>{formatGradeName(exam.grade)}</span>
+                        <span className="text-[var(--text-muted)]">•</span>
+                        <span>{formatSubjectName(exam.subject)}</span>
                       </div>
-                      <h3 className="text-lg font-black text-slate-100 group-hover:text-indigo-300 transition-colors line-clamp-2">
+                      <h3 className="text-lg font-black text-foreground group-hover:text-brand-primary transition-colors line-clamp-2">
                         {exam.title}
                       </h3>
                       {exam.description && (
-                        <p className="text-xs text-slate-400 mt-2 line-clamp-2 leading-relaxed">
+                        <p className="text-xs text-[var(--text-secondary)] mt-2 line-clamp-2 leading-relaxed font-normal">
                           {exam.description}
                         </p>
                       )}
@@ -383,33 +386,33 @@ export default function MonthlyExams() {
 
                     {/* Teacher Info */}
                     {exam.teacher && (
-                      <div className="flex items-center gap-3 pt-2 border-t border-slate-800/80">
-                        <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 overflow-hidden">
+                      <div className="flex items-center gap-3 pt-2 border-t border-[var(--border-color)]">
+                        <div className="w-8 h-8 rounded-full bg-[var(--bg-color)] border border-[var(--border-color)] flex items-center justify-center text-xs font-bold text-[var(--text-secondary)] overflow-hidden">
                           {exam.teacher.avatar ? (
                             <img src={exam.teacher.avatar} alt={exam.teacher.name} className="w-full h-full object-cover" />
                           ) : (
-                            <User className="w-4 h-4 text-slate-400" />
+                            <User className="w-4 h-4 text-[var(--text-muted)]" />
                           )}
                         </div>
-                        <span className="text-xs font-bold text-slate-300">
+                        <span className="text-xs font-bold text-foreground">
                           {exam.teacher.name}
                         </span>
                       </div>
                     )}
 
                     {/* Exam Specs Badges */}
-                    <div className="grid grid-cols-3 gap-2 py-3 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center">
+                    <div className="grid grid-cols-3 gap-2 py-3 bg-[var(--bg-color)]/60 rounded-xl border border-[var(--border-color)] text-center">
                       <div>
-                        <div className="text-[10px] text-slate-400 font-medium">المدة</div>
-                        <div className="text-xs font-bold text-slate-200 mt-0.5">{exam.time_limit_minutes} دقيقة</div>
+                        <div className="text-[10px] text-[var(--text-muted)] font-bold">المدة</div>
+                        <div className="text-xs font-black text-foreground mt-0.5">{exam.time_limit_minutes} دقيقة</div>
                       </div>
-                      <div className="border-r border-slate-800/80">
-                        <div className="text-[10px] text-slate-400 font-medium">الأسئلة</div>
-                        <div className="text-xs font-bold text-slate-200 mt-0.5">{exam.questions_count} سؤال</div>
+                      <div className="border-r border-[var(--border-color)]">
+                        <div className="text-[10px] text-[var(--text-muted)] font-bold">الأسئلة</div>
+                        <div className="text-xs font-black text-foreground mt-0.5">{exam.questions_count} سؤال</div>
                       </div>
-                      <div className="border-r border-slate-800/80">
-                        <div className="text-[10px] text-slate-400 font-medium">الدرجة</div>
-                        <div className="text-xs font-bold text-indigo-400 mt-0.5">{exam.max_score} درجة</div>
+                      <div className="border-r border-[var(--border-color)]">
+                        <div className="text-[10px] text-[var(--text-muted)] font-bold">الدرجة</div>
+                        <div className="text-xs font-black text-brand-primary mt-0.5">{exam.max_score} درجة</div>
                       </div>
                     </div>
                   </div>
@@ -419,7 +422,7 @@ export default function MonthlyExams() {
                     {isTerminated ? (
                       <button
                         onClick={() => navigate(`/monthly-exams/${exam.id}/results`)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-bold transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 text-xs font-bold transition-all cursor-pointer"
                       >
                         <ShieldAlert className="w-4 h-4" />
                         <span>تم إنهاء المحاولة (مخالفة) - عرض التقرير</span>
@@ -427,7 +430,7 @@ export default function MonthlyExams() {
                     ) : attempt && attempt.status === 'started' ? (
                       <button
                         onClick={() => handleExamAction(exam)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-lg shadow-amber-600/20 transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
                       >
                         <Play className="w-4 h-4 fill-current" />
                         <span>استكمال الامتحان الجاري</span>
@@ -435,15 +438,15 @@ export default function MonthlyExams() {
                     ) : attempt && (attempt.status === 'submitted' || attempt.status === 'graded') ? (
                       <button
                         onClick={() => navigate(`/monthly-exams/${exam.id}/results`)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 text-foreground border border-[var(--border-color)] text-xs font-bold transition-all cursor-pointer"
                       >
-                        <Eye className="w-4 h-4 text-indigo-400" />
+                        <Eye className="w-4 h-4 text-brand-primary" />
                         <span>عرض النتيجة والتقرير ({attempt.score ?? 0} / {exam.max_score})</span>
                       </button>
                     ) : isPurchased || isFree ? (
                       <button
                         onClick={() => handleExamAction(exam)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold shadow-lg shadow-brand-primary/20 transition-all cursor-pointer"
                       >
                         <Play className="w-4 h-4 fill-current" />
                         <span>بدء الامتحان الآن</span>
@@ -451,7 +454,7 @@ export default function MonthlyExams() {
                     ) : (
                       <button
                         onClick={() => handleExamAction(exam)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
                       >
                         <Lock className="w-4 h-4" />
                         <span>شراء الامتحان ({priceNum} ج.م)</span>
@@ -469,46 +472,46 @@ export default function MonthlyExams() {
       {/* Purchase Modal */}
       <AnimatePresence>
         {purchasingExam && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-right"
+              className="bg-[var(--surface-bg)] border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-right"
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="text-lg font-black text-white">تأكيد شراء امتحان شهري</h3>
-                <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 font-bold border border-indigo-500/20">
+              <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
+                <h3 className="text-lg font-black text-foreground">تأكيد شراء امتحان شهري</h3>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/20">
                   {purchasingExam.month}
                 </span>
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-base font-bold text-indigo-300">{purchasingExam.title}</h4>
-                <div className="text-xs text-slate-400">
-                  المادة: <span className="text-slate-200">{purchasingExam.subject}</span> • الصف: <span className="text-slate-200">{purchasingExam.grade}</span>
+                <h4 className="text-base font-black text-brand-primary">{purchasingExam.title}</h4>
+                <div className="text-xs text-[var(--text-secondary)]">
+                  المادة: <span className="text-foreground font-bold">{formatSubjectName(purchasingExam.subject)}</span> • الصف: <span className="text-foreground font-bold">{formatGradeName(purchasingExam.grade)}</span>
                 </div>
                 {purchasingExam.teacher && (
-                  <div className="text-xs text-slate-400">
-                    المعلم: <span className="text-slate-200">{purchasingExam.teacher.name}</span>
+                  <div className="text-xs text-[var(--text-secondary)]">
+                    المعلم: <span className="text-foreground font-bold">{purchasingExam.teacher.name}</span>
                   </div>
                 )}
               </div>
 
               {/* Price Details */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-2 text-xs">
-                <div className="flex justify-between items-center text-slate-400">
+              <div className="bg-[var(--bg-color)]/80 border border-[var(--border-color)] rounded-2xl p-4 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-[var(--text-secondary)]">
                   <span>سعر الامتحان الشهري:</span>
-                  <span className="text-slate-200 font-bold text-sm">{purchasingExam.price} ج.م</span>
+                  <span className="text-foreground font-black text-sm">{purchasingExam.price} ج.م</span>
                 </div>
-                <div className="flex justify-between items-center text-slate-400">
+                <div className="flex justify-between items-center text-[var(--text-secondary)]">
                   <span>رصيد محفظتك الحالي:</span>
-                  <span className="text-emerald-400 font-bold text-sm">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-black text-sm">
                     {userWalletBalance !== null ? `${userWalletBalance.toFixed(2)} ج.م` : '...'}
                   </span>
                 </div>
                 {userWalletBalance !== null && userWalletBalance < parseFloat(String(purchasingExam.price)) && (
-                  <div className="pt-2 text-rose-400 text-[11px] font-semibold flex items-center gap-1.5 border-t border-slate-800">
+                  <div className="pt-2 text-rose-500 dark:text-rose-400 text-[11px] font-semibold flex items-center gap-1.5 border-t border-[var(--border-color)]">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     <span>رصيدك غير كافٍ لإتمام الشراء. يرجى شحن المحفظة.</span>
                   </div>
@@ -523,7 +526,7 @@ export default function MonthlyExams() {
                       setPurchasingExam(null)
                       navigate('/student/wallet')
                     }}
-                    className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
+                    className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors cursor-pointer"
                   >
                     الانتقال لشحن المحفظة
                   </button>
@@ -531,7 +534,7 @@ export default function MonthlyExams() {
                   <button
                     disabled={isPurchasing}
                     onClick={confirmPurchase}
-                    className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 py-3 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white font-bold text-xs shadow-md shadow-brand-primary/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     {isPurchasing && <Loader2 className="w-4 h-4 animate-spin" />}
                     <span>تأكيد الشراء والخصم من المحفظة</span>
@@ -540,7 +543,7 @@ export default function MonthlyExams() {
                 <button
                   disabled={isPurchasing}
                   onClick={() => setPurchasingExam(null)}
-                  className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors"
+                  className="px-5 py-3 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 text-[var(--text-secondary)] hover:text-foreground font-bold text-xs border border-[var(--border-color)] transition-colors cursor-pointer"
                 >
                   إلغاء
                 </button>

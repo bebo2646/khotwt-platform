@@ -105,10 +105,10 @@ export default function Navbar() {
       <Link 
         to={to} 
         onClick={() => setMobileMenuOpen(false)}
-        className={`font-black text-xs transition-all duration-300 relative py-2 px-3.5 rounded-xl whitespace-nowrap shrink-0 border ${
+        className={`font-black text-xs transition-all duration-200 relative py-2 px-3.5 rounded-xl whitespace-nowrap shrink-0 border ${
           active 
-            ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/25 shadow-[0_0_15px_rgba(99,102,241,0.15)]' 
-            : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-slate-800/40 border-transparent hover:border-slate-800/80'
+            ? 'text-brand-primary bg-brand-primary/10 border-brand-primary/25 shadow-[0_0_15px_var(--glow-color)]' 
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--border-color)]/20 border-transparent hover:border-[var(--border-color)]'
         }`}
       >
         {label}
@@ -192,13 +192,15 @@ export default function Navbar() {
           
           {/* Logo Section */}
           <div className="flex items-center shrink-0">
-            <Link to={getHomePath()} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity">
+            <Link to={getHomePath()} className="flex items-center gap-2.5 hover:opacity-95 transition-opacity">
               <img 
                 src="/logo.png" 
                 alt="شعار خطوتك" 
                 className="h-9 w-9 object-contain shrink-0"
               />
-              <span className="text-2xl font-black tracking-wider text-foreground">خطوتك</span>
+              <span className="text-2xl font-black tracking-tight text-[var(--text-color)] select-none">
+                <span className="text-brand-primary">خطو</span>تك
+              </span>
             </Link>
           </div>
 
@@ -219,11 +221,11 @@ export default function Navbar() {
                     setShowNotifDropdown(!showNotifDropdown);
                   }}
                   onClick={(e) => e.preventDefault()}
-                  className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-foreground relative transition-all duration-200"
+                  className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-[var(--text-color)] relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
                 >
-                  <Bell className="h-5 w-5 text-indigo-400" />
+                  <Bell className="h-5 w-5 text-brand-primary" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-[var(--bg-color)] animate-pulse">
                       {unreadCount}
@@ -242,11 +244,11 @@ export default function Navbar() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-foreground transition-all"
+              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-[var(--text-color)] transition-all"
               title="تغيير المظهر"
               aria-label="تغيير المظهر"
             >
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-indigo-400" />}
+              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-brand-primary" />}
             </button>
 
             {/* Auth Buttons */}
@@ -331,7 +333,7 @@ export default function Navbar() {
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 left-0 h-screen w-[min(340px,85vw)] bg-[var(--card-bg)] border-r border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[1000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right"
+            className="fixed top-0 left-0 h-screen w-[min(340px,85vw)] bg-[var(--surface-bg)] border-r border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[1000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right text-[var(--text-color)]"
             dir="rtl"
           >
             {/* Top part: Header + Navigation */}
@@ -340,13 +342,15 @@ export default function Navbar() {
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-[var(--border-color)]">
                 <div className="flex items-center gap-2.5">
                   <img src="/logo.png" alt="شعار خطوتك" className="h-8 w-8 object-contain" />
-                  <span className="text-lg font-black text-foreground">خطوتك</span>
+                  <span className="text-lg font-black tracking-tight text-[var(--text-color)] select-none">
+                    <span className="text-brand-primary">خطو</span>تك
+                  </span>
                 </div>
                 <button 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/50 border border-[var(--border-color)] text-foreground cursor-pointer"
+                  className="p-1.5 rounded-lg bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/50 border border-[var(--border-color)] text-[var(--text-color)] cursor-pointer"
                 >
-                  <X className="w-5 h-5 text-foreground" />
+                  <X className="w-5 h-5 text-[var(--text-color)]" />
                 </button>
               </div>
               

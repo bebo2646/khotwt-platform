@@ -11,6 +11,8 @@ use App\Models\VideoProgress;
 use App\Models\StudentExam;
 use App\Models\StudentActivityLog;
 use App\Models\StudentSession;
+use App\Models\Wallet;
+use App\Models\WalletTransaction;
 use App\Services\StudentActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,24 +57,47 @@ class StudentActivityController extends Controller
         if ($request->filled('event_type') && $request->event_type !== 'all') {
             $eventType = $request->event_type;
             if ($eventType === 'auth') {
-                $query->whereIn('event_type', ['login', 'logout', 'failed_login', 'session_started', 'session_ended']);
-            } elseif ($eventType === 'course') {
-                $query->whereIn('event_type', ['course_opened', 'bundle_opened', 'lesson_opened', 'pdf_opened']);
-            } elseif ($eventType === 'video') {
+                $query->whereIn('event_type', ['login', 'logout', 'failed_login']);
+            } elseif ($eventType === 'sessions') {
+                $query->whereIn('event_type', ['session_started', 'session_ended', 'session_heartbeat', 'heartbeat']);
+            } elseif ($eventType === 'courses' || $eventType === 'course') {
+                $query->whereIn('event_type', ['course_opened', 'bundle_opened']);
+            } elseif ($eventType === 'lessons') {
+                $query->where('event_type', 'lesson_opened');
+            } elseif ($eventType === 'videos' || $eventType === 'video') {
                 $query->where('event_type', 'like', 'video_%');
+            } elseif ($eventType === 'pdfs') {
+                $query->where('event_type', 'pdf_opened');
+            } elseif ($eventType === 'exams' || $eventType === 'exam') {
+                $query->where('event_type', 'like', 'exam_%');
+            } elseif ($eventType === 'homework') {
+                $query->where('event_type', 'like', 'homework_%');
             } elseif ($eventType === 'assessment') {
                 $query->where(function ($q) {
                     $q->where('event_type', 'like', 'exam_%')
                       ->orWhere('event_type', 'like', 'quiz_%')
                       ->orWhere('event_type', 'like', 'homework_%');
                 });
-            } elseif ($eventType === 'purchase') {
+            } elseif ($eventType === 'purchases' || $eventType === 'purchase') {
                 $query->where(function ($q) {
                     $q->where('event_type', 'like', '%_purchased')
                       ->orWhere('event_type', 'purchase_failed');
                 });
+            } elseif ($eventType === 'wallet') {
+                $query->where(function ($q) {
+                    $q->where('event_type', 'like', 'wallet_%');
+                });
+            } elseif ($eventType === 'account') {
+                $query->where(function ($q) {
+                    $q->where('event_type', 'like', 'account_%')
+                      ->orWhereIn('event_type', ['profile_updated', 'password_changed', 'device_registered', 'student_registered']);
+                });
             } elseif ($eventType === 'security') {
-                $query->where('event_type', 'anti_cheat_violation');
+                $query->where(function ($q) {
+                    $q->where('event_type', 'anti_cheat_violation')
+                      ->orWhere('event_type', 'like', 'security_%')
+                      ->orWhereIn('event_type', ['repeated_failed_logins', 'rate_limited', 'ip_blocked']);
+                });
             } else {
                 $query->where('event_type', $eventType);
             }
@@ -221,7 +246,11 @@ class StudentActivityController extends Controller
      */
     public function studentActivity(Request $request, $studentId)
     {
-        $student = User::where('id', $studentId)->where('role', 'student')->firstOrFail();
+        $student = User::where('id', $studentId)->where('role', 'student')->first();
+        if (!$student) {
+            return response()->json(['message' => 'الطالب غير موجود أو تم حذفه'], 404);
+        }
+
         $today = Carbon::today();
         $threshold = Carbon::now()->subMinutes(StudentActivityService::ACTIVE_THRESHOLD_MINUTES);
 
@@ -242,7 +271,38 @@ class StudentActivityController extends Controller
 
         $lastActiveDate = $lastActivityLog ? $lastActivityLog->occurred_at : ($latestSession ? $latestSession->last_activity_at : $student->last_activity);
 
-        // 3. Today's metrics
+        // 3. Authoritative Wallet info
+        $wallet = Wallet::where('student_id', $studentId)->first();
+        $walletBalance = $wallet ? (float) $wallet->balance : 0.0;
+        $walletId = $wallet ? $wallet->id : null;
+
+        // Today Financials
+        $todayMoneyAdded = $walletId ? (float) WalletTransaction::where('wallet_id', $walletId)
+            ->whereIn('type', ['recharge', 'refund'])
+            ->whereDate('created_at', $today)
+            ->sum('amount') : 0.0;
+
+        $todayMoneySpent = $walletId ? (float) WalletTransaction::where('wallet_id', $walletId)
+            ->where('type', 'purchase')
+            ->whereDate('created_at', $today)
+            ->sum('amount') : 0.0;
+
+        $todayPurchasesCount = $walletId ? WalletTransaction::where('wallet_id', $walletId)
+            ->where('type', 'purchase')
+            ->whereDate('created_at', $today)
+            ->count() : 0;
+
+        // Today Security
+        $todaySecurityViolations = StudentActivityLog::where('student_id', $studentId)
+            ->where(function ($q) {
+                $q->where('event_type', 'anti_cheat_violation')
+                  ->orWhere('event_type', 'like', 'security_%')
+                  ->orWhere('event_type', 'failed_login');
+            })
+            ->whereDate('occurred_at', $today)
+            ->count();
+
+        // 4. Today Academic Metrics
         $todaySessionsDuration = (int) StudentSession::where('student_id', $studentId)
             ->whereDate('started_at', $today)
             ->sum('duration_seconds');
@@ -272,7 +332,7 @@ class StudentActivityController extends Controller
             ->whereDate('occurred_at', $today)
             ->count();
 
-        // 4. Lifetime totals
+        // 5. Lifetime totals
         $totalSessions = StudentSession::where('student_id', $studentId)->count();
         $totalEvents = StudentActivityLog::where('student_id', $studentId)->count();
         
@@ -286,7 +346,28 @@ class StudentActivityController extends Controller
 
         $examAttempts = StudentExam::where('student_id', $studentId)->count();
 
-        // 5. Paginated Chronological Activity Timeline
+        // Lifetime Financials
+        $lifetimeMoneyAdded = $walletId ? (float) WalletTransaction::where('wallet_id', $walletId)
+            ->whereIn('type', ['recharge', 'refund'])
+            ->sum('amount') : 0.0;
+
+        $lifetimeMoneySpent = $walletId ? (float) WalletTransaction::where('wallet_id', $walletId)
+            ->where('type', 'purchase')
+            ->sum('amount') : 0.0;
+
+        $lifetimePurchasesCount = $walletId ? WalletTransaction::where('wallet_id', $walletId)
+            ->where('type', 'purchase')
+            ->count() : 0;
+
+        $lifetimeSecurityViolations = StudentActivityLog::where('student_id', $studentId)
+            ->where(function ($q) {
+                $q->where('event_type', 'anti_cheat_violation')
+                  ->orWhere('event_type', 'like', 'security_%')
+                  ->orWhere('event_type', 'failed_login');
+            })
+            ->count();
+
+        // 6. Paginated Chronological Activity Timeline
         $timelineQuery = StudentActivityLog::with([
             'course:id,title,subject,cover_image',
             'bundle:id,title,subject,cover_image',
@@ -299,24 +380,47 @@ class StudentActivityController extends Controller
         if ($request->filled('event_type') && $request->event_type !== 'all') {
             $eventType = $request->event_type;
             if ($eventType === 'auth') {
-                $timelineQuery->whereIn('event_type', ['login', 'logout', 'failed_login', 'session_started', 'session_ended']);
-            } elseif ($eventType === 'course') {
-                $timelineQuery->whereIn('event_type', ['course_opened', 'bundle_opened', 'lesson_opened', 'pdf_opened']);
-            } elseif ($eventType === 'video') {
+                $timelineQuery->whereIn('event_type', ['login', 'logout', 'failed_login']);
+            } elseif ($eventType === 'sessions') {
+                $timelineQuery->whereIn('event_type', ['session_started', 'session_ended', 'session_heartbeat', 'heartbeat']);
+            } elseif ($eventType === 'courses' || $eventType === 'course') {
+                $timelineQuery->whereIn('event_type', ['course_opened', 'bundle_opened']);
+            } elseif ($eventType === 'lessons') {
+                $timelineQuery->where('event_type', 'lesson_opened');
+            } elseif ($eventType === 'videos' || $eventType === 'video') {
                 $timelineQuery->where('event_type', 'like', 'video_%');
+            } elseif ($eventType === 'pdfs') {
+                $timelineQuery->where('event_type', 'pdf_opened');
+            } elseif ($eventType === 'exams' || $eventType === 'exam') {
+                $timelineQuery->where('event_type', 'like', 'exam_%');
+            } elseif ($eventType === 'homework') {
+                $timelineQuery->where('event_type', 'like', 'homework_%');
             } elseif ($eventType === 'assessment') {
                 $timelineQuery->where(function ($q) {
                     $q->where('event_type', 'like', 'exam_%')
                       ->orWhere('event_type', 'like', 'quiz_%')
                       ->orWhere('event_type', 'like', 'homework_%');
                 });
-            } elseif ($eventType === 'purchase') {
+            } elseif ($eventType === 'purchases' || $eventType === 'purchase') {
                 $timelineQuery->where(function ($q) {
                     $q->where('event_type', 'like', '%_purchased')
                       ->orWhere('event_type', 'purchase_failed');
                 });
+            } elseif ($eventType === 'wallet') {
+                $timelineQuery->where(function ($q) {
+                    $q->where('event_type', 'like', 'wallet_%');
+                });
+            } elseif ($eventType === 'account') {
+                $timelineQuery->where(function ($q) {
+                    $q->where('event_type', 'like', 'account_%')
+                      ->orWhereIn('event_type', ['profile_updated', 'password_changed', 'device_registered', 'student_registered']);
+                });
             } elseif ($eventType === 'security') {
-                $timelineQuery->where('event_type', 'anti_cheat_violation');
+                $timelineQuery->where(function ($q) {
+                    $q->where('event_type', 'anti_cheat_violation')
+                      ->orWhere('event_type', 'like', 'security_%')
+                      ->orWhereIn('event_type', ['repeated_failed_logins', 'rate_limited', 'ip_blocked']);
+                });
             } else {
                 $timelineQuery->where('event_type', $eventType);
             }
@@ -331,6 +435,38 @@ class StudentActivityController extends Controller
 
         $perPage = min(100, max(1, (int)$request->input('per_page', 25)));
         $timeline = $timelineQuery->orderBy('occurred_at', 'desc')->paginate($perPage);
+
+        $todayData = [
+            'session_duration_seconds' => $todaySessionsDuration,
+            'session_duration_human' => StudentActivityService::formatDurationHuman($todaySessionsDuration),
+            'courses_accessed' => $coursesAccessedToday,
+            'lessons_opened' => $lessonsOpenedToday,
+            'videos_watched' => $videosWatchedToday,
+            'assessments_attempted' => $assessmentsToday,
+            'assessments_submitted' => $assessmentsToday,
+            'money_added' => round($todayMoneyAdded, 2),
+            'money_spent' => round($todayMoneySpent, 2),
+            'purchases_count' => $todayPurchasesCount,
+            'security_violations' => $todaySecurityViolations,
+        ];
+
+        $lifetimeData = [
+            'total_sessions' => $totalSessions,
+            'total_events' => $totalEvents,
+            'total_watch_seconds' => $totalWatchSeconds,
+            'total_watch_minutes' => round($totalWatchSeconds / 60, 1),
+            'total_video_watch_seconds' => $totalWatchSeconds,
+            'total_video_watch_minutes' => round($totalWatchSeconds / 60, 1),
+            'total_video_watch_hours' => round($totalWatchSeconds / 3600, 2),
+            'completed_lessons' => $completedLessons,
+            'distinct_courses_accessed' => $distinctCourses,
+            'exam_attempts' => $examAttempts,
+            'wallet_balance' => round($walletBalance, 2),
+            'total_money_added' => round($lifetimeMoneyAdded, 2),
+            'total_money_spent' => round($lifetimeMoneySpent, 2),
+            'total_purchases_count' => $lifetimePurchasesCount,
+            'security_violations_count' => $lifetimeSecurityViolations,
+        ];
 
         return response()->json([
             'student' => [
@@ -347,24 +483,11 @@ class StudentActivityController extends Controller
                 'is_online' => $isOnline,
                 'last_activity' => $lastActiveDate ? $lastActiveDate->diffForHumans() : 'لا يوجد نشاط مسجل',
                 'last_activity_iso' => $lastActiveDate ? $lastActiveDate->toIso8601String() : null,
+                'wallet_balance' => round($walletBalance, 2),
             ],
-            'today' => [
-                'session_duration_seconds' => $todaySessionsDuration,
-                'session_duration_human' => StudentActivityService::formatDurationHuman($todaySessionsDuration),
-                'courses_accessed' => $coursesAccessedToday,
-                'lessons_opened' => $lessonsOpenedToday,
-                'videos_watched' => $videosWatchedToday,
-                'assessments_attempted' => $assessmentsToday,
-            ],
-            'lifetime' => [
-                'total_sessions' => $totalSessions,
-                'total_events' => $totalEvents,
-                'total_watch_seconds' => $totalWatchSeconds,
-                'total_watch_minutes' => round($totalWatchSeconds / 60, 1),
-                'completed_lessons' => $completedLessons,
-                'distinct_courses_accessed' => $distinctCourses,
-                'exam_attempts' => $examAttempts,
-            ],
+            'today' => $todayData,
+            'stats_today' => $todayData,
+            'lifetime' => $lifetimeData,
             'timeline' => $timeline,
         ]);
     }

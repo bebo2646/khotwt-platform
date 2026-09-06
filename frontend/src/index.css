@@ -74,6 +74,11 @@
   --color-indigo-800: var(--primary-hover);
   --color-indigo-900: var(--primary-hover);
   --color-indigo-950: var(--slate-950);
+
+  /* Semantic status colors */
+  --color-brand-danger: var(--danger-color);
+  --color-brand-warning: var(--warning-color);
+  --color-brand-info: var(--info-color);
 }
 
 /* Centralized CSS Variables Theme System */
@@ -81,66 +86,76 @@
   font-family: 'Cairo', 'Inter', system-ui, sans-serif;
   scroll-behavior: smooth;
   
-  /* Dark Mode Default Tokens (Exact User Specifications) */
+  /* Brand Palette Foundation (Brand Purple #6D5DFC) */
   --bg-color: #030712;
-  --surface-bg: #090d16;
-  --card-bg: rgba(15, 23, 42, 0.45);
-  --primary-color: #6366F1;
-  --primary-hover: #4F46E5;
+  --surface-bg: #090D16;
+  --card-bg: rgba(15, 23, 42, 0.65);
+  --primary-color: #6D5DFC;
+  --primary-hover: #5B4AE3;
   --secondary-color: #8B5CF6;
   --secondary-hover: #7C3AED;
-  --accent-color: #8B5CF6;
-  --accent-hover: #7C3AED;
+  --accent-color: #A855F7;
+  --accent-hover: #9333EA;
   --success-color: #10B981;
   --danger-color: #EF4444;
   --warning-color: #F59E0B;
-  --text-color: #E5E7EB;
+  --info-color: #3B82F6;
+  --text-color: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --border-color: rgba(255, 255, 255, 0.08);
-  --input-bg: rgba(9, 13, 22, 0.6);
-  --input-border: rgba(255, 255, 255, 0.08);
-  --input-text: #E5E7EB;
+  --border-color: rgba(255, 255, 255, 0.09);
+  --input-bg: rgba(9, 13, 22, 0.7);
+  --input-border: rgba(255, 255, 255, 0.12);
+  --input-text: #F8FAFC;
   --placeholder-color: #64748B;
-  --glow-color: rgba(99, 102, 241, 0.15);
+  --glow-color: rgba(109, 93, 252, 0.18);
+  
+  /* Standard Spacing Scale (4, 8, 16, 24, 32, 48px) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
   
   /* Slate dynamic values (Dark Mode) */
-  --slate-50: #E5E7EB;
-  --slate-100: #CBD5E1;
-  --slate-200: #94A3B8;
-  --slate-300: #64748B;
-  --slate-400: #475569;
-  --slate-500: #334155;
-  --slate-600: #1E293B;
-  --slate-700: rgba(255, 255, 255, 0.08);
-  --slate-800: rgba(255, 255, 255, 0.08);
-  --slate-900: rgba(15, 23, 42, 0.45);
+  --slate-50: #F8FAFC;
+  --slate-100: #E2E8F0;
+  --slate-200: #CBD5E1;
+  --slate-300: #94A3B8;
+  --slate-400: #64748B;
+  --slate-500: #475569;
+  --slate-600: #334155;
+  --slate-700: rgba(255, 255, 255, 0.09);
+  --slate-800: rgba(255, 255, 255, 0.09);
+  --slate-900: rgba(15, 23, 42, 0.65);
   --slate-950: #030712;
 }
 
 :root.light-theme {
-  /* Light Mode Specific Tokens (Exact User Specifications) */
+  /* Light Mode Specific Tokens (WCAG AA Compliant >= 4.5:1 text contrast) */
   --bg-color: #F8FAFC;
   --surface-bg: #FFFFFF;
   --card-bg: #FFFFFF;
-  --primary-color: #6366F1;
-  --primary-hover: #4F46E5;
-  --secondary-color: #8B5CF6;
-  --secondary-hover: #7C3AED;
+  --primary-color: #6D5DFC;
+  --primary-hover: #5B4AE3;
+  --secondary-color: #7C3AED;
+  --secondary-hover: #6D28D9;
   --accent-color: #8B5CF6;
   --accent-hover: #7C3AED;
-  --success-color: #10B981;
-  --danger-color: #EF4444;
-  --warning-color: #F59E0B;
+  --success-color: #059669;
+  --danger-color: #DC2626;
+  --warning-color: #D97706;
+  --info-color: #2563EB;
   --text-color: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
   --border-color: #E2E8F0;
   --input-bg: #FFFFFF;
   --input-border: #CBD5E1;
   --input-text: #0F172A;
-  --placeholder-color: #94A3B8;
-  --glow-color: rgba(99, 102, 241, 0.25);
+  --placeholder-color: #64748B;
+  --glow-color: rgba(109, 93, 252, 0.22);
   
   /* Slate dynamic values (Light Mode) */
   --slate-50: #0F172A;

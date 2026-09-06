@@ -17,6 +17,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\PlatformEarning;
 use App\Models\TeacherEarning;
+use App\Services\StudentActivityService;
 
 class MonthlyExamsController extends Controller
 {
@@ -184,6 +185,21 @@ class MonthlyExamsController extends Controller
                 'exam_id' => $exam->id,
                 'purchased_at' => Carbon::now(),
             ]);
+
+            // Log purchase audit activity
+            StudentActivityService::logPurchase(
+                $user,
+                'exam',
+                $exam,
+                (float)$exam->price,
+                'wallet',
+                [
+                    'exam_id' => $exam->id,
+                    'exam_title' => $exam->title,
+                    'paid_amount' => (float)$exam->price,
+                    'balance_after' => (float)$wallet->balance,
+                ]
+            );
 
             // Teacher revenue split if teacher assigned
             if ($exam->teacher_id && (float)$exam->price > 0) {

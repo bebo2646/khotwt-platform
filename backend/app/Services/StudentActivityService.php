@@ -588,14 +588,117 @@ class StudentActivityService
         );
     }
 
+    public static function logWalletTopup(
+        User|int $student,
+        float $amount,
+        string $method = 'recharge_code',
+        ?string $reference = null,
+        ?float $balanceBefore = null,
+        ?float $balanceAfter = null,
+        ?Request $request = null
+    ): ?StudentActivityLog {
+        $methodLabel = match($method) {
+            'recharge_code' => 'كود شحن',
+            'admin_manual' => 'إيداع إداري',
+            'bank_transfer' => 'تحويل بنكي',
+            default => $method,
+        };
+
+        $desc = "تم شحن المحفظة بنجاح بقيمة {$amount} ج.م (طريقة الشحن: {$methodLabel})";
+        if ($balanceBefore !== null && $balanceAfter !== null) {
+            $desc .= " (الرصيد: {$balanceBefore} ← {$balanceAfter} ج.م)";
+        }
+
+        return self::log(
+            $student,
+            'wallet_topup',
+            'شحن المحفظة',
+            $desc,
+            [],
+            [
+                'amount' => $amount,
+                'topup_method' => $method,
+                'method_label' => $methodLabel,
+                'reference' => $reference,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+                'status' => 'completed',
+            ],
+            $request
+        );
+    }
+
+    public static function logWalletDebit(
+        User|int $student,
+        float $amount,
+        string $reason,
+        ?string $reference = null,
+        ?float $balanceBefore = null,
+        ?float $balanceAfter = null,
+        ?Request $request = null
+    ): ?StudentActivityLog {
+        $desc = "خصم من المحفظة: {$amount} ج.م ({$reason})";
+        if ($balanceBefore !== null && $balanceAfter !== null) {
+            $desc .= " (الرصيد: {$balanceBefore} ← {$balanceAfter} ج.م)";
+        }
+
+        return self::log(
+            $student,
+            'wallet_debit',
+            'خصم من المحفظة',
+            $desc,
+            [],
+            [
+                'amount' => $amount,
+                'reason' => $reason,
+                'reference' => $reference,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+            ],
+            $request
+        );
+    }
+
+    public static function logWalletCredit(
+        User|int $student,
+        float $amount,
+        string $reason,
+        ?string $reference = null,
+        ?float $balanceBefore = null,
+        ?float $balanceAfter = null,
+        ?Request $request = null
+    ): ?StudentActivityLog {
+        $desc = "إيداع في المحفظة: {$amount} ج.م ({$reason})";
+        if ($balanceBefore !== null && $balanceAfter !== null) {
+            $desc .= " (الرصيد: {$balanceBefore} ← {$balanceAfter} ج.م)";
+        }
+
+        return self::log(
+            $student,
+            'wallet_credit',
+            'إيداع في المحفظة',
+            $desc,
+            [],
+            [
+                'amount' => $amount,
+                'reason' => $reason,
+                'reference' => $reference,
+                'balance_before' => $balanceBefore,
+                'balance_after' => $balanceAfter,
+            ],
+            $request
+        );
+    }
+
     public static function logPurchase(
-        User $student,
+        User|int $student,
         string $productType, // 'course', 'bundle', 'lesson', 'package', 'exam'
         $item,
         float $amount,
         string $method = 'wallet',
+        array $financialContext = [],
         ?Request $request = null
-    ): void {
+    ): ?StudentActivityLog {
         $isBundle = $productType === 'bundle' || ($productType === 'course' && (bool)($item->is_bundle ?? false));
         $eventType = $isBundle ? 'bundle_purchased' : "{$productType}_purchased";
         
@@ -604,13 +707,13 @@ class StudentActivityService
             'course' => 'شراء كورس',
             'lesson' => 'شراء محاضرة',
             'package' => 'شراء باقة محتوى',
-            'exam' => 'شراء امتحان',
+            'exam' => 'شراء امتحان شهري',
             default => 'عملية شراء',
         };
 
         $desc = "تم شراء [{$itemTitle}] بنجاح بقيمة {$amount} ج.م (طريقة الدفع: {$method})";
 
-        self::log(
+        return self::log(
             $student,
             $eventType,
             $eventName,
@@ -621,26 +724,29 @@ class StudentActivityService
                 'lesson_id' => $productType === 'lesson' ? $item->id : null,
                 'exam_id' => $productType === 'exam' ? $item->id : null,
             ],
-            [
+            array_merge([
                 'product_type' => $isBundle ? 'bundle' : $productType,
+                'product_id' => $item->id ?? null,
                 'product_title' => $itemTitle,
                 'amount' => $amount,
                 'payment_method' => $method,
-            ],
+                'status' => 'completed',
+            ], $financialContext),
             $request
         );
     }
 
     public static function logPurchaseFailed(
-        User $student,
+        User|int $student,
         string $productType,
         $item,
         string $reason,
+        array $meta = [],
         ?Request $request = null
-    ): void {
+    ): ?StudentActivityLog {
         $itemTitle = $item->title ?? ($item->name ?? 'عنصر');
 
-        self::log(
+        return self::log(
             $student,
             'purchase_failed',
             'فشل عملية الشراء',
@@ -648,11 +754,38 @@ class StudentActivityService
             [
                 'course_id' => $productType === 'course' ? $item->id : null,
             ],
-            [
+            array_merge([
                 'product_type' => $productType,
                 'product_title' => $itemTitle,
                 'failure_reason' => $reason,
-            ],
+            ], $meta),
+            $request
+        );
+    }
+
+    public static function logSecurityEvent(
+        User|int $student,
+        string $eventType, // 'repeated_failed_logins', 'unauthorized_request', 'rate_limit_triggered', 'ip_blocked', 'suspicious_request'
+        string $description,
+        array $meta = [],
+        ?Request $request = null
+    ): ?StudentActivityLog {
+        $eventName = match($eventType) {
+            'repeated_failed_logins' => 'تكرار محاولات تسجيل دخول فاشلة',
+            'unauthorized_request' => 'طلب غير مصرح به',
+            'rate_limit_triggered' => 'تجاوز معدل الطلبات المسموح',
+            'ip_blocked' => 'حظر عنوان IP',
+            'suspicious_request' => 'نشاط أمني مشبوه',
+            default => 'حدث أمني',
+        };
+
+        return self::log(
+            $student,
+            $eventType,
+            $eventName,
+            $description,
+            [],
+            $meta,
             $request
         );
     }

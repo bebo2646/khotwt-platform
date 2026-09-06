@@ -25,7 +25,10 @@ import {
   FileText,
   ShieldAlert,
   Lock,
-  AlertTriangle
+  AlertTriangle,
+  Wallet,
+  CreditCard,
+  Coins
 } from 'lucide-react'
 import { useModalStore } from '../../store/modalStore'
 
@@ -110,19 +113,50 @@ interface StudentProfileData {
     is_online: boolean
     last_activity: string
     last_activity_iso?: string | null
+    wallet_balance?: number
   }
-  stats_today: {
+  today?: {
+    session_duration_seconds?: number
+    session_duration_human?: string
+    courses_accessed?: number
+    lessons_opened?: number
+    videos_watched?: number
+    assessments_attempted?: number
+    assessments_submitted?: number
+    money_added?: number
+    money_spent?: number
+    purchases_count?: number
+    security_violations?: number
+  }
+  stats_today?: {
+    session_duration_seconds?: number
+    session_duration_human?: string
     courses_accessed: number
     lessons_opened: number
     videos_watched: number
-    assessments_submitted: number
+    assessments_attempted?: number
+    assessments_submitted?: number
+    money_added?: number
+    money_spent?: number
+    purchases_count?: number
+    security_violations?: number
   }
   lifetime: {
-    total_video_watch_seconds: number
-    total_video_watch_minutes: number
-    total_video_watch_hours: number
+    total_sessions?: number
+    total_events?: number
+    total_watch_seconds?: number
+    total_watch_minutes?: number
+    total_video_watch_seconds?: number
+    total_video_watch_minutes?: number
+    total_video_watch_hours?: number
+    completed_lessons?: number
     distinct_courses_accessed: number
     exam_attempts: number
+    wallet_balance?: number
+    total_money_added?: number
+    total_money_spent?: number
+    total_purchases_count?: number
+    security_violations_count?: number
   }
   timeline: {
     data: ActivityLogItem[]
@@ -171,6 +205,7 @@ export default function StudentActivity() {
   )
   const [studentProfile, setStudentProfile] = useState<StudentProfileData | null>(null)
   const [loadingStudentProfile, setLoadingStudentProfile] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [studentTimelinePage, setStudentTimelinePage] = useState(1)
   const [studentTimelineFilter, setStudentTimelineFilter] = useState('all')
   const [studentModalTab, setStudentModalTab] = useState<'activity' | 'security'>('activity')
@@ -268,6 +303,7 @@ export default function StudentActivity() {
   const fetchStudentProfile = useCallback(async (studentId: number, page = 1) => {
     try {
       setLoadingStudentProfile(true)
+      setProfileError(null)
       const params: Record<string, any> = {
         page,
         per_page: 20,
@@ -276,9 +312,11 @@ export default function StudentActivity() {
 
       const res = await API.get(`/admin/students/${studentId}/activity`, { params })
       setStudentProfile(res.data)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load student activity profile:', err)
-      useModalStore.getState().showToast('تعذر تحميل سجل نشاط الطالب.', 'error')
+      const errorMsg = err.response?.data?.message || 'تعذر تحميل سجل نشاط الطالب أو أن الطالب غير موجود.'
+      setProfileError(errorMsg)
+      setStudentProfile(null)
     } finally {
       setLoadingStudentProfile(false)
     }
@@ -311,25 +349,60 @@ export default function StudentActivity() {
     }
   }, [activeTab, fetchSessions])
 
+  // Sync selectedStudentId with URL searchParams ?student_id
+  useEffect(() => {
+    const paramId = searchParams.get('student_id')
+    if (paramId) {
+      const parsed = parseInt(paramId, 10)
+      if (!isNaN(parsed) && parsed !== selectedStudentId) {
+        setSelectedStudentId(parsed)
+        setStudentTimelinePage(1)
+        setProfileError(null)
+      }
+    } else if (selectedStudentId !== null) {
+      setSelectedStudentId(null)
+      setStudentProfile(null)
+      setProfileError(null)
+    }
+  }, [searchParams])
+
   // Load student profile if student_id is set
   useEffect(() => {
     if (selectedStudentId) {
       fetchStudentProfile(selectedStudentId, studentTimelinePage)
     } else {
       setStudentProfile(null)
+      setProfileError(null)
     }
   }, [selectedStudentId, studentTimelinePage, fetchStudentProfile])
+
+  // Global ESC key listener to dismiss open modals cleanly
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (inspectLog) {
+          setInspectLog(null)
+        } else if (selectedStudentId) {
+          handleCloseStudentModal()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [inspectLog, selectedStudentId])
 
   // Helper to open student modal
   const handleOpenStudent = (id: number) => {
     setSelectedStudentId(id)
     setStudentTimelinePage(1)
+    setProfileError(null)
     setSearchParams({ student_id: id.toString() })
   }
 
   const handleCloseStudentModal = () => {
     setSelectedStudentId(null)
     setStudentProfile(null)
+    setProfileError(null)
     setSearchParams({})
   }
 
@@ -377,13 +450,25 @@ export default function StudentActivity() {
     if (type.startsWith('video_')) {
       return { bg: 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400', label: 'فيديو' }
     }
+    if (type.startsWith('pdf_')) {
+      return { bg: 'bg-amber-500/10 border-amber-500/20 text-amber-400', label: 'ملف PDF' }
+    }
     if (type.startsWith('exam_') || type.startsWith('quiz_') || type.startsWith('homework_')) {
       return { bg: 'bg-amber-500/10 border-amber-500/20 text-amber-400', label: 'اختبار / واجب' }
     }
     if (type.includes('purchase')) {
       return { bg: 'bg-purple-500/10 border-purple-500/20 text-purple-400', label: 'شراء / اشتراك' }
     }
-    if (type === 'anti_cheat_violation') {
+    if (type === 'wallet_topup') {
+      return { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 font-bold', label: 'شحن المحفظة' }
+    }
+    if (type.startsWith('wallet_')) {
+      return { bg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400', label: 'معاملة محفظة' }
+    }
+    if (type.startsWith('account_')) {
+      return { bg: 'bg-sky-500/10 border-sky-500/20 text-sky-400', label: 'الحساب والأجهزة' }
+    }
+    if (type === 'anti_cheat_violation' || type.startsWith('security_')) {
       return { bg: 'bg-rose-600/10 border-rose-600/30 text-rose-300 font-black', label: 'مخالفة أمان' }
     }
     return { bg: 'bg-slate-700/20 border-slate-700/30 text-slate-300', label: 'نشاط' }
@@ -669,12 +754,18 @@ export default function StudentActivity() {
                   }}
                   className="w-full bg-slate-900/60 border border-[var(--border-color)] rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
                 >
-                  <option value="all">جميع أنواع الأحداث</option>
-                  <option value="auth">🔐 تسجيل الدخول والجلسات</option>
-                  <option value="course">📚 تصفح الكورسات والدروس</option>
-                  <option value="video">🎥 مشاهدات الفيديو</option>
-                  <option value="assessment">📝 الامتحانات والواجبات</option>
-                  <option value="purchase">💳 المشتريات والاشتراكات</option>
+                  <option value="all">جميع أنواع الأحداث والعمليات</option>
+                  <option value="auth">🔐 تسجيل الدخول (Auth)</option>
+                  <option value="sessions">⏱️ الجلسات والتواجد (Sessions)</option>
+                  <option value="courses">📚 تصفح الكورسات والباقات</option>
+                  <option value="lessons">📖 فتح الدروس والمحاضرات</option>
+                  <option value="videos">🎥 مشاهدات الفيديو والتقدم</option>
+                  <option value="pdfs">📄 الملفات والمذكرات (PDF)</option>
+                  <option value="exams">📝 الامتحانات والاختبارات</option>
+                  <option value="homework">📋 الواجبات الدراسية</option>
+                  <option value="purchases">💳 المشتريات والاشتراكات</option>
+                  <option value="wallet">💰 المحفظة والرصيد (Wallet)</option>
+                  <option value="account">⚙️ إعدادات الحساب والأجهزة</option>
                   <option value="security">🛡️ الأمان ومكافحة الغش</option>
                 </select>
               </div>
@@ -869,15 +960,24 @@ export default function StudentActivity() {
                             {formatDateTime(item.occurred_at)}
                           </td>
 
-                          {/* Inspect Modal Trigger */}
+                          {/* Action Buttons */}
                           <td className="p-3.5 sm:p-4 whitespace-nowrap text-center">
-                            <button
-                              onClick={() => setInspectLog(item)}
-                              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                              title="فحص التفاصيل التقنية"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => item.student_id && handleOpenStudent(item.student_id)}
+                                className="p-1.5 hover:bg-brand-primary/20 rounded-lg text-brand-primary transition-colors cursor-pointer"
+                                title="عرض ملف نشاط الطالب والخط الزمني"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setInspectLog(item)}
+                                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                                title="فحص التفاصيل التقنية (JSON Metadata)"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                            </div>
                           </td>
 
                         </tr>
@@ -1116,11 +1216,11 @@ export default function StudentActivity() {
       )}
 
       {/* =========================================================================
-          Student Activity Profile Modal (Timeline & Analytics)
+          Student Activity Profile Modal (Timeline, Financial & Educational Audit)
           ========================================================================= */}
       {selectedStudentId && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={handleCloseStudentModal} />
+          <div className="fixed inset-0 bg-black/60 z-40 transition-opacity" onClick={handleCloseStudentModal} />
           
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl z-50 text-right scrollbar-thin scrollbar-thumb-slate-800">
             
@@ -1132,7 +1232,7 @@ export default function StudentActivity() {
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-100">
-                    ملف نشاط الطالب الزمني والتدقيق
+                    ملف نشاط الطالب وسجل التدقيق الزمني
                   </h3>
                   <span className="text-xs text-slate-400">
                     معرف الطالب: #{selectedStudentId}
@@ -1142,6 +1242,7 @@ export default function StudentActivity() {
               <button
                 onClick={handleCloseStudentModal}
                 className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                title="إغلاق (Esc)"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1150,7 +1251,31 @@ export default function StudentActivity() {
             {loadingStudentProfile ? (
               <div className="py-24 text-center text-slate-400 space-y-3">
                 <RefreshCw className="w-8 h-8 mx-auto animate-spin text-brand-primary" />
-                <p className="text-xs">جاري استرجاع سجل الطالب وإحصائياته...</p>
+                <p className="text-xs">جاري استرجاع سجل الطالب والبيانات المالية والتعليمية...</p>
+              </div>
+            ) : profileError ? (
+              <div className="py-16 px-6 text-center space-y-4 bg-slate-900/40 border border-rose-500/20 rounded-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 mx-auto">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-100">تعذر العثور على سجل الطالب</h4>
+                  <p className="text-xs text-slate-400 mt-1.5 max-w-md mx-auto">{profileError}</p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => selectedStudentId && fetchStudentProfile(selectedStudentId, 1)}
+                    className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    إعادة المحاولة
+                  </button>
+                  <button
+                    onClick={handleCloseStudentModal}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    إغلاق
+                  </button>
+                </div>
               </div>
             ) : studentProfile ? (
               <div className="space-y-6">
@@ -1183,9 +1308,22 @@ export default function StudentActivity() {
                         <span>البريد: {studentProfile.student.email}</span>
                       </div>
                       <div className="text-[11px] text-slate-400">
-                        المرحلة: <strong className="text-slate-200">{studentProfile.student.grade || 'غير محدد'}</strong> | آخر نشاط:{' '}
+                        المرحلة: <strong className="text-slate-200">{studentProfile.student.grade || 'غير محدد'}</strong> | نوع الطالب: <strong className="text-slate-200">{studentProfile.student.student_type === 'center' ? 'سنتر' : 'أونلاين'}</strong> | آخر نشاط:{' '}
                         <strong className="text-brand-primary">{studentProfile.student.last_activity}</strong>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Wallet Balance Highlight */}
+                  <div className="bg-slate-950/80 border border-emerald-500/30 rounded-2xl p-4 flex items-center gap-3.5 shrink-0 shadow-inner">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <Wallet className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-medium">رصيد المحفظة الحالي</span>
+                      <span className="text-xl font-black text-emerald-400 font-mono">
+                        {(studentProfile.student.wallet_balance ?? studentProfile.lifetime?.wallet_balance ?? 0).toFixed(2)} ج.م
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1200,7 +1338,7 @@ export default function StudentActivity() {
                         : 'bg-slate-900 text-slate-400 hover:text-white'
                     }`}
                   >
-                    النشاط الأكاديمي والتعليمي
+                    النشاط الأكاديمي والمالي
                   </button>
                   <button
                     onClick={() => {
@@ -1278,147 +1416,253 @@ export default function StudentActivity() {
                   </div>
                 ) : (
                   <>
-                {/* Metrics Summary Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">دروس اليوم</span>
-                    <span className="text-lg font-black text-slate-200 mt-1 block">
-                      {studentProfile.stats_today.lessons_opened}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">فيديوهات اليوم</span>
-                    <span className="text-lg font-black text-slate-200 mt-1 block">
-                      {studentProfile.stats_today.videos_watched}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">امتحانات اليوم</span>
-                    <span className="text-lg font-black text-slate-200 mt-1 block">
-                      {studentProfile.stats_today.assessments_submitted}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">كورسات فتحت اليوم</span>
-                    <span className="text-lg font-black text-slate-200 mt-1 block">
-                      {studentProfile.stats_today.courses_accessed}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">إجمالي وقت الفيديو</span>
-                    <span className="text-lg font-black text-cyan-400 mt-1 block">
-                      {studentProfile.lifetime.total_video_watch_hours > 0
-                        ? `${studentProfile.lifetime.total_video_watch_hours} س`
-                        : `${studentProfile.lifetime.total_video_watch_minutes} د`}
-                    </span>
-                  </div>
-                  <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
-                    <span className="text-[10px] text-slate-400 block">إجمالي محاولات الاختبارات</span>
-                    <span className="text-lg font-black text-amber-400 mt-1 block">
-                      {studentProfile.lifetime.exam_attempts}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Student Timeline Header & Filters */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-[var(--border-color)]">
-                  <h4 className="text-sm font-black text-slate-200 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-brand-primary" />
-                    <span>الخط الزمني لأنشطة الطالب ({studentProfile.timeline.total})</span>
-                  </h4>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={studentTimelineFilter}
-                      onChange={(e) => {
-                        setStudentTimelineFilter(e.target.value)
-                        setStudentTimelinePage(1)
-                      }}
-                      className="bg-slate-900 border border-[var(--border-color)] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
-                    >
-                      <option value="all">جميع النشاطات</option>
-                      <option value="auth">تسجيل الدخول</option>
-                      <option value="course">الكورسات والدروس</option>
-                      <option value="video">مشاهدات الفيديو</option>
-                      <option value="assessment">الامتحانات والواجبات</option>
-                      <option value="purchase">المشتريات</option>
-                      <option value="security">مخالفات الأمان</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Timeline Items List */}
-                <div className="space-y-3">
-                  {studentProfile.timeline.data.length === 0 ? (
-                    <div className="p-8 text-center text-slate-500 text-xs">
-                      لا توجد أحداث مسجلة لهذا الطالب في هذا القسم.
+                    {/* Financial Summary Cards */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>الملخص المالي والعمليات</span>
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">شحن المحفظة اليوم</span>
+                          <span className="text-base font-black text-emerald-400 mt-1 block font-mono">
+                            {(studentProfile.today?.money_added ?? studentProfile.stats_today?.money_added ?? 0).toFixed(2)} ج.م
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">مشتريات اليوم</span>
+                          <span className="text-base font-black text-purple-400 mt-1 block font-mono">
+                            {(studentProfile.today?.money_spent ?? studentProfile.stats_today?.money_spent ?? 0).toFixed(2)} ج.م
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">إجمالي ما تم شحنه</span>
+                          <span className="text-base font-black text-slate-200 mt-1 block font-mono">
+                            {(studentProfile.lifetime?.total_money_added ?? 0).toFixed(2)} ج.م
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">إجمالي المشتريات</span>
+                          <span className="text-base font-black text-slate-200 mt-1 block font-mono">
+                            {(studentProfile.lifetime?.total_money_spent ?? 0).toFixed(2)} ج.م
+                            <span className="text-[10px] font-normal text-slate-400 mr-1">
+                              ({studentProfile.lifetime?.total_purchases_count ?? 0} عملية)
+                            </span>
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    studentProfile.timeline.data.map((item) => {
-                      const badge = getEventBadge(item.event_type)
-                      return (
-                        <div
-                          key={item.id}
-                          className="bg-slate-900/30 hover:bg-slate-900/60 border border-[var(--border-color)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+
+                    {/* Academic Metrics Summary Grid */}
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-brand-primary" />
+                        <span>النشاط الأكاديمي والتعليمي</span>
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">دروس اليوم</span>
+                          <span className="text-lg font-black text-slate-200 mt-1 block">
+                            {studentProfile.stats_today?.lessons_opened ?? studentProfile.today?.lessons_opened ?? 0}
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">فيديوهات اليوم</span>
+                          <span className="text-lg font-black text-slate-200 mt-1 block">
+                            {studentProfile.stats_today?.videos_watched ?? studentProfile.today?.videos_watched ?? 0}
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">امتحانات اليوم</span>
+                          <span className="text-lg font-black text-slate-200 mt-1 block">
+                            {studentProfile.stats_today?.assessments_submitted ?? studentProfile.today?.assessments_submitted ?? 0}
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">كورسات فتحت اليوم</span>
+                          <span className="text-lg font-black text-slate-200 mt-1 block">
+                            {studentProfile.stats_today?.courses_accessed ?? studentProfile.today?.courses_accessed ?? 0}
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">إجمالي وقت الفيديو</span>
+                          <span className="text-lg font-black text-cyan-400 mt-1 block">
+                            {(studentProfile.lifetime?.total_video_watch_hours ?? 0) > 0
+                              ? `${studentProfile.lifetime?.total_video_watch_hours} س`
+                              : `${studentProfile.lifetime?.total_video_watch_minutes ?? 0} د`}
+                          </span>
+                        </div>
+                        <div className="bg-slate-900/40 border border-[var(--border-color)] rounded-xl p-3 text-center">
+                          <span className="text-[10px] text-slate-400 block">إجمالي محاولات الاختبارات</span>
+                          <span className="text-lg font-black text-amber-400 mt-1 block">
+                            {studentProfile.lifetime?.exam_attempts ?? 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Student Timeline Header & Filters */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-[var(--border-color)]">
+                      <h4 className="text-sm font-black text-slate-200 flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-brand-primary" />
+                        <span>الخط الزمني لأنشطة وعمليات الطالب ({studentProfile.timeline.total})</span>
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={studentTimelineFilter}
+                          onChange={(e) => {
+                            setStudentTimelineFilter(e.target.value)
+                            setStudentTimelinePage(1)
+                          }}
+                          className="bg-slate-900 border border-[var(--border-color)] rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-primary"
                         >
-                          <div className="flex items-start gap-3">
-                            <div className="mt-1">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${badge.bg}`}>
-                                {badge.label}
-                              </span>
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold text-slate-200">
-                                {item.description}
-                              </p>
-                              <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
-                                {item.bundle && (
-                                  <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold">
-                                    من خلال باقة: {item.bundle.title}
+                          <option value="all">جميع النشاطات والعمليات</option>
+                          <option value="auth">🔐 تسجيل الدخول (Auth)</option>
+                          <option value="sessions">⏱️ الجلسات والتواجد (Sessions)</option>
+                          <option value="courses">📚 الكورسات والباقات</option>
+                          <option value="lessons">📖 المحاضرات والدروس</option>
+                          <option value="videos">🎥 الفيديوهات والمشاهدة</option>
+                          <option value="pdfs">📄 الملفات والمذكرات (PDF)</option>
+                          <option value="exams">📝 الامتحانات والاختبارات</option>
+                          <option value="homework">📋 الواجبات الدراسية</option>
+                          <option value="purchases">💳 عمليات الشراء</option>
+                          <option value="wallet">💰 شحن المحفظة والمعاملات</option>
+                          <option value="account">⚙️ إعدادات الحساب والأجهزة</option>
+                          <option value="security">🛡️ مخالفات الأمان والتحذيرات</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Timeline Items List */}
+                    <div className="space-y-3">
+                      {studentProfile.timeline.data.length === 0 ? (
+                        <div className="p-8 text-center text-slate-500 text-xs bg-slate-900/40 rounded-2xl border border-[var(--border-color)]">
+                          لا توجد أنشطة مسجلة لهذا الطالب في هذا القسم حتى الآن.
+                        </div>
+                      ) : (
+                        studentProfile.timeline.data.map((item) => {
+                          const badge = getEventBadge(item.event_type)
+                          return (
+                            <div
+                              key={item.id}
+                              className="bg-slate-900/30 hover:bg-slate-900/60 border border-[var(--border-color)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors"
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold border ${badge.bg}`}>
+                                    {badge.label}
                                   </span>
-                                )}
-                                {item.course && <span>كورس: {item.course.title}</span>}
-                                {item.lesson && <span>درس: {item.lesson.title}</span>}
-                                {item.exam && <span>امتحان: {item.exam.title}</span>}
-                                {item.ip_address && <span className="font-mono text-slate-500">IP: {item.ip_address}</span>}
+                                </div>
+                                <div className="space-y-1.5">
+                                  <p className="text-xs font-bold text-slate-200">
+                                    {item.description}
+                                  </p>
+
+                                  {/* Financial Metadata Badges */}
+                                  {item.metadata?.amount !== undefined && (
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                      <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono font-bold">
+                                        المبلغ: {item.metadata.amount} ج.م
+                                      </span>
+                                      {(item.metadata.method_label || item.metadata.topup_method || item.metadata.payment_method) && (
+                                        <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium">
+                                          طريقة الدفع: {item.metadata.method_label || item.metadata.topup_method || item.metadata.payment_method}
+                                        </span>
+                                      )}
+                                      {item.metadata.balance_before !== undefined && item.metadata.balance_after !== undefined && (
+                                        <span className="px-2 py-0.5 rounded-md bg-slate-950 font-mono text-slate-400 border border-slate-800 text-[10px]">
+                                          الرصيد: {item.metadata.balance_before} ← {item.metadata.balance_after} ج.م
+                                        </span>
+                                      )}
+                                      {item.metadata.reference && (
+                                        <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[10px]">
+                                          المرجع: {item.metadata.reference}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* Video Progress Bar */}
+                                  {item.metadata?.percentage !== undefined && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-24 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                          className="bg-cyan-500 h-1.5 rounded-full"
+                                          style={{ width: `${Math.min(100, item.metadata.percentage)}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] text-cyan-400 font-bold font-mono">
+                                        {item.metadata.percentage}% ({formatSeconds(item.metadata.watched_seconds)})
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Score Pill */}
+                                  {item.metadata?.score !== undefined && (
+                                    <span className="inline-block text-[10px] text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                      الدرجة: {item.metadata.score} {item.metadata.max_score ? `/ ${item.metadata.max_score}` : ''}
+                                    </span>
+                                  )}
+
+                                  {/* Entity References */}
+                                  <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                                    {item.bundle && (
+                                      <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-bold">
+                                        من خلال باقة: {item.bundle.title}
+                                      </span>
+                                    )}
+                                    {item.course && <span>كورس: {item.course.title}</span>}
+                                    {item.lesson && <span>درس: {item.lesson.title}</span>}
+                                    {item.exam && <span>امتحان: {item.exam.title}</span>}
+                                    {item.ip_address && <span className="font-mono text-slate-500">IP: {item.ip_address}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
+                                <span className="text-[11px] text-slate-400 font-mono">
+                                  {formatDateTime(item.occurred_at)}
+                                </span>
+                                <button
+                                  onClick={() => setInspectLog(item)}
+                                  className="p-1 hover:bg-slate-800 rounded-lg text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+                                  title="فحص التفاصيل التقنية للحدث"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
-                          </div>
-
-                          <div className="text-left sm:text-right shrink-0 text-[11px] text-slate-400 font-mono">
-                            {formatDateTime(item.occurred_at)}
-                          </div>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-
-                {/* Timeline Pagination */}
-                {studentProfile.timeline.last_page > 1 && (
-                  <div className="flex items-center justify-between pt-3 border-t border-[var(--border-color)] text-xs text-slate-400">
-                    <span>
-                      صفحة {studentTimelinePage} من {studentProfile.timeline.last_page}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        disabled={studentTimelinePage <= 1}
-                        onClick={() => setStudentTimelinePage((p) => p - 1)}
-                        className="px-3 py-1 rounded-lg bg-slate-900 border border-[var(--border-color)] disabled:opacity-40 hover:bg-slate-800 text-slate-200 cursor-pointer"
-                      >
-                        السابق
-                      </button>
-                      <button
-                        disabled={studentTimelinePage >= studentProfile.timeline.last_page}
-                        onClick={() => setStudentTimelinePage((p) => p + 1)}
-                        className="px-3 py-1 rounded-lg bg-slate-900 border border-[var(--border-color)] disabled:opacity-40 hover:bg-slate-800 text-slate-200 cursor-pointer"
-                      >
-                        التالي
-                      </button>
+                          )
+                        })
+                      )}
                     </div>
-                  </div>
+
+                    {/* Timeline Pagination */}
+                    {studentProfile.timeline.last_page > 1 && (
+                      <div className="flex items-center justify-between pt-3 border-t border-[var(--border-color)] text-xs text-slate-400">
+                        <span>
+                          صفحة {studentTimelinePage} من {studentProfile.timeline.last_page}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            disabled={studentTimelinePage <= 1}
+                            onClick={() => setStudentTimelinePage((p) => p - 1)}
+                            className="px-3 py-1 rounded-lg bg-slate-900 border border-[var(--border-color)] disabled:opacity-40 hover:bg-slate-800 text-slate-200 cursor-pointer"
+                          >
+                            السابق
+                          </button>
+                          <button
+                            disabled={studentTimelinePage >= studentProfile.timeline.last_page}
+                            onClick={() => setStudentTimelinePage((p) => p + 1)}
+                            className="px-3 py-1 rounded-lg bg-slate-900 border border-[var(--border-color)] disabled:opacity-40 hover:bg-slate-800 text-slate-200 cursor-pointer"
+                          >
+                            التالي
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
-                </>
-              )}
 
               </div>
             ) : null}
@@ -1432,7 +1676,7 @@ export default function StudentActivity() {
           ========================================================================= */}
       {inspectLog && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40" onClick={() => setInspectLog(null)} />
+          <div className="fixed inset-0 bg-black/60 z-40 transition-opacity" onClick={() => setInspectLog(null)} />
           <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl z-50 text-right">
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
               <h3 className="text-sm font-black text-slate-200 flex items-center gap-2">

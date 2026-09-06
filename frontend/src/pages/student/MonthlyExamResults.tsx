@@ -19,6 +19,7 @@ import {
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import SEO from '../../components/SEO'
+import { formatGradeName, formatSubjectName } from '../../utils/formatters'
 
 interface StudentAnswerItem {
   id: number
@@ -109,10 +110,10 @@ export default function MonthlyExamResults() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0f19] flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
-          <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto" />
-          <p className="text-sm font-bold text-slate-300">جاري تحميل تقرير النتيجة والمراجعة...</p>
+          <Loader2 className="w-10 h-10 text-brand-primary animate-spin mx-auto" />
+          <p className="text-sm font-bold text-[var(--text-secondary)]">جاري تحميل تقرير النتيجة والمراجعة...</p>
         </div>
       </div>
     )
@@ -134,7 +135,7 @@ export default function MonthlyExamResults() {
   })
 
   return (
-    <div className="min-h-screen bg-[#0b0f19] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-background text-foreground py-10 px-4 sm:px-6 lg:px-8 text-right" dir="rtl">
       <SEO title={`تقرير نتيجة: ${exam.title}`} />
 
       <div className="max-w-4xl mx-auto space-y-8">
@@ -159,9 +160,12 @@ export default function MonthlyExamResults() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-right">
             
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-950/60 border border-slate-800 text-xs font-bold">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-950/60 border border-slate-800 text-xs font-bold" dir="rtl">
                 <FileText className="w-3.5 h-3.5 text-indigo-400" />
-                <span>{exam.subject} • {exam.month}</span>
+                <span>
+                  {exam.grade ? `${formatGradeName(exam.grade)} • ` : ''}
+                  {formatSubjectName(exam.subject)} {exam.month ? `• ${exam.month}` : ''}
+                </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-white">{exam.title}</h1>
               

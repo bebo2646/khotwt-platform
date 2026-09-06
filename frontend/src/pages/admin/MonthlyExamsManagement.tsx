@@ -27,6 +27,7 @@ import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { useAuthStore } from '../../store/authStore'
 import SEO from '../../components/SEO'
+import { formatGradeName, formatSubjectName } from '../../utils/formatters'
 
 interface AdminMonthlyExam {
   id: number
@@ -342,13 +343,13 @@ export default function MonthlyExamsManagement() {
                   <tr key={exam.id} className="hover:bg-slate-800/30 transition-colors">
                     <td className="p-4 font-bold">
                       <div className="text-slate-100">{exam.title}</div>
-                      <div className="text-[10px] text-slate-400 font-normal">{exam.grade}</div>
+                      <div className="text-[10px] text-slate-400 font-normal">{formatGradeName(exam.grade)}</div>
                     </td>
                     <td className="p-4">
                       <span className="inline-block px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 font-bold border border-indigo-500/20 text-[11px]">
                         {exam.month}
                       </span>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{exam.subject}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{formatSubjectName(exam.subject)}</div>
                     </td>
                     <td className="p-4 text-slate-300">
                       {exam.teacher?.name || '—'}

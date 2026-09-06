@@ -173,6 +173,7 @@ class StudentController extends Controller
 
             if ($type === 'wallet') {
                 $wallet = Wallet::firstOrCreate(['student_id' => $user->id], ['balance' => 0.00]);
+                $balanceBefore = (float)$wallet->balance;
                 $wallet->balance += $purchaseCode->amount;
                 $wallet->save();
 
@@ -188,6 +189,16 @@ class StudentController extends Controller
                 $purchaseCode->redeemed_by = $user->id;
                 $purchaseCode->redeemed_at = Carbon::now();
                 $purchaseCode->save();
+
+                \App\Services\StudentActivityService::logWalletTopup(
+                    $user,
+                    (float)$purchaseCode->amount,
+                    'recharge_code',
+                    $purchaseCode->code,
+                    $balanceBefore,
+                    (float)$wallet->balance,
+                    request()
+                );
 
                 return response()->json([
                     'type' => 'wallet',

@@ -208,11 +208,17 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
       fifth_primary: 'الصف الخامس الابتدائي',
       sixth_primary: 'الصف السادس الابتدائي',
       first_preparatory: 'الصف الأول الإعدادي',
+      first_prep: 'الصف الأول الإعدادي',
       second_preparatory: 'الصف الثاني الإعدادي',
+      second_prep: 'الصف الثاني الإعدادي',
       third_preparatory: 'الصف الثالث الإعدادي',
+      third_prep: 'الصف الثالث الإعدادي',
       first_secondary: 'الصف الأول الثانوي',
+      first_sec: 'الصف الأول الثانوي',
       second_secondary: 'الصف الثاني الثانوي',
+      second_sec: 'الصف الثاني الثانوي',
       third_secondary: 'الصف الثالث الثانوي',
+      third_sec: 'الصف الثالث الثانوي',
     }
     return fallbacks[slug] || slug
   },

@@ -1,4 +1,13 @@
 import React from 'react'
+import { useThemeStore } from '../../store/themeStore'
+
+interface MobilePosition {
+  show: boolean
+  left?: string
+  right?: string
+  top?: string
+  size?: number
+}
 
 interface EducationalElement {
   id: string
@@ -14,9 +23,11 @@ interface EducationalElement {
   delay: number
   layer: 1 | 2 | 3
   svg: React.ReactNode
+  mobile?: MobilePosition
 }
 
 export default function EducationalHeroBackground() {
+  const theme = useThemeStore((state) => state.theme)
   const [mousePos, setMousePos] = React.useState({ x: 0, y: 0 })
 
   React.useEffect(() => {
@@ -37,11 +48,12 @@ export default function EducationalHeroBackground() {
       left: 3,
       top: 5,
       size: 72,
-      color: 'rgba(129, 140, 248, 0.42)', // Indigo
+      color: 'rgba(129, 140, 248, 0.92)', // Indigo
       rotation: 15,
       duration: 18,
       delay: 0,
       layer: 2,
+      mobile: { show: true, left: '12px', top: '90px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="15,85 85,85 85,15" />
@@ -55,7 +67,7 @@ export default function EducationalHeroBackground() {
       left: 15,
       top: 8,
       size: 58,
-      color: 'rgba(96, 165, 250, 0.45)', // Blue
+      color: 'rgba(96, 165, 250, 0.92)', // Blue
       rotation: -10,
       duration: 15,
       delay: 1.5,
@@ -72,7 +84,7 @@ export default function EducationalHeroBackground() {
       left: 25,
       top: 4,
       size: 68,
-      color: 'rgba(79, 70, 229, 0.38)', // Indigo dark
+      color: 'rgba(79, 70, 229, 0.92)', // Indigo dark
       rotation: -25,
       duration: 22,
       delay: 1,
@@ -97,7 +109,7 @@ export default function EducationalHeroBackground() {
       left: 2,
       top: 22,
       size: 62,
-      color: 'rgba(139, 92, 246, 0.42)', // Violet
+      color: 'rgba(139, 92, 246, 0.92)', // Violet
       rotation: 5,
       duration: 20,
       delay: 0.5,
@@ -115,7 +127,7 @@ export default function EducationalHeroBackground() {
       left: 12,
       top: 28,
       size: 68,
-      color: 'rgba(167, 139, 250, 0.4)', // Purple
+      color: 'rgba(167, 139, 250, 0.92)', // Purple
       rotation: 12,
       duration: 24,
       delay: 2,
@@ -133,7 +145,7 @@ export default function EducationalHeroBackground() {
       left: 24,
       top: 20,
       size: 68,
-      color: 'rgba(129, 140, 248, 0.38)',
+      color: 'rgba(129, 140, 248, 0.92)',
       rotation: -8,
       duration: 19,
       delay: 3,
@@ -159,11 +171,12 @@ export default function EducationalHeroBackground() {
       left: 2,
       top: 45,
       size: 78,
-      color: 'rgba(244, 63, 94, 0.42)', // Rose
+      color: 'rgba(244, 63, 94, 0.92)', // Rose
       rotation: 30,
       duration: 25,
       delay: 1.5,
       layer: 1,
+      mobile: { show: true, left: '10px', top: '520px', size: 44 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.0">
           <ellipse cx="50" cy="50" rx="42" ry="14" transform="rotate(30, 50, 50)" />
@@ -179,7 +192,7 @@ export default function EducationalHeroBackground() {
       left: 14,
       top: 48,
       size: 72,
-      color: 'rgba(251, 113, 133, 0.4)', // Rose light
+      color: 'rgba(251, 113, 133, 0.92)', // Rose light
       rotation: -5,
       duration: 17,
       delay: 3.2,
@@ -200,7 +213,7 @@ export default function EducationalHeroBackground() {
       left: 25,
       top: 40,
       size: 62,
-      color: 'rgba(244, 63, 94, 0.38)',
+      color: 'rgba(244, 63, 94, 0.92)',
       rotation: 10,
       duration: 21,
       delay: 2.5,
@@ -219,7 +232,7 @@ export default function EducationalHeroBackground() {
       left: 3,
       top: 66,
       size: 72,
-      color: 'rgba(45, 212, 191, 0.42)', // Teal
+      color: 'rgba(45, 212, 191, 0.92)', // Teal
       rotation: 40,
       duration: 23,
       delay: 4,
@@ -241,7 +254,7 @@ export default function EducationalHeroBackground() {
       left: 12,
       top: 72,
       size: 78,
-      color: 'rgba(16, 185, 129, 0.4)', // Emerald
+      color: 'rgba(16, 185, 129, 0.92)', // Emerald
       rotation: 0,
       duration: 26,
       delay: 1.2,
@@ -259,7 +272,7 @@ export default function EducationalHeroBackground() {
       left: 24,
       top: 64,
       size: 68,
-      color: 'rgba(20, 184, 166, 0.38)', // Teal dark
+      color: 'rgba(20, 184, 166, 0.92)', // Teal dark
       rotation: -5,
       duration: 22,
       delay: 3,
@@ -276,11 +289,12 @@ export default function EducationalHeroBackground() {
       left: 8,
       top: 84,
       size: 68,
-      color: 'rgba(52, 211, 153, 0.42)', // Emerald light
+      color: 'rgba(52, 211, 153, 0.92)', // Emerald light
       rotation: 12,
       duration: 20,
       delay: 0.5,
       layer: 2,
+      mobile: { show: true, left: '10px', top: '280px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M42,20 L42,35 L20,78 Q17,84 23,84 L77,84 Q83,84 80,78 L58,35 L58,20" />
@@ -297,7 +311,7 @@ export default function EducationalHeroBackground() {
       left: 20,
       top: 82,
       size: 68,
-      color: 'rgba(45, 212, 191, 0.38)',
+      color: 'rgba(45, 212, 191, 0.92)',
       rotation: 8,
       duration: 24,
       delay: 1.8,
@@ -318,11 +332,12 @@ export default function EducationalHeroBackground() {
       right: 3,
       top: 5,
       size: 72,
-      color: 'rgba(245, 158, 11, 0.45)', // Amber
+      color: 'rgba(245, 158, 11, 0.92)', // Amber
       rotation: -10,
       duration: 17,
       delay: 0.2,
       layer: 3,
+      mobile: { show: true, right: '12px', top: '90px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <path d="M75,30 Q80,60 50,75 Q20,90 20,55 C20,35 30,30 35,45" />
@@ -336,7 +351,7 @@ export default function EducationalHeroBackground() {
       right: 15,
       top: 8,
       size: 58,
-      color: 'rgba(251, 191, 36, 0.42)', // Amber light
+      color: 'rgba(251, 191, 36, 0.92)', // Amber light
       rotation: 8,
       duration: 20,
       delay: 1.2,
@@ -353,7 +368,7 @@ export default function EducationalHeroBackground() {
       right: 25,
       top: 4,
       size: 68,
-      color: 'rgba(217, 119, 6, 0.38)', // Orange
+      color: 'rgba(217, 119, 6, 0.92)', // Orange
       rotation: 12,
       duration: 21,
       delay: 0.8,
@@ -373,7 +388,7 @@ export default function EducationalHeroBackground() {
       right: 2,
       top: 22,
       size: 62,
-      color: 'rgba(59, 130, 246, 0.45)', // Blue
+      color: 'rgba(59, 130, 246, 0.92)', // Blue
       rotation: -8,
       duration: 18,
       delay: 2.8,
@@ -392,11 +407,12 @@ export default function EducationalHeroBackground() {
       right: 12,
       top: 28,
       size: 72,
-      color: 'rgba(96, 165, 250, 0.42)', // Sky
+      color: 'rgba(96, 165, 250, 0.92)', // Sky
       rotation: 5,
       duration: 23,
       delay: 1.6,
       layer: 3,
+      mobile: { show: true, right: '10px', top: '200px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M50,15 L90,30 L50,45 L10,30 Z M25,36 L25,65 Q50,75 75,65 L75,36 M90,30 L90,60" />
@@ -409,7 +425,7 @@ export default function EducationalHeroBackground() {
       right: 24,
       top: 20,
       size: 58,
-      color: 'rgba(30, 64, 175, 0.38)', // Dark Blue
+      color: 'rgba(30, 64, 175, 0.92)', // Dark Blue
       rotation: 45,
       duration: 25,
       delay: 0.5,
@@ -428,11 +444,12 @@ export default function EducationalHeroBackground() {
       right: 2,
       top: 45,
       size: 78,
-      color: 'rgba(6, 182, 212, 0.45)', // Cyan
+      color: 'rgba(6, 182, 212, 0.92)', // Cyan
       rotation: 15,
       duration: 26,
       delay: 3.5,
       layer: 2,
+      mobile: { show: true, right: '10px', top: '520px', size: 44 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.0">
           <circle cx="50" cy="50" r="35" />
@@ -449,7 +466,7 @@ export default function EducationalHeroBackground() {
       right: 14,
       top: 48,
       size: 68,
-      color: 'rgba(34, 211, 238, 0.42)', // Cyan light
+      color: 'rgba(34, 211, 238, 0.92)', // Cyan light
       rotation: 45,
       duration: 21,
       delay: 1,
@@ -469,7 +486,7 @@ export default function EducationalHeroBackground() {
       right: 25,
       top: 40,
       size: 62,
-      color: 'rgba(8, 145, 178, 0.38)', // Cyan dark
+      color: 'rgba(8, 145, 178, 0.92)', // Cyan dark
       rotation: 0,
       duration: 24,
       delay: 2,
@@ -489,11 +506,12 @@ export default function EducationalHeroBackground() {
       right: 3,
       top: 66,
       size: 72,
-      color: 'rgba(168, 85, 247, 0.42)', // Purple
+      color: 'rgba(168, 85, 247, 0.92)', // Purple
       rotation: -12,
       duration: 28,
       delay: 4.5,
       layer: 2,
+      mobile: { show: true, right: '10px', top: '750px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
           <path d="M25,20 L75,20 M30,20 L30,80 M40,20 L40,80 M50,20 L50,80 M60,20 L60,80 M70,20 L70,80 M25,80 L75,80 M20,85 L80,85" />
@@ -506,7 +524,7 @@ export default function EducationalHeroBackground() {
       right: 12,
       top: 72,
       size: 68,
-      color: 'rgba(192, 132, 252, 0.4)', // Purple light
+      color: 'rgba(192, 132, 252, 0.92)', // Purple light
       rotation: 18,
       duration: 25,
       delay: 0.3,
@@ -523,11 +541,12 @@ export default function EducationalHeroBackground() {
       right: 24,
       top: 64,
       size: 72,
-      color: 'rgba(99, 102, 241, 0.42)', // Indigo CS
+      color: 'rgba(99, 102, 241, 0.92)', // Indigo CS
       rotation: 90,
       duration: 20,
       delay: 1.8,
       layer: 2,
+      mobile: { show: true, left: '10px', top: '750px', size: 42 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
           <path d="M15,50 L45,50 L45,20 L85,20" />
@@ -543,7 +562,7 @@ export default function EducationalHeroBackground() {
       right: 8,
       top: 84,
       size: 68,
-      color: 'rgba(139, 92, 246, 0.4)', // Violet CS
+      color: 'rgba(139, 92, 246, 0.92)', // Violet CS
       rotation: -10,
       duration: 23,
       delay: 2.2,
@@ -562,7 +581,7 @@ export default function EducationalHeroBackground() {
       right: 20,
       top: 82,
       size: 62,
-      color: 'rgba(99, 102, 241, 0.38)',
+      color: 'rgba(99, 102, 241, 0.92)',
       rotation: 0,
       duration: 27,
       delay: 1,
@@ -584,11 +603,12 @@ export default function EducationalHeroBackground() {
       left: 32,
       top: 86,
       size: 62,
-      color: 'rgba(236, 72, 153, 0.35)', // Pink
+      color: 'rgba(236, 72, 153, 0.92)', // Pink
       rotation: 12,
       duration: 22,
       delay: 0.4,
       layer: 1,
+      mobile: { show: true, left: '14px', top: '1220px', size: 40 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="32" cy="72" r="10" fill="currentColor" />
@@ -605,11 +625,12 @@ export default function EducationalHeroBackground() {
       right: 32,
       top: 86,
       size: 62,
-      color: 'rgba(16, 185, 129, 0.38)', // Emerald
+      color: 'rgba(16, 185, 129, 0.92)', // Emerald
       rotation: -15,
       duration: 25,
       delay: 2.8,
       layer: 2,
+      mobile: { show: true, right: '14px', top: '1220px', size: 40 },
       svg: (
         <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="25" y="15" width="55" height="70" rx="5" />
@@ -655,26 +676,27 @@ export default function EducationalHeroBackground() {
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes eduFloat {
           0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--base-rot)); -webkit-transform: translate3d(0, 0, 0) rotate(var(--base-rot)); }
-          50% { transform: translate3d(0, -22px, 0) rotate(calc(var(--base-rot) + 7deg)); -webkit-transform: translate3d(0, -22px, 0) rotate(calc(var(--base-rot) + 7deg)); }
+          50% { transform: translate3d(0, -20px, 0) rotate(calc(var(--base-rot) + 6deg)); -webkit-transform: translate3d(0, -20px, 0) rotate(calc(var(--base-rot) + 6deg)); }
         }
         @keyframes eduBreathe {
-          0%, 100% { opacity: 0.65; }
-          50% { opacity: 1.0; }
+          0%, 100% { opacity: 0.85; transform: scale(0.97); }
+          50% { opacity: 1.0; transform: scale(1.03); }
         }
         @keyframes particleDrift {
           0% { transform: translate3d(0, 0, 0); -webkit-transform: translate3d(0, 0, 0); opacity: 0; }
-          20% { opacity: 0.75; }
-          80% { opacity: 0.75; }
+          20% { opacity: 0.85; }
+          80% { opacity: 0.85; }
           100% { transform: translate3d(var(--drift), -160px, 0); -webkit-transform: translate3d(var(--drift), -160px, 0); opacity: 0; }
         }
         .edu-float-box {
           animation: eduFloat var(--float-dur) infinite ease-in-out;
           -webkit-animation: eduFloat var(--float-dur) infinite ease-in-out;
           animation-delay: var(--float-delay);
+          will-change: transform;
         }
         .edu-breathe-element {
-          animation: eduBreathe 5s infinite ease-in-out;
-          -webkit-animation: eduBreathe 5s infinite ease-in-out;
+          animation: eduBreathe 6s infinite ease-in-out;
+          -webkit-animation: eduBreathe 6s infinite ease-in-out;
           animation-delay: var(--float-delay);
         }
         .glow-particle {
@@ -682,35 +704,126 @@ export default function EducationalHeroBackground() {
           -webkit-animation: particleDrift var(--part-dur) infinite linear;
           animation-delay: var(--part-delay);
         }
+        .luminous-glass-card {
+          width: 100%;
+          height: 100%;
+          border-radius: 1.25rem;
+          padding: 0.75rem;
+          backdrop-filter: blur(14px);
+          -webkit-backdrop-filter: blur(14px);
+          transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        /* Dark theme (Default): Translucent deep brand-purple glass with vivid luminous glow */
+        .luminous-glass-card.dark-glass,
+        html:not(.light-theme) .luminous-glass-card {
+          background: linear-gradient(135deg, rgba(109, 93, 252, 0.25) 0%, rgba(15, 23, 42, 0.6) 45%, rgba(139, 92, 246, 0.2) 100%) !important;
+          border: 1.5px solid rgba(129, 140, 248, 0.45) !important;
+          box-shadow: 0 10px 32px -2px rgba(109, 93, 252, 0.35), 0 4px 14px -1px rgba(109, 93, 252, 0.25), inset 0 1px 2px 0 rgba(255, 255, 255, 0.22) !important;
+        }
+        .luminous-glass-card.dark-glass:hover,
+        html:not(.light-theme) .luminous-glass-card:hover {
+          border-color: rgba(129, 140, 248, 0.75) !important;
+          box-shadow: 0 14px 44px 0 rgba(109, 93, 252, 0.52), inset 0 1px 3px 0 rgba(255, 255, 255, 0.32) !important;
+        }
+        /* Light theme: Crisp luminous white-lavender glass with brand purple glow */
+        .luminous-glass-card.light-glass,
+        html.light-theme .luminous-glass-card {
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(238, 242, 255, 0.7) 50%, rgba(245, 243, 255, 0.8) 100%) !important;
+          border: 1.5px solid rgba(109, 93, 252, 0.3) !important;
+          box-shadow: 0 10px 25px -3px rgba(109, 93, 252, 0.18), 0 4px 10px -2px rgba(109, 93, 252, 0.1), inset 0 1px 2px 0 rgba(255, 255, 255, 0.95) !important;
+        }
+        .luminous-glass-card.light-glass:hover,
+        html.light-theme .luminous-glass-card:hover {
+          border-color: rgba(109, 93, 252, 0.6) !important;
+          box-shadow: 0 14px 36px 0 rgba(109, 93, 252, 0.28) !important;
+        }
+        .luminous-icon-glow {
+          filter: drop-shadow(0 0 7px currentColor);
+          -webkit-filter: drop-shadow(0 0 7px currentColor);
+        }
+
+        /* Mobile-only responsive perimeter styling (< 768px) */
+        @media (max-width: 767px) {
+          .edu-node-mobile {
+            display: block !important;
+            left: var(--mob-left) !important;
+            right: var(--mob-right) !important;
+            top: var(--mob-top) !important;
+            width: var(--mob-size) !important;
+            height: var(--mob-size) !important;
+          }
+          @keyframes eduFloatMobile {
+            0%, 100% {
+              transform: translate3d(0, 0, 0) rotate(var(--base-rot));
+              -webkit-transform: translate3d(0, 0, 0) rotate(var(--base-rot));
+            }
+            50% {
+              transform: translate3d(0, -8px, 0) rotate(calc(var(--base-rot) + 4deg));
+              -webkit-transform: translate3d(0, -8px, 0) rotate(calc(var(--base-rot) + 4deg));
+            }
+          }
+          .edu-node-mobile .edu-float-box {
+            animation: eduFloatMobile var(--float-dur) infinite ease-in-out !important;
+            -webkit-animation: eduFloatMobile var(--float-dur) infinite ease-in-out !important;
+          }
+          .edu-node-mobile .luminous-glass-card {
+            border-radius: 0.85rem !important;
+            padding: 0.45rem !important;
+          }
+        }
       `}} />
 
-      {/* B. DETAILED SUBJECT FLOATING OUTLINE ICONS */}
+      {/* B. CURATED POLISHED KNOWLEDGE NODES WITH INDEPENDENT PARALLAX + FLOAT */}
       <div className="absolute inset-0 w-full h-full">
         {elements.map((el) => {
-          const factor = el.layer === 1 ? 12 : el.layer === 2 ? 24 : 36
+          const factor = el.layer === 1 ? 14 : el.layer === 2 ? 26 : 38
           const pxTransX = mousePos.x * factor
           const pxTransY = mousePos.y * factor
-
-          const style: React.CSSProperties = {
-            position: 'absolute',
-            left: el.left !== undefined ? `${el.left}%` : undefined,
-            right: el.right !== undefined ? `${el.right}%` : undefined,
-            top: `${el.top}%`,
-            width: `${el.size}px`,
-            height: `${el.size}px`,
-            color: el.color,
-            transform: `translate3d(${pxTransX}px, ${pxTransY}px, 0)`,
-            WebkitTransform: `translate3d(${pxTransX}px, ${pxTransY}px, 0)`,
-            transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), -webkit-transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)', 
-            '--base-rot': `${el.rotation}deg`,
-            '--float-dur': `${el.duration}s`,
-            '--float-delay': `${el.delay}s`,
-          } as any
+          const isMobileVisible = el.mobile?.show === true
 
           return (
-            <div key={el.id} style={style} className="edu-float-box select-none pointer-events-none">
-              <div className="w-full h-full edu-breathe-element flex items-center justify-center">
-                {el.svg}
+            <div
+              key={el.id}
+              className={isMobileVisible ? 'edu-node-mobile' : 'hidden md:block'}
+              style={{
+                position: 'absolute',
+                left: el.left !== undefined ? `${el.left}%` : undefined,
+                right: el.right !== undefined ? `${el.right}%` : undefined,
+                top: `${el.top}%`,
+                width: `${el.size}px`,
+                height: `${el.size}px`,
+                transform: `translate3d(${pxTransX}px, ${pxTransY}px, 0)`,
+                WebkitTransform: `translate3d(${pxTransX}px, ${pxTransY}px, 0)`,
+                transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), -webkit-transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)',
+                willChange: 'transform',
+                pointerEvents: 'none',
+                userSelect: 'none',
+                zIndex: el.layer,
+                '--mob-left': el.mobile?.left ?? 'auto',
+                '--mob-right': el.mobile?.right ?? 'auto',
+                '--mob-top': el.mobile?.top ?? 'auto',
+                '--mob-size': `${el.mobile?.size ?? 42}px`,
+              } as any}
+            >
+              <div
+                className="edu-float-box w-full h-full"
+                style={{
+                  '--base-rot': `${el.rotation}deg`,
+                  '--float-dur': `${el.duration}s`,
+                  '--float-delay': `${el.delay}s`,
+                } as any}
+              >
+                <div className={`luminous-glass-card ${theme === 'light' ? 'light-glass' : 'dark-glass'}`}>
+                  <div 
+                    className="w-full h-full edu-breathe-element flex items-center justify-center luminous-icon-glow"
+                    style={{ color: el.color }}
+                  >
+                    {el.svg}
+                  </div>
+                </div>
               </div>
             </div>
           )
@@ -718,7 +831,7 @@ export default function EducationalHeroBackground() {
       </div>
 
       {/* C. SLOW-DRIFTING GLOWING PARTICLES */}
-      <div className="absolute inset-0 w-full h-full opacity-80">
+      <div className="absolute inset-0 w-full h-full opacity-85">
         {particles.map((p) => {
           const style: React.CSSProperties = {
             position: 'absolute',
@@ -726,7 +839,8 @@ export default function EducationalHeroBackground() {
             top: `${p.top}%`,
             width: `${p.size}px`,
             height: `${p.size}px`,
-            background: 'rgba(129, 140, 248, 0.35)',
+            background: 'radial-gradient(circle, rgba(129,140,248,0.7) 0%, rgba(129,140,248,0) 70%)',
+            boxShadow: '0 0 8px rgba(129, 140, 248, 0.45)',
             borderRadius: '50%',
             '--part-dur': `${p.duration}s`,
             '--part-delay': `${p.delay}s`,
