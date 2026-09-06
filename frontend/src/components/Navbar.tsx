@@ -182,6 +182,75 @@ export default function Navbar() {
 
   return (
     <>
+      {/* High-definition emblem rendering styles for Khotwt brand lockup */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .khotwt-emblem-box {
+          position: relative !important;
+          overflow: hidden !important;
+          flex-shrink: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 25px !important;
+          height: 40px !important;
+        }
+        @media (min-width: 640px) {
+          .khotwt-emblem-box {
+            width: 29px !important;
+            height: 46px !important;
+          }
+        }
+        .khotwt-emblem-asset {
+          position: absolute !important;
+          max-width: none !important;
+          pointer-events: none !important;
+          user-select: none !important;
+          width: 104px !important;
+          height: 104px !important;
+          top: -19px !important;
+          left: -39px !important;
+          right: auto !important;
+          filter: drop-shadow(0 0 1.2px rgba(255,255,255,0.45)) !important;
+        }
+        @media (min-width: 640px) {
+          .khotwt-emblem-asset {
+            width: 117px !important;
+            height: 117px !important;
+            top: -21px !important;
+            left: -44px !important;
+            right: auto !important;
+          }
+        }
+        html.light-theme .khotwt-emblem-asset {
+          filter: none !important;
+        }
+        .khotwt-drawer-emblem-box {
+          position: relative !important;
+          overflow: hidden !important;
+          flex-shrink: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 22px !important;
+          height: 35px !important;
+        }
+        .khotwt-drawer-emblem-asset {
+          position: absolute !important;
+          max-width: none !important;
+          pointer-events: none !important;
+          user-select: none !important;
+          width: 89px !important;
+          height: 89px !important;
+          top: -16px !important;
+          left: -33px !important;
+          right: auto !important;
+          filter: drop-shadow(0 0 1px rgba(255,255,255,0.4)) !important;
+        }
+        html.light-theme .khotwt-drawer-emblem-asset {
+          filter: none !important;
+        }
+      `}} />
+
       <nav className={`fixed top-0 left-0 right-0 z-[1000] transition-all duration-300 ${
         isScrolled 
           ? 'bg-[var(--bg-color)]/95 border-b border-[var(--border-color)] shadow-sm backdrop-blur-xl py-0' 
@@ -192,13 +261,15 @@ export default function Navbar() {
           
           {/* Logo Section */}
           <div className="flex items-center shrink-0">
-            <Link to={getHomePath()} className="flex items-center gap-2.5 hover:opacity-95 transition-opacity">
-              <img 
-                src="/logo.png" 
-                alt="شعار خطوتك" 
-                className="h-9 w-9 object-contain shrink-0"
-              />
-              <span className="text-2xl font-black tracking-tight text-[var(--text-color)] select-none">
+            <Link to={getHomePath()} className="flex items-center gap-2.5 sm:gap-3 hover:opacity-95 transition-opacity">
+              <div className="khotwt-emblem-box" aria-hidden="true">
+                <img 
+                  src="/logo.png" 
+                  alt="شعار خطوتك" 
+                  className="khotwt-emblem-asset"
+                />
+              </div>
+              <span className="text-[27px] sm:text-[31px] font-black tracking-tight text-[var(--text-color)] select-none leading-none">
                 <span className="text-brand-primary">خطو</span>تك
               </span>
             </Link>
@@ -221,11 +292,11 @@ export default function Navbar() {
                     setShowNotifDropdown(!showNotifDropdown);
                   }}
                   onClick={(e) => e.preventDefault()}
-                  className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-[var(--text-color)] relative transition-all duration-200"
+                  className="w-10 h-10 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] flex items-center justify-center shrink-0 cursor-pointer text-[var(--text-color)] relative transition-all duration-200"
                   title="الإشعارات"
                   aria-label="الإشعارات"
                 >
-                  <Bell className="h-5 w-5 text-brand-primary" />
+                  <Bell className="h-5 w-5 text-brand-primary stroke-[2]" />
                   {unreadCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-rose-500 text-white font-bold text-[9px] w-4.5 h-4.5 flex items-center justify-center rounded-full border border-[var(--bg-color)] animate-pulse">
                       {unreadCount}
@@ -244,11 +315,11 @@ export default function Navbar() {
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] cursor-pointer text-[var(--text-color)] transition-all"
+              className="w-10 h-10 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] flex items-center justify-center shrink-0 cursor-pointer text-[var(--text-color)] transition-all"
               title="تغيير المظهر"
               aria-label="تغيير المظهر"
             >
-              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400" /> : <Moon className="h-5 w-5 text-brand-primary" />}
+              {theme === 'dark' ? <Sun className="h-5 w-5 text-amber-400 stroke-[2]" /> : <Moon className="h-5 w-5 text-brand-primary stroke-[2]" />}
             </button>
 
             {/* Auth Buttons */}
@@ -300,10 +371,14 @@ export default function Navbar() {
             <div className="flex md:hidden">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2.5 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] text-foreground cursor-pointer"
+                className="w-10 h-10 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] flex items-center justify-center shrink-0 text-[var(--text-color)] cursor-pointer transition-all"
                 aria-label="القائمة الجانبية"
               >
-                {mobileMenuOpen ? <X className="h-5 w-5 text-foreground" /> : <Menu className="h-5 w-5 text-foreground" />}
+                {mobileMenuOpen ? (
+                  <X className="h-5 w-5 text-[var(--text-color)] stroke-[2]" />
+                ) : (
+                  <Menu className="h-5 w-5 text-[var(--text-color)] stroke-[2]" />
+                )}
               </button>
             </div>
 
@@ -341,16 +416,23 @@ export default function Navbar() {
               {/* Header */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-[var(--border-color)]">
                 <div className="flex items-center gap-2.5">
-                  <img src="/logo.png" alt="شعار خطوتك" className="h-8 w-8 object-contain" />
+                  <div className="khotwt-drawer-emblem-box" aria-hidden="true">
+                    <img 
+                      src="/logo.png" 
+                      alt="شعار خطوتك" 
+                      className="khotwt-drawer-emblem-asset" 
+                    />
+                  </div>
                   <span className="text-lg font-black tracking-tight text-[var(--text-color)] select-none">
                     <span className="text-brand-primary">خطو</span>تك
                   </span>
                 </div>
                 <button 
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-lg bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/50 border border-[var(--border-color)] text-[var(--text-color)] cursor-pointer"
+                  className="w-9 h-9 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/50 border border-[var(--border-color)] text-[var(--text-color)] flex items-center justify-center shrink-0 cursor-pointer transition-all"
+                  aria-label="إغلاق القائمة"
                 >
-                  <X className="w-5 h-5 text-[var(--text-color)]" />
+                  <X className="w-5 h-5 text-[var(--text-color)] stroke-[2]" />
                 </button>
               </div>
               

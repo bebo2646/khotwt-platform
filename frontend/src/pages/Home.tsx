@@ -30,7 +30,12 @@ import {
   Globe,
   Share2,
   Briefcase,
-  Layers
+  Layers,
+  Languages,
+  Megaphone,
+  Brain,
+  LayoutGrid,
+  RotateCcw
 } from 'lucide-react'
 import EmptyState from '../components/EmptyState'
 import { useAuthStore } from '../store/authStore'
@@ -110,14 +115,32 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   freelancing: 'العمل الحر',
 }
 
+const getDepartmentIcon = (slug?: string, name?: string) => {
+  const s = (slug || '').toLowerCase().trim()
+  const n = (name || '').trim()
+
+  if (s === 'school' || s === 'general_education' || n.includes('مدرس') || n.includes('أكاديم')) return GraduationCap
+  if (s === 'programming' || s === 'tech' || n.includes('برمج') || n.includes('تكنولوج')) return Code
+  if (s === 'business' || n.includes('تجار') || n.includes('أعمال')) return Briefcase
+  if (s === 'design' || n.includes('تصميم') || n.includes('إبداع')) return Palette
+  if (s === 'languages' || n.includes('لغات') || n.includes('ترجم')) return Languages
+  if (s === 'marketing' || n.includes('تسويق')) return Megaphone
+  if (s === 'skills' || n.includes('مهار')) return Award
+  if (s === 'ai' || s === 'ai_data' || s === 'data' || n.includes('ذكاء') || n.includes('بيانات')) return Brain
+
+  return GraduationCap
+}
+
 const CATEGORY_ICONS: Record<string, any> = {
   school: GraduationCap,
   programming: Code,
-  business: TrendingUp,
+  business: Briefcase,
   design: Palette,
-  languages: Globe,
-  marketing: Share2,
-  skills: Briefcase,
+  languages: Languages,
+  marketing: Megaphone,
+  skills: Award,
+  ai_data: Brain,
+  ai: Brain,
 }
 
 const formatStatCount = (count?: number | null) => {
@@ -359,19 +382,23 @@ export default function Home() {
 
               {/* Category Badges Pills preview in Hero */}
               <div className="flex flex-wrap gap-2 pt-1">
-                {departments.filter(d => d.is_active).map((cat) => (
-                  <button
-                    key={cat.id || cat.slug}
-                    onClick={() => {
-                      handleCategorySelect(cat.slug)
-                      const el = document.getElementById('advanced-filter')
-                      if (el) el.scrollIntoView({ behavior: 'smooth' })
-                    }}
-                    className="px-3.5 py-1.5 rounded-full bg-[var(--surface-bg)] hover:bg-brand-primary/10 border border-[var(--border-color)] hover:border-brand-primary/40 text-xs font-bold text-[var(--text-secondary)] hover:text-brand-primary transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-                  >
-                    <span>{cat.name}</span>
-                  </button>
-                ))}
+                {departments.filter(d => d.is_active).map((cat) => {
+                  const IconComp = getDepartmentIcon(cat.slug, cat.name)
+                  return (
+                    <button
+                      key={cat.id || cat.slug}
+                      onClick={() => {
+                        handleCategorySelect(cat.slug)
+                        const el = document.getElementById('advanced-filter')
+                        if (el) el.scrollIntoView({ behavior: 'smooth' })
+                      }}
+                      className="px-3.5 py-1.5 rounded-full bg-[var(--surface-bg)] hover:bg-brand-primary/10 border border-[var(--border-color)] hover:border-brand-primary/40 text-xs font-bold text-[var(--text-secondary)] hover:text-brand-primary transition-all cursor-pointer flex items-center gap-1.5 shadow-sm group"
+                    >
+                      <IconComp className="w-3.5 h-3.5 shrink-0 opacity-75 group-hover:opacity-100 transition-opacity" />
+                      <span>{cat.name}</span>
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Action Buttons */}
@@ -528,7 +555,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {departments.filter(d => d.is_active).map((cat) => {
-            const IconComp = CATEGORY_ICONS[cat.slug] || GraduationCap
+            const IconComp = getDepartmentIcon(cat.slug, cat.name)
             const isActive = selectedCategory === cat.slug
             return (
               <button
@@ -612,9 +639,10 @@ export default function Home() {
                   setFilterResults([])
                   setSubjects([])
                 }}
-                className="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0"
+                className="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-500 text-xs font-bold rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
               >
-                إعادة ضبط الفلاتر 🔄
+                <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                <span>إعادة ضبط الفلاتر</span>
               </button>
             )}
           </div>
@@ -629,28 +657,31 @@ export default function Home() {
             <div className="flex flex-wrap gap-2.5">
               <button
                 onClick={() => handleCategorySelect('all')}
-                className={`px-4 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                   selectedCategory === 'all'
                     ? 'bg-brand-primary text-white border-brand-primary shadow-md'
                     : 'bg-[var(--bg-color)] hover:bg-[var(--surface-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-primary/30'
                 }`}
               >
-                🌐 جميع المجالات
+                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                <span>جميع المجالات</span>
               </button>
 
               {departments.filter(d => d.is_active).map((cat) => {
                 const isActive = selectedCategory === cat.slug
+                const IconComp = getDepartmentIcon(cat.slug, cat.name)
                 return (
                   <button
                     key={cat.id || cat.slug}
                     onClick={() => handleCategorySelect(cat.slug)}
-                    className={`px-4 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-xl border text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
                       isActive
                         ? 'bg-brand-primary text-white border-brand-primary shadow-md'
                         : 'bg-[var(--bg-color)] hover:bg-[var(--surface-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:border-brand-primary/30'
                     }`}
                   >
-                    {cat.name}
+                    <IconComp className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'opacity-80'}`} />
+                    <span>{cat.name}</span>
                   </button>
                 )
               })}
