@@ -145,6 +145,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
     if (path.startsWith('/admin/dashboard')) return 'لوحة التحكم العامة'
     if (path.startsWith('/admin/teachers/create')) return 'إضافة معلم جديد'
     if (path.startsWith('/admin/teachers') && path.includes('subscription')) return 'تعديل اشتراك المعلم'
+    if (path.startsWith('/admin/teacher-activity')) return 'سجل ومراقبة نشاط المعلمين'
     if (path.startsWith('/admin/teachers')) return 'إدارة شؤون المعلمين'
     if (path.startsWith('/admin/students')) return 'إدارة حسابات الطلاب'
     if (path.startsWith('/admin/courses')) return 'إدارة الكورسات والمناهج'
@@ -187,6 +188,12 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'المعلمون',
           path: '/admin/teachers',
           icon: <Users className="w-5 h-5 shrink-0" />,
+          visible: hasPerm('teachers.manage')
+        },
+        {
+          label: 'نشاط المعلمين',
+          path: '/admin/teacher-activity',
+          icon: <UserCheck className="w-5 h-5 shrink-0" />,
           visible: hasPerm('teachers.manage')
         },
         {

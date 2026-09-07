@@ -1193,6 +1193,7 @@ class AdminController extends Controller
             'message' => $result['message'],
             'archive_file' => $result['archive_file'] ?? null,
             'affected_counts' => $result['affected_counts'] ?? null,
+            'audit_report' => $result['audit_report'] ?? null,
         ], $result['status']);
     }
 

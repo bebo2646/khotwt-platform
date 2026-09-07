@@ -254,6 +254,9 @@ class AuthController extends Controller
         if ($user->role === 'student') {
             StudentActivityService::startSession($user, $request);
             StudentActivityService::logLogin($user, $request);
+        } elseif ($user->role === 'teacher') {
+            \App\Services\TeacherActivityService::startSession($user, $request);
+            \App\Services\TeacherActivityService::logLogin($user, $request);
         }
 
         SecurityMonitoringService::handleSuccessfulLogin($request, $user);
@@ -275,11 +278,16 @@ class AuthController extends Controller
         if ($user) {
             if ($user->role === 'student') {
                 StudentActivityService::endSession($user, $request);
+            } elseif ($user->role === 'teacher') {
+                \App\Services\TeacherActivityService::endSession($user, $request);
             }
             $user->update([
                 'current_session_token' => null
             ]);
-            $user->currentAccessToken()->delete();
+            $token = $user->currentAccessToken();
+            if ($token && method_exists($token, 'delete')) {
+                $token->delete();
+            }
         }
 
         return response()->json(['message' => 'تم تسجيل الخروج بنجاح.']);

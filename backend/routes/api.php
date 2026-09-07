@@ -11,6 +11,7 @@ use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\MonthlyExamsController;
 use App\Http\Controllers\TaxonomyController;
 use App\Http\Controllers\StudentActivityController;
+use App\Http\Controllers\TeacherActivityController;
 use App\Http\Controllers\SecurityMonitoringController;
 
 /*
@@ -156,6 +157,10 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/teacher/videos', [TeacherController::class, 'listVideos']);
             Route::get('/teacher/student-course-limits', [TeacherController::class, 'getStudentCourseLimits']);
 
+            // Teacher Activity & Presence Heartbeat
+            Route::post('/teacher/activity/heartbeat', [TeacherActivityController::class, 'heartbeat']);
+            Route::post('/teacher/heartbeat', [TeacherActivityController::class, 'heartbeat']);
+
             // Content creation / uploads protected by active subscription
             Route::middleware('subscription.active')->group(function () {
                 Route::post('/teacher/courses', [TeacherController::class, 'createCourse']);
@@ -205,8 +210,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             // Bunny storage stats
             Route::middleware('permission:bunny.view')->get('/admin/bunny/dashboard', [AdminController::class, 'bunnyDashboard']);
 
-            // Academic Year Initialization
-            Route::middleware('permission:academic_year.initialize')->post('/admin/reset-year', [AdminController::class, 'resetYear']);
+            // Academic Year Initialization & Reset
+            Route::middleware('permission:academic_year.initialize,academic_year.reset')->post('/admin/reset-year', [AdminController::class, 'resetYear']);
 
             // Active Sessions Management (under admins.manage)
             Route::middleware('permission:admins.manage')->group(function () {
@@ -231,6 +236,17 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/admin/teachers/{id}', [AdminController::class, 'deleteTeacher']);
                 Route::post('/admin/bulk/teachers', [AdminController::class, 'bulkDeleteTeachers']);
             });
+
+            // Platform Presence Monitoring (Unified Online Users)
+            Route::middleware('permission:platform_presence.view,teachers.manage,students.manage')->get('/admin/platform/presence', [TeacherActivityController::class, 'platformPresence']);
+
+            // Teacher Activity Monitoring
+            Route::middleware('permission:teacher_activity.view,teachers.manage')->group(function () {
+                Route::get('/admin/teacher-activity', [TeacherActivityController::class, 'index']);
+                Route::get('/admin/teacher-activity/stats', [TeacherActivityController::class, 'stats']);
+                Route::get('/admin/teachers/{teacher}/activity', [TeacherActivityController::class, 'teacherActivity']);
+            });
+            Route::middleware('permission:teacher_activity.view_sessions,teacher_activity.view,teachers.manage')->get('/admin/teacher-activity/sessions', [TeacherActivityController::class, 'sessions']);
 
             // Teacher Subscriptions & Resource overrides
             Route::middleware('permission:teacher_subscriptions.manage')->group(function () {
@@ -282,18 +298,12 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:students.manage')->group(function () {
                 Route::get('/admin/students', [AdminController::class, 'listStudents']);
                 Route::get('/admin/students/{student}/analytics', [AdminController::class, 'studentAnalytics']);
-                Route::get('/admin/student-activity', [StudentActivityController::class, 'index']);
-                Route::get('/admin/student-activity/stats', [StudentActivityController::class, 'stats']);
-                Route::get('/admin/student-activity/sessions', [StudentActivityController::class, 'sessions']);
-                Route::get('/admin/student-sessions', [StudentActivityController::class, 'sessions']); // Route alias for student sessions
-                Route::get('/admin/students/{student}/activity', [StudentActivityController::class, 'studentActivity']);
-                Route::get('/admin/students/{student}/security-events', [SecurityMonitoringController::class, 'studentSecurityEvents']);
                 Route::post('/admin/students/{id}/reset-password', [AdminController::class, 'resetStudentPassword']);
                 Route::delete('/admin/students/{id}', [AdminController::class, 'deleteStudent']);
                 Route::post('/admin/users/{id}/disable', [AdminController::class, 'disableUser']);
                 Route::post('/admin/users/{id}/enable', [AdminController::class, 'enableUser']);
                 Route::post('/admin/bulk/students', [AdminController::class, 'bulkDeleteStudents']);
-                Route::middleware('permission:academic_year.initialize')->post('/admin/reset-academic-year', [AdminController::class, 'resetAcademicYear']);
+                Route::middleware('permission:academic_year.initialize,academic_year.reset')->post('/admin/reset-academic-year', [AdminController::class, 'resetAcademicYear']);
                 Route::get('/admin/export-database', [AdminController::class, 'exportDatabase']);
                 
                 // Refund & Wallet control
@@ -302,6 +312,20 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/admin/exam-purchases/{examPurchase}/refund', [AdminController::class, 'refundExamPurchase']);
                 Route::post('/admin/students/{student}/wallet/adjust', [AdminController::class, 'adjustStudentWallet']);
                 Route::get('/admin/refund-logs', [AdminController::class, 'refundLogs']);
+            });
+
+            // Student Activity Monitoring
+            Route::middleware('permission:student_activity.view,students.manage')->group(function () {
+                Route::get('/admin/student-activity', [StudentActivityController::class, 'index']);
+                Route::get('/admin/student-activity/stats', [StudentActivityController::class, 'stats']);
+                Route::get('/admin/students/{student}/activity', [StudentActivityController::class, 'studentActivity']);
+            });
+            Route::middleware('permission:student_activity.view_sessions,student_activity.view,students.manage')->group(function () {
+                Route::get('/admin/student-activity/sessions', [StudentActivityController::class, 'sessions']);
+                Route::get('/admin/student-sessions', [StudentActivityController::class, 'sessions']); // Route alias for student sessions
+            });
+            Route::middleware('permission:student_activity.view_security,admins.manage,students.manage')->group(function () {
+                Route::get('/admin/students/{student}/security-events', [SecurityMonitoringController::class, 'studentSecurityEvents']);
             });
 
             // Student Registration Approval
@@ -320,15 +344,15 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/admin/packages/{package}', [AdminController::class, 'deletePackage']);
             });
 
-            // Monthly Exams Management
-            Route::middleware('permission:exams.manage')->group(function () {
+            // Monthly Exams Management & Anti-Cheat Controls
+            Route::middleware('permission:monthly_exams.view,exams.manage')->group(function () {
                 Route::get('/admin/monthly-exams', [MonthlyExamsController::class, 'adminList']);
                 Route::get('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminShow']);
-                Route::post('/admin/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
-                Route::put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
-                Route::delete('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
-                Route::post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             });
+            Route::middleware('permission:monthly_exams.create,exams.manage')->post('/admin/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
+            Route::middleware('permission:monthly_exams.update,exams.manage')->put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
+            Route::middleware('permission:monthly_exams.delete,exams.manage')->delete('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
+            Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
 
             // Coupons/Codes Management
             Route::middleware('permission:coupons.manage')->group(function () {

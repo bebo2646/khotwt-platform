@@ -121,7 +121,54 @@ class User extends Authenticatable
         if ($this->is_super_admin || $this->is_super) {
             return true;
         }
-        return is_array($this->permissions) && in_array($permission, $this->permissions);
+
+        $userPerms = is_array($this->permissions) ? $this->permissions : [];
+
+        if (in_array($permission, $userPerms)) {
+            return true;
+        }
+
+        // Parent umbrella permissions inheritance
+        if (str_starts_with($permission, 'student_activity.') && in_array('students.manage', $userPerms)) {
+            return true;
+        }
+        if (str_starts_with($permission, 'teacher_activity.') && in_array('teachers.manage', $userPerms)) {
+            return true;
+        }
+        if ($permission === 'platform_presence.view' && (in_array('teachers.manage', $userPerms) || in_array('students.manage', $userPerms))) {
+            return true;
+        }
+        if (str_starts_with($permission, 'monthly_exams.') && in_array('exams.manage', $userPerms)) {
+            return true;
+        }
+        if (str_starts_with($permission, 'exam_security.') && in_array('exams.manage', $userPerms)) {
+            return true;
+        }
+        if ($permission === 'academic_year.reset' && in_array('academic_year.initialize', $userPerms)) {
+            return true;
+        }
+        if ($permission === 'academic_year.initialize' && in_array('academic_year.reset', $userPerms)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function hasAnyPermission(array|string ...$permissions): bool
+    {
+        if ($this->is_super_admin || $this->is_super) {
+            return true;
+        }
+        foreach ($permissions as $perm) {
+            if (is_array($perm)) {
+                foreach ($perm as $p) {
+                    if ($this->hasPermission($p)) return true;
+                }
+            } elseif ($this->hasPermission($perm)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function isTeacher(): bool

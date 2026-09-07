@@ -25,7 +25,8 @@ import {
   MoreVertical,
   DollarSign,
   HardDrive,
-  Users
+  Users,
+  Activity
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
@@ -1634,6 +1635,18 @@ export default function TeachersList() {
                   <HardDrive className="w-3.5 h-3.5 text-blue-500" />
                   <span>تفاصيل الاستهلاك</span>
                 </Link>
+                <Link
+                  to={`/admin/teacher-activity?teacher_id=${activeTeacher.id}`}
+                  onClick={() => {
+                    setActiveDropdownTeacherId(null);
+                    setDropdownPosition(null);
+                    setActiveTeacher(null);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-[var(--text-color)] hover:bg-[var(--bg-color)] transition-all"
+                >
+                  <Activity className="w-3.5 h-3.5 text-brand-primary" />
+                  <span>سجل ومراقبة النشاط</span>
+                </Link>
                 <button
                   onClick={() => {
                     handleResetPasswordClick(activeTeacher);
@@ -1697,6 +1710,18 @@ export default function TeachersList() {
                 >
                   <HardDrive className="w-3.5 h-3.5 text-blue-500" />
                   <span>الاستهلاك</span>
+                </Link>
+                <Link
+                  to={`/admin/teacher-activity?teacher_id=${activeTeacher.id}`}
+                  onClick={() => {
+                    setActiveDropdownTeacherId(null);
+                    setDropdownPosition(null);
+                    setActiveTeacher(null);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-[var(--text-color)] hover:bg-[var(--bg-color)] transition-all"
+                >
+                  <Activity className="w-3.5 h-3.5 text-brand-primary" />
+                  <span>سجل ومراقبة النشاط</span>
                 </Link>
                 <button
                   onClick={() => {

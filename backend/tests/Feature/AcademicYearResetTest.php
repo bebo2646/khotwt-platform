@@ -298,6 +298,83 @@ class AcademicYearResetTest extends TestCase
             'read_at' => now(),
         ]);
 
+        // Student Session & Activity Log & Exam Violation
+        if (\Schema::hasTable('student_sessions')) {
+            DB::table('student_sessions')->insert([
+                'student_id' => $student1->id,
+                'session_identifier' => 'test-sess-' . uniqid(),
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'Mozilla/5.0 Test',
+                'device_type' => 'desktop',
+                'browser' => 'Chrome',
+                'started_at' => now(),
+                'last_activity_at' => now(),
+                'is_active' => true,
+                'duration_seconds' => 120,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (\Schema::hasTable('student_activity_logs')) {
+            DB::table('student_activity_logs')->insert([
+                'student_id' => $student1->id,
+                'event_type' => 'exam_started',
+                'event_name' => 'بدء الامتحان',
+                'description' => 'بدء محاولة الامتحان',
+                'course_id' => $courseA->id,
+                'exam_id' => $examA->id,
+                'attempt_id' => $studentExam->id,
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (\Schema::hasTable('exam_violations')) {
+            DB::table('exam_violations')->insert([
+                'student_id' => $student1->id,
+                'exam_id' => $examA->id,
+                'student_exam_id' => $studentExam->id,
+                'violation_type' => 'fullscreen_exit',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        // Teacher Session & Teacher Activity Log (Must be PRESERVED!)
+        if (\Schema::hasTable('teacher_sessions')) {
+            DB::table('teacher_sessions')->insert([
+                'teacher_id' => $teacher->id,
+                'session_identifier' => 'teacher-sess-' . uniqid(),
+                'ip_address' => '127.0.0.1',
+                'user_agent' => 'Mozilla/5.0 Teacher',
+                'device_type' => 'desktop',
+                'browser' => 'Chrome',
+                'current_page' => 'إدارة الكورسات',
+                'current_action' => 'بيعدل كورس',
+                'started_at' => now(),
+                'last_activity_at' => now(),
+                'is_active' => true,
+                'duration_seconds' => 300,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        if (\Schema::hasTable('teacher_activity_logs')) {
+            DB::table('teacher_activity_logs')->insert([
+                'teacher_id' => $teacher->id,
+                'event_type' => 'course_created',
+                'event_name' => 'إنشاء كورس',
+                'description' => 'أنشأ كورس الفيزياء',
+                'course_id' => $courseA->id,
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
         // TEST F: Run "Initialize New Academic Year"
         $response = $this->actingAs($admin)->postJson('/api/admin/reset-year', [
             'confirmation' => AcademicYearResetService::REQUIRED_CONFIRMATION,
@@ -328,6 +405,14 @@ class AcademicYearResetTest extends TestCase
         $this->assertNotNull(Exam::find($examA->id));
         $this->assertNotNull(Question::find($questionA->id));
 
+        // Verify Teacher Sessions & Teacher Activity Logs are PRESERVED
+        if (\Schema::hasTable('teacher_sessions')) {
+            $this->assertGreaterThanOrEqual(1, DB::table('teacher_sessions')->where('teacher_id', $teacher->id)->count());
+        }
+        if (\Schema::hasTable('teacher_activity_logs')) {
+            $this->assertGreaterThanOrEqual(1, DB::table('teacher_activity_logs')->where('teacher_id', $teacher->id)->count());
+        }
+
         // Verify bundle relationship is preserved
         $bundleItemsCount = DB::table('course_bundle_items')->where('parent_id', $bundleAB->id)->count();
         $this->assertEquals(2, $bundleItemsCount);
@@ -346,6 +431,15 @@ class AcademicYearResetTest extends TestCase
         $this->assertEquals(0, NotificationRead::count());
         $this->assertEquals(0, User::where('role', 'student')->count());
 
+        if (\Schema::hasTable('student_sessions')) {
+            $this->assertEquals(0, DB::table('student_sessions')->count());
+        }
+        if (\Schema::hasTable('student_activity_logs')) {
+            $this->assertEquals(0, DB::table('student_activity_logs')->count());
+        }
+        if (\Schema::hasTable('exam_violations')) {
+            $this->assertEquals(0, DB::table('exam_violations')->count());
+        }
         if (\Schema::hasTable('student_pdf_progresses')) {
             $this->assertEquals(0, DB::table('student_pdf_progresses')->count());
         }

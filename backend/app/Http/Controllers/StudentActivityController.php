@@ -25,6 +25,22 @@ class StudentActivityController extends Controller
      */
     public function index(Request $request)
     {
+        $authUser = $request->user();
+        $canViewFinancial = $authUser && ($authUser->is_super_admin || $authUser->is_super || $authUser->hasPermission('student_activity.view_financial') || $authUser->hasPermission('students.manage'));
+        $canViewSecurity = $authUser && ($authUser->is_super_admin || $authUser->is_super || $authUser->hasPermission('student_activity.view_security') || $authUser->hasPermission('students.manage'));
+
+        // Guard against unauthorized explicit category requests
+        $requestedCategory = $request->input('category', $request->input('event_type'));
+        if ($requestedCategory) {
+            $cat = strtolower(trim($requestedCategory));
+            if (in_array($cat, ['purchases', 'purchase', 'wallet', 'financial', 'finance']) && !$canViewFinancial) {
+                return response()->json(['message' => 'عذراً، ليس لديك الصلاحية لاستعراض السجلات المالية للطلاب.'], 403);
+            }
+            if (in_array($cat, ['security', 'anti_cheat']) && !$canViewSecurity) {
+                return response()->json(['message' => 'عذراً، ليس لديك الصلاحية لاستعراض السجلات الأمنية ومخالفات الغش.'], 403);
+            }
+        }
+
         $query = StudentActivityLog::with([
             'student:id,name,email,phone,avatar,student_type,grades',
             'course:id,title,subject,cover_image',
@@ -33,6 +49,20 @@ class StudentActivityController extends Controller
             'video:id,title',
             'exam:id,title,type',
         ]);
+
+        // Exclude financial events if user lacks financial permission
+        if (!$canViewFinancial) {
+            $query->where('event_type', 'not like', '%_purchased')
+                  ->where('event_type', 'not like', 'wallet_%')
+                  ->where('event_type', 'not like', '%refund%');
+        }
+
+        // Exclude security events if user lacks security permission
+        if (!$canViewSecurity) {
+            $query->where('event_type', '!=', 'anti_cheat_violation')
+                  ->where('event_type', 'not like', 'security_%')
+                  ->whereNotIn('event_type', ['repeated_failed_logins', 'rate_limited', 'ip_blocked']);
+        }
 
         // Filter: Student
         if ($request->filled('student_id')) {
@@ -433,6 +463,32 @@ class StudentActivityController extends Controller
             $timelineQuery->where('occurred_at', '<=', Carbon::parse($request->date_to)->endOfDay());
         }
 
+        // Permission checks for sensitive financial and security data
+        $authUser = $request->user();
+        $canViewFinancial = $authUser && ($authUser->is_super_admin || $authUser->is_super || $authUser->hasPermission('student_activity.view_financial') || $authUser->hasPermission('students.manage'));
+        $canViewSecurity = $authUser && ($authUser->is_super_admin || $authUser->is_super || $authUser->hasPermission('student_activity.view_security') || $authUser->hasPermission('students.manage'));
+
+        if (!$canViewFinancial) {
+            $timelineQuery->where('event_type', 'not like', '%_purchased')
+                          ->where('event_type', 'not like', 'wallet_%')
+                          ->where('event_type', 'not like', '%refund%');
+            $walletBalance = null;
+            $todayMoneyAdded = 0.0;
+            $todayMoneySpent = 0.0;
+            $todayPurchasesCount = 0;
+            $lifetimeMoneyAdded = 0.0;
+            $lifetimeMoneySpent = 0.0;
+            $lifetimePurchasesCount = 0;
+        }
+
+        if (!$canViewSecurity) {
+            $timelineQuery->where('event_type', '!=', 'anti_cheat_violation')
+                          ->where('event_type', 'not like', 'security_%')
+                          ->whereNotIn('event_type', ['repeated_failed_logins', 'rate_limited', 'ip_blocked']);
+            $todaySecurityViolations = 0;
+            $lifetimeSecurityViolations = 0;
+        }
+
         $perPage = min(100, max(1, (int)$request->input('per_page', 25)));
         $timeline = $timelineQuery->orderBy('occurred_at', 'desc')->paginate($perPage);
 
@@ -461,7 +517,7 @@ class StudentActivityController extends Controller
             'completed_lessons' => $completedLessons,
             'distinct_courses_accessed' => $distinctCourses,
             'exam_attempts' => $examAttempts,
-            'wallet_balance' => round($walletBalance, 2),
+            'wallet_balance' => $walletBalance !== null ? round($walletBalance, 2) : null,
             'total_money_added' => round($lifetimeMoneyAdded, 2),
             'total_money_spent' => round($lifetimeMoneySpent, 2),
             'total_purchases_count' => $lifetimePurchasesCount,
@@ -483,7 +539,7 @@ class StudentActivityController extends Controller
                 'is_online' => $isOnline,
                 'last_activity' => $lastActiveDate ? $lastActiveDate->diffForHumans() : 'لا يوجد نشاط مسجل',
                 'last_activity_iso' => $lastActiveDate ? $lastActiveDate->toIso8601String() : null,
-                'wallet_balance' => round($walletBalance, 2),
+                'wallet_balance' => $walletBalance !== null ? round($walletBalance, 2) : null,
             ],
             'today' => $todayData,
             'stats_today' => $todayData,

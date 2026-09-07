@@ -16,6 +16,8 @@ return [
         'permissions_management' => 'إدارة الصلاحيات والوصول',
         'content_management' => 'إدارة المحتوى الدراسي',
         'video_management' => 'إدارة مكتبة الفيديو',
+        'activity_monitoring' => 'مراقبة النشاط والتواجد اللحظي',
+        'exam_security' => 'أمان الامتحانات ومكافحة الغش',
         'system_settings' => 'إعدادات النظام العامة',
     ],
     'permissions' => [
@@ -59,8 +61,20 @@ return [
             'label' => 'مراجعة وقبول الطلاب الجدد',
         ],
         'student_activity.view' => [
-            'group' => 'students_management',
+            'group' => 'activity_monitoring',
             'label' => 'عرض ومراقبة نشاط وسجلات الطلاب',
+        ],
+        'student_activity.view_financial' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض السجل المالي والمشتريات في نشاط الطلاب',
+        ],
+        'student_activity.view_security' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض الأحداث الأمنية ومخالفات الغش في نشاط الطلاب',
+        ],
+        'student_activity.view_sessions' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض ومراقبة تفاصيل جلسات وأجهزة الطلاب',
         ],
         'watch_limits.manage' => [
             'group' => 'students_management',
@@ -74,6 +88,26 @@ return [
         'teachers.manage' => [
             'group' => 'teachers_management',
             'label' => 'إدارة المعلمين كاملة',
+        ],
+        'teacher_activity.view' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض ومراقبة نشاط وسجلات المعلمين',
+        ],
+        'teacher_activity.view_financial' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض تقارير المبيعات والأرباح في نشاط المعلمين',
+        ],
+        'teacher_activity.view_security' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض سجل أمان وجلسات المعلمين',
+        ],
+        'teacher_activity.view_sessions' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض ومراقبة تفاصيل جلسات وأجهزة المعلمين',
+        ],
+        'platform_presence.view' => [
+            'group' => 'activity_monitoring',
+            'label' => 'عرض التواجد اللحظي الشامل على المنصة (الموجودون الآن)',
         ],
         // Teacher Subscriptions
         'teacher_subscriptions.manage' => [
@@ -99,6 +133,46 @@ return [
         'exams.manage' => [
             'group' => 'exams_management',
             'label' => 'إدارة الامتحانات والواجبات والأسئلة',
+        ],
+        'monthly_exams.view' => [
+            'group' => 'exams_management',
+            'label' => 'عرض واستعراض الامتحانات الشهرية',
+        ],
+        'monthly_exams.create' => [
+            'group' => 'exams_management',
+            'label' => 'إنشاء وتجهيز امتحانات شهرية جديدة',
+        ],
+        'monthly_exams.update' => [
+            'group' => 'exams_management',
+            'label' => 'تعديل بيانات وأسئلة الامتحانات الشهرية',
+        ],
+        'monthly_exams.delete' => [
+            'group' => 'exams_management',
+            'label' => 'حذف الامتحانات الشهرية',
+        ],
+        'monthly_exams.publish' => [
+            'group' => 'exams_management',
+            'label' => 'نشر وإلغاء نشر الامتحانات الشهرية',
+        ],
+        'monthly_exams.view_results' => [
+            'group' => 'exams_management',
+            'label' => 'عرض نتائج واحصائيات الامتحانات الشهرية',
+        ],
+        'monthly_exams.manage_security' => [
+            'group' => 'exams_management',
+            'label' => 'إدارة أمان ومخالفات الامتحانات الشهرية',
+        ],
+        'exam_security.view' => [
+            'group' => 'exam_security',
+            'label' => 'عرض سجل مخالفات الغش في الامتحانات',
+        ],
+        'exam_security.manage' => [
+            'group' => 'exam_security',
+            'label' => 'إدارة قرارات ومحاولات الامتحانات الملغاة للغش',
+        ],
+        'exam_security.unlock_answers' => [
+            'group' => 'exam_security',
+            'label' => 'فك حظر إجابات الامتحانات وإتاحة مراجعتها للطالب',
         ],
         'exam_results.view' => [
             'group' => 'exams_management',

@@ -41,6 +41,10 @@ class TeacherController extends Controller
             'name', 'phone', 'bio', 'experience', 'teaching_mode'
         ]));
 
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logProfileUpdated($teacher, $request);
+        }
+
         return response()->json([
             'user' => $teacher,
             'message' => 'تم تحديث بيانات الملف الشخصي بنجاح.',
@@ -676,6 +680,10 @@ class TeacherController extends Controller
             \Illuminate\Support\Facades\Log::error("Failed sending new course notification: " . $e->getMessage());
         }
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logCourseCreated($request->user(), $course, $request);
+        }
+
         return response()->json($course, 201);
     }
 
@@ -719,6 +727,10 @@ class TeacherController extends Controller
             'is_bundle' => $request->has('is_bundle') ? $request->is_bundle : $course->is_bundle,
         ]);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logCourseUpdated($request->user(), $course, $request);
+        }
+
         return response()->json($course);
     }
 
@@ -733,7 +745,12 @@ class TeacherController extends Controller
             ], 400);
         }
 
+        $courseTitle = $course->title;
         $course->delete();
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logCourseDeleted($request->user(), (int)$id, $courseTitle, $request);
+        }
 
         return response()->json(['message' => 'تم حذف الكورس بنجاح.']);
     }
@@ -755,6 +772,13 @@ class TeacherController extends Controller
             'title' => $request->title,
             'order' => $request->order ?? 0,
         ]);
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            $course = Course::find($courseId);
+            if ($course) {
+                \App\Services\TeacherActivityService::logUnitCreated($request->user(), $unit, $course, $request);
+            }
+        }
 
         return response()->json($unit, 201);
     }
@@ -793,6 +817,10 @@ class TeacherController extends Controller
             'title' => $title,
         ]);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logUnitUpdated($request->user(), $unit, $request);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'تم تعديل اسم الوحدة بنجاح.',
@@ -818,6 +846,7 @@ class TeacherController extends Controller
 
         $teacherId = $unit->course->teacher_id;
         $courseId = $unit->course_id;
+        $unitTitle = $unit->title;
 
         DB::transaction(function () use ($unit, $teacherId, $courseId) {
             $bunnyService = new \App\Services\BunnyStreamService();
@@ -852,6 +881,10 @@ class TeacherController extends Controller
                 $u->update(['order' => $index]);
             }
         });
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logUnitDeleted($request->user(), (int)$unitId, $unitTitle, (int)$courseId, $request);
+        }
 
         return response()->json([
             'success' => true,
@@ -895,6 +928,11 @@ class TeacherController extends Controller
             \Illuminate\Support\Facades\Log::error('Notification error: ' . $e->getMessage());
         }
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            $course = Course::find($unit->course_id);
+            \App\Services\TeacherActivityService::logLessonCreated($request->user(), $lesson, $course, $request);
+        }
+
         return response()->json($lesson, 201);
     }
 
@@ -918,6 +956,10 @@ class TeacherController extends Controller
             'price' => $request->price ?: 0.00,
         ]);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logLessonUpdated($request->user(), $lesson, $request);
+        }
+
         return response()->json($lesson);
     }
 
@@ -931,6 +973,7 @@ class TeacherController extends Controller
 
         $teacherId = $request->user()->id;
         $unitId = $lesson->unit_id;
+        $lessonTitle = $lesson->title;
 
         DB::transaction(function () use ($lesson, $unitId, $teacherId) {
             $bunnyService = new \App\Services\BunnyStreamService();
@@ -963,6 +1006,10 @@ class TeacherController extends Controller
                 $item->update(['order' => $index]);
             }
         });
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logLessonDeleted($request->user(), (int)$lessonId, $lessonTitle, $request);
+        }
 
         return response()->json(['success' => true, 'message' => 'تم حذف الدرس وجميع الفيديوهات والملفات المرتبطة بنجاح.']);
     }
@@ -1047,6 +1094,10 @@ class TeacherController extends Controller
 
         $this->updateLessonDuration($lessonId);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logVideoUploaded($request->user(), $video, $request);
+        }
+
         return response()->json($video, 201);
     }
 
@@ -1083,6 +1134,10 @@ class TeacherController extends Controller
             'file_size' => $request->file_size,
             'preview_path' => $request->preview_path,
         ]);
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logPdfUploaded($request->user(), $pdf, $request);
+        }
 
         return response()->json($pdf, 201);
     }
@@ -1167,6 +1222,10 @@ class TeacherController extends Controller
 
         $this->updateLessonDuration($video->lesson_id);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logVideoUpdated($request->user(), $video, $request);
+        }
+
         return response()->json($video);
     }
 
@@ -1181,6 +1240,7 @@ class TeacherController extends Controller
 
         $teacherId = $request->user()->id;
         $lessonId = $video->lesson_id;
+        $videoTitle = $video->title;
 
         // Instantiate BunnyStreamService to delete from Bunny Stream
         $bunnyService = new \App\Services\BunnyStreamService();
@@ -1194,6 +1254,10 @@ class TeacherController extends Controller
         // Recalculate storage and lesson duration
         $bunnyService->recalculateStorage($teacherId);
         $this->updateLessonDuration($lessonId);
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logVideoDeleted($request->user(), (int)$id, $videoTitle, $request);
+        }
 
         return response()->json(['message' => 'تم حذف الفيديو بنجاح من المنصة ومن خوادم Bunny Stream وتم تحديث المساحة التخزينية.']);
     }
@@ -1286,6 +1350,10 @@ class TeacherController extends Controller
                 // Dispatch background status polling job
                 \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
 
+                if ($request->user() && $request->user()->role === 'teacher') {
+                    \App\Services\TeacherActivityService::logVideoReplaced($request->user(), $video, $request);
+                }
+
                 return response()->json([
                     'video_id' => $newVideoId,
                     'library_id' => $libraryId,
@@ -1322,6 +1390,10 @@ class TeacherController extends Controller
         $limitGb = (float)$teacher->bunny_storage_limit_gb;
         $remainingGb = max(0.00, $limitGb - $usedGb);
         $percentage = $limitGb > 0 ? min(100.00, round(($usedGb / $limitGb) * 100, 2)) : 0.00;
+
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logStorageStatsViewed($teacher, $request);
+        }
 
         return response()->json([
             'bunny_storage_used_gb' => $usedGb,
@@ -1398,6 +1470,10 @@ class TeacherController extends Controller
             'preview_path' => $request->preview_path,
         ]);
 
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logPdfUpdated($request->user(), $pdf, $request);
+        }
+
         return response()->json($pdf);
     }
 
@@ -1409,8 +1485,13 @@ class TeacherController extends Controller
         $pdf = Pdf::findOrFail($id);
         $lesson = Lesson::with('unit')->findOrFail($pdf->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+        $pdfTitle = $pdf->title;
 
         $pdf->delete();
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logPdfDeleted($request->user(), (int)$id, $pdfTitle, $request);
+        }
 
         return response()->json(['message' => 'تم حذف ملف الـ PDF بنجاح.']);
     }
@@ -1698,6 +1779,10 @@ class TeacherController extends Controller
                 \Illuminate\Support\Facades\Log::error('Notification error: ' . $e->getMessage());
             }
 
+            if ($request->user() && $request->user()->role === 'teacher') {
+                \App\Services\TeacherActivityService::logExamCreated($request->user(), $exam, $request);
+            }
+
             return response()->json($exam->load('questions'), 201);
         });
     }
@@ -1911,6 +1996,10 @@ class TeacherController extends Controller
             $attempt->graded_at = Carbon::now();
             $attempt->save();
 
+            if ($request->user() && $request->user()->role === 'teacher') {
+                \App\Services\TeacherActivityService::logStudentAttemptGraded($request->user(), $attempt, $request);
+            }
+
             return response()->json([
                 'message' => 'تم رصد الدرجة والملاحظات بنجاح.',
                 'attempt' => $attempt,
@@ -1935,6 +2024,10 @@ class TeacherController extends Controller
             }])
             ->get();
 
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logStudentsListViewed($teacher, $request);
+        }
+
         return response()->json($students);
     }
 
@@ -1954,6 +2047,10 @@ class TeacherController extends Controller
 
         if (!$isRelevant) {
             abort(403, 'غير مصرح لك بعرض بيانات هذا الطالب.');
+        }
+
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logStudentAnalyticsViewed($teacher, $student, $request);
         }
 
         // Student Course Progress: Completed Videos count vs Total Videos count
@@ -2124,6 +2221,10 @@ class TeacherController extends Controller
     {
         $teacher = $request->user();
         $teacherId = $teacher->id;
+
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logRevenueReportViewed($teacher, $request);
+        }
 
         $earningsQuery = \App\Models\TeacherEarning::with(['student:id,name,email,phone', 'course:id,title', 'package:id,title,type', 'lesson:id,title', 'exam:id,title'])
             ->where('teacher_id', $teacherId);
@@ -2427,6 +2528,10 @@ class TeacherController extends Controller
                 ]);
             }
 
+            if ($request->user() && $request->user()->role === 'teacher') {
+                \App\Services\TeacherActivityService::logExamUpdated($request->user(), $exam, $request);
+            }
+
             return response()->json($exam->load('questions'), 200);
         });
     }
@@ -2446,8 +2551,16 @@ class TeacherController extends Controller
             }
         }
 
+        $examTitle = $exam->title;
+        $isMonthly = $exam->type === 'monthly_exam';
+
         $exam->questions()->delete();
         $exam->delete();
+
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logExamDeleted($request->user(), (int)$examId, $examTitle, $isMonthly, $request);
+        }
+
         return response()->json(['message' => 'تم حذف الامتحان بنجاح']);
     }
 

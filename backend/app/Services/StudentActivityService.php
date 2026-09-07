@@ -897,7 +897,7 @@ class StudentActivityService
         return $clean;
     }
 
-    protected static function detectDeviceType(?string $ua): string
+    public static function detectDeviceType(?string $ua): string
     {
         if (!$ua) return 'desktop';
         $ua = strtolower($ua);
@@ -910,7 +910,7 @@ class StudentActivityService
         return 'desktop';
     }
 
-    protected static function detectBrowser(?string $ua): string
+    public static function detectBrowser(?string $ua): string
     {
         if (!$ua) return 'غير معروف';
         $ua = strtolower($ua);

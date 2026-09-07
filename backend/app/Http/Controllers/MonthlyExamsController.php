@@ -895,7 +895,7 @@ class MonthlyExamsController extends Controller
         $teacherId = $user->role === 'teacher' ? $user->id : ($validated['teacher_id'] ?? null);
         $isPaid = (float)$validated['price'] > 0;
 
-        return DB::transaction(function () use ($validated, $teacherId, $isPaid, $request) {
+        return DB::transaction(function () use ($validated, $teacherId, $isPaid, $request, $user) {
             $exam = Exam::create([
                 'title' => $validated['title'],
                 'description' => $validated['description'] ?? null,
@@ -935,6 +935,10 @@ class MonthlyExamsController extends Controller
                         'score' => $qData['score'],
                     ]);
                 }
+            }
+
+            if ($user && $user->role === 'teacher') {
+                \App\Services\TeacherActivityService::logExamCreated($user, $exam, $request);
             }
 
             return response()->json([
@@ -1033,6 +1037,10 @@ class MonthlyExamsController extends Controller
                 }
             }
 
+            if ($user && $user->role === 'teacher') {
+                \App\Services\TeacherActivityService::logExamUpdated($user, $exam, $request);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم تحديث الامتحان الشهري بنجاح.',
@@ -1052,6 +1060,7 @@ class MonthlyExamsController extends Controller
             $query->where('teacher_id', $user->id);
         }
         $exam = $query->findOrFail($id);
+        $examTitle = $exam->title;
 
         $hasAttempts = StudentExam::where('exam_id', $exam->id)->exists();
         if ($hasAttempts) {
@@ -1059,6 +1068,11 @@ class MonthlyExamsController extends Controller
             $exam->is_active = false;
             $exam->is_published = false;
             $exam->save();
+
+            if ($user && $user->role === 'teacher') {
+                \App\Services\TeacherActivityService::logExamUpdated($user, $exam, $request);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم إخفاء الامتحان وتعطيله لوجود محاولات سابقة للطلاب.',
@@ -1067,6 +1081,10 @@ class MonthlyExamsController extends Controller
 
         $exam->questions()->delete();
         $exam->delete();
+
+        if ($user && $user->role === 'teacher') {
+            \App\Services\TeacherActivityService::logExamDeleted($user, (int)$id, $examTitle, true, $request);
+        }
 
         return response()->json([
             'success' => true,
@@ -1080,7 +1098,7 @@ class MonthlyExamsController extends Controller
     public function unlockAnswers(Request $request, $attemptId)
     {
         $user = $request->user();
-        $attempt = StudentExam::with('exam')->findOrFail($attemptId);
+        $attempt = StudentExam::with(['exam', 'student'])->findOrFail($attemptId);
 
         if ($user->role === 'teacher' && $attempt->exam->teacher_id !== $user->id) {
             return response()->json(['message' => 'غير مصرح لك بتعديل هذا الامتحان.'], 403);
@@ -1089,6 +1107,10 @@ class MonthlyExamsController extends Controller
         $attempt->answers_unlocked_at = Carbon::now();
         $attempt->answers_unlocked_by = $user->id;
         $attempt->save();
+
+        if ($user && $user->role === 'teacher' && $attempt->exam && $attempt->student) {
+            \App\Services\TeacherActivityService::logExamAnswersUnlocked($user, $attempt->exam, $attempt->student, $request);
+        }
 
         return response()->json([
             'success' => true,

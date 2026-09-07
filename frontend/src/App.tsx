@@ -12,6 +12,7 @@ import PWAManager from './components/PWAManager'
 import API from './services/api'
 import AnalyticsTracker from './components/AnalyticsTracker'
 import RobotsTracker from './components/RobotsTracker'
+import TeacherActivityTracker from './components/TeacherActivityTracker'
 import { NotificationProvider } from './context/NotificationContext'
 import { AdminLayout } from './components/AdminLayout'
 import { NotificationToast } from './components/NotificationToast'
@@ -67,6 +68,7 @@ const AdminTeachersList = React.lazy(() => import('./pages/admin/TeachersList'))
 const AdminCreateTeacher = React.lazy(() => import('./pages/admin/CreateTeacher'))
 const AdminStudentsList = React.lazy(() => import('./pages/admin/StudentsList'))
 const StudentActivity = React.lazy(() => import('./pages/admin/StudentActivity'))
+const TeacherActivity = React.lazy(() => import('./pages/admin/TeacherActivity'))
 const AdminCoursesList = React.lazy(() => import('./pages/admin/CoursesList'))
 const MonthlyExamsManagement = React.lazy(() => import('./pages/admin/MonthlyExamsManagement'))
 const PurchaseCodes = React.lazy(() => import('./pages/admin/PurchaseCodes'))
@@ -270,6 +272,7 @@ function App() {
         <NotificationProvider>
           <AnalyticsTracker />
           <RobotsTracker />
+          <TeacherActivityTracker />
           <ModalProvider />
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
@@ -500,6 +503,11 @@ function App() {
         <Route path="/admin/student-activity" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
             <AdminLayout><StudentActivity /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/teacher-activity" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
+            <AdminLayout><TeacherActivity /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/security" element={
