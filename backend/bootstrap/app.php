@@ -37,6 +37,8 @@ return Application::configure(basePath: dirname(__DIR__))
                 $status = 500;
                 if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
                     $status = $e->getStatusCode();
+                } elseif ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+                    $status = 404;
                 } elseif ($e instanceof \Illuminate\Validation\ValidationException) {
                     $status = 422;
                     return response()->json([

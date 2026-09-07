@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khotwatok-cache-v3';
+const CACHE_NAME = 'khotwatok-cache-v4';
 
 // Pre-cache core shell assets
 const PRECACHE_ASSETS = [
@@ -56,8 +56,13 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // ALWAYS BYPASS cache for APIs, Auth, and non-GET requests to prevent breaking logic
+  // ALWAYS BYPASS cache for local dev, Vite HMR, APIs, Auth, and non-GET requests
   if (
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('node_modules') ||
     url.pathname.includes('/api/') || 
     url.pathname.includes('/auth/') || 
     event.request.method !== 'GET'

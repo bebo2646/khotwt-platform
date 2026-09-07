@@ -285,6 +285,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::get('/admin/student-activity', [StudentActivityController::class, 'index']);
                 Route::get('/admin/student-activity/stats', [StudentActivityController::class, 'stats']);
                 Route::get('/admin/student-activity/sessions', [StudentActivityController::class, 'sessions']);
+                Route::get('/admin/student-sessions', [StudentActivityController::class, 'sessions']); // Route alias for student sessions
                 Route::get('/admin/students/{student}/activity', [StudentActivityController::class, 'studentActivity']);
                 Route::get('/admin/students/{student}/security-events', [SecurityMonitoringController::class, 'studentSecurityEvents']);
                 Route::post('/admin/students/{id}/reset-password', [AdminController::class, 'resetStudentPassword']);

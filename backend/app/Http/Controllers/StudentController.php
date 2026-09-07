@@ -539,7 +539,7 @@ class StudentController extends Controller
                         'code'
                     );
 
-                    StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, $amount, 'code', request());
+                    StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, $amount, 'code', ['code' => $purchaseCode->code], request());
 
                     return response()->json([
                         'message' => 'تم الاشتراك في الكورس بنجاح.',
@@ -784,7 +784,7 @@ class StudentController extends Controller
                 $discountAmount
             );
 
-            StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, (float)$course->final_price, 'wallet', request());
+            StudentActivityService::logPurchase($user, $course->is_bundle ? 'bundle' : 'course', $course, (float)$course->final_price, 'wallet', ['amount' => (float)$course->final_price, 'balance_after' => (float)$wallet->balance], request());
 
             return response()->json([
                 'message' => 'تم الاشتراك في الكورس بنجاح.',
@@ -1312,7 +1312,7 @@ class StudentController extends Controller
                 0.00
             );
 
-            StudentActivityService::logPurchase($user, 'lesson', $lesson, $lessonPrice, 'wallet', request());
+            StudentActivityService::logPurchase($user, 'lesson', $lesson, $lessonPrice, 'wallet', ['amount' => $lessonPrice, 'balance_after' => (float)$wallet->balance], request());
 
             return response()->json([
                 'message' => 'تم الاشتراك في المحاضرة بنجاح.',

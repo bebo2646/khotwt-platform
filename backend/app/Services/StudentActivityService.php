@@ -696,9 +696,13 @@ class StudentActivityService
         $item,
         float $amount,
         string $method = 'wallet',
-        array $financialContext = [],
-        ?Request $request = null
+        array|\Illuminate\Http\Request $financialContext = [],
+        ?\Illuminate\Http\Request $request = null
     ): ?StudentActivityLog {
+        if ($financialContext instanceof \Illuminate\Http\Request) {
+            $request = $financialContext;
+            $financialContext = [];
+        }
         $isBundle = $productType === 'bundle' || ($productType === 'course' && (bool)($item->is_bundle ?? false));
         $eventType = $isBundle ? 'bundle_purchased' : "{$productType}_purchased";
         

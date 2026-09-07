@@ -1,6 +1,23 @@
 import React from 'react'
+import { useLocation } from 'react-router-dom'
 
 export default function WhatsAppButton() {
+  const location = useLocation()
+  const pathname = location.pathname.toLowerCase()
+
+  // Hide the floating WhatsApp button ONLY on exam player routes:
+  // e.g., /monthly-exams/:id/player, /monthly-exams/:id, /student/exams/:id, /exams/:id
+  // Preserves button on /monthly-exams (index), /monthly-exams/:id/results, dashboards, courses, homepage, etc.
+  const isExamPlayerRoute =
+    pathname.includes('/player') ||
+    (/^\/monthly-exams\/[^/]+$/i.test(pathname) && !pathname.endsWith('/results')) ||
+    (/^\/student\/exams\/[^/]+$/i.test(pathname) && !pathname.endsWith('/result') && !pathname.endsWith('/results')) ||
+    (/^\/exams\/[^/]+$/i.test(pathname) && !pathname.endsWith('/results') && !pathname.endsWith('/result'))
+
+  if (isExamPlayerRoute) {
+    return null
+  }
+
   const phoneNumber = '201009469745'
   const message = 'مرحباً، أريد الاستفسار عن الأكواد والاشتراكات.'
   const encodedMessage = encodeURIComponent(message)

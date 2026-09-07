@@ -286,7 +286,7 @@ export default function StudentActivity() {
       if (sessionStatusFilter !== 'all') params.status = sessionStatusFilter
       if (sessionSearch.trim()) params.search = sessionSearch.trim()
 
-      const res = await API.get('/admin/student-sessions', { params })
+      const res = await API.get('/admin/student-activity/sessions', { params })
       if (res.data?.data) {
         setSessions(res.data.data)
         setSessionsPage(res.data.current_page || 1)
@@ -1219,10 +1219,8 @@ export default function StudentActivity() {
           Student Activity Profile Modal (Timeline, Financial & Educational Audit)
           ========================================================================= */}
       {selectedStudentId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 z-40 transition-opacity" onClick={handleCloseStudentModal} />
-          
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl z-50 text-right scrollbar-thin scrollbar-thumb-slate-800">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-y-auto pointer-events-none">
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl z-50 text-right scrollbar-thin scrollbar-thumb-slate-800 pointer-events-auto">
             
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
@@ -1675,9 +1673,8 @@ export default function StudentActivity() {
           Metadata Technical Inspector Modal
           ========================================================================= */}
       {inspectLog && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-black/60 z-40 transition-opacity" onClick={() => setInspectLog(null)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl z-50 text-right">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-y-auto pointer-events-none">
+          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl z-50 text-right pointer-events-auto">
             <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-3">
               <h3 className="text-sm font-black text-slate-200 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-brand-primary" />
