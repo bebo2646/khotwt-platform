@@ -116,7 +116,7 @@ class StudentTypeRegistrationAndSortingTest extends TestCase
             'status' => 'active',
         ]);
 
-        $response = $this->actingAs($student)->getJson('/api/courses');
+        $response = $this->actingAs($student)->getJson('/api/courses?teacher_id=' . $teacher->id);
 
         $response->assertStatus(200);
         $courses = $response->json();
@@ -166,7 +166,7 @@ class StudentTypeRegistrationAndSortingTest extends TestCase
             'status' => 'active',
         ]);
 
-        $response = $this->actingAs($student)->getJson('/api/courses');
+        $response = $this->actingAs($student)->getJson('/api/courses?teacher_id=' . $teacher->id);
 
         $response->assertStatus(200);
         $courses = $response->json();

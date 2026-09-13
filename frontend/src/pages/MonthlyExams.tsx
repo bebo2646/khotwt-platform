@@ -52,6 +52,15 @@ interface MonthlyExam {
   }
   is_purchased?: boolean
   attempts_count?: number
+  availability?: {
+    is_available: boolean
+    status: string
+    error_code?: string
+    message: string
+    formatted_dates?: string | null
+    starts_at?: string | null
+    ends_at?: string | null
+  }
   latest_attempt?: {
     id: number
     status: string
@@ -176,6 +185,15 @@ export default function MonthlyExams() {
         navigate(`/monthly-exams/${exam.id}/results`)
       }
     } else {
+      if (exam.availability && !exam.availability.is_available) {
+        useModalStore.getState().showAlert({
+          title: exam.availability.status === 'not_started' ? 'الامتحان غير متاح بعد' : 'انتهت فترة إتاحة الامتحان',
+          description: `${exam.availability.message}${exam.availability.formatted_dates ? `\nفترة الإتاحة: ${exam.availability.formatted_dates}` : ''}`,
+          type: exam.availability.status === 'not_started' ? 'warning' : 'error',
+          buttonText: 'حسناً'
+        })
+        return
+      }
       navigate(`/monthly-exams/${exam.id}/player`)
     }
   }
@@ -442,6 +460,18 @@ export default function MonthlyExams() {
                       >
                         <Eye className="w-4 h-4 text-brand-primary" />
                         <span>عرض النتيجة والتقرير ({attempt.score ?? 0} / {exam.max_score})</span>
+                      </button>
+                    ) : (isPurchased || isFree) && exam.availability && !exam.availability.is_available ? (
+                      <button
+                        onClick={() => handleExamAction(exam)}
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                          exam.availability.status === 'not_started'
+                            ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/30'
+                            : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border-rose-500/30'
+                        }`}
+                      >
+                        <Clock className="w-4 h-4" />
+                        <span>{exam.availability.status === 'not_started' ? 'الامتحان غير متاح بعد ⏱️' : 'انتهت فترة إتاحة الامتحان ⏱️'}</span>
                       </button>
                     ) : isPurchased || isFree ? (
                       <button

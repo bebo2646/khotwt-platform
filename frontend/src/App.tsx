@@ -501,12 +501,12 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/admin/student-activity" element={
-          <ProtectedRoute allowedRoles={['admin']} requiredPermission="students.manage">
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="student_activity.view,students.manage">
             <AdminLayout><StudentActivity /></AdminLayout>
           </ProtectedRoute>
         } />
         <Route path="/admin/teacher-activity" element={
-          <ProtectedRoute allowedRoles={['admin']} requiredPermission="teachers.manage">
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="teacher_activity.view,teachers.manage">
             <AdminLayout><TeacherActivity /></AdminLayout>
           </ProtectedRoute>
         } />

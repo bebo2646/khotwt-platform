@@ -671,9 +671,8 @@ class TeacherController extends Controller
             $notifService->sendNotification(
                 'كورس جديد',
                 "تمت إضافة كورس جديد: {$course->title} بواسطة المعلم {$request->user()->name}.",
-                'course',
-                $course->id,
-                true,
+                'students',
+                null,
                 $request->user()->id
             );
         } catch (\Exception $e) {

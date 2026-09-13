@@ -704,7 +704,7 @@ class StudentController extends Controller
         $totalAvailable = $wallet->balance + $creditBalance;
 
         if ($totalAvailable < $course->final_price) {
-            StudentActivityService::logPurchaseFailed($user, $course->is_bundle ? 'bundle' : 'course', $course, 'رصيد المحفظة غير كافٍ للاشتراك', $request);
+            StudentActivityService::logPurchaseFailed($user, $course->is_bundle ? 'bundle' : 'course', $course, 'رصيد المحفظة غير كافٍ للاشتراك', [], $request);
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
@@ -1234,7 +1234,7 @@ class StudentController extends Controller
         $totalAvailable = $wallet->balance + $creditBalance;
 
         if ($totalAvailable < $lesson->price) {
-            StudentActivityService::logPurchaseFailed($user, 'lesson', $lesson, 'رصيد المحفظة غير كافٍ للاشتراك', $request);
+            StudentActivityService::logPurchaseFailed($user, 'lesson', $lesson, 'رصيد المحفظة غير كافٍ للاشتراك', [], $request);
             return response()->json(['message' => 'رصيد المحفظة والائتمان المخصص للمعلم غير كافٍ للاشتراك. يرجى الشحن أولاً.'], 422);
         }
 
@@ -2103,6 +2103,58 @@ class StudentController extends Controller
     }
 
     /**
+     * Finalize and grade an expired course exam attempt server-side.
+     */
+    private function finalizeExpiredCourseAttempt(StudentExam $attempt, Exam $exam)
+    {
+        $existingAnswers = StudentAnswer::where('student_exam_id', $attempt->id)
+            ->pluck('answer_text', 'question_id')
+            ->toArray();
+
+        $totalScore = 0;
+        $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']) || ($exam->type === 'homework' && $exam->homework_type === 'bubble_sheet');
+        $hasEssay = false;
+
+        foreach ($exam->questions as $question) {
+            $answerText = $existingAnswers[$question->id] ?? '';
+            $isCorrect = false;
+            $questionScore = 0;
+
+            if ($question->type === 'essay') {
+                $hasEssay = true;
+            } else {
+                if (trim(strtolower((string)$answerText)) === trim(strtolower((string)$question->correct_answer))) {
+                    $isCorrect = true;
+                    $questionScore = $question->score;
+                    $totalScore += $questionScore;
+                }
+            }
+
+            StudentAnswer::updateOrCreate(
+                [
+                    'student_exam_id' => $attempt->id,
+                    'question_id' => $question->id,
+                ],
+                [
+                    'answer_text' => $answerText,
+                    'is_correct' => $isCorrect,
+                    'score' => $questionScore,
+                ]
+            );
+        }
+
+        $attempt->status = ($isAutoGraded && !$hasEssay) ? 'graded' : 'submitted';
+        $attempt->score = $totalScore;
+        $attempt->auto_submitted = true;
+        $attempt->submission_reason = 'time_expired';
+        $attempt->submitted_at = $attempt->expires_at ?: Carbon::now();
+        if ($attempt->status === 'graded') {
+            $attempt->graded_at = Carbon::now();
+        }
+        $attempt->save();
+    }
+
+    /**
      * Start/Load an exam.
      */
     public function startExam(Request $request, $examId)
@@ -2133,81 +2185,101 @@ class StudentController extends Controller
             return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
         }
 
-        // Validate scheduling (supporting both open/close dates and start/end dates for exams and homework)
-        if ($exam->enable_schedule || $exam->start_date || $exam->end_date || $exam->open_date || $exam->close_date) {
-            $now = \Carbon\Carbon::now();
-            
-            $startDatetime = null;
-            if ($exam->open_date) {
-                $openDateStr = $exam->open_date->format('Y-m-d');
-                $openTimeStr = $exam->open_time ?: '00:00:00';
-                $startDatetime = \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr);
-            } elseif ($exam->start_date) {
-                $startDateStr = $exam->start_date->format('Y-m-d');
-                $startTimeStr = $exam->start_time ?: '00:00:00';
-                $startDatetime = \Carbon\Carbon::parse($startDateStr . ' ' . $startTimeStr);
-            }
+        // Check for existing attempt
+        $existingAttempt = StudentExam::where('student_id', $user->id)
+            ->where('exam_id', $examId)
+            ->where('course_id', $contextCourseId)
+            ->where('package_id', $contextPackageId)
+            ->where('lesson_id', $contextLessonId)
+            ->latest()
+            ->first();
 
-            $endDatetime = null;
-            if ($exam->close_date) {
-                $closeDateStr = $exam->close_date->format('Y-m-d');
-                $closeTimeStr = $exam->close_time ?: '23:59:59';
-                $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
-            } elseif ($exam->end_date) {
-                $endDateStr = $exam->end_date->format('Y-m-d');
-                $endTimeStr = $exam->end_time ?: '23:59:59';
-                $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
-            }
-
-            if ($startDatetime && $now->lt($startDatetime)) {
+        if ($existingAttempt) {
+            // If terminated for cheating, student cannot restart
+            if ($existingAttempt->isTerminatedForCheating()) {
                 return response()->json([
-                    'message' => 'This exam is not available yet.',
-                    'status' => 'not_started',
-                    'open_datetime' => $startDatetime->toIso8601String(),
-                    'countdown_seconds' => $now->diffInSeconds($startDatetime),
-                    'error_code' => 'SCHEDULE_NOT_STARTED'
+                    'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
+                    'terminated' => true,
+                    'attempt_id' => $existingAttempt->id,
                 ], 403);
             }
 
-            if ($endDatetime && $now->gt($endDatetime)) {
+            // If still started, check attempt expiration
+            if ($existingAttempt->status === 'started') {
+                $now = \Carbon\Carbon::now();
+                if (!$existingAttempt->expires_at && $exam->time_limit_minutes) {
+                    $existingAttempt->expires_at = \Carbon\Carbon::parse($existingAttempt->started_at ?? $now)
+                        ->addMinutes($existingAttempt->duration_minutes ?: $exam->time_limit_minutes);
+                    $existingAttempt->save();
+                }
+
+                if ($existingAttempt->expires_at && $now->gt($existingAttempt->expires_at)) {
+                    $this->finalizeExpiredCourseAttempt($existingAttempt, $exam);
+                    return response()->json([
+                        'message' => 'انتهى الوقت المحدد للمحاولة وتم تسليم إجاباتك تلقائياً.',
+                        'status' => 'expired',
+                        'attempt_id' => $existingAttempt->id,
+                    ], 403);
+                }
+
+                // Active attempt -> Resume!
+                $attempt = $existingAttempt;
+            } else {
+                // Already completed (submitted or graded)
                 return response()->json([
-                    'message' => 'The exam availability period has ended.',
-                    'status' => 'expired',
-                    'close_datetime' => $endDatetime->toIso8601String(),
-                    'error_code' => 'SCHEDULE_EXPIRED'
+                    'message' => 'تم تسليم هذا الامتحان مسبقاً.',
+                    'attempt_id' => $existingAttempt->id,
                 ], 403);
             }
-        }
-
-        // Check if the exam is paid and student has purchased it
-        if ($exam->is_paid) {
-            $hasPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
-                ->where('exam_id', $examId)
-                ->exists();
-
-            if (!$hasPurchased && !$user->isAdmin()) {
+        } else {
+            // New attempt -> Enforce authoritative availability window BEFORE creating attempt
+            $avail = $exam->getAvailabilityStatus();
+            if (!$avail['is_available']) {
                 return response()->json([
-                    'message' => 'هذا الامتحان مدفوع ويجب شراؤه أولاً.',
-                    'needs_purchase' => true,
-                    'price' => $exam->price,
-                ], 402);
+                    'message' => $avail['message'],
+                    'status' => $avail['status'],
+                    'error_code' => $avail['error_code'],
+                    'open_datetime' => $avail['open_datetime'] ?? null,
+                    'close_datetime' => $avail['close_datetime'] ?? null,
+                    'starts_at' => $avail['starts_at'] ?? null,
+                    'ends_at' => $avail['ends_at'] ?? null,
+                    'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
+                    'formatted_dates' => $avail['formatted_dates'] ?? null,
+                ], 403);
             }
-        }
 
-        // Check or create started attempt
-        $attempt = StudentExam::firstOrCreate(
-            [
+            // Check if the exam is paid and student has purchased it
+            if ($exam->is_paid) {
+                $hasPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
+                    ->where('exam_id', $examId)
+                    ->exists();
+
+                if (!$hasPurchased && !$user->isAdmin()) {
+                    return response()->json([
+                        'message' => 'هذا الامتحان مدفوع ويجب شراؤه أولاً.',
+                        'needs_purchase' => true,
+                        'price' => $exam->price,
+                    ], 402);
+                }
+            }
+
+            $startedAt = \Carbon\Carbon::now();
+            $durationMinutes = $exam->time_limit_minutes ?: null;
+            $expiresAt = $durationMinutes ? $startedAt->copy()->addMinutes($durationMinutes) : null;
+
+            $attempt = StudentExam::create([
                 'student_id' => $user->id,
                 'exam_id' => $examId,
                 'status' => 'started',
                 'course_id' => $contextCourseId,
                 'package_id' => $contextPackageId,
                 'lesson_id' => $contextLessonId,
-            ],
-            [
                 'score' => null,
-            ]
-        );
+                'started_at' => $startedAt,
+                'duration_minutes' => $durationMinutes,
+                'expires_at' => $expiresAt,
+            ]);
+        }
 
         // Persistent exam randomization (anti-cheating)
         if (!$attempt->shuffle_mapping) {
@@ -2290,6 +2362,12 @@ class StudentController extends Controller
             StudentActivityService::logExamEvent($user, $exam, 'started', $attempt, [], $request);
         }
 
+        $serverNow = \Carbon\Carbon::now();
+        $timeRemainingSeconds = null;
+        if ($attempt->expires_at) {
+            $timeRemainingSeconds = max(0, $serverNow->diffInSeconds($attempt->expires_at, false));
+        }
+
         return response()->json([
             'attempt_id' => $attempt->id,
             'exam' => [
@@ -2304,8 +2382,12 @@ class StudentController extends Controller
                 'enable_fullscreen' => (bool)($exam->enable_fullscreen ?? true),
                 'enable_anti_tab_switching' => (bool)($exam->enable_anti_tab_switching ?? true),
                 'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
-                'close_datetime' => $exam->enable_schedule && $exam->close_date ? \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'))->toIso8601String() : null,
+                'close_datetime' => $exam->close_date ? \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'))->toIso8601String() : null,
             ],
+            'started_at' => $attempt->started_at?->toIso8601String(),
+            'expires_at' => $attempt->expires_at?->toIso8601String(),
+            'server_now' => $serverNow->toIso8601String(),
+            'time_remaining_seconds' => $timeRemainingSeconds,
             'questions' => $shuffledQuestions,
             'existing_answers' => $answersFormatted,
         ]);
@@ -2317,50 +2399,25 @@ class StudentController extends Controller
     public function checkAvailability(Request $request, $examId)
     {
         $exam = Exam::findOrFail($examId);
-        $now = \Carbon\Carbon::now();
-        
-        $startDatetime = null;
-        if ($exam->open_date) {
-            $openDateStr = $exam->open_date->format('Y-m-d');
-            $openTimeStr = $exam->open_time ?: '00:00:00';
-            $startDatetime = \Carbon\Carbon::parse($openDateStr . ' ' . $openTimeStr);
-        } elseif ($exam->start_date) {
-            $startDateStr = $exam->start_date->format('Y-m-d');
-            $startTimeStr = $exam->start_time ?: '00:00:00';
-            $startDatetime = \Carbon\Carbon::parse($startDateStr . ' ' . $startTimeStr);
-        }
+        $avail = $exam->getAvailabilityStatus();
 
-        $endDatetime = null;
-        if ($exam->close_date) {
-            $closeDateStr = $exam->close_date->format('Y-m-d');
-            $closeTimeStr = $exam->close_time ?: '23:59:59';
-            $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
-        } elseif ($exam->end_date) {
-            $endDateStr = $exam->end_date->format('Y-m-d');
-            $endTimeStr = $exam->end_time ?: '23:59:59';
-            $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
-        }
-
-        if ($startDatetime && $now->lt($startDatetime)) {
+        if (!$avail['is_available']) {
             return response()->json([
                 'available' => false,
-                'message' => 'This exam is not available yet.',
-                'error_code' => 'SCHEDULE_NOT_STARTED',
-                'start_datetime' => $startDatetime->toIso8601String(),
-            ], 403);
-        }
-
-        if ($endDatetime && $now->gt($endDatetime)) {
-            return response()->json([
-                'available' => false,
-                'message' => 'The exam availability period has ended.',
-                'error_code' => 'SCHEDULE_EXPIRED',
-                'end_datetime' => $endDatetime->toIso8601String(),
+                'message' => $avail['message'],
+                'error_code' => $avail['error_code'],
+                'status' => $avail['status'],
+                'start_datetime' => $avail['starts_at'] ?? $avail['open_datetime'] ?? null,
+                'end_datetime' => $avail['ends_at'] ?? $avail['close_datetime'] ?? null,
+                'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
+                'formatted_dates' => $avail['formatted_dates'] ?? null,
             ], 403);
         }
 
         return response()->json([
             'available' => true,
+            'message' => 'الامتحان متاح حالياً للبدء.',
+            'formatted_dates' => $avail['formatted_dates'] ?? null,
         ]);
     }
 
@@ -2379,8 +2436,20 @@ class StudentController extends Controller
             ->where('student_id', $user->id)
             ->firstOrFail();
 
+        if ($attempt->isTerminatedForCheating() || $attempt->status === 'terminated_for_cheating') {
+            return response()->json([
+                'message' => 'تم إنهاء الامتحان بسبب مخالفات نظام المراقبة، ولا يمكن حفظ إجابات جديدة.',
+                'terminated' => true,
+            ], 403);
+        }
+
         if ($attempt->status !== 'started') {
             return response()->json(['message' => 'هذا الامتحان غير متاح للتعديل.'], 422);
+        }
+
+        // Validate expiration with 30s grace period for in-flight requests
+        if ($attempt->expires_at && \Carbon\Carbon::now()->gt($attempt->expires_at->copy()->addSeconds(30))) {
+            return response()->json(['message' => 'انتهى الوقت المحدد للامتحان ولا يمكن حفظ إجابات جديدة.'], 422);
         }
 
         DB::transaction(function () use ($attempt, $request) {
@@ -2406,6 +2475,8 @@ class StudentController extends Controller
 
     /**
      * Submit answers for an exam attempt.
+     * Note: Does NOT check exam multi-day calendar window on submit.
+     * Checks attempt duration expiration and grades deterministically.
      */
     public function submitExam(Request $request, $examId)
     {
@@ -2421,33 +2492,24 @@ class StudentController extends Controller
             ->firstOrFail();
 
         if ($attempt->status !== 'started') {
-            return response()->json(['message' => 'تم تسليم هذا الامتحان مسبقاً.'], 422);
+            return response()->json([
+                'message' => 'تم تسليم هذا الامتحان مسبقاً.',
+                'already_submitted' => true,
+                'attempt' => $attempt,
+                'score' => $attempt->score,
+            ], 200);
         }
 
-        // Validate scheduling on submit
-        if ($exam->enable_schedule || $exam->end_date || $exam->close_date) {
-            $now = \Carbon\Carbon::now();
-            
-            $endDatetime = null;
-            if ($exam->close_date) {
-                $closeDateStr = $exam->close_date->format('Y-m-d');
-                $closeTimeStr = $exam->close_time ?: '23:59:59';
-                $endDatetime = \Carbon\Carbon::parse($closeDateStr . ' ' . $closeTimeStr);
-            } elseif ($exam->end_date) {
-                $endDateStr = $exam->end_date->format('Y-m-d');
-                $endTimeStr = $exam->end_time ?: '23:59:59';
-                $endDatetime = \Carbon\Carbon::parse($endDateStr . ' ' . $endTimeStr);
-            }
-
-            if ($endDatetime && $now->gt($endDatetime)) {
-                return response()->json([
-                    'message' => 'عذراً، لقد تجاوزت الموعد النهائي لتسليم الامتحان.',
-                    'error_code' => 'SCHEDULE_EXPIRED'
-                ], 403);
-            }
+        // Check if attempt duration has expired (with 60-second grace window for submission latency)
+        $now = \Carbon\Carbon::now();
+        $isAttemptExpired = false;
+        if ($attempt->expires_at && $now->gt($attempt->expires_at->copy()->addSeconds(60))) {
+            $isAttemptExpired = true;
+            $attempt->auto_submitted = true;
+            $attempt->submission_reason = 'time_expired';
         }
 
-        return DB::transaction(function () use ($exam, $attempt, $request, $user) {
+        return DB::transaction(function () use ($exam, $attempt, $request, $user, $isAttemptExpired) {
             $submittedAnswers = $request->answers;
             $totalScore = 0;
             $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']) || ($exam->type === 'homework' && $exam->homework_type === 'bubble_sheet');
@@ -2455,7 +2517,7 @@ class StudentController extends Controller
 
             // Loop through all exam questions to grade them
             foreach ($exam->questions as $question) {
-                $answerText = isset($submittedAnswers[$question->id]) ? $submittedAnswers[$question->id] : '';
+                $answerText = isset($submittedAnswers[$question->id]) ? (string)$submittedAnswers[$question->id] : '';
                 $isCorrect = false;
                 $questionScore = 0;
 
@@ -2465,9 +2527,9 @@ class StudentController extends Controller
                     $questionScore = 0; // Filled later by teacher
                 } else {
                     // Auto-grade MCQs and True/False questions
-                    if (trim(strtolower($answerText)) === trim(strtolower($question->correct_answer))) {
+                    if (trim(strtolower($answerText)) === trim(strtolower((string)$question->correct_answer))) {
                         $isCorrect = true;
-                        $questionScore = $question->score;
+                        $questionScore = (int)$question->score;
                         $totalScore += $questionScore;
                     }
                 }
@@ -2485,7 +2547,7 @@ class StudentController extends Controller
                 );
             }
 
-            // If it is a quiz/monthly exam or bubble sheet homework with no essay questions, we mark as graded
+            // If it is auto-gradable with no essay questions, we mark as graded
             if ($isAutoGraded && !$hasEssay) {
                 $attempt->status = 'graded';
                 $attempt->score = $totalScore;
@@ -2499,37 +2561,39 @@ class StudentController extends Controller
             $attempt->save();
 
             // Send notification to teacher about submission
-            $teacherId = $exam->lesson->unit->course->teacher_id;
-            \App\Models\Notification::create([
-                'title' => "تسليم جديد: " . ($exam->type === 'homework' ? 'واجب' : 'امتحان'),
-                'message' => "قام الطالب " . $user->name . " بتسليم " . ($exam->type === 'homework' ? 'الواجب' : 'الامتحان') . ": " . $exam->title,
-                'recipient_type' => 'specific_teacher',
-                'recipient_id' => $teacherId,
-                'sender_id' => $user->id,
-                'important' => false,
-            ]);
-
-            // Score and Failure notifications
-            if ($attempt->status === 'graded') {
+            $teacherId = $exam->lesson?->unit?->course?->teacher_id;
+            if ($teacherId) {
                 \App\Models\Notification::create([
-                    'title' => "تم رصد درجة الطالب تلقائياً",
-                    'message' => "حصل الطالب " . $user->name . " على درجة " . $totalScore . " من " . $exam->max_score . " في " . $exam->title . ".",
+                    'title' => "تسليم جديد: " . ($exam->type === 'homework' ? 'واجب' : 'امتحان'),
+                    'message' => "قام الطالب " . $user->name . " بتسليم " . ($exam->type === 'homework' ? 'الواجب' : 'الامتحان') . ": " . $exam->title,
                     'recipient_type' => 'specific_teacher',
                     'recipient_id' => $teacherId,
                     'sender_id' => $user->id,
                     'important' => false,
                 ]);
 
-                $percent = $exam->max_score > 0 ? ($totalScore / $exam->max_score) * 100 : 0;
-                if ($percent < 50) {
+                // Score and Failure notifications
+                if ($attempt->status === 'graded') {
                     \App\Models\Notification::create([
-                        'title' => "رسوب طالب في التقييم",
-                        'message' => "رسب الطالب " . $user->name . " في " . $exam->title . " بعد الحصول على " . $totalScore . " من " . $exam->max_score . " (النسبة: " . round($percent, 1) . "%).",
+                        'title' => "تم رصد درجة الطالب تلقائياً",
+                        'message' => "حصل الطالب " . $user->name . " على درجة " . $totalScore . " من " . $exam->max_score . " في " . $exam->title . ".",
                         'recipient_type' => 'specific_teacher',
                         'recipient_id' => $teacherId,
                         'sender_id' => $user->id,
                         'important' => false,
                     ]);
+
+                    $percent = $exam->max_score > 0 ? ($totalScore / $exam->max_score) * 100 : 0;
+                    if ($percent < 50) {
+                        \App\Models\Notification::create([
+                            'title' => "رسوب طالب في التقييم",
+                            'message' => "رسب الطالب " . $user->name . " في " . $exam->title . " بعد الحصول على " . $totalScore . " من " . $exam->max_score . " (النسبة: " . round($percent, 1) . "%).",
+                            'recipient_type' => 'specific_teacher',
+                            'recipient_id' => $teacherId,
+                            'sender_id' => $user->id,
+                            'important' => false,
+                        ]);
+                    }
                 }
             }
 
@@ -2538,8 +2602,13 @@ class StudentController extends Controller
             }
 
             return response()->json([
+                'success' => true,
                 'message' => 'تم تسليم الإجابات بنجاح.',
                 'attempt' => $attempt,
+                'score' => $attempt->score,
+                'max_score' => $exam->max_score,
+                'status' => $attempt->status,
+                'time_expired' => $isAttemptExpired,
             ]);
         });
     }
@@ -2564,7 +2633,11 @@ class StudentController extends Controller
             ->firstOrFail();
 
         if ($attempt->status !== 'started') {
-            return response()->json(['message' => 'هذه المحاولة غير نشطة.'], 422);
+            return response()->json([
+                'message' => 'هذه المحاولة غير نشطة.',
+                'status' => $attempt->status,
+                'terminated' => $attempt->isTerminatedForCheating(),
+            ], 422);
         }
 
         $timestamps = $attempt->violation_timestamps ?: [];
@@ -2589,64 +2662,40 @@ class StudentController extends Controller
             StudentActivityService::logAntiCheat($user, $exam, $request->violation_type, $violationData, $request);
         }
 
-        $reachedLimit = $attempt->violation_count >= ($exam->allowed_violations ?? 3);
+        $allowedViolations = (int)($exam->allowed_violations ?? 3);
+        $reachedLimit = $attempt->violation_count >= $allowedViolations;
         
         if ($reachedLimit && $request->violation_type !== 'returned') {
             if ($user->role === 'student') {
                 StudentActivityService::logAntiCheat($user, $exam, 'terminated_for_cheating', array_merge($violationData, ['reason' => 'تجاوز الحد الأقصى للمخالفات']), $request);
             }
             $attempt->is_suspicious = true;
-            if ($exam->auto_submit_on_violation) {
-                // Auto-submit and grade current answers when locked out due to violations
-                $existingAnswers = StudentAnswer::where('student_exam_id', $attempt->id)
-                    ->pluck('answer_text', 'question_id')
-                    ->toArray();
+            $attempt->status = 'terminated_for_cheating';
+            $attempt->terminated_for_cheating_at = \Carbon\Carbon::now();
+            $attempt->cheat_violations_count = $attempt->violation_count;
+            $attempt->submission_reason = 'cheat_violations_limit_exceeded';
+            $attempt->auto_submitted = true;
+            $attempt->submitted_at = \Carbon\Carbon::now();
+            $attempt->score = 0; // Terminated for cheating is assigned 0
 
-                $totalScore = 0;
-                $isAutoGraded = in_array($exam->type, ['quiz', 'monthly_exam']) || ($exam->type === 'homework' && $exam->homework_type === 'bubble_sheet');
-                $hasEssay = false;
+            // Save existing draft answers so teacher can review them
+            $existingAnswers = StudentAnswer::where('student_exam_id', $attempt->id)
+                ->pluck('answer_text', 'question_id')
+                ->toArray();
 
-                // Loop through all exam questions to grade them and ensure every question has an answer record
-                foreach ($exam->questions as $question) {
-                    $answerText = isset($existingAnswers[$question->id]) ? $existingAnswers[$question->id] : '';
-                    $isCorrect = false;
-                    $questionScore = 0;
-
-                    if ($question->type === 'essay') {
-                        $hasEssay = true;
-                        $isCorrect = false;
-                        $questionScore = 0;
-                    } else {
-                        if (trim(strtolower($answerText)) === trim(strtolower($question->correct_answer))) {
-                            $isCorrect = true;
-                            $questionScore = $question->score;
-                            $totalScore += $questionScore;
-                        }
-                    }
-
-                    StudentAnswer::updateOrCreate(
-                        [
-                            'student_exam_id' => $attempt->id,
-                            'question_id' => $question->id,
-                        ],
-                        [
-                            'answer_text' => $answerText,
-                            'is_correct' => $isCorrect,
-                            'score' => $questionScore,
-                        ]
-                    );
-                }
-
-                if ($isAutoGraded && !$hasEssay) {
-                    $attempt->status = 'graded';
-                    $attempt->score = $totalScore;
-                    $attempt->graded_at = \Carbon\Carbon::now();
-                } else {
-                    $attempt->status = 'submitted';
-                    $attempt->score = $isAutoGraded ? $totalScore : null;
-                }
-
-                $attempt->submitted_at = \Carbon\Carbon::now();
+            foreach ($exam->questions as $question) {
+                $answerText = $existingAnswers[$question->id] ?? '';
+                StudentAnswer::updateOrCreate(
+                    [
+                        'student_exam_id' => $attempt->id,
+                        'question_id' => $question->id,
+                    ],
+                    [
+                        'answer_text' => $answerText,
+                        'is_correct' => false,
+                        'score' => 0,
+                    ]
+                );
             }
         }
 
@@ -2654,9 +2703,11 @@ class StudentController extends Controller
 
         return response()->json([
             'violation_count' => $attempt->violation_count,
+            'allowed_violations' => $allowedViolations,
             'is_suspicious' => $attempt->is_suspicious,
             'status' => $attempt->status,
-            'message' => 'تم تسجيل المخالفة بنجاح.',
+            'terminated' => $attempt->isTerminatedForCheating(),
+            'message' => $attempt->isTerminatedForCheating() ? 'تم إنهاء الامتحان بسبب مخالفات المراقبة.' : 'تم تسجيل المخالفة بنجاح.',
         ]);
     }
 
@@ -2672,12 +2723,34 @@ class StudentController extends Controller
             'answers.question'
         ])
         ->where('student_id', $user->id)
-        ->whereIn('status', ['submitted', 'graded'])
+        ->whereIn('status', ['submitted', 'graded', 'terminated_for_cheating'])
         ->latest()
         ->get();
 
         // Calculate dynamic rank for each graded attempt
         $attempts->transform(function ($attempt) {
+            $canView = $attempt->canViewAnswers();
+            $attempt->can_view_answers = $canView;
+            $attempt->is_terminated_for_cheating = $attempt->isTerminatedForCheating();
+
+            // If terminated for cheating and answers not unlocked, strip correct answers and explanations
+            if (!$canView && $attempt->exam && $attempt->exam->questions) {
+                $attempt->exam->questions->makeHidden(['correct_answer', 'explanation']);
+                foreach ($attempt->exam->questions as $q) {
+                    $q->correct_answer = null;
+                    $q->explanation = null;
+                }
+                if ($attempt->answers) {
+                    foreach ($attempt->answers as $a) {
+                        if ($a->question) {
+                            $a->question->makeHidden(['correct_answer', 'explanation']);
+                            $a->question->correct_answer = null;
+                            $a->question->explanation = null;
+                        }
+                    }
+                }
+            }
+
             if ($attempt->status === 'graded' && $attempt->score !== null) {
                 $rankedAttempts = StudentExam::where('exam_id', $attempt->exam_id)
                     ->where('status', 'graded')

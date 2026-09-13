@@ -59,7 +59,29 @@ class TeacherActivityController extends Controller
             ->where('is_active', true)
             ->where('last_activity_at', '>=', $threshold)
             ->orderBy('last_activity_at', 'desc')
-            ->get();
+            ->get()
+            ->map(function ($session) {
+                $user = $session->teacher;
+                return [
+                    'id' => $user ? $user->id : $session->teacher_id,
+                    'teacher_id' => $session->teacher_id,
+                    'session_id' => $session->id,
+                    'name' => $user?->name ?? 'معلم',
+                    'email' => $user?->email ?? '',
+                    'avatar' => $user?->avatar,
+                    'subject' => $user?->subject,
+                    'current_page' => $session->current_page,
+                    'current_action' => $session->current_action,
+                    'device_type' => $session->device_type,
+                    'browser' => $session->browser,
+                    'ip_address' => $session->ip_address,
+                    'started_at' => $session->started_at?->toIso8601String(),
+                    'last_activity_at' => $session->last_activity_at?->toIso8601String(),
+                    'duration_seconds' => $session->duration_seconds,
+                    'duration_human' => $session->started_at ? $session->started_at->diffForHumans(null, true) : null,
+                    'teacher' => $user, // Keep nested relation for full compatibility
+                ];
+            });
 
         // 3. Active students list preview (recent 20)
         $activeStudents = StudentSession::with('student:id,name,email,phone,avatar,student_type')
@@ -67,7 +89,30 @@ class TeacherActivityController extends Controller
             ->where('last_activity_at', '>=', $threshold)
             ->orderBy('last_activity_at', 'desc')
             ->take(20)
-            ->get();
+            ->get()
+            ->map(function ($session) {
+                $user = $session->student;
+                return [
+                    'id' => $user ? $user->id : $session->student_id,
+                    'student_id' => $session->student_id,
+                    'session_id' => $session->id,
+                    'name' => $user?->name ?? 'طالب',
+                    'email' => $user?->email ?? '',
+                    'phone' => $user?->phone,
+                    'avatar' => $user?->avatar,
+                    'student_type' => $user?->student_type,
+                    'grade' => $user?->grade ?? null,
+                    'current_page' => $session->current_page ?? null,
+                    'current_action' => $session->current_action ?? null,
+                    'device_type' => $session->device_type,
+                    'browser' => $session->browser,
+                    'ip_address' => $session->ip_address,
+                    'started_at' => $session->started_at?->toIso8601String(),
+                    'last_activity_at' => $session->last_activity_at?->toIso8601String(),
+                    'duration_human' => $session->started_at ? $session->started_at->diffForHumans(null, true) : null,
+                    'student' => $user, // Keep nested relation for full compatibility
+                ];
+            });
 
         return response()->json([
             'threshold_minutes' => TeacherActivityService::ACTIVE_THRESHOLD_MINUTES,
@@ -236,18 +281,24 @@ class TeacherActivityController extends Controller
             ->take(15)
             ->get();
 
-        return response()->json([
-            'stats' => [
-                'active_teachers_now' => $activeNowCount,
-                'teachers_active_today' => $teachersActiveToday,
-                'total_sessions_today' => $sessionsTodayCount,
-                'courses_managed_today' => $coursesManagedToday,
-                'lessons_managed_today' => $lessonsManagedToday,
-                'videos_uploaded_today' => $videosUploadedToday,
-                'exams_managed_today' => $examsManagedToday,
-            ],
+        $statsPayload = [
+            'active_teachers_now' => $activeNowCount,
+            'teachers_active_today' => $teachersActiveToday,
+            'total_sessions_today' => $sessionsTodayCount,
+            'courses_managed_today' => $coursesManagedToday,
+            'lessons_managed_today' => $lessonsManagedToday,
+            'videos_uploaded_today' => $videosUploadedToday,
+            'exams_managed_today' => $examsManagedToday,
+            'courses_modified_today' => $coursesManagedToday,
+            'lessons_created_today' => $lessonsManagedToday,
+            'exams_created_today' => $examsManagedToday,
+            'grading_actions_today' => 0,
+        ];
+
+        return response()->json(array_merge([
+            'stats' => $statsPayload,
             'recent_feed' => $recentFeed,
-        ]);
+        ], $statsPayload));
     }
 
     /**

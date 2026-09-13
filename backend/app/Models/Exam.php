@@ -111,4 +111,135 @@ class Exam extends Model
     {
         return $this->hasMany(ExamViolation::class);
     }
+
+    /**
+     * Determine start and end datetime of the exam availability window.
+     */
+    public function getAvailabilityWindow(): array
+    {
+        $startsAt = null;
+        if ($this->open_date) {
+            $dateStr = $this->open_date->format('Y-m-d');
+            $timeStr = $this->open_time ?: '00:00:00';
+            $startsAt = \Carbon\Carbon::parse($dateStr . ' ' . $timeStr);
+        } elseif ($this->start_date) {
+            $dateStr = $this->start_date->format('Y-m-d');
+            $timeStr = $this->start_time ?: '00:00:00';
+            $startsAt = \Carbon\Carbon::parse($dateStr . ' ' . $timeStr);
+        }
+
+        $endsAt = null;
+        if ($this->close_date) {
+            $dateStr = $this->close_date->format('Y-m-d');
+            $timeStr = $this->close_time ?: '23:59:59';
+            $endsAt = \Carbon\Carbon::parse($dateStr . ' ' . $timeStr);
+        } elseif ($this->end_date) {
+            $dateStr = $this->end_date->format('Y-m-d');
+            $timeStr = $this->end_time ?: '23:59:59';
+            $endsAt = \Carbon\Carbon::parse($dateStr . ' ' . $timeStr);
+        } elseif ($this->submission_deadline) {
+            $endsAt = \Carbon\Carbon::parse($this->submission_deadline);
+        }
+
+        return [
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'has_schedule' => (bool)($this->enable_schedule || $startsAt || $endsAt),
+        ];
+    }
+
+    /**
+     * Check if the exam is currently available to START by a student.
+     * NOW < starts_at -> not_started
+     * starts_at <= NOW <= ends_at -> available
+     * NOW > ends_at -> expired
+     */
+    public function getAvailabilityStatus(): array
+    {
+        $window = $this->getAvailabilityWindow();
+        $startsAt = $window['starts_at'];
+        $endsAt = $window['ends_at'];
+        $hasSchedule = $window['has_schedule'];
+
+        if (!$hasSchedule) {
+            return [
+                'is_available' => true,
+                'status' => 'available',
+                'starts_at' => null,
+                'ends_at' => null,
+                'message' => 'الامتحان متاح حالياً للبدء.',
+                'formatted_dates' => null,
+            ];
+        }
+
+        $now = \Carbon\Carbon::now();
+        $formattedDates = $this->formatAvailabilityRange($startsAt, $endsAt);
+
+        if ($startsAt && $now->lt($startsAt)) {
+            return [
+                'is_available' => false,
+                'status' => 'not_started',
+                'error_code' => 'SCHEDULE_NOT_STARTED',
+                'starts_at' => $startsAt->toIso8601String(),
+                'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
+                'open_datetime' => $startsAt->toIso8601String(),
+                'countdown_seconds' => $now->diffInSeconds($startsAt),
+                'message' => 'هذا الامتحان غير متاح بعد.',
+                'formatted_dates' => $formattedDates,
+            ];
+        }
+
+        if ($endsAt && $now->gt($endsAt)) {
+            return [
+                'is_available' => false,
+                'status' => 'expired',
+                'error_code' => 'SCHEDULE_EXPIRED',
+                'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+                'ends_at' => $endsAt->toIso8601String(),
+                'close_datetime' => $endsAt->toIso8601String(),
+                'countdown_seconds' => 0,
+                'message' => 'انتهت مدة إتاحة الامتحان.',
+                'formatted_dates' => $formattedDates,
+            ];
+        }
+
+        return [
+            'is_available' => true,
+            'status' => 'available',
+            'starts_at' => $startsAt ? $startsAt->toIso8601String() : null,
+            'ends_at' => $endsAt ? $endsAt->toIso8601String() : null,
+            'message' => 'الامتحان متاح حالياً للبدء.',
+            'formatted_dates' => $formattedDates,
+        ];
+    }
+
+    /**
+     * Format availability date range into a readable Arabic phrase.
+     */
+    public function formatAvailabilityRange(?\Carbon\Carbon $startsAt, ?\Carbon\Carbon $endsAt): ?string
+    {
+        if (!$startsAt && !$endsAt) {
+            return null;
+        }
+
+        $arabicMonths = [
+            1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
+            5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
+            9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر'
+        ];
+
+        $formatDate = function (\Carbon\Carbon $date) use ($arabicMonths) {
+            $day = $date->day;
+            $month = $arabicMonths[$date->month] ?? $date->format('m');
+            return "{$day} {$month}";
+        };
+
+        if ($startsAt && $endsAt) {
+            return "متاح من {$formatDate($startsAt)} إلى {$formatDate($endsAt)}";
+        } elseif ($startsAt) {
+            return "متاح بدءاً من {$formatDate($startsAt)}";
+        } else {
+            return "متاح حتى {$formatDate($endsAt)}";
+        }
+    }
 }

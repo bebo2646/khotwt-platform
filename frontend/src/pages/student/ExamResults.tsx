@@ -23,13 +23,16 @@ interface AnswerItem {
 interface AttemptItem {
   id: number
   score: number | null
-  status: 'started' | 'submitted' | 'graded'
+  status: 'started' | 'submitted' | 'graded' | 'terminated_for_cheating'
   teacher_feedback: string | null
   submitted_at: string
   created_at: string
   graded_at: string | null
   rank?: number | null
   total_participants?: number | null
+  is_terminated_for_cheating?: boolean
+  can_view_answers?: boolean
+  answers_unlocked_at?: string | null
   exam: {
     id: number
     title: string
@@ -140,9 +143,19 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
     badgeIcon = '✨'
   }
 
+  const isCheatingTerminated = selectedAttempt?.status === 'terminated_for_cheating' || !!(selectedAttempt as any)?.is_terminated_for_cheating
+  const canViewAnswers = (selectedAttempt as any)?.can_view_answers !== false && (!isCheatingTerminated || !!(selectedAttempt as any)?.answers_unlocked_at)
+
+  if (isCheatingTerminated) {
+    gradeText = 'حرمان من الامتحان'
+    gradeColor = 'text-rose-500 bg-rose-500/10 border-rose-500/20'
+    badgeLabel = 'مخالفة نظام المراقبة ⛔'
+    badgeIcon = '🚫'
+  }
+
   // Pass/Fail calculations
-  const passed = percent >= 50
-  const statusText = passed ? 'ناجح 🎉' : 'راسب ⚠️'
+  const passed = !isCheatingTerminated && percent >= 50
+  const statusText = isCheatingTerminated ? 'ملغي (مخالفة مراقبة) ⛔' : passed ? 'ناجح 🎉' : 'راسب ⚠️'
 
   // MCQ counts
   const correctCount = selectedAttempt?.answers.filter(a => a.is_correct).length || 0
@@ -338,8 +351,19 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                     <span>مراجعة ورقة الإجابات النموذجية:</span>
                   </h3>
 
-                  <div className="space-y-4">
-                    {selectedAttempt.answers && selectedAttempt.answers.length > 0 ? (
+                  {!canViewAnswers ? (
+                    <div className="bg-rose-500/10 border border-rose-500/30 rounded-3xl p-6 sm:p-8 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto text-xl">
+                        🔒
+                      </div>
+                      <h4 className="text-base font-black text-white">نموذج الإجابات محجوب</h4>
+                      <p className="text-xs text-rose-200 max-w-md mx-auto leading-relaxed">
+                        تم حجب تفاصيل ونموذج الإجابات الصحيحة نظراً لإنهاء هذا الامتحان بقرار من نظام مراقبة الغش والأمان. يحق لمعلم المادة فقط مراجعة تقرير المخالفات وإلغاء القفل.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {selectedAttempt.answers && selectedAttempt.answers.length > 0 ? (
                       selectedAttempt.answers.map((ans, aIdx) => {
                         const isMcqOrTf = ans.question.type !== 'essay'
                         return (
@@ -406,6 +430,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               </motion.div>
             )}

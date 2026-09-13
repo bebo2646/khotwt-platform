@@ -194,7 +194,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'نشاط المعلمين',
           path: '/admin/teacher-activity',
           icon: <UserCheck className="w-5 h-5 shrink-0" />,
-          visible: hasPerm('teachers.manage')
+          visible: hasPerm('teachers.manage') || hasPerm('teacher_activity.view')
         },
         {
           label: 'الطلاب',
@@ -206,7 +206,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
           label: 'نشاط الطلاب',
           path: '/admin/student-activity',
           icon: <Activity className="w-5 h-5 shrink-0" />,
-          visible: hasPerm('students.manage')
+          visible: hasPerm('students.manage') || hasPerm('student_activity.view')
         },
         {
           label: 'مراجعة التسجيلات',

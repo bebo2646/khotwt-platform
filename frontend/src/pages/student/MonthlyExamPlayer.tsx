@@ -69,6 +69,14 @@ export default function MonthlyExamPlayer() {
   const [showSubmitModal, setShowSubmitModal] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [essayDraftText, setEssayDraftText] = useState('')
+  const [availabilityError, setAvailabilityError] = useState<{
+    code: 'SCHEDULE_EXPIRED' | 'SCHEDULE_NOT_STARTED'
+    message: string
+    openDatetime?: string | null
+    closeDatetime?: string | null
+    formattedDates?: string | null
+    countdownSeconds?: number
+  } | null>(null)
 
   // Mutable Refs to eliminate Stale Closures in event listeners and callbacks
   const isTerminatedRef = useRef(false)
@@ -216,7 +224,21 @@ export default function MonthlyExamPlayer() {
       } catch (err: any) {
         if (!isMounted) return
         console.error('Failed to start monthly exam:', err)
+        const errorCode = err.response?.data?.error_code
         const msg = err.response?.data?.message || 'تعذر بدء الامتحان.'
+
+        if (errorCode === 'SCHEDULE_EXPIRED' || errorCode === 'SCHEDULE_NOT_STARTED') {
+          setAvailabilityError({
+            code: errorCode,
+            message: msg,
+            openDatetime: err.response?.data?.open_datetime,
+            closeDatetime: err.response?.data?.close_datetime,
+            formattedDates: err.response?.data?.formatted_dates,
+            countdownSeconds: err.response?.data?.countdown_seconds,
+          })
+          return
+        }
+
         showToast(msg, 'error')
         if (err.response?.data?.terminated) {
           navigate(`/monthly-exams/${id}/results`, { replace: true })
@@ -572,6 +594,42 @@ export default function MonthlyExamPlayer() {
             <Loader2 className="w-10 h-10 text-brand-primary animate-spin" />
           </div>
           <p className="text-sm font-black text-slate-200">جاري إعداد بيئة الامتحان والاتصال بالخادم...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (availabilityError) {
+    const isNotStarted = availabilityError.code === 'SCHEDULE_NOT_STARTED'
+    return (
+      <div className="min-h-screen bg-[#030712] flex items-center justify-center p-4" dir="rtl">
+        <div className="max-w-md w-full bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 text-center space-y-6 shadow-2xl">
+          <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto border ${
+            isNotStarted 
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+          }`}>
+            <Clock className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-white">
+            {isNotStarted ? 'الامتحان غير متاح بعد' : 'انتهت فترة إتاحة الامتحان'}
+          </h2>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            {availabilityError.message}
+          </p>
+          {availabilityError.formattedDates && (
+            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs font-mono text-slate-300">
+              {availabilityError.formattedDates}
+            </div>
+          )}
+          <div className="pt-2">
+            <button
+              onClick={() => navigate('/monthly-exams', { replace: true })}
+              className="w-full py-3 rounded-2xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs transition-colors shadow-lg shadow-brand-primary/20 cursor-pointer"
+            >
+              العودة لقائمة الامتحانات
+            </button>
+          </div>
         </div>
       </div>
     )

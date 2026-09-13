@@ -30,9 +30,21 @@ export default function ProtectedRoute({ children, allowedRoles, requiredPermiss
 
   // 4. Permission validation check
   if (requiredPermission && user.role === 'admin') {
-    const hasPerm = user.is_super_admin || user.is_super || (user.permissions && user.permissions.includes(requiredPermission));
-    if (!hasPerm) {
-      return <Unauthorized requiredPermission={requiredPermission} />
+    if (!user.is_super_admin && !user.is_super) {
+      const permsToCheck = requiredPermission.split(',').map(p => p.trim());
+      const userPerms = user.permissions || [];
+      const hasAny = permsToCheck.some(reqPerm => {
+        if (userPerms.includes(reqPerm)) return true;
+        if (reqPerm.startsWith('teacher_activity.') && userPerms.includes('teachers.manage')) return true;
+        if (reqPerm.startsWith('student_activity.') && userPerms.includes('students.manage')) return true;
+        if (reqPerm === 'platform_presence.view' && (userPerms.includes('teachers.manage') || userPerms.includes('students.manage'))) return true;
+        if (reqPerm.startsWith('monthly_exams.') && userPerms.includes('exams.manage')) return true;
+        if (reqPerm.startsWith('exam_security.') && userPerms.includes('exams.manage')) return true;
+        return false;
+      });
+      if (!hasAny) {
+        return <Unauthorized requiredPermission={requiredPermission} />
+      }
     }
   }
 

@@ -213,14 +213,30 @@ export default function TeacherActivity() {
   const [expandedLogId, setExpandedLogId] = useState<number | null>(null)
 
   // 1. Fetch Platform Presence & Aggregate Stats
+  const [presenceError, setPresenceError] = useState<string | null>(null)
+
   const fetchPresenceAndStats = useCallback(async () => {
     try {
-      const [presenceRes, statsRes] = await Promise.all([
+      const [presenceRes, statsRes] = await Promise.allSettled([
         API.get('/admin/platform/presence'),
         API.get('/admin/teacher-activity/stats'),
       ])
-      setPresence(presenceRes.data)
-      setStats(statsRes.data)
+
+      if (presenceRes.status === 'fulfilled') {
+        setPresence(presenceRes.value.data)
+        setPresenceError(null)
+      } else {
+        console.error('Failed to fetch platform presence:', presenceRes.reason)
+        if ((presenceRes.reason as any)?.response?.status === 403) {
+          setPresenceError('ليس لديك صلاحية استعراض التواجد المباشر.')
+        }
+      }
+
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data?.stats || statsRes.value.data)
+      } else {
+        console.error('Failed to fetch teacher activity stats:', statsRes.reason)
+      }
     } catch (err) {
       console.error('Failed to fetch teacher activity stats:', err)
     } finally {
@@ -600,24 +616,24 @@ export default function TeacherActivity() {
                       {teacher.avatar ? (
                         <img
                           src={teacher.avatar}
-                          alt={teacher.name}
+                          alt={teacher.name || 'معلم'}
                           className="w-full h-full rounded-xl object-cover"
                         />
                       ) : (
-                        teacher.name.charAt(0)
+                        (teacher.name || (teacher as any).teacher?.name || 'م').charAt(0)
                       )}
                     </div>
                     <div>
                       <h3 className="font-bold text-sm text-slate-100 hover:text-brand-primary transition-colors">
-                        {teacher.name}
+                        {teacher.name || (teacher as any).teacher?.name || 'معلم'}
                       </h3>
                       <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
-                        {teacher.subject && (
+                        {(teacher.subject || (teacher as any).teacher?.subject) && (
                           <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                            {teacher.subject}
+                            {teacher.subject || (teacher as any).teacher?.subject}
                           </span>
                         )}
-                        <span>{teacher.email}</span>
+                        <span>{teacher.email || (teacher as any).teacher?.email || ''}</span>
                       </div>
                     </div>
                   </div>
@@ -1153,9 +1169,9 @@ export default function TeacherActivity() {
                       className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center justify-between gap-3 text-right"
                     >
                       <div>
-                        <h4 className="font-bold text-xs text-slate-200">{st.name}</h4>
+                        <h4 className="font-bold text-xs text-slate-200">{st.name || (st as any).student?.name || 'طالب'}</h4>
                         <p className="text-[11px] text-slate-400">
-                          {st.grade || 'طالب'} | {st.student_type === 'center' ? 'سنتر' : 'أونلاين'}
+                          {st.grade || (st as any).student?.grade || 'طالب'} | {(st.student_type || (st as any).student?.student_type) === 'center' ? 'سنتر' : 'أونلاين'}
                         </p>
                       </div>
                       <div className="text-left font-mono text-[10px] text-slate-400">
@@ -1178,34 +1194,39 @@ export default function TeacherActivity() {
           ========================================================================= */}
       {selectedTeacherId && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 overflow-y-auto pointer-events-none">
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl z-50 text-right scrollbar-thin scrollbar-thumb-slate-800 pointer-events-auto">
+          {/* Transparent click-away layer */}
+          <div
+            className="fixed inset-0 bg-transparent pointer-events-auto"
+            onClick={closeTeacherModal}
+          />
+
+          {/* Dialog Content */}
+          <div className="relative bg-slate-950 border border-[var(--border-color)] rounded-3xl p-6 sm:p-8 max-w-4xl w-full space-y-6 shadow-2xl overflow-hidden z-10 text-right pointer-events-auto max-h-[90vh] flex flex-col">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4">
+            <div className="flex items-center justify-between border-b border-[var(--border-color)] pb-4 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
-                  <UserCheck className="w-6 h-6" />
+                <div className="w-10 h-10 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary">
+                  <UserCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-100">
-                    ملف وسجل التدقيق الزمني للمعلم
-                  </h3>
-                  <span className="text-xs text-slate-400 font-mono">
-                    معرف المعلم: #{selectedTeacherId}
-                  </span>
+                  <h3 className="text-base font-black text-slate-100">سجل نشاط وتفاصيل المعلم</h3>
+                  <p className="text-xs text-slate-400">
+                    ملف تدقيق شامل لجلسات المعلم وجميع عملياته على المنصة
+                  </p>
                 </div>
               </div>
               <button
                 onClick={closeTeacherModal}
-                className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
-                title="إغلاق (Esc)"
+                className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 rounded-xl transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
+            {/* Modal Body */}
             {loadingProfile ? (
-              <div className="py-24 text-center text-slate-400 space-y-3">
-                <RefreshCw className="w-8 h-8 mx-auto animate-spin text-brand-primary" />
+              <div className="py-20 text-center space-y-3 text-slate-400">
+                <div className="animate-spin w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full mx-auto" />
                 <p className="text-xs">جاري استرجاع سجل المعلم والإحصائيات...</p>
               </div>
             ) : teacherProfile ? (
@@ -1214,12 +1235,12 @@ export default function TeacherActivity() {
                 <div className="bg-slate-900/60 border border-[var(--border-color)] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary text-xl font-black shrink-0">
-                      {teacherProfile.teacher.name.charAt(0)}
+                      {(teacherProfile.teacher?.name || 'م').charAt(0)}
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <h4 className="font-black text-base text-slate-100">
-                          {teacherProfile.teacher.name}
+                          {teacherProfile.teacher?.name}
                         </h4>
                         {teacherProfile.teacher.is_online ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">

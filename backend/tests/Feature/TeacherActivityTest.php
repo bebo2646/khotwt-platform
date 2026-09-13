@@ -80,7 +80,7 @@ class TeacherActivityTest extends TestCase
     {
         $teacher = $this->createTeacher();
 
-        $response = $this->actingAs($teacher)->postJson('/api/teacher/activity/heartbeat', [
+        $response = $this->actingAs($teacher, 'sanctum')->postJson('/api/teacher/activity/heartbeat', [
             'current_page' => 'إدارة الكورسات',
             'current_action' => 'بيعدل كورس: الفيزياء الحديثة',
         ]);
@@ -122,7 +122,7 @@ class TeacherActivityTest extends TestCase
             'duration_seconds' => 120,
         ]);
 
-        $response = $this->actingAs($admin)->getJson('/api/admin/platform/presence');
+        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/platform/presence');
 
         $response->assertStatus(200);
         $this->assertGreaterThanOrEqual(1, $response->json('teachers_online'));
@@ -140,7 +140,7 @@ class TeacherActivityTest extends TestCase
     {
         $teacher = $this->createTeacher();
 
-        $response = $this->actingAs($teacher)->postJson('/api/teacher/courses', [
+        $response = $this->actingAs($teacher, 'sanctum')->postJson('/api/teacher/courses', [
             'title' => 'كورس الفيزياء التجريبي',
             'description' => 'شرح منهج الفيزياء',
             'price' => 250,
@@ -172,7 +172,7 @@ class TeacherActivityTest extends TestCase
             'duration_seconds' => 600,
         ]);
 
-        $response = $this->actingAs($teacher)->postJson('/api/logout');
+        $response = $this->actingAs($teacher, 'sanctum')->postJson('/api/logout');
         $response->assertStatus(200);
 
         $session = TeacherSession::where('teacher_id', $teacher->id)->latest('last_activity_at')->first();
@@ -195,7 +195,7 @@ class TeacherActivityTest extends TestCase
             'duration_seconds' => 300,
         ]);
 
-        $response = $this->actingAs($admin)->getJson('/api/admin/platform/presence');
+        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/platform/presence');
         $response->assertStatus(200);
 
         $activeTeachers = $response->json('active_teachers');
@@ -207,10 +207,10 @@ class TeacherActivityTest extends TestCase
     {
         $teacher = $this->createTeacher();
 
-        $response = $this->actingAs($teacher)->getJson('/api/admin/teacher-activity');
+        $response = $this->actingAs($teacher, 'sanctum')->getJson('/api/admin/teacher-activity');
         $response->assertStatus(403);
 
-        $response2 = $this->actingAs($teacher)->getJson('/api/admin/platform/presence');
+        $response2 = $this->actingAs($teacher, 'sanctum')->getJson('/api/admin/platform/presence');
         $response2->assertStatus(403);
     }
 }

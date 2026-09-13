@@ -60,6 +60,9 @@ class MonthlyExamsController extends Controller
 
         // If authenticated as student, check purchase and attempt status
         $user = Auth::guard('sanctum')->user();
+        $purchasedExamIds = [];
+        $attempts = collect();
+
         if ($user && $user->role === 'student') {
             $purchasedExamIds = ExamPurchase::where('student_id', $user->id)
                 ->pluck('exam_id')
@@ -70,8 +73,12 @@ class MonthlyExamsController extends Controller
                 ->whereIn('exam_id', $exams->pluck('id'))
                 ->get()
                 ->groupBy('exam_id');
+        }
 
-            $exams->transform(function ($exam) use ($purchasedExamIds, $attempts, $user) {
+        $exams->transform(function ($exam) use ($purchasedExamIds, $attempts, $user) {
+            $exam->availability = $exam->getAvailabilityStatus();
+
+            if ($user && $user->role === 'student') {
                 $isPurchased = isset($purchasedExamIds[$exam->id]) || !$exam->is_paid || (float)$exam->price <= 0;
                 $examAttempts = $attempts->get($exam->id, collect());
                 $latestAttempt = $examAttempts->sortByDesc('created_at')->first();
@@ -85,10 +92,10 @@ class MonthlyExamsController extends Controller
                     'submitted_at' => $latestAttempt->submitted_at,
                     'is_terminated_for_cheating' => $latestAttempt->isTerminatedForCheating(),
                 ] : null;
+            }
 
-                return $exam;
-            });
-        }
+            return $exam;
+        });
 
         return response()->json($exams);
     }
@@ -104,6 +111,8 @@ class MonthlyExamsController extends Controller
             ])
             ->withCount('questions')
             ->findOrFail($id);
+
+        $exam->availability = $exam->getAvailabilityStatus();
 
         $user = Auth::guard('sanctum')->user();
         if ($user && $user->role === 'student') {
@@ -307,6 +316,22 @@ class MonthlyExamsController extends Controller
                     'attempt_id' => $existingAttempt->id,
                 ], 403);
             }
+        }
+
+        // Enforce availability window BEFORE creating a new attempt
+        $avail = $exam->getAvailabilityStatus();
+        if (!$avail['is_available']) {
+            return response()->json([
+                'message' => $avail['message'],
+                'status' => $avail['status'],
+                'error_code' => $avail['error_code'],
+                'open_datetime' => $avail['open_datetime'] ?? null,
+                'close_datetime' => $avail['close_datetime'] ?? null,
+                'starts_at' => $avail['starts_at'] ?? null,
+                'ends_at' => $avail['ends_at'] ?? null,
+                'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
+                'formatted_dates' => $avail['formatted_dates'] ?? null,
+            ], 403);
         }
 
         // Start new attempt
@@ -795,10 +820,20 @@ class MonthlyExamsController extends Controller
 
         // If terminated for cheating and not unlocked, hide answers
         if (!$canView) {
-            $attempt->exam->questions->makeHidden(['correct_answer', 'explanation']);
-            foreach ($attempt->answers as $a) {
-                if ($a->question) {
-                    $a->question->makeHidden(['correct_answer', 'explanation']);
+            if ($attempt->exam && $attempt->exam->questions) {
+                $attempt->exam->questions->makeHidden(['correct_answer', 'explanation']);
+                foreach ($attempt->exam->questions as $q) {
+                    $q->correct_answer = null;
+                    $q->explanation = null;
+                }
+            }
+            if ($attempt->answers) {
+                foreach ($attempt->answers as $a) {
+                    if ($a->question) {
+                        $a->question->makeHidden(['correct_answer', 'explanation']);
+                        $a->question->correct_answer = null;
+                        $a->question->explanation = null;
+                    }
                 }
             }
         }
@@ -1095,27 +1130,44 @@ class MonthlyExamsController extends Controller
     /**
      * Admin / Teacher: Unlock answers review for a cheating-terminated student attempt.
      */
-    public function unlockAnswers(Request $request, $attemptId)
-    {
-        $user = $request->user();
-        $attempt = StudentExam::with(['exam', 'student'])->findOrFail($attemptId);
+     public function unlockAnswers(Request $request, $attemptId)
+     {
+         $user = $request->user();
+         $attempt = StudentExam::with(['exam', 'student'])->findOrFail($attemptId);
 
-        if ($user->role === 'teacher' && $attempt->exam->teacher_id !== $user->id) {
-            return response()->json(['message' => 'غير مصرح لك بتعديل هذا الامتحان.'], 403);
-        }
+         if ($user->role === 'teacher') {
+             if ($attempt->exam && $attempt->exam->teacher_id !== $user->id) {
+                 return response()->json(['message' => 'غير مصرح لك بتعديل هذا الامتحان.'], 403);
+             }
+         } elseif ($user->role === 'admin') {
+             if (!$user->is_super_admin && !$user->is_super && !$user->hasAnyPermission('exam_security.unlock_answers', 'monthly_exams.manage_security', 'exams.manage')) {
+                 return response()->json(['message' => 'غير مصرح لك بإلغاء قفل الإجابات لهذا الامتحان.'], 403);
+             }
+         } else {
+             return response()->json(['message' => 'غير مصرح.'], 403);
+         }
 
-        $attempt->answers_unlocked_at = Carbon::now();
-        $attempt->answers_unlocked_by = $user->id;
-        $attempt->save();
+         $attempt->answers_unlocked_at = Carbon::now();
+         $attempt->answers_unlocked_by = $user->id;
+         $attempt->save();
 
-        if ($user && $user->role === 'teacher' && $attempt->exam && $attempt->student) {
-            \App\Services\TeacherActivityService::logExamAnswersUnlocked($user, $attempt->exam, $attempt->student, $request);
-        }
+         if ($user->role === 'teacher' && $attempt->exam && $attempt->student) {
+             \App\Services\TeacherActivityService::logExamAnswersUnlocked($user, $attempt->exam, $attempt->student, $request);
+         } elseif ($user->role === 'admin') {
+             \App\Models\AdminActivityLog::create([
+                 'admin_id' => $user->id,
+                 'action_type' => 'unlock_exam_answers',
+                 'target_type' => 'student_exam',
+                 'target_id' => $attempt->id,
+                 'description' => "قام المشرف {$user->name} بفتح نموذج الإجابات للمحاولة رقم {$attempt->id} للطالب " . ($attempt->student?->name ?? 'غير معروف') . " في الامتحان " . ($attempt->exam?->title ?? ''),
+                 'ip_address' => $request->ip(),
+             ]);
+         }
 
-        return response()->json([
-            'success' => true,
-            'message' => 'تم فتح عرض نموذج الإجابات للطالب بنجاح.',
-            'attempt' => $attempt,
-        ]);
-    }
+         return response()->json([
+             'success' => true,
+             'message' => 'تم فتح عرض نموذج الإجابات للطالب بنجاح.',
+             'attempt' => $attempt,
+         ]);
+     }
 }

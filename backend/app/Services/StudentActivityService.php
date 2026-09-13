@@ -745,9 +745,14 @@ class StudentActivityService
         string $productType,
         $item,
         string $reason,
-        array $meta = [],
+        array|Request $meta = [],
         ?Request $request = null
     ): ?StudentActivityLog {
+        if ($meta instanceof Request) {
+            $request = $meta;
+            $meta = [];
+        }
+
         $itemTitle = $item->title ?? ($item->name ?? 'عنصر');
 
         return self::log(

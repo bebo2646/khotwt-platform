@@ -91,7 +91,7 @@ class LoginErrorHandlingTest extends TestCase
 
     /**
      * Scenario 4: Phone number entered into email field
-     * Expected: HTTP 422 with "The email field must be a valid email address."
+     * Expected: HTTP 422 with "هذا الحساب غير موجود" when account does not exist
      */
     public function test_phone_number_in_email_field_returns_valid_email_validation_error(): void
     {
@@ -102,12 +102,12 @@ class LoginErrorHandlingTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['email']);
-        $this->assertEquals('The email field must be a valid email address.', $response->json('errors.email.0'));
+        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.email.0'));
     }
 
     /**
      * Scenario 5: Empty email field
-     * Expected: HTTP 422 with "The email field is required."
+     * Expected: HTTP 422 with "يرجى إدخال البريد الإلكتروني أو رقم الطالب."
      */
     public function test_empty_email_returns_required_validation_error(): void
     {
@@ -117,13 +117,13 @@ class LoginErrorHandlingTest extends TestCase
         ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['email']);
-        $this->assertEquals('The email field is required.', $response->json('errors.email.0'));
+        $response->assertJsonValidationErrors(['identifier']);
+        $this->assertEquals('يرجى إدخال البريد الإلكتروني أو رقم الطالب.', $response->json('errors.identifier.0'));
     }
 
     /**
-     * Scenario 6: Invalid email format
-     * Expected: HTTP 422 with "The email field must be a valid email address."
+     * Scenario 6: Invalid email format (unregistered identifier)
+     * Expected: HTTP 422 with "هذا الحساب غير موجود"
      */
     public function test_invalid_email_format_returns_validation_error(): void
     {
@@ -134,7 +134,7 @@ class LoginErrorHandlingTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['email']);
-        $this->assertEquals('The email field must be a valid email address.', $response->json('errors.email.0'));
+        $this->assertEquals('هذا الحساب غير موجود', $response->json('errors.email.0'));
     }
 
     /**

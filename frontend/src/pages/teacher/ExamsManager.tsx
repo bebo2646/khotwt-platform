@@ -65,6 +65,7 @@ interface AttemptItem {
   }
   violation_count?: number
   is_suspicious?: boolean
+  answers_unlocked_at?: string | null
   violation_timestamps?: {
     type: string
     time: string
@@ -100,11 +101,27 @@ export default function ExamsManager() {
   const [attempts, setAttempts] = React.useState<AttemptItem[]>([])
   const [attemptsLoading, setAttemptsLoading] = React.useState(false)
   const [activeAttempt, setActiveAttempt] = React.useState<AttemptItem | null>(null)
+  const [unlockingAttempt, setUnlockingAttempt] = React.useState(false)
 
   // Grader Form inputs
   const [gradeScore, setGradeScore] = React.useState('')
   const [gradeFeedback, setGradeFeedback] = React.useState('')
   const [gradedAnswers, setGradedAnswers] = React.useState<Record<number, number>>({}) // question_id => score
+
+  const handleUnlockAnswers = async (attemptId: number) => {
+    setUnlockingAttempt(true)
+    try {
+      const res = await API.post(`/teacher/exams/attempts/${attemptId}/unlock-answers`)
+      useModalStore.getState().showToast(res.data?.message || 'تم فتح عرض نموذج الإجابات للطالب بنجاح.', 'success')
+      setActiveAttempt((prev: any) => prev ? { ...prev, answers_unlocked_at: new Date().toISOString() } : null)
+      setAttempts((prev: any[]) => prev.map(a => a.id === attemptId ? { ...a, answers_unlocked_at: new Date().toISOString() } : a))
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'تعذر إلغاء قفل الإجابات.'
+      useModalStore.getState().showToast(msg, 'error')
+    } finally {
+      setUnlockingAttempt(false)
+    }
+  }
 
   const fetchExams = () => {
     setLoading(true)
@@ -476,6 +493,36 @@ export default function ExamsManager() {
                             }
                             return null;
                           })()}
+                        </div>
+                      )}
+
+                      {/* Answer review unlock status & action */}
+                      {activeAttempt.is_suspicious && (
+                        <div className="pt-3 border-t border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <span className="font-bold text-slate-300">عرض الإجابات النموذجية للطالب:</span>
+                            {activeAttempt.answers_unlocked_at ? (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">
+                                مسموح به (مفتوح) 🟢
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]">
+                                محجوب عن الطالب 🔒
+                              </span>
+                            )}
+                          </div>
+
+                          {!activeAttempt.answers_unlocked_at && (
+                            <button
+                              type="button"
+                              disabled={unlockingAttempt}
+                              onClick={() => handleUnlockAnswers(activeAttempt.id)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <span>🔓</span>
+                              <span>{unlockingAttempt ? 'جاري الفتح...' : 'السماح للطالب بعرض الإجابات'}</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

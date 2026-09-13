@@ -145,6 +145,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::put('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
             Route::delete('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
             Route::post('/teacher/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
+            Route::post('/teacher/exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::get('/teacher/students', [TeacherController::class, 'students']);
             Route::get('/teacher/students/{student}/analytics', [TeacherController::class, 'studentAnalytics']);
 
@@ -353,6 +354,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:monthly_exams.update,exams.manage')->put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
             Route::middleware('permission:monthly_exams.delete,exams.manage')->delete('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminDestroy']);
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
+            Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
 
             // Coupons/Codes Management
             Route::middleware('permission:coupons.manage')->group(function () {

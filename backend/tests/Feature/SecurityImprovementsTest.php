@@ -89,8 +89,8 @@ class SecurityImprovementsTest extends TestCase
             'status' => 'active',
         ]);
 
-        // Attempt login 10 times with incorrect password
-        for ($i = 0; $i < 10; $i++) {
+        // Attempt login 5 times with incorrect password (each returns 422)
+        for ($i = 0; $i < 5; $i++) {
             $response = $this->postJson('/api/login', [
                 'email' => 'student@test.com',
                 'password' => 'wrongpassword',
@@ -101,15 +101,14 @@ class SecurityImprovementsTest extends TestCase
             $response->assertJsonPath('errors.password.0', 'كلمة المرور غير صحيحة');
         }
 
-        // The 11th attempt should be blocked with rate limiting message
+        // The 6th attempt should be blocked with rate limiting / IP block (429)
         $response = $this->postJson('/api/login', [
             'email' => 'student@test.com',
             'password' => 'wrongpassword',
         ]);
 
-        $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['email']);
-        $response->assertJsonPath('errors.email.0', 'محاولات تسجيل دخول كثيرة جداً. يرجى المحاولة بعد 30 دقيقة.');
+        $response->assertStatus(429);
+        $response->assertJsonPath('code', 'IP_TEMPORARILY_BLOCKED');
 
         // Time travel 31 minutes into the future
         $this->travel(31)->minutes();
