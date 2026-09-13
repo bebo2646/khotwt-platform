@@ -1807,10 +1807,17 @@ class TeacherController extends Controller
     public function examAttempts(Request $request, $examId)
     {
         $exam = Exam::with('lesson.unit')->findOrFail($examId);
-        $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        if ($exam->lesson_id && $exam->lesson && $exam->lesson->unit) {
+            $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        } else {
+            $user = $request->user();
+            if ($exam->teacher_id !== $user->id && !$user->isAdmin()) {
+                abort(403, 'غير مصرح لك بعرض هذا الامتحان.');
+            }
+        }
 
         $attempts = StudentExam::where('exam_id', $examId)
-            ->with(['student', 'answers.question'])
+            ->with(['student', 'answers.question', 'unlockedBy:id,name'])
             ->latest()
             ->get();
 

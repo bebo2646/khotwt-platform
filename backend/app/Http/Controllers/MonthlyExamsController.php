@@ -1149,46 +1149,271 @@ class MonthlyExamsController extends Controller
     }
 
     /**
+     * Admin / Teacher: List student attempts for a monthly exam.
+     */
+    public function attempts(Request $request, $id)
+    {
+        $user = $request->user();
+        $query = Exam::where('type', 'monthly_exam');
+
+        if ($user->role === 'teacher') {
+            $query->where('teacher_id', $user->id);
+        } elseif ($user->role === 'admin') {
+            if (!$user->is_super_admin && !$user->is_super && !$user->hasAnyPermission('monthly_exams.view', 'exams.manage')) {
+                return response()->json(['message' => 'غير مصرح لك بعرض محاولات هذا الامتحان.'], 403);
+            }
+        } else {
+            return response()->json(['message' => 'غير مصرح.'], 403);
+        }
+
+        $exam = $query->findOrFail($id);
+
+        $attempts = StudentExam::where('exam_id', $exam->id)
+            ->with([
+                'student:id,name,email,phone',
+                'unlockedBy:id,name',
+            ])
+            ->latest()
+            ->get();
+
+        $attempts->transform(function ($attempt) use ($exam) {
+            $attempt->is_terminated_for_cheating = $attempt->isTerminatedForCheating();
+            $attempt->can_view_answers = $attempt->canViewAnswers();
+            $attempt->max_score = (float)$exam->max_score;
+            $attempt->passing_score = (float)($exam->passing_score ?: ($exam->max_score * 0.5));
+            $attempt->percentage = ($exam->max_score > 0 && $attempt->score !== null)
+                ? round(($attempt->score / $exam->max_score) * 100, 1)
+                : 0;
+            return $attempt;
+        });
+
+        return response()->json([
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+                'month' => $exam->month,
+                'grade' => $exam->grade,
+                'subject' => $exam->subject,
+                'max_score' => (float)$exam->max_score,
+                'passing_score' => (float)($exam->passing_score ?: ($exam->max_score * 0.5)),
+                'time_limit_minutes' => $exam->time_limit_minutes,
+            ],
+            'attempts' => $attempts,
+        ]);
+    }
+
+    /**
+     * Admin / Teacher: View detailed student attempt review for a monthly exam.
+     */
+    public function attemptDetails(Request $request, ...$params)
+    {
+        if (count($params) >= 2) {
+            $id = $params[0];
+            $attemptId = $params[1];
+        } else {
+            $attemptId = $params[0];
+            $id = null;
+        }
+
+        $user = $request->user();
+
+        $attemptQuery = StudentExam::where('id', $attemptId)
+            ->with([
+                'student:id,name,email,phone',
+                'exam.questions',
+                'answers.question',
+                'violations',
+                'unlockedBy:id,name',
+            ]);
+
+        $attempt = $attemptQuery->firstOrFail();
+        $exam = $attempt->exam;
+
+        if (!$exam || $exam->type !== 'monthly_exam') {
+            return response()->json(['message' => 'هذا الامتحان ليس امتحاناً شهرياً مستقلاً.'], 422);
+        }
+
+        if ($id && (int)$exam->id !== (int)$id) {
+            return response()->json(['message' => 'المحاولة لا تتبع هذا الامتحان.'], 404);
+        }
+
+        if ($user->role === 'teacher') {
+            if ($exam->teacher_id !== $user->id) {
+                return response()->json(['message' => 'غير مصرح لك بعرض محاولة هذا الامتحان.'], 403);
+            }
+        } elseif ($user->role === 'admin') {
+            if (!$user->is_super_admin && !$user->is_super && !$user->hasAnyPermission('monthly_exams.view', 'exams.manage')) {
+                return response()->json(['message' => 'غير مصرح لك بعرض محاولة هذا الامتحان.'], 403);
+            }
+        } else {
+            return response()->json(['message' => 'غير مصرح.'], 403);
+        }
+
+        // Map existing answers by question_id
+        $answersMap = $attempt->answers->keyBy('question_id');
+
+        // Order questions according to shuffle_mapping if stored, or default exam questions order
+        $shuffleMapping = $attempt->shuffle_mapping ?? [];
+        $questionOrder = $shuffleMapping['question_order'] ?? $exam->questions->pluck('id')->toArray();
+        $optionsMapping = $shuffleMapping['options_mapping'] ?? [];
+
+        $allQuestions = $exam->questions->keyBy('id');
+        $reviewQuestions = [];
+        $processedQuestionIds = [];
+
+        foreach ($questionOrder as $qId) {
+            if (!isset($allQuestions[$qId])) {
+                continue;
+            }
+            $question = $allQuestions[$qId];
+            $processedQuestionIds[] = $qId;
+            $studentAnswer = $answersMap->get($qId);
+            $options = $optionsMapping[$qId] ?? $question->options;
+
+            $isAnswered = ($studentAnswer !== null && $studentAnswer->answer_text !== null && trim((string)$studentAnswer->answer_text) !== '');
+
+            $reviewQuestions[] = [
+                'id' => $question->id,
+                'text' => $question->text,
+                'type' => $question->type,
+                'options' => $options,
+                'correct_answer' => $question->correct_answer,
+                'explanation' => $question->explanation ?? null,
+                'score' => (float)$question->score,
+                'is_answered' => $isAnswered,
+                'student_answer' => $isAnswered ? $studentAnswer->answer_text : null,
+                'is_correct' => $isAnswered ? (bool)$studentAnswer->is_correct : false,
+                'score_awarded' => $isAnswered ? (float)$studentAnswer->score : 0,
+            ];
+        }
+
+        // Add any remaining questions not in shuffle order (fallback)
+        foreach ($allQuestions as $qId => $question) {
+            if (in_array($qId, $processedQuestionIds)) {
+                continue;
+            }
+            $studentAnswer = $answersMap->get($qId);
+            $isAnswered = ($studentAnswer !== null && $studentAnswer->answer_text !== null && trim((string)$studentAnswer->answer_text) !== '');
+
+            $reviewQuestions[] = [
+                'id' => $question->id,
+                'text' => $question->text,
+                'type' => $question->type,
+                'options' => $question->options,
+                'correct_answer' => $question->correct_answer,
+                'explanation' => $question->explanation ?? null,
+                'score' => (float)$question->score,
+                'is_answered' => $isAnswered,
+                'student_answer' => $isAnswered ? $studentAnswer->answer_text : null,
+                'is_correct' => $isAnswered ? (bool)$studentAnswer->is_correct : false,
+                'score_awarded' => $isAnswered ? (float)$studentAnswer->score : 0,
+            ];
+        }
+
+        $isTerminated = $attempt->isTerminatedForCheating();
+        $canView = $attempt->canViewAnswers();
+
+        return response()->json([
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+                'month' => $exam->month,
+                'stage' => $exam->stage,
+                'grade' => $exam->grade,
+                'subject' => $exam->subject,
+                'max_score' => (float)$exam->max_score,
+                'passing_score' => (float)($exam->passing_score ?: ($exam->max_score * 0.5)),
+                'time_limit_minutes' => $exam->time_limit_minutes,
+            ],
+            'student' => [
+                'id' => $attempt->student?->id,
+                'name' => $attempt->student?->name ?? 'غير معروف',
+                'email' => $attempt->student?->email,
+                'phone' => $attempt->student?->phone,
+            ],
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status,
+                'score' => $attempt->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $attempt->score !== null)
+                    ? round(($attempt->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'started_at' => $attempt->started_at?->toIso8601String(),
+                'submitted_at' => $attempt->submitted_at?->toIso8601String(),
+                'graded_at' => $attempt->graded_at?->toIso8601String(),
+                'duration_minutes' => $attempt->duration_minutes,
+                'auto_submitted' => (bool)$attempt->auto_submitted,
+                'submission_reason' => $attempt->submission_reason,
+                'violation_count' => $attempt->violation_count ?: $attempt->cheat_violations_count ?: 0,
+                'cheat_violations_count' => $attempt->cheat_violations_count ?: $attempt->violation_count ?: 0,
+                'is_terminated_for_cheating' => $isTerminated,
+                'terminated_for_cheating_at' => $attempt->terminated_for_cheating_at?->toIso8601String(),
+                'answers_unlocked_at' => $attempt->answers_unlocked_at?->toIso8601String(),
+                'answers_unlocked_by' => $attempt->answers_unlocked_by,
+                'unlocked_by' => $attempt->unlockedBy ? [
+                    'id' => $attempt->unlockedBy->id,
+                    'name' => $attempt->unlockedBy->name,
+                ] : null,
+                'can_student_view_answers' => $canView,
+            ],
+            'questions' => $reviewQuestions,
+            'violations' => $attempt->violations->map(function ($v) {
+                return [
+                    'id' => $v->id,
+                    'violation_type' => $v->violation_type,
+                    'time_remaining_seconds' => $v->time_remaining_seconds,
+                    'metadata' => $v->metadata,
+                    'created_at' => $v->created_at?->toIso8601String(),
+                ];
+            }),
+        ]);
+    }
+
+    /**
      * Admin / Teacher: Unlock answers review for a cheating-terminated student attempt.
      */
-     public function unlockAnswers(Request $request, $attemptId)
-     {
-         $user = $request->user();
-         $attempt = StudentExam::with(['exam', 'student'])->findOrFail($attemptId);
+    public function unlockAnswers(Request $request, ...$params)
+    {
+        $attemptId = end($params);
+        $user = $request->user();
+        $attempt = StudentExam::with(['exam', 'student', 'unlockedBy'])->findOrFail($attemptId);
 
-         if ($user->role === 'teacher') {
-             if ($attempt->exam && $attempt->exam->teacher_id !== $user->id) {
-                 return response()->json(['message' => 'غير مصرح لك بتعديل هذا الامتحان.'], 403);
-             }
-         } elseif ($user->role === 'admin') {
-             if (!$user->is_super_admin && !$user->is_super && !$user->hasAnyPermission('exam_security.unlock_answers', 'monthly_exams.manage_security', 'exams.manage')) {
-                 return response()->json(['message' => 'غير مصرح لك بإلغاء قفل الإجابات لهذا الامتحان.'], 403);
-             }
-         } else {
-             return response()->json(['message' => 'غير مصرح.'], 403);
-         }
+        if ($user->role === 'teacher') {
+            if ($attempt->exam && $attempt->exam->teacher_id !== $user->id) {
+                return response()->json(['message' => 'غير مصرح لك بتعديل هذا الامتحان.'], 403);
+            }
+        } elseif ($user->role === 'admin') {
+            if (!$user->is_super_admin && !$user->is_super && !$user->hasAnyPermission('exam_security.unlock_answers', 'monthly_exams.manage_security', 'exams.manage')) {
+                return response()->json(['message' => 'غير مصرح لك بإلغاء قفل الإجابات لهذا الامتحان.'], 403);
+            }
+        } else {
+            return response()->json(['message' => 'غير مصرح.'], 403);
+        }
 
-         $attempt->answers_unlocked_at = Carbon::now();
-         $attempt->answers_unlocked_by = $user->id;
-         $attempt->save();
+        $attempt->answers_unlocked_at = Carbon::now();
+        $attempt->answers_unlocked_by = $user->id;
+        $attempt->save();
+        $attempt->load('unlockedBy:id,name');
 
-         if ($user->role === 'teacher' && $attempt->exam && $attempt->student) {
-             \App\Services\TeacherActivityService::logExamAnswersUnlocked($user, $attempt->exam, $attempt->student, $request);
-         } elseif ($user->role === 'admin') {
-             \App\Models\AdminActivityLog::create([
-                 'admin_id' => $user->id,
-                 'action_type' => 'unlock_exam_answers',
-                 'target_type' => 'student_exam',
-                 'target_id' => $attempt->id,
-                 'description' => "قام المشرف {$user->name} بفتح نموذج الإجابات للمحاولة رقم {$attempt->id} للطالب " . ($attempt->student?->name ?? 'غير معروف') . " في الامتحان " . ($attempt->exam?->title ?? ''),
-                 'ip_address' => $request->ip(),
-             ]);
-         }
+        if ($user->role === 'teacher' && $attempt->exam && $attempt->student) {
+            \App\Services\TeacherActivityService::logExamAnswersUnlocked($user, $attempt->exam, $attempt->student, $request);
+        } elseif ($user->role === 'admin') {
+            \App\Models\AdminActivityLog::create([
+                'admin_id' => $user->id,
+                'admin_name' => $user->name,
+                'action_type' => 'unlock_exam_answers',
+                'target_type' => 'student_exam',
+                'target_id' => $attempt->id,
+                'description' => "قام المشرف {$user->name} بفتح نموذج الإجابات للمحاولة رقم {$attempt->id} للطالب " . ($attempt->student?->name ?? 'غير معروف') . " في الامتحان " . ($attempt->exam?->title ?? ''),
+                'ip_address' => $request->ip(),
+            ]);
+        }
 
-         return response()->json([
-             'success' => true,
-             'message' => 'تم فتح عرض نموذج الإجابات للطالب بنجاح.',
-             'attempt' => $attempt,
-         ]);
-     }
+        return response()->json([
+            'success' => true,
+            'message' => 'تم فتح عرض نموذج الإجابات للطالب بنجاح.',
+            'attempt' => $attempt,
+        ]);
+    }
 }

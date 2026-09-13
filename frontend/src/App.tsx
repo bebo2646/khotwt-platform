@@ -443,6 +443,11 @@ function App() {
             <Layout><MonthlyExamsManagement /></Layout>
           </ProtectedRoute>
         } />
+        <Route path="/teacher/monthly-exams/:examId/attempts" element={
+          <ProtectedRoute allowedRoles={['teacher']}>
+            <Layout><MonthlyExamsManagement /></Layout>
+          </ProtectedRoute>
+        } />
         <Route path="/teacher/videos" element={
           <ProtectedRoute allowedRoles={['teacher']}>
             <Layout><TeacherVideosManager /></Layout>
@@ -523,6 +528,11 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/admin/monthly-exams" element={
+          <ProtectedRoute allowedRoles={['admin']} requiredPermission="exams.manage">
+            <AdminLayout><MonthlyExamsManagement /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/monthly-exams/:examId/attempts" element={
           <ProtectedRoute allowedRoles={['admin']} requiredPermission="exams.manage">
             <AdminLayout><MonthlyExamsManagement /></AdminLayout>
           </ProtectedRoute>
