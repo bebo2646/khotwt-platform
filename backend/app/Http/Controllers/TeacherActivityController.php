@@ -370,6 +370,11 @@ class TeacherActivityController extends Controller
 
         // 3. Stats for this teacher
         $totalSessions = TeacherSession::where('teacher_id', $teacherId)->count();
+        $totalActions = TeacherActivityLog::where('teacher_id', $teacherId)->count();
+        $todayActions = TeacherActivityLog::where('teacher_id', $teacherId)
+            ->where('occurred_at', '>=', $today)
+            ->count();
+
         $totalCoursesManaged = TeacherActivityLog::where('teacher_id', $teacherId)
             ->where(function ($q) {
                 $q->where('event_type', 'like', 'course_%')
@@ -407,6 +412,30 @@ class TeacherActivityController extends Controller
 
         $timeline = $timelineQuery->orderBy('occurred_at', 'desc')->paginate($perPage);
 
+        // 5. Recent sessions for teacher audit
+        $recentSessions = TeacherSession::where('teacher_id', $teacherId)
+            ->orderBy('started_at', 'desc')
+            ->take(20)
+            ->get()
+            ->map(function ($sess) {
+                return [
+                    'id' => $sess->id,
+                    'teacher_id' => $sess->teacher_id,
+                    'session_identifier' => $sess->session_identifier,
+                    'started_at' => $sess->started_at?->toIso8601String(),
+                    'last_activity_at' => $sess->last_activity_at?->toIso8601String(),
+                    'ended_at' => $sess->ended_at?->toIso8601String(),
+                    'device_type' => $sess->device_type,
+                    'browser' => $sess->browser,
+                    'ip_address' => $sess->ip_address,
+                    'current_page' => $sess->current_page,
+                    'current_action' => $sess->current_action,
+                    'duration_seconds' => $sess->duration_seconds,
+                    'duration_human' => $sess->started_at ? $sess->started_at->diffForHumans(null, true) : null,
+                    'is_active' => (bool)$sess->is_active,
+                ];
+            });
+
         return response()->json([
             'teacher' => [
                 'id' => $teacher->id,
@@ -423,6 +452,7 @@ class TeacherActivityController extends Controller
                 'current_page' => $isOnline ? ($latestSession->current_page ?: 'لوحة التحكم') : null,
             ],
             'session' => $latestSession ? [
+                'id' => $latestSession->id,
                 'session_identifier' => $latestSession->session_identifier,
                 'started_at' => $latestSession->started_at?->toIso8601String(),
                 'last_activity_at' => $latestSession->last_activity_at?->toIso8601String(),
@@ -433,12 +463,20 @@ class TeacherActivityController extends Controller
                 'is_active' => (bool)$latestSession->is_active,
             ] : null,
             'summary' => [
+                'total_actions' => $totalActions,
+                'today_actions' => $todayActions,
                 'total_sessions' => $totalSessions,
+                'courses_count' => $totalCoursesManaged,
                 'total_courses_managed' => $totalCoursesManaged,
+                'lessons_count' => $totalLessonsCreated,
                 'total_lessons_created' => $totalLessonsCreated,
+                'videos_count' => $totalVideosUploaded,
                 'total_videos_uploaded' => $totalVideosUploaded,
+                'exams_count' => $totalExamsCreated,
                 'total_exams_created' => $totalExamsCreated,
             ],
+            'recent_activities' => $timeline->items(),
+            'recent_sessions' => $recentSessions,
             'timeline' => $timeline,
         ]);
     }

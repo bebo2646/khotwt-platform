@@ -82,6 +82,16 @@ class StudentExam extends Model
         return $this->belongsTo(User::class, 'answers_unlocked_by');
     }
 
+    public function course()
+    {
+        return $this->belongsTo(Course::class, 'course_id');
+    }
+
+    public function lesson()
+    {
+        return $this->belongsTo(Lesson::class, 'lesson_id');
+    }
+
     public function isTerminatedForCheating(): bool
     {
         return $this->status === 'terminated_for_cheating' || !empty($this->terminated_for_cheating_at);

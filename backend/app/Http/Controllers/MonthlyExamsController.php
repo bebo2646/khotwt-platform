@@ -17,6 +17,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\PlatformEarning;
 use App\Models\TeacherEarning;
+use App\Models\PaymentHistory;
 use App\Services\StudentActivityService;
 
 class MonthlyExamsController extends Controller
@@ -232,6 +233,22 @@ class MonthlyExamsController extends Controller
                     'amount' => $platformShare,
                     'source' => 'monthly_exam',
                 ]);
+
+                PaymentHistory::create([
+                    'student_id' => $user->id,
+                    'teacher_id' => $exam->teacher_id,
+                    'amount' => (float)$exam->price,
+                    'original_price' => (float)$exam->price,
+                    'discount_amount' => 0.00,
+                    'commission_rate' => 20.00,
+                    'course_id' => null,
+                    'package_id' => null,
+                    'lesson_id' => null,
+                    'exam_id' => $exam->id,
+                    'purchase_code_id' => null,
+                    'payment_method' => 'wallet',
+                    'status' => 'paid',
+                ]);
             }
 
             return response()->json([
@@ -306,13 +323,17 @@ class MonthlyExamsController extends Controller
             // Check max attempts
             $submittedAttemptsCount = StudentExam::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
-                ->whereIn('status', ['submitted', 'graded'])
+                ->whereIn('status', ['submitted', 'graded', 'terminated_for_cheating'])
                 ->count();
 
             $maxAttempts = $exam->max_attempts ?: 1;
             if ($submittedAttemptsCount >= $maxAttempts) {
                 return response()->json([
                     'message' => 'لقد استنفدت الحد الأقصى للمحاولات المسموح بها لهذا الامتحان.',
+                    'error_code' => 'ATTEMPTS_LIMIT_REACHED',
+                    'max_attempts' => $maxAttempts,
+                    'attempts_used' => $submittedAttemptsCount,
+                    'attempts_remaining' => 0,
                     'attempt_id' => $existingAttempt->id,
                 ], 403);
             }

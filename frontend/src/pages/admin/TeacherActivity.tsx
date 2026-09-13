@@ -168,9 +168,240 @@ interface TeacherProfileData {
   domain_breakdown: Record<string, number>
 }
 
+// Safe Parser for teacher_id query param
+function parseTeacherId(val: string | null): number | null {
+  if (!val) return null
+  const num = parseInt(val, 10)
+  return !isNaN(num) && num > 0 ? num : null
+}
+
+// Normalization function to guarantee stable shape for Teacher Profile
+function normalizeTeacherProfile(data: any): TeacherProfileData | null {
+  if (!data || typeof data !== 'object') return null
+
+  const rawTeacher = data.teacher?.teacher || data.teacher || data
+  const teacher = {
+    id: Number(rawTeacher?.id) || 0,
+    name: String(rawTeacher?.name || 'معلم'),
+    email: String(rawTeacher?.email || ''),
+    phone: rawTeacher?.phone || undefined,
+    subject: rawTeacher?.subject || undefined,
+    status: rawTeacher?.status || 'active',
+    avatar: rawTeacher?.avatar || null,
+    is_online: Boolean(rawTeacher?.is_online),
+    current_action: rawTeacher?.current_action || null,
+    current_page: rawTeacher?.current_page || null,
+    last_activity_at: rawTeacher?.last_activity_iso || rawTeacher?.last_activity || rawTeacher?.last_activity_at || null,
+    created_at: rawTeacher?.created_at || undefined,
+  }
+
+  const rawSummary = data.summary || {}
+  const summary = {
+    total_actions: Number(rawSummary.total_actions ?? rawSummary.total_actions_count ?? 0),
+    today_actions: Number(rawSummary.today_actions ?? rawSummary.today_actions_count ?? 0),
+    total_sessions: Number(rawSummary.total_sessions ?? 0),
+    courses_count: Number(rawSummary.courses_count ?? rawSummary.total_courses_managed ?? 0),
+    exams_count: Number(rawSummary.exams_count ?? rawSummary.total_exams_created ?? 0),
+    videos_count: Number(rawSummary.videos_count ?? rawSummary.total_videos_uploaded ?? 0),
+  }
+
+  const rawActivities = Array.isArray(data.recent_activities)
+    ? data.recent_activities
+    : Array.isArray(data.timeline?.data)
+      ? data.timeline.data
+      : Array.isArray(data.timeline)
+        ? data.timeline
+        : []
+
+  const recent_activities: TeacherActivityLogItem[] = rawActivities.map((act: any) => ({
+    id: Number(act.id) || 0,
+    teacher_id: Number(act.teacher_id || teacher.id),
+    event_type: String(act.event_type || 'activity'),
+    event_name: String(act.event_name || 'نشاط'),
+    description: String(act.description || ''),
+    course_id: act.course_id ?? null,
+    unit_id: act.unit_id ?? null,
+    lesson_id: act.lesson_id ?? null,
+    video_id: act.video_id ?? null,
+    exam_id: act.exam_id ?? null,
+    metadata: act.metadata && typeof act.metadata === 'object' ? act.metadata : null,
+    ip_address: act.ip_address ?? null,
+    user_agent: act.user_agent ?? null,
+    session_identifier: act.session_identifier ?? null,
+    occurred_at: act.occurred_at || new Date().toISOString(),
+  }))
+
+  const rawSessions = Array.isArray(data.recent_sessions)
+    ? data.recent_sessions
+    : Array.isArray(data.sessions?.data)
+      ? data.sessions.data
+      : Array.isArray(data.sessions)
+        ? data.sessions
+        : data.session
+          ? [data.session]
+          : []
+
+  const recent_sessions: TeacherSessionItem[] = rawSessions.map((s: any) => ({
+    id: Number(s.id) || 0,
+    teacher_id: Number(s.teacher_id || teacher.id),
+    session_identifier: String(s.session_identifier || ''),
+    ip_address: s.ip_address ?? null,
+    user_agent: s.user_agent ?? null,
+    device_type: s.device_type ?? null,
+    browser: s.browser ?? null,
+    current_page: s.current_page ?? null,
+    current_action: s.current_action ?? null,
+    started_at: s.started_at || new Date().toISOString(),
+    last_activity_at: s.last_activity_at || new Date().toISOString(),
+    ended_at: s.ended_at ?? null,
+    is_active: Boolean(s.is_active),
+    duration_seconds: Number(s.duration_seconds || 0),
+    duration_human: s.duration_human || undefined,
+  }))
+
+  return {
+    teacher,
+    summary,
+    recent_activities,
+    recent_sessions,
+    domain_breakdown: data.domain_breakdown || {},
+  }
+}
+
+// Normalization function for platform presence data
+function normalizePresence(data: any): PlatformPresenceData {
+  if (!data || typeof data !== 'object') {
+    return {
+      threshold_minutes: 5,
+      total_online: 0,
+      students_online: 0,
+      teachers_online: 0,
+      timestamp: new Date().toISOString(),
+      active_teachers: [],
+      active_students: [],
+    }
+  }
+
+  const rawTeachers = Array.isArray(data.active_teachers) ? data.active_teachers : []
+  const active_teachers = rawTeachers.map((t: any) => {
+    const rawT = t.teacher?.teacher || t.teacher || t
+    return {
+      id: Number(t.teacher_id || rawT?.id || t.id) || 0,
+      name: String(rawT?.name || t.name || 'معلم'),
+      email: String(rawT?.email || t.email || ''),
+      avatar: rawT?.avatar || t.avatar || null,
+      subject: rawT?.subject || t.subject || undefined,
+      current_page: t.current_page || null,
+      current_action: t.current_action || null,
+      device_type: t.device_type || null,
+      browser: t.browser || null,
+      ip_address: t.ip_address || null,
+      started_at: t.started_at || undefined,
+      last_activity_at: t.last_activity_at || undefined,
+      duration_seconds: Number(t.duration_seconds || 0),
+      duration_human: t.duration_human || undefined,
+    }
+  })
+
+  const rawStudents = Array.isArray(data.active_students) ? data.active_students : []
+  const active_students = rawStudents.map((st: any) => {
+    const rawSt = st.student?.student || st.student || st
+    return {
+      id: Number(st.student_id || rawSt?.id || st.id) || 0,
+      name: String(rawSt?.name || st.name || 'طالب'),
+      email: String(rawSt?.email || st.email || ''),
+      phone: rawSt?.phone || st.phone || undefined,
+      avatar: rawSt?.avatar || st.avatar || null,
+      grade: rawSt?.grade || st.grade || undefined,
+      student_type: rawSt?.student_type || st.student_type || undefined,
+      ip_address: st.ip_address || null,
+      browser: st.browser || null,
+      device_type: st.device_type || null,
+      last_activity_at: st.last_activity_at || undefined,
+      duration_human: st.duration_human || undefined,
+    }
+  })
+
+  return {
+    threshold_minutes: Number(data.threshold_minutes || 5),
+    total_online: Number(data.total_online || (active_teachers.length + active_students.length)),
+    students_online: Number(data.students_online || active_students.length),
+    teachers_online: Number(data.teachers_online || active_teachers.length),
+    timestamp: data.timestamp || new Date().toISOString(),
+    active_teachers,
+    active_students,
+  }
+}
+
+// Normalization function for log items
+function normalizeLogItem(item: any): TeacherActivityLogItem {
+  const rawTeacher = item.teacher?.teacher || item.teacher
+  return {
+    id: Number(item.id) || 0,
+    teacher_id: Number(item.teacher_id || rawTeacher?.id) || 0,
+    event_type: String(item.event_type || 'activity'),
+    event_name: String(item.event_name || 'نشاط'),
+    description: String(item.description || ''),
+    course_id: item.course_id ?? null,
+    unit_id: item.unit_id ?? null,
+    lesson_id: item.lesson_id ?? null,
+    video_id: item.video_id ?? null,
+    exam_id: item.exam_id ?? null,
+    metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : null,
+    ip_address: item.ip_address ?? null,
+    user_agent: item.user_agent ?? null,
+    session_identifier: item.session_identifier ?? null,
+    occurred_at: item.occurred_at || new Date().toISOString(),
+    teacher: rawTeacher ? {
+      id: Number(rawTeacher.id) || 0,
+      name: String(rawTeacher.name || 'معلم'),
+      email: String(rawTeacher.email || ''),
+      phone: rawTeacher.phone,
+      avatar: rawTeacher.avatar ?? null,
+      subject: rawTeacher.subject,
+      status: rawTeacher.status,
+    } : undefined,
+    course: item.course ? { id: Number(item.course.id), title: String(item.course.title || '') } : undefined,
+    unit: item.unit ? { id: Number(item.unit.id), title: String(item.unit.title || '') } : undefined,
+    lesson: item.lesson ? { id: Number(item.lesson.id), title: String(item.lesson.title || '') } : undefined,
+    video: item.video ? { id: Number(item.video.id), title: String(item.video.title || '') } : undefined,
+    exam: item.exam ? { id: Number(item.exam.id), title: String(item.exam.title || ''), type: item.exam.type } : undefined,
+  }
+}
+
+// Normalization function for session items
+function normalizeSessionItem(session: any): TeacherSessionItem {
+  const rawTeacher = session.teacher?.teacher || session.teacher
+  return {
+    id: Number(session.id) || 0,
+    teacher_id: Number(session.teacher_id || rawTeacher?.id) || 0,
+    session_identifier: String(session.session_identifier || ''),
+    ip_address: session.ip_address ?? null,
+    user_agent: session.user_agent ?? null,
+    device_type: session.device_type ?? null,
+    browser: session.browser ?? null,
+    current_page: session.current_page ?? null,
+    current_action: session.current_action ?? null,
+    started_at: session.started_at || new Date().toISOString(),
+    last_activity_at: session.last_activity_at || new Date().toISOString(),
+    ended_at: session.ended_at ?? null,
+    is_active: Boolean(session.is_active),
+    duration_seconds: Number(session.duration_seconds || 0),
+    duration_human: session.duration_human,
+    teacher: rawTeacher ? {
+      id: Number(rawTeacher.id) || 0,
+      name: String(rawTeacher.name || 'معلم'),
+      email: String(rawTeacher.email || ''),
+      phone: rawTeacher.phone,
+      avatar: rawTeacher.avatar ?? null,
+      subject: rawTeacher.subject,
+    } : undefined,
+  }
+}
+
 export default function TeacherActivity() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const initialTeacherId = searchParams.get('teacher_id')
+  const initialTeacherId = parseTeacherId(searchParams.get('teacher_id'))
 
   // Main Tabs: 'activities' | 'sessions' | 'platform'
   const [activeTab, setActiveTab] = useState<'activities' | 'sessions' | 'platform'>('activities')
@@ -202,11 +433,10 @@ export default function TeacherActivity() {
   const [sessionsTotalPages, setSessionsTotalPages] = useState(1)
 
   // Teacher Profile / Details Modal state
-  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(
-    initialTeacherId ? parseInt(initialTeacherId, 10) : null
-  )
+  const [selectedTeacherId, setSelectedTeacherId] = useState<number | null>(initialTeacherId)
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfileData | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
   const [modalTab, setModalTab] = useState<'timeline' | 'sessions'>('timeline')
 
   // Expanded metadata item
@@ -223,7 +453,7 @@ export default function TeacherActivity() {
       ])
 
       if (presenceRes.status === 'fulfilled') {
-        setPresence(presenceRes.value.data)
+        setPresence(normalizePresence(presenceRes.value.data))
         setPresenceError(null)
       } else {
         console.error('Failed to fetch platform presence:', presenceRes.reason)
@@ -259,10 +489,11 @@ export default function TeacherActivity() {
 
       const res = await API.get('/admin/teacher-activity', { params })
       const resData = res.data
-      setLogs(resData.data || [])
-      setCurrentPage(resData.current_page || 1)
-      setTotalPages(resData.last_page || 1)
-      setTotalCount(resData.total || 0)
+      const rawLogs = Array.isArray(resData?.data) ? resData.data : Array.isArray(resData) ? resData : []
+      setLogs(rawLogs.map(normalizeLogItem))
+      setCurrentPage(Number(resData?.current_page || 1))
+      setTotalPages(Number(resData?.last_page || 1))
+      setTotalCount(Number(resData?.total || rawLogs.length))
     } catch (err) {
       console.error('Failed to fetch teacher logs:', err)
     } finally {
@@ -282,9 +513,10 @@ export default function TeacherActivity() {
 
       const res = await API.get('/admin/teacher-activity/sessions', { params })
       const resData = res.data
-      setSessions(resData.data || [])
-      setSessionsPage(resData.current_page || 1)
-      setSessionsTotalPages(resData.last_page || 1)
+      const rawSessions = Array.isArray(resData?.data) ? resData.data : Array.isArray(resData) ? resData : []
+      setSessions(rawSessions.map(normalizeSessionItem))
+      setSessionsPage(Number(resData?.current_page || 1))
+      setSessionsTotalPages(Number(resData?.last_page || 1))
     } catch (err) {
       console.error('Failed to fetch teacher sessions:', err)
     } finally {
@@ -294,13 +526,33 @@ export default function TeacherActivity() {
 
   // 4. Fetch Detailed Teacher Profile
   const fetchTeacherProfile = useCallback(async (teacherId: number) => {
+    if (!teacherId || isNaN(teacherId) || teacherId <= 0) {
+      setTeacherProfile(null)
+      setProfileError('معرف المعلم غير صالح.')
+      return
+    }
+
     setLoadingProfile(true)
+    setProfileError(null)
     try {
       const res = await API.get(`/admin/teachers/${teacherId}/activity`)
-      setTeacherProfile(res.data)
-    } catch (err) {
+      const normalized = normalizeTeacherProfile(res.data)
+      if (!normalized) {
+        setProfileError('تعذر استرجاع بيانات المعلم.')
+      }
+      setTeacherProfile(normalized)
+    } catch (err: any) {
       console.error('Failed to fetch teacher profile:', err)
       setTeacherProfile(null)
+      if (err?.response?.status === 404) {
+        setProfileError('المعلم المطلوب غير موجود في النظام أو تم حذفه.')
+      } else if (err?.response?.status === 403) {
+        setProfileError('ليس لديك الصلاحيات الكافية لعرض سجل هذا المعلم.')
+      } else if (err?.response?.status === 401) {
+        setProfileError('انتهت الجلسة. يرجى إعادة تسجيل الدخول.')
+      } else {
+        setProfileError('حدث خطأ أثناء استرجاع بيانات وسجل المعلم.')
+      }
     } finally {
       setLoadingProfile(false)
     }
@@ -328,21 +580,35 @@ export default function TeacherActivity() {
     return () => clearInterval(interval)
   }, [autoRefresh, fetchPresenceAndStats])
 
-  // Handle URL teacher_id param
+  // Handle URL teacher_id param change and sync state
+  useEffect(() => {
+    const paramId = parseTeacherId(searchParams.get('teacher_id'))
+    if (paramId !== selectedTeacherId) {
+      setSelectedTeacherId(paramId)
+    }
+  }, [searchParams])
+
+  // Fetch teacher profile whenever selectedTeacherId changes
   useEffect(() => {
     if (selectedTeacherId) {
       fetchTeacherProfile(selectedTeacherId)
+    } else {
+      setTeacherProfile(null)
+      setProfileError(null)
     }
   }, [selectedTeacherId, fetchTeacherProfile])
 
   const openTeacherModal = (teacherId: number) => {
-    setSelectedTeacherId(teacherId)
-    setSearchParams({ teacher_id: teacherId.toString() })
+    const validId = parseTeacherId(String(teacherId))
+    if (!validId) return
+    setSelectedTeacherId(validId)
+    setSearchParams({ teacher_id: validId.toString() })
   }
 
   const closeTeacherModal = () => {
     setSelectedTeacherId(null)
     setTeacherProfile(null)
+    setProfileError(null)
     setSearchParams({})
   }
 
@@ -1227,7 +1493,32 @@ export default function TeacherActivity() {
             {loadingProfile ? (
               <div className="py-20 text-center space-y-3 text-slate-400">
                 <div className="animate-spin w-8 h-8 border-2 border-brand-primary border-t-transparent rounded-full mx-auto" />
-                <p className="text-xs">جاري استرجاع سجل المعلم والإحصائيات...</p>
+                <p className="text-xs font-bold">جاري استرجاع سجل المعلم والإحصائيات...</p>
+              </div>
+            ) : profileError ? (
+              <div className="py-16 text-center space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center mx-auto shadow-sm">
+                  <AlertCircle className="w-7 h-7" />
+                </div>
+                <div className="space-y-1.5 max-w-md mx-auto">
+                  <h4 className="font-black text-sm text-slate-100">تعذر تحميل بيانات المعلم</h4>
+                  <p className="text-xs text-rose-300 leading-relaxed">{profileError}</p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-3">
+                  <button
+                    onClick={() => selectedTeacherId && fetchTeacherProfile(selectedTeacherId)}
+                    className="px-5 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-brand-primary/20 flex items-center gap-2"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>إعادة المحاولة</span>
+                  </button>
+                  <button
+                    onClick={closeTeacherModal}
+                    className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    إغلاق
+                  </button>
+                </div>
               </div>
             ) : teacherProfile ? (
               <div className="space-y-6">
@@ -1240,9 +1531,9 @@ export default function TeacherActivity() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">
                         <h4 className="font-black text-base text-slate-100">
-                          {teacherProfile.teacher?.name}
+                          {teacherProfile.teacher?.name || 'معلم'}
                         </h4>
-                        {teacherProfile.teacher.is_online ? (
+                        {teacherProfile.teacher?.is_online ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
                             <span>متواجد الآن</span>
@@ -1254,11 +1545,11 @@ export default function TeacherActivity() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400 font-mono">
-                        <span>المادة: {teacherProfile.teacher.subject || 'غير محدد'}</span>
-                        <span>البريد: {teacherProfile.teacher.email}</span>
-                        {teacherProfile.teacher.phone && <span>الهاتف: {teacherProfile.teacher.phone}</span>}
+                        <span>المادة: {teacherProfile.teacher?.subject || 'غير محدد'}</span>
+                        <span>البريد: {teacherProfile.teacher?.email || 'غير مسجل'}</span>
+                        {teacherProfile.teacher?.phone && <span>الهاتف: {teacherProfile.teacher.phone}</span>}
                       </div>
-                      {teacherProfile.teacher.current_action && (
+                      {teacherProfile.teacher?.current_action && (
                         <div className="text-[11px] text-brand-primary font-bold">
                           الإجراء الحالي: {teacherProfile.teacher.current_action}
                         </div>
@@ -1272,37 +1563,37 @@ export default function TeacherActivity() {
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">إجمالي العمليات</span>
                     <span className="text-lg font-black text-slate-100 font-mono">
-                      {teacherProfile.summary.total_actions}
+                      {teacherProfile.summary?.total_actions ?? 0}
                     </span>
                   </div>
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">عمليات اليوم</span>
                     <span className="text-lg font-black text-brand-primary font-mono">
-                      {teacherProfile.summary.today_actions}
+                      {teacherProfile.summary?.today_actions ?? 0}
                     </span>
                   </div>
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">إجمالي الجلسات</span>
                     <span className="text-lg font-black text-indigo-400 font-mono">
-                      {teacherProfile.summary.total_sessions}
+                      {teacherProfile.summary?.total_sessions ?? 0}
                     </span>
                   </div>
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">الكورسات</span>
                     <span className="text-lg font-black text-amber-300 font-mono">
-                      {teacherProfile.summary.courses_count}
+                      {teacherProfile.summary?.courses_count ?? 0}
                     </span>
                   </div>
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">الفيديوهات</span>
                     <span className="text-lg font-black text-rose-400 font-mono">
-                      {teacherProfile.summary.videos_count}
+                      {teacherProfile.summary?.videos_count ?? 0}
                     </span>
                   </div>
                   <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 text-center">
                     <span className="text-[10px] text-slate-400 block">الامتحانات</span>
                     <span className="text-lg font-black text-cyan-400 font-mono">
-                      {teacherProfile.summary.exams_count}
+                      {teacherProfile.summary?.exams_count ?? 0}
                     </span>
                   </div>
                 </div>
@@ -1317,7 +1608,7 @@ export default function TeacherActivity() {
                         : 'bg-slate-900 text-slate-400 hover:text-white'
                     }`}
                   >
-                    السجل الزمني للأحداث ({teacherProfile.recent_activities.length})
+                    السجل الزمني للأحداث ({(teacherProfile.recent_activities || []).length})
                   </button>
                   <button
                     onClick={() => setModalTab('sessions')}
@@ -1327,18 +1618,18 @@ export default function TeacherActivity() {
                         : 'bg-slate-900 text-slate-400 hover:text-white'
                     }`}
                   >
-                    جلسات العمل الأخيرة ({teacherProfile.recent_sessions.length})
+                    جلسات العمل الأخيرة ({(teacherProfile.recent_sessions || []).length})
                   </button>
                 </div>
 
                 {/* Sub-Tab 1: Timeline */}
                 {modalTab === 'timeline' && (
                   <div className="space-y-3">
-                    {teacherProfile.recent_activities.length === 0 ? (
+                    {(teacherProfile.recent_activities || []).length === 0 ? (
                       <p className="text-xs text-slate-500 text-center py-8">لا توجد أنشطة مسجلة لهذا المعلم</p>
                     ) : (
-                      teacherProfile.recent_activities.map((act) => {
-                        const badge = getEventBadge(act.event_type)
+                      (teacherProfile.recent_activities || []).map((act) => {
+                        const badge = getEventBadge(act.event_type || 'activity')
                         return (
                           <div
                             key={act.id}
@@ -1369,10 +1660,10 @@ export default function TeacherActivity() {
                 {/* Sub-Tab 2: Sessions */}
                 {modalTab === 'sessions' && (
                   <div className="space-y-3">
-                    {teacherProfile.recent_sessions.length === 0 ? (
+                    {(teacherProfile.recent_sessions || []).length === 0 ? (
                       <p className="text-xs text-slate-500 text-center py-8">لا توجد جلسات سابقة مسجلة</p>
                     ) : (
-                      teacherProfile.recent_sessions.map((sess) => (
+                      (teacherProfile.recent_sessions || []).map((sess) => (
                         <div
                           key={sess.id}
                           className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between text-xs text-right font-mono"
@@ -1393,7 +1684,7 @@ export default function TeacherActivity() {
                             <span className="text-slate-300 font-bold block">
                               المدة: {sess.duration_human || `${Math.round(sess.duration_seconds / 60)} دقيقة`}
                             </span>
-                            <span className="text-slate-500 text-[10px]">IP: {sess.ip_address}</span>
+                            <span className="text-slate-500 text-[10px]">IP: {sess.ip_address || '-'}</span>
                           </div>
                         </div>
                       ))
@@ -1401,7 +1692,11 @@ export default function TeacherActivity() {
                   </div>
                 )}
               </div>
-            ) : null}
+            ) : (
+              <div className="py-16 text-center text-slate-400 space-y-2">
+                <p className="text-xs font-bold text-slate-300">لا توجد بيانات متاحة لهذا المعلم</p>
+              </div>
+            )}
           </div>
         </div>
       )}

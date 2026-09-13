@@ -336,4 +336,81 @@ class ExamAvailabilityAndCheatingTest extends TestCase
             'status' => 'expired',
         ]);
     }
+
+    public function test_exam_start_enforces_max_attempts_limit(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupCourseExam($teacher, [
+            'max_attempts' => 1,
+        ]);
+        $exam = $data['exam'];
+        $course = $data['course'];
+
+        Enrollment::create([
+            'student_id' => $student->id,
+            'course_id' => $course->id,
+        ]);
+
+        // First attempt: should succeed
+        $startRes1 = $this->actingAs($student, 'sanctum')->getJson("/api/exams/{$exam->id}");
+        $startRes1->assertStatus(200);
+
+        // Submit the first attempt
+        $submitRes = $this->actingAs($student, 'sanctum')->postJson("/api/exams/{$exam->id}/submit", [
+            'attempt_id' => $startRes1->json('attempt_id'),
+            'answers' => [
+                $data['q1']->id => '4',
+                $data['q2']->id => '2',
+            ],
+            'time_spent' => 120,
+        ]);
+        $submitRes->assertStatus(200);
+
+        // Second attempt: should be rejected with 403 ATTEMPTS_LIMIT_REACHED
+        $startRes2 = $this->actingAs($student, 'sanctum')->getJson("/api/exams/{$exam->id}");
+        $startRes2->assertStatus(403);
+        $startRes2->assertJson([
+            'error_code' => 'ATTEMPTS_LIMIT_REACHED',
+        ]);
+
+        // checkAvailability endpoint should also return ATTEMPTS_LIMIT_REACHED
+        $checkRes = $this->actingAs($student, 'sanctum')->getJson("/api/exams/{$exam->id}/check-availability");
+        $checkRes->assertStatus(403);
+        $checkRes->assertJson([
+            'error_code' => 'ATTEMPTS_LIMIT_REACHED',
+        ]);
+    }
+
+    public function test_student_results_with_null_lesson_exam_returns_cleanly(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+
+        $standaloneExam = Exam::create([
+            'teacher_id' => $teacher->id,
+            'title' => 'Standalone Exam Without Lesson ' . uniqid(),
+            'type' => 'exam',
+            'lesson_id' => null,
+            'time_limit_minutes' => 60,
+            'max_score' => 20,
+            'is_published' => true,
+        ]);
+
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $standaloneExam->id,
+            'score' => 18,
+            'status' => 'graded',
+            'started_at' => now()->subMinutes(30),
+            'submitted_at' => now()->subMinutes(10),
+        ]);
+
+        $res = $this->actingAs($student, 'sanctum')->getJson('/api/student/results');
+        $res->assertStatus(200);
+        $this->assertGreaterThanOrEqual(1, count($res->json()));
+        $found = collect($res->json())->firstWhere('exam.id', $standaloneExam->id);
+        $this->assertNotNull($found);
+        $this->assertNull($found['exam']['lesson'] ?? null);
+    }
 }

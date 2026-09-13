@@ -865,7 +865,7 @@ export default function StudentActivity() {
                                 className="flex items-center gap-2 text-right hover:text-brand-primary transition-colors cursor-pointer group"
                               >
                                 <div className="w-8 h-8 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
-                                  {item.student.name.charAt(0)}
+                                  {(item.student.name || 'ط').charAt(0)}
                                 </div>
                                 <div>
                                   <div className="font-bold text-slate-200 group-hover:text-brand-primary">
@@ -1115,7 +1115,7 @@ export default function StudentActivity() {
                               className="flex items-center gap-2 text-right hover:text-brand-primary transition-colors cursor-pointer group"
                             >
                               <div className="w-8 h-8 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary font-bold text-xs shrink-0">
-                                {sess.student.name.charAt(0)}
+                                {(sess.student?.name || 'ط').charAt(0)}
                               </div>
                               <div>
                                 <div className="font-bold text-slate-200 group-hover:text-brand-primary">
@@ -1282,7 +1282,7 @@ export default function StudentActivity() {
                 <div className="bg-slate-900/60 border border-[var(--border-color)] rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-2xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary text-xl font-black shrink-0">
-                      {studentProfile.student.name.charAt(0)}
+                      {(studentProfile.student?.name || 'ط').charAt(0)}
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-3">

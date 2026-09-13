@@ -219,6 +219,7 @@ export default function CourseDetail() {
 
     switch (status) {
       case 'completed':
+      case 'submitted':
         label = type === 'video' ? 'مكتمل' : (type === 'pdf' ? 'تم فتحه' : 'تم التسليم');
         colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25';
         break;
@@ -302,14 +303,15 @@ export default function CourseDetail() {
                       });
                     } else if (lesson.exams && lesson.exams.length > 0) {
                       const ex = lesson.exams[0];
-                      if (ex.progress?.status === 'completed') {
+                      const isFinished = ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0);
+                      if (isFinished) {
                         navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                       } else {
                         checkExamAvailability(ex.id).then((allowed) => {
-                                  if (allowed) {
-                                    navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
-                                  }
-                                })
+                          if (allowed) {
+                            navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                          }
+                        })
                       }
                     }
                   }
@@ -539,7 +541,8 @@ export default function CourseDetail() {
                             if (ex.is_locked) {
                               useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
                             } else {
-                              if (ex.progress?.status === 'completed') {
+                              const isFinished = ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0);
+                              if (isFinished) {
                                 navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                               } else {
                                 checkExamAvailability(ex.id).then((allowed) => {
@@ -553,12 +556,12 @@ export default function CourseDetail() {
                           className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
                             ex.is_locked
                               ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
-                              : ex.progress?.status === 'completed'
+                              : (ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0))
                               ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
                               : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
                           }`}
                         >
-                          {ex.is_locked ? "ابدأ الآن 🔒" : (ex.progress?.status === 'completed' ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'))}
+                          {ex.is_locked ? "ابدأ الآن 🔒" : ((ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0)) ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'))}
                         </button>
                         <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
                       </div>

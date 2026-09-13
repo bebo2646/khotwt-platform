@@ -18,6 +18,7 @@ import { AdminLayout } from './components/AdminLayout'
 import { NotificationToast } from './components/NotificationToast'
 import { ThemeProvider } from './context/ThemeContext'
 import { useConfigStore } from './store/configStore'
+import ErrorBoundary from './components/ErrorBoundary'
 
 
 // Public Pages (Lazy Loaded)
@@ -279,6 +280,7 @@ function App() {
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>
         </div>
       }>
+        <ErrorBoundary>
         <Routes>
         
         {/* ==========================================================================
@@ -571,6 +573,7 @@ function App() {
         <Route path="*" element={<Layout><NotFound /></Layout>} />
 
         </Routes>
+        </ErrorBoundary>
       </React.Suspense>
       <WhatsAppButton />
       <PWAManager />

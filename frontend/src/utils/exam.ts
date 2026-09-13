@@ -14,9 +14,10 @@ export const checkExamAvailability = async (examId: number): Promise<boolean> =>
     console.error(err);
     const msg = err.response?.data?.message || 'هذا التقييم غير متاح حالياً.';
     const isNotStarted = err.response?.data?.error_code === 'SCHEDULE_NOT_STARTED';
+    const isAttemptsReached = err.response?.data?.error_code === 'ATTEMPTS_LIMIT_REACHED';
     
     useModalStore.getState().showAlert({
-      title: isNotStarted ? 'التقييم غير متاح بعد' : 'انتهى موعد التقييم',
+      title: isAttemptsReached ? 'تم استنفاد المحاولات' : isNotStarted ? 'التقييم غير متاح بعد' : 'انتهى موعد التقييم',
       description: msg,
       type: isNotStarted ? 'warning' : 'error',
       buttonText: 'حسناً'

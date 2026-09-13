@@ -213,4 +213,86 @@ class TeacherActivityTest extends TestCase
         $response2 = $this->actingAs($teacher, 'sanctum')->getJson('/api/admin/platform/presence');
         $response2->assertStatus(403);
     }
+
+    public function test_admin_can_fetch_teacher_activity_profile_with_contract_shape(): void
+    {
+        $admin = $this->createAdmin();
+        $teacher = $this->createTeacher();
+
+        // Create some activities
+        TeacherActivityLog::create([
+            'teacher_id' => $teacher->id,
+            'event_type' => 'course_created',
+            'event_name' => 'إنشاء كورس جديد',
+            'description' => 'قام المعلم بإنشاء كورس تجريبي',
+            'occurred_at' => now(),
+        ]);
+
+        // Create a session
+        TeacherSession::create([
+            'teacher_id' => $teacher->id,
+            'session_identifier' => 't-sess-contract-' . uniqid(),
+            'current_page' => 'لوحة التحكم',
+            'current_action' => 'يتصفح المنصة',
+            'started_at' => now()->subMinutes(10),
+            'last_activity_at' => now(),
+            'is_active' => true,
+            'duration_seconds' => 600,
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/teachers/{$teacher->id}/activity");
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'teacher' => [
+                'id',
+                'name',
+                'email',
+                'is_online',
+            ],
+            'summary' => [
+                'total_actions',
+                'today_actions',
+                'total_sessions',
+                'courses_count',
+                'exams_count',
+                'videos_count',
+            ],
+            'recent_activities',
+            'recent_sessions',
+            'timeline',
+        ]);
+
+        $this->assertEquals($teacher->id, $response->json('teacher.id'));
+        $this->assertEquals($teacher->name, $response->json('teacher.name'));
+        $this->assertIsArray($response->json('recent_activities'));
+        $this->assertIsArray($response->json('recent_sessions'));
+        $this->assertGreaterThanOrEqual(1, count($response->json('recent_activities')));
+        $this->assertGreaterThanOrEqual(1, count($response->json('recent_sessions')));
+        $this->assertGreaterThanOrEqual(1, $response->json('summary.total_actions'));
+    }
+
+    public function test_admin_receives_404_for_nonexistent_teacher_activity(): void
+    {
+        $admin = $this->createAdmin();
+
+        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/teachers/999999/activity');
+        $response->assertStatus(404);
+        $response->assertJsonFragment(['message' => 'المعلم غير موجود']);
+    }
+
+    public function test_admin_receives_valid_arrays_when_teacher_has_no_prior_activity(): void
+    {
+        $admin = $this->createAdmin();
+        $teacher = $this->createTeacher();
+
+        $response = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/teachers/{$teacher->id}/activity");
+
+        $response->assertStatus(200);
+        $this->assertIsArray($response->json('recent_activities'));
+        $this->assertIsArray($response->json('recent_sessions'));
+        $this->assertEquals(0, count($response->json('recent_activities')));
+        $this->assertEquals(0, count($response->json('recent_sessions')));
+        $this->assertEquals(0, $response->json('summary.total_actions'));
+    }
 }

@@ -75,7 +75,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
         setAttempts(res.data)
         if (res.data.length > 0) {
           if (id) {
-            const specificAttempt = res.data.find((a: AttemptItem) => a.exam.id === Number(id))
+            const specificAttempt = res.data.find((a: AttemptItem) => a?.exam?.id === Number(id))
             if (specificAttempt) {
               setSelectedAttempt(specificAttempt)
               return
@@ -111,7 +111,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
 
   // Statistics calculation for selected attempt
   const isGraded = selectedAttempt?.status === 'graded'
-  const maxScore = selectedAttempt?.exam.max_score || 100
+  const maxScore = selectedAttempt?.exam?.max_score || 100
   const score = selectedAttempt?.score || 0
   const percent = maxScore > 0 ? (score / maxScore) * 100 : 0
 
@@ -158,8 +158,8 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
   const statusText = isCheatingTerminated ? 'ملغي (مخالفة مراقبة) ⛔' : passed ? 'ناجح 🎉' : 'راسب ⚠️'
 
   // MCQ counts
-  const correctCount = selectedAttempt?.answers.filter(a => a.is_correct).length || 0
-  const wrongCount = selectedAttempt?.answers.filter(a => !a.is_correct && a.question.type !== 'essay').length || 0
+  const correctCount = selectedAttempt?.answers?.filter(a => a?.is_correct).length || 0
+  const wrongCount = selectedAttempt?.answers?.filter(a => !a?.is_correct && a?.question?.type !== 'essay').length || 0
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12 text-right" dir="rtl">
@@ -208,11 +208,11 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                   <div className="space-y-4 text-center md:text-right relative z-10 flex-1">
                     <div className="space-y-2">
                       <span className="text-xs font-black text-brand-primary uppercase tracking-wider block">
-                        {selectedAttempt.exam.lesson.unit.course.title}
+                        {selectedAttempt?.exam?.lesson?.unit?.course?.title || (selectedAttempt?.exam as any)?.course?.title || selectedAttempt?.exam?.title || 'تفاصيل التقييم'}
                       </span>
-                      <h2 className="text-2xl sm:text-3xl font-black text-slate-100">{selectedAttempt.exam.title}</h2>
+                      <h2 className="text-2xl sm:text-3xl font-black text-slate-100">{selectedAttempt?.exam?.title}</h2>
                       <span className="px-3.5 py-1.5 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary rounded-full text-[10px] font-black inline-block mt-2">
-                        {TYPE_TRANSLATION[selectedAttempt.exam.type] || selectedAttempt.exam.type}
+                        {TYPE_TRANSLATION[selectedAttempt?.exam?.type || ''] || selectedAttempt?.exam?.type}
                       </span>
                     </div>
 
@@ -365,7 +365,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                     <div className="space-y-4">
                       {selectedAttempt.answers && selectedAttempt.answers.length > 0 ? (
                       selectedAttempt.answers.map((ans, aIdx) => {
-                        const isMcqOrTf = ans.question.type !== 'essay'
+                        const isMcqOrTf = ans?.question?.type ? ans.question.type !== 'essay' : false
                         return (
                           <motion.div 
                             whileHover={{ y: -2, borderRightColor: "var(--primary-color)" }}
@@ -377,7 +377,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                             <div className="flex justify-between items-start gap-4">
                               <div className="font-bold text-xs sm:text-sm text-slate-200">
                                 <span className="text-brand-primary font-black">السؤال {aIdx + 1}: </span>
-                                <span className="font-semibold leading-relaxed block mt-1">{ans.question.text}</span>
+                                <span className="font-semibold leading-relaxed block mt-1">{ans?.question?.text || 'سؤال تقييمي'}</span>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-[9px] font-black shrink-0 border ${
                                 ans.is_correct 
@@ -409,7 +409,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                               </div>
 
                               {/* Standard Model Answer */}
-                              {isMcqOrTf && !ans.is_correct && (
+                              {isMcqOrTf && !ans.is_correct && ans?.question?.correct_answer && (
                                 <div className="space-y-1">
                                   <span className="text-slate-400 text-[10px] block">الإجابة الصحيحة النموذجية:</span>
                                   <div className="font-bold text-brand-success flex items-center gap-1.5">
@@ -460,7 +460,9 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                   }`}
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <span className="text-[9px] text-slate-400 font-bold max-w-[150px] truncate">{attempt.exam.lesson.unit.course.title}</span>
+                    <span className="text-[9px] text-slate-400 font-bold max-w-[150px] truncate">
+                      {attempt?.exam?.lesson?.unit?.course?.title || (attempt?.exam as any)?.course?.title || attempt?.exam?.title || 'التقييم'}
+                    </span>
                     <span className={`px-2.5 py-0.5 rounded text-[8px] font-black ${
                       graded ? 'bg-emerald-500/15 text-brand-success border border-emerald-500/20' : 'bg-amber-500/15 text-amber-500 border border-amber-500/20'
                     }`}>
@@ -468,12 +470,14 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                     </span>
                   </div>
 
-                  <h4 className="font-bold text-xs sm:text-sm line-clamp-1">{attempt.exam.title}</h4>
+                  <h4 className="font-bold text-xs sm:text-sm line-clamp-1">{attempt?.exam?.title}</h4>
 
                   <div className="flex justify-between items-center text-[10px] text-slate-550 pt-2.5 border-t border-border-color/50">
                     <span>{new Date(attempt.submitted_at).toLocaleDateString('ar-EG')}</span>
                     {graded ? (
-                      <span className="font-black text-brand-primary bg-background/55 px-2 py-0.5 rounded border border-border-color">{attempt.score} / {attempt.exam.max_score}</span>
+                      <span className="font-black text-brand-primary bg-background/55 px-2 py-0.5 rounded border border-border-color">
+                        {attempt.score} / {attempt?.exam?.max_score ?? 100}
+                      </span>
                     ) : (
                       <span>في المراجعة</span>
                     )}
