@@ -42,6 +42,7 @@ import { useAuthStore } from '../store/authStore'
 import { motion, AnimatePresence } from 'framer-motion'
 import CourseCard from '../components/ui/CourseCard'
 import TeacherCard from '../components/ui/TeacherCard'
+import TeachersCarousel from '../components/ui/TeachersCarousel'
 import SEO from '../components/SEO'
 import EducationalHeroBackground from '../components/ui/EducationalHeroBackground'
 import { useTaxonomyStore } from '../store/taxonomyStore'
@@ -143,9 +144,23 @@ const CATEGORY_ICONS: Record<string, any> = {
   ai: Brain,
 }
 
-const formatStatCount = (count?: number | null) => {
-  const rounded = Math.max(10, Math.ceil(Number(count || 0) / 10) * 10)
-  return `+${rounded.toLocaleString()}`
+const formatStatCount = (count?: number | null): string => {
+  if (count === undefined || count === null) {
+    return '—'
+  }
+
+  const value = Number(count)
+
+  if (!Number.isFinite(value)) {
+    return '—'
+  }
+
+  if (value < 10) {
+    return value.toLocaleString()
+  }
+
+  const roundedDown = Math.floor(value / 10) * 10
+  return `+${roundedDown.toLocaleString()}`
 }
 
 export default function Home() {
@@ -1006,36 +1021,14 @@ export default function Home() {
       {/* =========================================================================
           6. FACULTY SHOWCASE ("هيئة التدريس والخبراء")
          ========================================================================= */}
-      <section className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8">
-        
-        <div className="text-center space-y-3 max-w-xl mx-auto mb-14">
-          <h2 className="text-2xl sm:text-4xl font-black text-foreground">هيئة التدريس والنخبة</h2>
-          <p className="text-xs sm:text-sm text-[var(--text-muted)] font-medium">معلمون وخبراء متميزون في مختلف التخصصات لمساعدتك في رحلة التعلم</p>
-        </div>
-
-        {safePopularTeachers.length === 0 ? (
-          <EmptyState type="teachers" title="لا يوجد معلمون مسجلون" description="يرجى مراجعة لوحة تحكم الأدمن لإضافة معلمين جدد للمنصة." />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {safePopularTeachers.map((teacher) => (
-              <TeacherCard
-                key={teacher.id}
-                id={teacher.id}
-                name={teacher.name}
-                subject={teacher.subject}
-                avatar={teacher.avatar}
-                experience={teacher.experience}
-                bio={teacher.bio}
-                studentsCount={teacher.students_count}
-                coursesCount={teacher.published_courses_count || 0}
-                slug={teacher.slug}
-                teaching_mode={teacher.teaching_mode}
-              />
-            ))}
-          </div>
-        )}
-
-      </section>
+      <TeachersCarousel
+        teachers={safePopularTeachers}
+        loading={loading}
+        title="هيئة التدريس والنخبة"
+        subtitle="معلمون وخبراء متميزون في مختلف التخصصات لمساعدتك في رحلة التعلم"
+        badge="👨‍🏫 الكادر التعليمي والخبراء"
+        showFilters={true}
+      />
 
       {/* =========================================================================
           7. FAQS SECTION

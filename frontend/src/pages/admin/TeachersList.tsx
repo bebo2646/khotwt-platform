@@ -26,7 +26,9 @@ import {
   DollarSign,
   HardDrive,
   Users,
-  Activity
+  Activity,
+  Camera,
+  User
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 
@@ -246,6 +248,18 @@ export default function TeachersList() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (!file.type.startsWith('image/')) {
+      useModalStore.getState().showToast('يرجى اختيار ملف صورة صالح (JPG, PNG, WEBP).', 'error')
+      e.target.value = ''
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      useModalStore.getState().showToast('حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت.', 'error')
+      e.target.value = ''
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
@@ -263,6 +277,7 @@ export default function TeachersList() {
       useModalStore.getState().showToast('فشل رفع الصورة. تأكد من حجم ونوع الملف.', 'error')
     } finally {
       setUploading(false)
+      e.target.value = ''
     }
   }
 
@@ -282,7 +297,7 @@ export default function TeachersList() {
       useModalStore.getState().showToast('يجب تحديد مادة علمية واحدة على الأقل.', 'warning')
       return
     }
-    if (selectedGrades.length === 0) {
+    if (!editTeacher && selectedGrades.length === 0) {
       useModalStore.getState().showToast('يجب تحديد مرحلة دراسية واحدة على الأقل.', 'warning')
       return
     }
@@ -842,10 +857,18 @@ export default function TeachersList() {
 
                         {/* Actions menu dropdown */}
                         <td className="p-4">
-                          <div className="flex justify-center">
+                          <div className="flex justify-center items-center gap-1">
+                            <button
+                              onClick={() => handleEditClick(t)}
+                              title="تعديل بيانات المعلم"
+                              className="p-1.5 hover:bg-brand-primary/10 rounded-lg text-[var(--text-secondary)] hover:text-brand-primary cursor-pointer transition-all flex items-center gap-1 text-xs font-bold"
+                            >
+                              <Edit3 className="w-4 h-4 text-amber-500" />
+                              <span className="hidden xl:inline text-[11px]">تعديل</span>
+                            </button>
                             <button
                               onClick={(e) => handleDropdownToggle(e, t, 'desktop')}
-                              className="p-2 hover:bg-[var(--bg-color)] rounded-full text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer transition-all"
+                              className="p-1.5 hover:bg-[var(--bg-color)] rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-color)] cursor-pointer transition-all"
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
@@ -1002,65 +1025,177 @@ export default function TeachersList() {
 
       {/* 1. Add/Edit Teacher Modal */}
       {showAddForm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="absolute inset-0 bg-black/10 z-40" onClick={() => setShowAddForm(false)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl z-50 text-right">
-            <h3 className="text-lg font-black border-b border-[var(--border-color)] pb-3 text-slate-200">
-              {editTeacher ? 'تعديل بيانات المعلم' : 'إضافة حساب معلم جديد'}
-            </h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="absolute inset-0 z-40" onClick={() => setShowAddForm(false)} />
+          <div className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl z-50 text-right overflow-hidden">
             
-            <form onSubmit={handleSaveTeacher} className="space-y-4 text-right">
+            {/* Modal Header (Fixed) */}
+            <div className="px-6 py-4 border-b border-[var(--border-color)] shrink-0 flex items-center justify-between bg-[var(--card-bg)]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary shrink-0">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-[var(--text-color)]">
+                    {editTeacher ? 'تعديل بيانات المعلم' : 'إضافة حساب معلم جديد'}
+                  </h3>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                    {editTeacher ? `تعديل الملف الشخصي لـ ${name || editTeacher.name}` : 'إدخال بيانات المعلم الجديد في المنصة'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-color)] hover:bg-[var(--bg-color)] transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {/* Form Container (Wraps scrollable body and fixed footer) */}
+            <form onSubmit={handleSaveTeacher} className="flex-1 flex flex-col overflow-hidden text-right">
               
-              {/* Profile Image Upload */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold block text-slate-300">الصورة الشخصية</label>
-                <div className="flex items-center gap-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] p-4 rounded-2xl">
-                  <div className="relative h-16 w-16 shrink-0 rounded-full border border-[var(--border-color)] overflow-hidden bg-slate-800 flex items-center justify-center">
+              {/* Modal Body (Scrollable) */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              
+              {/* Profile Image Section */}
+              <div className="bg-[var(--bg-color)]/60 border border-[var(--border-color)] p-4 rounded-2xl">
+                <label className="text-xs font-bold block text-[var(--text-color)] mb-3">
+                  الصورة الشخصية للمعلم
+                </label>
+                <div className="flex items-center gap-4">
+                  {/* Avatar Preview */}
+                  <div className="relative h-20 w-20 shrink-0 rounded-2xl border-2 border-brand-primary/20 overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center shadow-sm">
                     {avatar ? (
-                      <img src={avatar} alt="Avatar Preview" className="h-full w-full object-cover" />
+                      <img
+                        src={avatar}
+                        alt={name || 'Teacher Avatar'}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
-                      <span className="text-[10px] text-slate-500 font-light">لا توجد صورة</span>
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <User className="w-8 h-8 opacity-50" />
+                        <span className="text-[9px] mt-1 font-medium">بدون صورة</span>
+                      </div>
+                    )}
+                    {uploading && (
+                      <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex flex-col items-center justify-center gap-1 text-white">
+                        <Loader2 className="w-5 h-5 animate-spin text-brand-primary" />
+                        <span className="text-[8px] font-bold">جاري الرفع</span>
+                      </div>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="text-xs text-slate-400 file:ml-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-semibold file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20 cursor-pointer"
-                    />
+
+                  {/* Avatar Actions & Hint */}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label
+                        htmlFor="teacher-avatar-input"
+                        className="px-3.5 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/30 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        <span>{avatar ? 'تغيير الصورة' : 'رفع صورة'}</span>
+                      </label>
+                      <input
+                        id="teacher-avatar-input"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                      {avatar && (
+                        <button
+                          type="button"
+                          onClick={() => setAvatar('')}
+                          className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/20 rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>إزالة</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                      الصيغ المدعومة: JPG, PNG, WEBP. الحد الأقصى 5 ميجابايت. يُفضل استخدام صورة مربعة واضحة.
+                    </p>
                   </div>
-                  {uploading && <div className="text-xs text-brand-primary animate-pulse font-bold">جاري الرفع...</div>}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">اسم المعلم بالكامل</label>
+              {/* Full Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                  <span>اسم المعلم بالكامل</span>
+                  <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="أ. محمد علي..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs font-medium text-[var(--text-color)] placeholder:text-[var(--text-secondary)]/50 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">رقم الهاتف</label>
+              {/* Phone Number */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                  <span>رقم الهاتف / الواتساب</span>
+                  <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
+                  dir="ltr"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="010XXXXXXXX"
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs font-medium text-[var(--text-color)] placeholder:text-[var(--text-secondary)]/50 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all text-right"
                 />
               </div>
 
+              {/* Teaching Mode */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                  <span>نظام التدريس</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: 'online', label: 'أونلاين فقط' },
+                    { key: 'center', label: 'سنتر فقط' },
+                    { key: 'both', label: 'أونلاين + سنتر' },
+                  ].map((mode) => (
+                    <button
+                      type="button"
+                      key={mode.key}
+                      onClick={() => setTeachingMode(mode.key)}
+                      className={`py-2.5 px-3 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                        teachingMode === mode.key
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-xs'
+                          : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Subjects */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold block text-slate-300">اختر المواد العلمية للمعلم:</label>
-                <div className="grid grid-cols-2 gap-2 border border-[var(--border-color)] p-4 rounded-2xl bg-[rgba(0,0,0,0.05)]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                    <span>المواد العلمية للمعلم</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-[var(--text-secondary)] font-medium">
+                    تم اختيار {selectedSubjects.length} مادة
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40">
                   {SUBJECTS.map((s) => {
                     const isChecked = selectedSubjects.includes(s.key)
                     return (
@@ -1074,46 +1209,32 @@ export default function TeachersList() {
                               : [...prev, s.key]
                           )
                         }}
-                        className={`p-2.5 text-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                        className={`p-2 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                           isChecked
-                            ? 'border-brand-primary bg-brand-primary/5 text-slate-100'
-                            : 'border-[var(--border-color)] text-slate-400 hover:bg-[rgba(255,255,255,0.02)]'
+                            ? 'border-brand-primary bg-brand-primary text-white shadow-xs'
+                            : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-slate-400 bg-[var(--card-bg)]'
                         }`}
                       >
-                        {s.val}
+                        {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        <span>{s.val}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">خبرة المدرس وسنوات التدريس</label>
-                <input
-                  type="text"
-                  required
-                  value={experience}
-                  onChange={(e) => setExperience(e.target.value)}
-                  placeholder="مثال: خبرة 10 سنوات بوزارة التربية والتعليم..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">نبذة تعريفية للملف (Bio)</label>
-                <textarea
-                  rows={2}
-                  value={bio || ''}
-                  onChange={(e) => setBio(e.target.value)}
-                  placeholder="نبذة مبسطة تظهر للطلاب في الملف التعريفي للمدرس..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl p-4 text-xs focus:outline-none text-slate-200"
-                />
-              </div>
-
-              {/* Grades checkbox list */}
+              {/* Grades */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold block text-slate-300">اختر المراحل الدراسية التي يدرسها المعلم:</label>
-                <div className="grid grid-cols-2 gap-2 border border-[var(--border-color)] p-4 rounded-2xl bg-[rgba(0,0,0,0.05)]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                    <span>المراحل الدراسية التي يدرسها المعلم</span>
+                    <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-[var(--text-secondary)] font-medium">
+                    تم اختيار {selectedGrades.length} مرحلة
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40">
                   {GRADES.map((g) => {
                     const isChecked = selectedGrades.includes(g.key)
                     return (
@@ -1121,65 +1242,120 @@ export default function TeachersList() {
                         type="button"
                         key={g.key}
                         onClick={() => handleGradeToggle(g.key)}
-                        className={`p-2.5 text-center text-xs font-semibold rounded-xl border transition-all cursor-pointer ${
+                        className={`p-2 text-center text-xs font-bold rounded-xl border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                           isChecked
-                            ? 'border-brand-primary bg-brand-primary/5 text-slate-100'
-                            : 'border-[var(--border-color)] text-slate-400 hover:bg-[rgba(255,255,255,0.02)]'
+                            ? 'border-brand-primary bg-brand-primary text-white shadow-xs'
+                            : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-slate-400 bg-[var(--card-bg)]'
                         }`}
                       >
-                        {g.val}
+                        {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        <span>{g.val}</span>
                       </button>
                     )
                   })}
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">نظام التدريس (أونلاين/سنتر)</label>
-                <select
-                  value={teachingMode}
-                  onChange={(e: any) => setTeachingMode(e.target.value)}
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
-                >
-                  <option value="online">أونلاين فقط</option>
-                  <option value="center">سنتر فقط</option>
-                  <option value="both">أونلاين + سنتر</option>
-                </select>
+              {/* Experience */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
+                  <span>سنوات الخبرة والمسمى المهني</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={experience}
+                  onChange={(e) => setExperience(e.target.value)}
+                  placeholder="مثال: خبرة 10 سنوات بوزارة التربية والتعليم..."
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs font-medium text-[var(--text-color)] placeholder:text-[var(--text-secondary)]/50 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all"
+                />
               </div>
 
+              {/* Bio */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)]">
+                  النبذة التعريفية للملف الشخصي (Bio)
+                </label>
+                <textarea
+                  rows={3}
+                  value={bio || ''}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="نبذة مبسطة تظهر للطلاب وأولياء الأمور في الصفحة العامة للمدرس..."
+                  className="w-full bg-[var(--bg-color)] border border-[var(--border-color)] rounded-xl p-3.5 text-xs font-medium text-[var(--text-color)] placeholder:text-[var(--text-secondary)]/50 focus:border-brand-primary focus:ring-1 focus:ring-brand-primary outline-none transition-all resize-y"
+                />
+              </div>
+
+              {/* Account Status */}
               {editTeacher && (
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">حالة الحساب</label>
-                  <select
-                    value={status}
-                    onChange={(e: any) => setStatus(e.target.value)}
-                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-slate-200"
-                  >
-                    <option value="active">نشط ومفعل</option>
-                    <option value="disabled">معطل وموقوف</option>
-                  </select>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--text-color)]">
+                    حالة الحساب
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStatus('active')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        status === 'active'
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600 shadow-xs'
+                          : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>نشط ومفعل</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatus('disabled')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        status === 'disabled'
+                          ? 'bg-rose-500/10 border-rose-500 text-rose-600 shadow-xs'
+                          : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      <span>معطل وموقوف</span>
+                    </button>
+                  </div>
                 </div>
               )}
+            </div>
 
-              {/* Buttons */}
-              <div className="flex justify-end gap-3 border-t border-[var(--border-color)] pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl cursor-pointer text-slate-300"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
-                >
-                  {saving ? 'جاري الحفظ...' : 'حفظ البيانات'}
-                </button>
+              {/* Modal Footer (Fixed) */}
+              <div className="px-6 py-4 border-t border-[var(--border-color)] shrink-0 flex items-center justify-between bg-[var(--card-bg)]">
+                <div className="text-xs text-[var(--text-secondary)]">
+                  {editTeacher && (
+                    <span className="font-mono text-[11px]">معرف المعلم: #{editTeacher.id}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm(false)}
+                    className="px-5 py-2.5 bg-[var(--bg-color)] border border-[var(--border-color)] text-xs font-bold rounded-xl cursor-pointer text-[var(--text-color)] hover:bg-[var(--border-color)] transition-all"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving || uploading}
+                    className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 transition-all flex items-center gap-2 shadow-sm"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>جاري الحفظ...</span>
+                      </>
+                    ) : (
+                      <span>{editTeacher ? 'حفظ التعديلات' : 'إضافة المعلم'}</span>
+                    )}
+                  </button>
+                </div>
               </div>
 
             </form>
+
           </div>
         </div>
       )}

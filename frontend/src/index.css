@@ -130,6 +130,104 @@
   --slate-800: rgba(255, 255, 255, 0.09);
   --slate-900: rgba(15, 23, 42, 0.65);
   --slate-950: #030712;
+
+  /* =========================================================================
+     Teachers Section Theme Tokens (Dark Mode Default)
+     ========================================================================= */
+  --teacher-section-bg: linear-gradient(180deg, #050B1A 0%, #08132B 50%, #050B1A 100%);
+  --teacher-panel-bg: #0B1428;
+  --teacher-panel-border: #1E2E4A;
+  --teacher-panel-shadow: 0 20px 45px -12px rgba(0, 0, 0, 0.55);
+  --teacher-glow-1: rgba(109, 93, 252, 0.05);
+  --teacher-glow-2: rgba(30, 41, 59, 0.25);
+  
+  /* Header & Titles */
+  --teacher-header-badge-bg: rgba(109, 93, 252, 0.12);
+  --teacher-header-badge-text: #A5B4FC;
+  --teacher-header-badge-border: rgba(109, 93, 252, 0.28);
+  --teacher-title-text: #F8FAFC;
+  --teacher-subtitle-text: #94A3B8;
+  
+  /* Controls & Filters */
+  --teacher-control-bg: #121F3A;
+  --teacher-control-border: #22375A;
+  --teacher-control-text: #F8FAFC;
+  --teacher-control-icon: #94A3B8;
+  --teacher-control-hover-bg: #17284A;
+  --teacher-control-hover-border: #6D5DFC;
+  --teacher-control-active-bg: #6D5DFC;
+  --teacher-control-active-border: #6D5DFC;
+  --teacher-control-active-text: #FFFFFF;
+  --teacher-control-active-shadow: rgba(109, 93, 252, 0.35);
+  
+  /* Reset Button */
+  --teacher-reset-bg: #1F1322;
+  --teacher-reset-border: #4A1D2F;
+  --teacher-reset-text: #FB7185;
+  --teacher-reset-hover-bg: #2B162E;
+  --teacher-reset-hover-text: #FDA4AF;
+  
+  /* Navigation Arrows */
+  --teacher-arrow-bg: #121F3A;
+  --teacher-arrow-border: #22375A;
+  --teacher-arrow-icon: #F8FAFC;
+  --teacher-arrow-hover-bg: #17284A;
+  --teacher-arrow-hover-border: #6D5DFC;
+  --teacher-arrow-hover-icon: #A5B4FC;
+  --teacher-arrow-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  
+  /* Teacher Cards */
+  --teacher-card-bg: #142240;
+  --teacher-card-border: #253C63;
+  --teacher-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --teacher-card-shadow-hover: 0 16px 36px rgba(109, 93, 252, 0.25);
+  --teacher-card-header-bg: linear-gradient(180deg, #1B2C52 0%, #162545 60%, #142240 100%);
+  --teacher-card-img-overlay: linear-gradient(to top, rgba(20, 34, 64, 0.9) 0%, transparent 60%);
+  --teacher-card-name: #F8FAFC;
+  --teacher-card-name-hover: #A5B4FC;
+  
+  /* Badges & Specialization */
+  --teacher-spec-bg: rgba(109, 93, 252, 0.12);
+  --teacher-spec-border: rgba(109, 93, 252, 0.25);
+  --teacher-spec-text: #C7D2FE;
+  --teacher-meta-primary: #F8FAFC;
+  --teacher-meta-secondary: #94A3B8;
+  --teacher-meta-dot: #64748B;
+  --teacher-meta-students: #34D399;
+  
+  /* Mode Badges */
+  --teacher-badge-online-bg: #0F3D32;
+  --teacher-badge-online-text: #6EE7B7;
+  --teacher-badge-online-border: #134E4A;
+  --teacher-badge-online-pulse: #10B981;
+  
+  --teacher-badge-center-bg: #382405;
+  --teacher-badge-center-text: #FCD34D;
+  --teacher-badge-center-border: #78350F;
+  
+  --teacher-badge-both-bg: #281447;
+  --teacher-badge-both-text: #D8B4FE;
+  --teacher-badge-both-border: #581C87;
+  --teacher-badge-both-dot: #A855F7;
+  
+  /* Pagination Dots */
+  --teacher-dot-active: #6D5DFC;
+  --teacher-dot-active-ring: rgba(109, 93, 252, 0.4);
+  --teacher-dot-inactive: #2A3E62;
+  --teacher-dot-inactive-border: #3B5480;
+  --teacher-dot-hover: #64748B;
+  
+  /* CTA */
+  --teacher-cta-bg: #6D5DFC;
+  --teacher-cta-hover: #5B4AE3;
+  --teacher-cta-text: #FFFFFF;
+  --teacher-cta-shadow: 0 4px 14px rgba(109, 93, 252, 0.35);
+  
+  /* Empty State */
+  --teacher-empty-bg: #121F3A;
+  --teacher-empty-border: #22375A;
+  --teacher-empty-icon-bg: rgba(109, 93, 252, 0.15);
+  --teacher-empty-icon: #818CF8;
 }
 
 :root.light-theme {
@@ -169,6 +267,104 @@
   --slate-800: #F1F5F9;
   --slate-900: #F8FAFC;
   --slate-950: #FFFFFF;
+
+  /* =========================================================================
+     Teachers Section Theme Tokens (Light Mode Override)
+     ========================================================================= */
+  --teacher-section-bg: #F8FAFC;
+  --teacher-panel-bg: #F8FAFC;
+  --teacher-panel-border: #E2E8F0;
+  --teacher-panel-shadow: 0 12px 32px -12px rgba(15, 23, 42, 0.08);
+  --teacher-glow-1: rgba(109, 93, 252, 0.03);
+  --teacher-glow-2: rgba(226, 232, 240, 0.40);
+  
+  /* Header & Titles */
+  --teacher-header-badge-bg: rgba(109, 93, 252, 0.08);
+  --teacher-header-badge-text: #6D5DFC;
+  --teacher-header-badge-border: rgba(109, 93, 252, 0.20);
+  --teacher-title-text: #0B1E48;
+  --teacher-subtitle-text: #475569;
+  
+  /* Controls & Filters */
+  --teacher-control-bg: #FFFFFF;
+  --teacher-control-border: #CBD5E1;
+  --teacher-control-text: #0B1E48;
+  --teacher-control-icon: #0B1E48;
+  --teacher-control-hover-bg: #F1F5F9;
+  --teacher-control-hover-border: #6D5DFC;
+  --teacher-control-active-bg: #6D5DFC;
+  --teacher-control-active-border: #6D5DFC;
+  --teacher-control-active-text: #FFFFFF;
+  --teacher-control-active-shadow: rgba(109, 93, 252, 0.22);
+  
+  /* Reset Button */
+  --teacher-reset-bg: #FFFFFF;
+  --teacher-reset-border: #FECDD3;
+  --teacher-reset-text: #BE123C;
+  --teacher-reset-hover-bg: #FFF1F2;
+  --teacher-reset-hover-text: #9F1239;
+  
+  /* Navigation Arrows */
+  --teacher-arrow-bg: #FFFFFF;
+  --teacher-arrow-border: #CBD5E1;
+  --teacher-arrow-icon: #0B1E48;
+  --teacher-arrow-hover-bg: #F1F5F9;
+  --teacher-arrow-hover-border: #6D5DFC;
+  --teacher-arrow-hover-icon: #6D5DFC;
+  --teacher-arrow-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  
+  /* Teacher Cards */
+  --teacher-card-bg: #FFFFFF;
+  --teacher-card-border: #E2E8F0;
+  --teacher-card-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  --teacher-card-shadow-hover: 0 16px 36px rgba(109, 93, 252, 0.12);
+  --teacher-card-header-bg: linear-gradient(180deg, #F5F3FF 0%, #F8FAFC 60%, #EDF2F7 100%);
+  --teacher-card-img-overlay: linear-gradient(to top, rgba(15, 23, 42, 0.08) 0%, transparent 60%);
+  --teacher-card-name: #0B1E48;
+  --teacher-card-name-hover: #6D5DFC;
+  
+  /* Badges & Specialization */
+  --teacher-spec-bg: #F1F5F9;
+  --teacher-spec-border: #E2E8F0;
+  --teacher-spec-text: #334155;
+  --teacher-meta-primary: #0B1E48;
+  --teacher-meta-secondary: #475569;
+  --teacher-meta-dot: #94A3B8;
+  --teacher-meta-students: #059669;
+  
+  /* Mode Badges */
+  --teacher-badge-online-bg: #ECFDF5;
+  --teacher-badge-online-text: #065F46;
+  --teacher-badge-online-border: #A7F3D0;
+  --teacher-badge-online-pulse: #10B981;
+  
+  --teacher-badge-center-bg: #FEF3C7;
+  --teacher-badge-center-text: #92400E;
+  --teacher-badge-center-border: #FDE68A;
+  
+  --teacher-badge-both-bg: #F3E8FF;
+  --teacher-badge-both-text: #6B21A8;
+  --teacher-badge-both-border: #DDD6FE;
+  --teacher-badge-both-dot: #8B5CF6;
+  
+  /* Pagination Dots */
+  --teacher-dot-active: #6D5DFC;
+  --teacher-dot-active-ring: rgba(109, 93, 252, 0.25);
+  --teacher-dot-inactive: #CBD5E1;
+  --teacher-dot-inactive-border: #94A3B8;
+  --teacher-dot-hover: #64748B;
+  
+  /* CTA */
+  --teacher-cta-bg: #6D5DFC;
+  --teacher-cta-hover: #5B4AE3;
+  --teacher-cta-text: #FFFFFF;
+  --teacher-cta-shadow: 0 4px 14px rgba(109, 93, 252, 0.28);
+  
+  /* Empty State */
+  --teacher-empty-bg: #FFFFFF;
+  --teacher-empty-border: #E2E8F0;
+  --teacher-empty-icon-bg: rgba(109, 93, 252, 0.08);
+  --teacher-empty-icon: #6D5DFC;
 }
 
 /* Global Form controls styling for absolute contrast assurance */
@@ -225,6 +421,28 @@ input.is-invalid:focus, select.is-invalid:focus, textarea.is-invalid:focus {
 select option {
   background-color: var(--card-bg) !important;
   color: var(--text-color) !important;
+}
+
+/* Specific styling for Teachers Carousel filters */
+select.teacher-filter-select {
+  background-color: var(--teacher-control-bg) !important;
+  color: var(--teacher-control-text) !important;
+  border: 2px solid var(--teacher-control-border) !important;
+}
+select.teacher-filter-select option {
+  background-color: var(--teacher-control-bg) !important;
+  color: var(--teacher-control-text) !important;
+}
+
+/* Smooth transition when toggling themes */
+.teacher-theme-transition {
+  transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              background-image 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              color 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              fill 250ms cubic-bezier(0.4, 0, 0.2, 1),
+              stroke 250ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Form labels visibility assurance */

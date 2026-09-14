@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ensureHttps } from '../../utils/urls'
 
-interface TeacherCardProps {
+export interface TeacherCardProps {
   id: number
   name: string
   subject: string
@@ -14,6 +14,7 @@ interface TeacherCardProps {
   studentsCount?: number
   slug?: string
   teaching_mode?: string
+  className?: string
 }
 
 const SUBJECTS_TRANSLATION: Record<string, string> = {
@@ -25,6 +26,13 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   science: 'العلوم',
   arabic: 'اللغة العربية',
   english: 'اللغة الإنجليزية',
+  french: 'اللغة الفرنسية',
+  german: 'اللغة الألمانية',
+  history: 'التاريخ',
+  geography: 'الجغرافيا',
+  philosophy: 'الفلسفة والمنطق',
+  psychology: 'علم النفس والاجتماع',
+  geology: 'الجيولوجيا',
 }
 
 export default function TeacherCard({
@@ -38,107 +46,178 @@ export default function TeacherCard({
   studentsCount,
   slug,
   teaching_mode,
+  className = '',
 }: TeacherCardProps) {
   const displaySubject = subject
     ? subject.split(',').map((s) => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ')
     : ''
 
-  let teachingModeBadge = null;
+  let teachingModeBadge = null
   if (teaching_mode === 'online') {
     teachingModeBadge = (
-      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
-        <span>🟢</span>
+      <span
+        style={{
+          backgroundColor: 'var(--teacher-badge-online-bg)',
+          color: 'var(--teacher-badge-online-text)',
+          borderColor: 'var(--teacher-badge-online-border)',
+        }}
+        className="teacher-theme-transition absolute top-3.5 right-3.5 px-3 py-1 border text-[11px] font-black rounded-full shadow-sm flex items-center gap-1.5 backdrop-blur-md z-10"
+      >
+        <span
+          style={{ backgroundColor: 'var(--teacher-badge-online-pulse)' }}
+          className="w-2 h-2 rounded-full animate-pulse"
+        />
         <span>أونلاين</span>
       </span>
-    );
+    )
   } else if (teaching_mode === 'center') {
     teachingModeBadge = (
-      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-[10px] text-amber-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
+      <span
+        style={{
+          backgroundColor: 'var(--teacher-badge-center-bg)',
+          color: 'var(--teacher-badge-center-text)',
+          borderColor: 'var(--teacher-badge-center-border)',
+        }}
+        className="teacher-theme-transition absolute top-3.5 right-3.5 px-3 py-1 border text-[11px] font-black rounded-full shadow-sm flex items-center gap-1.5 backdrop-blur-md z-10"
+      >
         <span>🏫</span>
         <span>سنتر</span>
       </span>
-    );
+    )
   } else if (teaching_mode === 'both') {
     teachingModeBadge = (
-      <span className="absolute top-3.5 left-3.5 px-2.5 py-1 bg-purple-500/10 border border-purple-500/30 text-[10px] text-purple-400 font-black rounded-full flex items-center gap-1 z-10 backdrop-blur-md">
-        <span>🟣</span>
+      <span
+        style={{
+          backgroundColor: 'var(--teacher-badge-both-bg)',
+          color: 'var(--teacher-badge-both-text)',
+          borderColor: 'var(--teacher-badge-both-border)',
+        }}
+        className="teacher-theme-transition absolute top-3.5 right-3.5 px-3 py-1 border text-[11px] font-black rounded-full shadow-sm flex items-center gap-1.5 backdrop-blur-md z-10"
+      >
+        <span
+          style={{ backgroundColor: 'var(--teacher-badge-both-dot)' }}
+          className="w-2 h-2 rounded-full"
+        />
         <span>أونلاين + سنتر</span>
       </span>
-    );
+    )
   }
 
+  const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || 'Teacher')}&backgroundColor=6d5dfc,8b5cf6,4338ca,312e81&textColor=ffffff&fontSize=42`
+
   return (
-    <motion.div 
-      whileHover={{ y: -5, scale: 1.01 }}
-      transition={{ type: "spring", stiffness: 350, damping: 25 }}
-      className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 text-center space-y-4 hover:border-brand-primary/40 hover:shadow-xl hover:shadow-[0_0_30px_var(--glow-color)] transition-all duration-300 flex flex-col justify-between h-full"
+    <motion.div
+      whileHover={{ y: -6 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+      data-teacher-id={id}
+      style={{
+        backgroundColor: 'var(--teacher-card-bg)',
+        borderColor: 'var(--teacher-card-border)',
+        boxShadow: 'var(--teacher-card-shadow)',
+      }}
+      className={`teacher-theme-transition group relative rounded-[26px] border hover:shadow-[0_16px_36px_rgba(109,93,252,0.18)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-[440px] sm:h-[465px] w-full select-none ${className}`}
+      dir="rtl"
     >
-      {teachingModeBadge}
-      <div className="absolute top-0 right-0 w-24 h-24 bg-brand-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-brand-primary/20 transition-all"></div>
-      
-      <div className="space-y-4 flex flex-col items-center w-full relative z-10">
-        {/* Avatar */}
-        <div className="h-24 w-24 rounded-full border-2 border-slate-700/60 group-hover:border-brand-primary transition-all duration-300 overflow-hidden bg-brand-surface shadow-lg relative shrink-0">
-          <img 
-            src={ensureHttps(avatar) || `https://api.dicebear.com/7.x/initials/svg?seed=${name}`} 
-            alt={name} 
-            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${name}`
-            }}
-          />
-        </div>
-        
-        {/* Info */}
-        <div className="space-y-2 w-full">
-          <h3 className="font-black text-base text-foreground group-hover:text-brand-primary transition-colors duration-200">
-            {name}
-          </h3>
-          <div>
-            <span className="inline-block px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-[11px] text-brand-primary font-black rounded-full shadow-sm">
-              مدرس {displaySubject}
-            </span>
-          </div>
-          
-          {experience && (
-            <div className="text-[11px] text-slate-300 font-bold px-3 py-1 bg-slate-900/60 border border-slate-800 rounded-lg inline-block shadow-sm mt-1">
-              {experience}
-            </div>
-          )}
-          
-          {bio && (
-            <p className="text-xs text-text-secondary font-medium leading-relaxed mt-2 line-clamp-2 min-h-[36px] opacity-90">
-              {bio}
-            </p>
-          )}
-        </div>
+      {/* 1. Large Portrait Image Area with Soft Brand Gradient */}
+      <div
+        style={{ background: 'var(--teacher-card-header-bg)' }}
+        className="teacher-theme-transition relative w-full h-[230px] sm:h-[250px] overflow-hidden shrink-0"
+      >
+        {teachingModeBadge}
+        <img
+          src={ensureHttps(avatar) || fallbackAvatar}
+          alt={name}
+          className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+          onError={(e) => {
+            ;(e.target as HTMLImageElement).src = fallbackAvatar
+          }}
+          loading="lazy"
+        />
+        {/* Subtle soft gradient overlay at bottom of image */}
+        <div
+          style={{ background: 'var(--teacher-card-img-overlay)' }}
+          className="teacher-theme-transition absolute inset-0 pointer-events-none"
+        />
       </div>
 
-      {/* Stats and Action */}
-      <div className="mt-4 pt-4 border-t border-[var(--border-color)] w-full space-y-3.5 relative z-10">
-        {studentsCount !== undefined ? (
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-text-secondary font-black bg-slate-900/30 p-2.5 rounded-2xl border border-slate-800/60">
-            <div className="space-y-0.5 border-l border-slate-800">
-              <div className="text-foreground text-sm font-black text-brand-primary">{coursesCount}</div>
-              <div className="text-[10px] opacity-80">كورسات مفعّلة</div>
-            </div>
-            <div className="space-y-0.5">
-              <div className="text-foreground text-sm font-black text-emerald-400">{studentsCount}</div>
-              <div className="text-[10px] opacity-80">طالب نشط</div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[11px] text-text-secondary font-black text-center bg-slate-900/30 p-2 rounded-xl border border-slate-800/60">
-            عدد الكورسات المتاحة: <span className="text-foreground">{coursesCount}</span>
-          </div>
-        )}
+      {/* 2. Middle Content Area */}
+      <div
+        style={{ backgroundColor: 'var(--teacher-card-bg)' }}
+        className="teacher-theme-transition p-4 sm:p-5 flex flex-col justify-between flex-grow text-center space-y-2.5"
+      >
+        <div className="space-y-2">
+          {/* Teacher Name */}
+          <h3
+            style={{ color: 'var(--teacher-card-name)' }}
+            className="teacher-theme-transition font-black text-lg sm:text-xl group-hover:!text-[#6D5DFC] transition-colors duration-200 line-clamp-1"
+          >
+            {name}
+          </h3>
 
-        <Link 
-          to={`/teacher/${slug || id}`} 
-          className="block w-full py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-center rounded-xl text-xs font-black shadow-md shadow-brand-primary/20 hover:shadow-brand-primary/40 active:scale-95 transition-all duration-200 cursor-pointer"
-        >
-          عرض الملف الشخصي
-        </Link>
+          {/* Teacher Subject / Specialization */}
+          <div className="flex justify-center">
+            <span
+              style={{
+                backgroundColor: 'var(--teacher-spec-bg)',
+                borderColor: 'var(--teacher-spec-border)',
+                color: 'var(--teacher-spec-text)',
+              }}
+              className="teacher-theme-transition inline-block px-3.5 py-1 border text-xs sm:text-[13px] font-black rounded-full shadow-xs"
+            >
+              مدرس {displaySubject || 'المادة'}
+            </span>
+          </div>
+
+          {/* Secondary Info / Metadata with strong contrast */}
+          <div className="flex items-center justify-center gap-2 text-xs sm:text-[13px] font-bold min-h-[20px]">
+            {coursesCount > 0 && (
+              <span style={{ color: 'var(--teacher-meta-primary)' }} className="teacher-theme-transition font-black">
+                {coursesCount} كورس متاح
+              </span>
+            )}
+            {coursesCount > 0 && experience && (
+              <span style={{ color: 'var(--teacher-meta-dot)' }} className="teacher-theme-transition font-black">
+                •
+              </span>
+            )}
+            {experience && (
+              <span style={{ color: 'var(--teacher-meta-secondary)' }} className="teacher-theme-transition">
+                {experience}
+              </span>
+            )}
+            {!coursesCount && !experience && bio && (
+              <span style={{ color: 'var(--teacher-meta-secondary)' }} className="teacher-theme-transition line-clamp-1 font-bold">
+                {bio}
+              </span>
+            )}
+            {studentsCount !== undefined && studentsCount > 0 && (
+              <>
+                <span style={{ color: 'var(--teacher-meta-dot)' }} className="teacher-theme-transition font-black">
+                  •
+                </span>
+                <span style={{ color: 'var(--teacher-meta-students)' }} className="teacher-theme-transition font-black">
+                  {studentsCount} طالب
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 3. CTA Button - Brand Primary Purple with High Contrast */}
+        <div className="pt-2">
+          <Link
+            to={`/teacher/${slug || id}`}
+            data-testid="cta-profile-button"
+            style={{
+              backgroundColor: 'var(--teacher-cta-bg)',
+              color: 'var(--teacher-cta-text)',
+              boxShadow: 'var(--teacher-cta-shadow)',
+            }}
+            className="teacher-theme-transition block w-full py-2.5 sm:py-3 hover:!bg-[#5B4AE3] text-center rounded-xl text-xs sm:text-sm font-black active:scale-98 transition-all duration-200 cursor-pointer"
+          >
+            عرض الملف الشخصي
+          </Link>
+        </div>
       </div>
     </motion.div>
   )
