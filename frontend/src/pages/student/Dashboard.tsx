@@ -36,7 +36,7 @@ import {
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import CourseCard from '../../components/ui/CourseCard'
-import TeacherCard from '../../components/ui/TeacherCard'
+import TeachersCarousel, { type TeacherItem } from '../../components/ui/TeachersCarousel'
 import { useAuthStore } from '../../store/authStore'
 import { useTaxonomyStore } from '../../store/taxonomyStore'
 import { DashboardSkeleton } from '../../components/ui/Skeleton'
@@ -140,17 +140,6 @@ interface DashboardData {
   }>
 }
 
-interface Teacher {
-  id: number
-  name: string
-  subject: string
-  avatar?: string
-  courses_count: number
-  published_courses_count?: number
-  experience?: string
-  teaching_mode?: 'online' | 'center' | 'both'
-}
-
 interface AvailableCourse {
   id: number
   title: string
@@ -225,7 +214,7 @@ export default function StudentDashboard() {
   const { departments, fetchTaxonomy } = useTaxonomyStore()
   const navigate = useNavigate()
   const [dbData, setDbData] = React.useState<DashboardData | null>(null)
-  const [teachers, setTeachers] = React.useState<Teacher[]>([])
+  const [teachers, setTeachers] = React.useState<TeacherItem[]>([])
   const [availableCourses, setAvailableCourses] = React.useState<AvailableCourse[]>([])
   const [recommendedData, setRecommendedData] = React.useState<{
     recommended: AvailableCourse[]
@@ -319,12 +308,6 @@ export default function StudentDashboard() {
   const safeLatest = Array.isArray(recommendedData?.latest) ? recommendedData.latest : []
 
   // Filter logic using safe arrays
-  const filteredTeachers = safeTeachers.filter(t => {
-    const matchesSubject = selectedSubject === 'all' || t.subject === selectedSubject
-    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesSubject && matchesSearch
-  })
-
   const filteredCourses = safeAvailableCourses.filter(c => {
     const matchesSubject = selectedSubject === 'all' || c.subject === selectedSubject
     const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -624,40 +607,21 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* ====================================
-            5. FEATURED TEACHERS SECTION
-            ==================================== */}
-        <div className="space-y-6">
-          <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-            <span>المعلمون المميزون</span>
-            <span className="text-[10px] text-slate-400 font-light mt-1">شاهد شروحات نخبة من المحاضرين</span>
-          </h2>
+      </div>
 
-          {filteredTeachers.length === 0 ? (
-            <div className="bg-brand-card border border-border-color rounded-3xl p-12 text-center text-slate-500 font-light text-xs">لا يوجد معلمون مسجلون يطابقون خيارات التصفية المدخلة.</div>
-          ) : (
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
-            >
-              {filteredTeachers.map((teacher) => (
-                <motion.div variants={cardItemVariants} key={teacher.id}>
-                  <TeacherCard
-                    id={teacher.id}
-                    name={teacher.name}
-                    subject={teacher.subject}
-                    avatar={teacher.avatar}
-                    experience={teacher.experience}
-                    coursesCount={teacher.published_courses_count || 0}
-                    teaching_mode={teacher.teaching_mode}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </div>
+      {/* ====================================
+          5. FEATURED TEACHERS SECTION (HOMEPAGE CAROUSEL PARITY)
+          ==================================== */}
+      <TeachersCarousel
+        teachers={safeTeachers}
+        loading={loading}
+        title="هيئة التدريس والنخبة"
+        subtitle="كبار معلمي وموجهي المواد بمصر والخبراء في مجالات التكنولوجيا والأعمال"
+        badge="👨‍🏫 الكادر التعليمي والخبراء"
+        showFilters={true}
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
 
         {/* ====================================
             6. STUDENT COURSE RECOMMENDATIONS
