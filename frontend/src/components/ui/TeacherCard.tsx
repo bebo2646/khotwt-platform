@@ -35,6 +35,15 @@ const SUBJECTS_TRANSLATION: Record<string, string> = {
   geology: 'الجيولوجيا',
 }
 
+function getTeacherInitials(name: string): string {
+  if (!name) return 'م'
+  const clean = name.replace(/^(أستاذة?|دكتور(?:ة)?|مستر|مس|باشمهندس|مهندس(?:ة)?|أ\.|د\.|م\.)\s+/i, '').trim()
+  const parts = clean.split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return name.slice(0, 2)
+  if (parts.length === 1) return parts[0].slice(0, 2)
+  return `${parts[0][0]} ${parts[1][0]}`
+}
+
 export default function TeacherCard({
   id,
   name,
@@ -48,6 +57,10 @@ export default function TeacherCard({
   teaching_mode,
   className = '',
 }: TeacherCardProps) {
+  const [imageError, setImageError] = React.useState(false)
+  const hasAvatar = Boolean(avatar && typeof avatar === 'string' && avatar.trim().length > 0)
+  const showRealImage = hasAvatar && !imageError
+
   const displaySubject = subject
     ? subject.split(',').map((s) => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ')
     : ''
@@ -103,8 +116,6 @@ export default function TeacherCard({
     )
   }
 
-  const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || 'Teacher')}&backgroundColor=6d5dfc,8b5cf6,4338ca,312e81&textColor=ffffff&fontSize=42`
-
   return (
     <motion.div
       whileHover={{ y: -6 }}
@@ -115,25 +126,34 @@ export default function TeacherCard({
         borderColor: 'var(--teacher-card-border)',
         boxShadow: 'var(--teacher-card-shadow)',
       }}
-      className={`teacher-theme-transition group relative rounded-[26px] border hover:shadow-[0_16px_36px_rgba(109,93,252,0.18)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-[440px] sm:h-[465px] w-full select-none ${className}`}
+      className={`teacher-theme-transition group relative rounded-[26px] border hover:shadow-[0_16px_36px_rgba(109,93,252,0.18)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-[475px] sm:h-[505px] w-full select-none ${className}`}
       dir="rtl"
     >
-      {/* 1. Large Portrait Image Area with Soft Brand Gradient */}
+      {/* 1. Large Portrait Image Area with Natural Composition */}
       <div
         style={{ background: 'var(--teacher-card-header-bg)' }}
-        className="teacher-theme-transition relative w-full h-[230px] sm:h-[250px] overflow-hidden shrink-0"
+        className="teacher-theme-transition relative w-full h-[265px] sm:h-[290px] overflow-hidden shrink-0"
       >
         {teachingModeBadge}
-        <img
-          src={ensureHttps(avatar) || fallbackAvatar}
-          alt={name}
-          className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-          onError={(e) => {
-            ;(e.target as HTMLImageElement).src = fallbackAvatar
-          }}
-          loading="lazy"
-        />
-        {/* Subtle soft gradient overlay at bottom of image */}
+        {showRealImage ? (
+          <img
+            src={ensureHttps(avatar)}
+            alt={name}
+            className="w-full h-full object-cover object-[center_20%] transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImageError(true)}
+            loading="eager"
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center select-none relative"
+            style={{ background: 'var(--teacher-card-header-bg)' }}
+          >
+            <span className="text-4xl sm:text-5xl font-black tracking-wider text-slate-200/90 drop-shadow-md">
+              {getTeacherInitials(name)}
+            </span>
+          </div>
+        )}
+        {/* Subtle soft gradient overlay at bottom of image for seamless transition to body */}
         <div
           style={{ background: 'var(--teacher-card-img-overlay)' }}
           className="teacher-theme-transition absolute inset-0 pointer-events-none"

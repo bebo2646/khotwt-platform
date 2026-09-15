@@ -182,7 +182,7 @@
   --teacher-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   --teacher-card-shadow-hover: 0 16px 36px rgba(109, 93, 252, 0.25);
   --teacher-card-header-bg: linear-gradient(180deg, #1B2C52 0%, #162545 60%, #142240 100%);
-  --teacher-card-img-overlay: linear-gradient(to top, rgba(20, 34, 64, 0.9) 0%, transparent 60%);
+  --teacher-card-img-overlay: linear-gradient(to top, rgba(20, 34, 64, 0.85) 0%, rgba(20, 34, 64, 0.2) 12%, transparent 24%);
   --teacher-card-name: #F8FAFC;
   --teacher-card-name-hover: #A5B4FC;
   
@@ -319,7 +319,7 @@
   --teacher-card-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
   --teacher-card-shadow-hover: 0 16px 36px rgba(109, 93, 252, 0.12);
   --teacher-card-header-bg: linear-gradient(180deg, #F5F3FF 0%, #F8FAFC 60%, #EDF2F7 100%);
-  --teacher-card-img-overlay: linear-gradient(to top, rgba(15, 23, 42, 0.08) 0%, transparent 60%);
+  --teacher-card-img-overlay: linear-gradient(to top, rgba(255, 255, 255, 0.85) 0%, rgba(255, 255, 255, 0.2) 12%, transparent 24%);
   --teacher-card-name: #0B1E48;
   --teacher-card-name-hover: #6D5DFC;
   
