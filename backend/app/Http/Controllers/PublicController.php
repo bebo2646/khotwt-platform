@@ -674,30 +674,76 @@ class PublicController extends Controller
 
                             $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured, $examAttempts) {
                                 $attempts = isset($examAttempts[$exam->id]) ? $examAttempts[$exam->id] : collect();
-                                $completedAttempt = $attempts->where('status', 'completed')->first();
-                                $inProgressAttempt = $attempts->where('status', 'started')->first();
+                                $now = \Carbon\Carbon::now();
+                                $lastAttempt = $attempts->sortByDesc('id')->first();
+                                $lastStatus = $lastAttempt ? $lastAttempt->status : null;
 
-                                $status = 'not_started';
-                                $score = null;
-                                if ($completedAttempt) {
-                                    $status = 'completed';
-                                    $score = $completedAttempt->score;
-                                } elseif ($inProgressAttempt) {
-                                    $status = 'in_progress';
+                                if ($lastAttempt && $lastStatus === 'started' && $lastAttempt->expires_at && $now->gt($lastAttempt->expires_at)) {
+                                    $lastStatus = 'expired';
                                 }
+
+                                if ($lastAttempt && $lastAttempt->isTerminatedForCheating()) {
+                                    $lastStatus = 'terminated_for_cheating';
+                                }
+
+                                $window = $exam->getAvailabilityWindow();
+                                $deadlinePassed = $window['ends_at'] ? $now->gt($window['ends_at']) : false;
+
+                                $attemptsUsed = $attempts->count();
+                                $maxAttempts = (int)($exam->max_attempts ?: 1);
+                                $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
+
+                                if ($attemptsUsed === 0) {
+                                    $status = $deadlinePassed ? 'expired' : 'not_started';
+                                } else {
+                                    if ($lastStatus === 'terminated_for_cheating') {
+                                        $status = 'terminated_for_cheating';
+                                    } elseif ($lastStatus === 'graded') {
+                                        $status = 'graded';
+                                    } elseif ($lastStatus === 'submitted') {
+                                        $status = 'submitted';
+                                    } elseif ($lastStatus === 'started') {
+                                        $status = $deadlinePassed ? 'expired' : 'in_progress';
+                                    } elseif ($lastStatus === 'expired') {
+                                        $status = 'expired';
+                                    } else {
+                                        $status = 'not_started';
+                                    }
+                                }
+
+                                $score = $lastAttempt ? $lastAttempt->score : null;
 
                                 return [
                                     'id' => $exam->id,
                                     'title' => $exam->title,
                                     'type' => $exam->type,
+                                    'homework_type' => $exam->homework_type ?: 'normal',
                                     'duration_minutes' => $exam->duration_minutes,
                                     'time_limit_minutes' => $exam->time_limit_minutes,
                                     'questions_count' => $exam->questions()->count(),
+                                    'max_score' => $exam->max_score,
+                                    'passing_score' => $exam->passing_score,
+                                    'max_attempts' => $maxAttempts,
+                                    'attempts_count' => $attemptsUsed,
+                                    'last_attempt' => $lastAttempt ? [
+                                        'id' => $lastAttempt->id,
+                                        'status' => $lastStatus,
+                                        'score' => $lastAttempt->score,
+                                        'is_suspicious' => (bool)$lastAttempt->is_suspicious,
+                                        'submitted_at' => $lastAttempt->submitted_at?->toIso8601String(),
+                                        'created_at' => $lastAttempt->created_at?->toIso8601String(),
+                                    ] : null,
+                                    'best_attempt' => $attempts->whereNotNull('score')->sortByDesc('score')->first() ? [
+                                        'score' => $attempts->whereNotNull('score')->max('score'),
+                                    ] : null,
                                     'is_locked' => !$secured,
                                     'progress' => [
                                         'status' => $status,
                                         'score' => $score,
-                                        'attempts_count' => $attempts->count(),
+                                        'attempts_count' => $attemptsUsed,
+                                        'attempts_used' => $attemptsUsed,
+                                        'attempts_remaining' => $attemptsRemaining,
+                                        'last_attempt_status' => $lastStatus,
                                     ]
                                 ];
                             });
@@ -1068,12 +1114,17 @@ class PublicController extends Controller
                     $lessonData['exams'] = $lesson->exams->map(function ($exam) use ($secured, $examAttempts) {
                         $attempts = isset($examAttempts[$exam->id]) ? $examAttempts[$exam->id] : collect([]);
                         
-                        $attemptsUsed = $attempts->count();
-                        $maxAttempts = $exam->max_attempts ?: 1;
-                        $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
-
-                        $lastAttempt = $attempts->sortByDesc('created_at')->first();
+                        $now = \Carbon\Carbon::now();
+                        $lastAttempt = $attempts->sortByDesc('id')->first();
                         $lastStatus = $lastAttempt ? $lastAttempt->status : null; // started, submitted, graded
+
+                        if ($lastAttempt && $lastStatus === 'started' && $lastAttempt->expires_at && $now->gt($lastAttempt->expires_at)) {
+                            $lastStatus = 'expired';
+                        }
+
+                        if ($lastAttempt && $lastAttempt->isTerminatedForCheating()) {
+                            $lastStatus = 'terminated_for_cheating';
+                        }
                         
                         // Calculate highest score or last attempt score
                         $score = $lastAttempt ? $lastAttempt->score : null;
@@ -1081,16 +1132,12 @@ class PublicController extends Controller
                         $isHomework = $exam->type === 'homework';
                         
                         // Check if deadline has passed
-                        $deadlinePassed = false;
-                        if ($exam->close_date) {
-                            $closeDateTime = \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'));
-                            if (\Carbon\Carbon::now()->gt($closeDateTime)) {
-                                $deadlinePassed = true;
-                            }
-                        }
-                        if ($exam->submission_deadline && \Carbon\Carbon::now()->gt($exam->submission_deadline)) {
-                            $deadlinePassed = true;
-                        }
+                        $window = $exam->getAvailabilityWindow();
+                        $deadlinePassed = $window['ends_at'] ? $now->gt($window['ends_at']) : false;
+
+                        $attemptsUsed = $attempts->count();
+                        $maxAttempts = (int)($exam->max_attempts ?: 1);
+                        $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
 
                         // Determine status
                         if ($attemptsUsed === 0) {
@@ -1100,7 +1147,9 @@ class PublicController extends Controller
                                 $status = 'not_started'; // لم يبدأ
                             }
                         } else {
-                            if ($lastStatus === 'graded') {
+                            if ($lastStatus === 'terminated_for_cheating') {
+                                $status = 'terminated_for_cheating';
+                            } elseif ($lastStatus === 'graded') {
                                 $status = 'graded'; // تم التصحيح / تمت المراجعة
                             } elseif ($lastStatus === 'submitted') {
                                 $status = 'submitted'; // تم التسليم / قيد التصحيح
@@ -1110,6 +1159,8 @@ class PublicController extends Controller
                                 } else {
                                     $status = 'in_progress'; // جاري الحل
                                 }
+                            } elseif ($lastStatus === 'expired') {
+                                $status = 'expired';
                             } else {
                                 $status = 'not_started';
                             }
@@ -1125,10 +1176,23 @@ class PublicController extends Controller
                             'questions_count' => $exam->questions()->count(),
                             'max_score' => $exam->max_score,
                             'passing_score' => $exam->passing_score,
-                            'max_attempts' => $exam->max_attempts,
+                            'max_attempts' => $maxAttempts,
+                            'attempts_count' => $attemptsUsed,
+                            'last_attempt' => $lastAttempt ? [
+                                'id' => $lastAttempt->id,
+                                'status' => $lastStatus,
+                                'score' => $lastAttempt->score,
+                                'is_suspicious' => (bool)$lastAttempt->is_suspicious,
+                                'submitted_at' => $lastAttempt->submitted_at?->toIso8601String(),
+                                'created_at' => $lastAttempt->created_at?->toIso8601String(),
+                            ] : null,
+                            'best_attempt' => $attempts->whereNotNull('score')->sortByDesc('score')->first() ? [
+                                'score' => $attempts->whereNotNull('score')->max('score'),
+                            ] : null,
                             'open_date' => $exam->open_date ? $exam->open_date->toDateString() : ($exam->start_date ? $exam->start_date->toDateString() : null),
                             'close_date' => $exam->close_date ? $exam->close_date->toDateString() : ($exam->end_date ? $exam->end_date->toDateString() : null),
                             'progress' => [
+                                'attempts_count' => $attemptsUsed,
                                 'attempts_used' => $attemptsUsed,
                                 'attempts_remaining' => $attemptsRemaining,
                                 'last_attempt_status' => $lastStatus,

@@ -353,7 +353,7 @@ class ExamAvailabilityAndCheatingTest extends TestCase
         ]);
 
         // First attempt: should succeed
-        $startRes1 = $this->actingAs($student, 'sanctum')->getJson("/api/exams/{$exam->id}");
+        $startRes1 = $this->actingAs($student, 'sanctum')->postJson("/api/exams/{$exam->id}/start");
         $startRes1->assertStatus(200);
 
         // Submit the first attempt
@@ -368,7 +368,7 @@ class ExamAvailabilityAndCheatingTest extends TestCase
         $submitRes->assertStatus(200);
 
         // Second attempt: should be rejected with 403 ATTEMPTS_LIMIT_REACHED
-        $startRes2 = $this->actingAs($student, 'sanctum')->getJson("/api/exams/{$exam->id}");
+        $startRes2 = $this->actingAs($student, 'sanctum')->postJson("/api/exams/{$exam->id}/start");
         $startRes2->assertStatus(403);
         $startRes2->assertJson([
             'error_code' => 'ATTEMPTS_LIMIT_REACHED',

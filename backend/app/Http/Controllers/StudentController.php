@@ -2157,14 +2157,164 @@ class StudentController extends Controller
     /**
      * Start/Load an exam.
      */
+    /**
+     * Read-only preflight endpoint for exam rules screen.
+     * MUST NOT mutate the database or create an attempt.
+     */
+    public function showExam(Request $request, $examId)
+    {
+        $user = $request->user();
+        $exam = Exam::with('questions')->findOrFail($examId);
+
+        $lesson = $exam->lesson;
+        $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
+        $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
+
+        $hasAccess = \App\Services\StudentAccessService::hasAccess($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
+        if (!$hasAccess) {
+            return response()->json(['message' => 'غير مصرح لك بأداء هذا الامتحان. يرجى الاشتراك أولاً.'], 403);
+        }
+
+        $context = \App\Services\StudentAccessService::resolveProgressContext($user->id, $lesson->unit->course_id, $packageIdParam, $lesson->id, $courseIdParam);
+        $contextCourseId = $context['course_id'];
+        $contextCourse = $contextCourseId ? \App\Models\Course::find($contextCourseId) : $lesson->unit->course;
+        if ($contextCourse && $contextCourse->hasExceededViewLimitForStudent($user->id)) {
+            return response()->json(['message' => 'لقد انتهت عدد المشاهدات المسموح بها لهذا الكورس. لا يمكنك أداء هذا الامتحان.'], 403);
+        }
+
+        $allAttempts = StudentExam::where('student_id', $user->id)
+            ->where('exam_id', $examId)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $activeAttempt = $allAttempts->firstWhere('status', 'started');
+
+        if ($activeAttempt) {
+            if ($activeAttempt->isTerminatedForCheating()) {
+                return response()->json([
+                    'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
+                    'terminated' => true,
+                    'error_code' => 'TERMINATED_FOR_CHEATING',
+                    'attempt_id' => $activeAttempt->id,
+                ], 403);
+            }
+
+            $now = \Carbon\Carbon::now();
+            $window = $exam->getAvailabilityWindow();
+            $endsAt = $window['ends_at'];
+
+            if (!$activeAttempt->expires_at && ($exam->time_limit_minutes || $endsAt)) {
+                $timing = $exam->calculateEffectiveTiming(
+                    \Carbon\Carbon::parse($activeAttempt->started_at ?? $now),
+                    $activeAttempt->duration_minutes ?: $exam->time_limit_minutes
+                );
+                $activeAttempt->expires_at = $timing['expires_at'];
+                if (!$activeAttempt->duration_minutes && $timing['effective_duration_minutes']) {
+                    $activeAttempt->duration_minutes = $timing['effective_duration_minutes'];
+                }
+                $activeAttempt->save();
+            } elseif ($activeAttempt->expires_at && $endsAt && $activeAttempt->expires_at->gt($endsAt)) {
+                // Ensure existing active attempt never exceeds global availability deadline
+                $activeAttempt->expires_at = $endsAt->copy();
+                $activeAttempt->save();
+            }
+
+            if ($activeAttempt->expires_at && $now->gt($activeAttempt->expires_at)) {
+                $this->finalizeExpiredCourseAttempt($activeAttempt, $exam);
+                $activeAttempt = null;
+            } else {
+                // Resume existing active attempt
+                return $this->formatExamAttemptResponse($exam, $activeAttempt, $user, $request, true);
+            }
+        }
+
+        $now = \Carbon\Carbon::now();
+        $consumedCount = $allAttempts->filter(function ($att) use ($now) {
+            return in_array($att->status, ['submitted', 'graded', 'terminated_for_cheating'])
+                || $att->isTerminatedForCheating()
+                || ($att->status === 'started' && $att->expires_at && $now->gt($att->expires_at));
+        })->count();
+
+        $maxAttempts = (int)($exam->max_attempts ?: 1);
+        if ($consumedCount >= $maxAttempts) {
+            $lastAttempt = $allAttempts->first();
+            return response()->json([
+                'message' => 'لقد استنفدت الحد الأقصى للمحاولات المسموح بها لهذا الامتحان (' . $maxAttempts . ').',
+                'error_code' => 'ATTEMPTS_LIMIT_REACHED',
+                'max_attempts' => $maxAttempts,
+                'attempts_used' => $consumedCount,
+                'attempts_remaining' => 0,
+                'attempt_id' => $lastAttempt?->id,
+            ], 403);
+        }
+
+        $avail = $exam->getAvailabilityStatus();
+        if (!$avail['is_available']) {
+            return response()->json([
+                'message' => $avail['message'],
+                'status' => $avail['status'],
+                'error_code' => $avail['error_code'],
+                'open_datetime' => $avail['open_datetime'] ?? null,
+                'close_datetime' => $avail['close_datetime'] ?? null,
+                'starts_at' => $avail['starts_at'] ?? null,
+                'ends_at' => $avail['ends_at'] ?? null,
+                'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
+                'formatted_dates' => $avail['formatted_dates'] ?? null,
+            ], 403);
+        }
+
+        if ($exam->is_paid) {
+            $hasPurchased = \App\Models\ExamPurchase::where('student_id', $user->id)
+                ->where('exam_id', $examId)
+                ->exists();
+
+            if (!$hasPurchased && !$user->isAdmin()) {
+                return response()->json([
+                    'message' => 'هذا الامتحان مدفوع ويجب شراؤه أولاً.',
+                    'needs_purchase' => true,
+                    'price' => $exam->price,
+                ], 402);
+            }
+        }
+
+        // Return read-only preflight payload. Zero DB mutations!
+        return response()->json([
+            'has_active_attempt' => false,
+            'can_start' => true,
+            'attempt_id' => null,
+            'attempts_used' => $consumedCount,
+            'attempts_remaining' => max(0, $maxAttempts - $consumedCount),
+            'max_attempts' => $maxAttempts,
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+                'type' => $exam->type,
+                'homework_type' => $exam->homework_type ?: 'normal',
+                'time_limit_minutes' => $exam->time_limit_minutes,
+                'max_score' => $exam->max_score,
+                'questions_count' => $exam->questions->count(),
+                'allowed_violations' => $exam->allowed_violations ?? 3,
+                'auto_submit_on_violation' => (bool)($exam->auto_submit_on_violation ?? true),
+                'enable_fullscreen' => (bool)($exam->enable_fullscreen ?? true),
+                'enable_anti_tab_switching' => (bool)($exam->enable_anti_tab_switching ?? true),
+                'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
+                'close_datetime' => $avail['ends_at'] ?? ($exam->close_date ? \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'))->toIso8601String() : null),
+                'open_datetime' => $avail['starts_at'] ?? null,
+            ],
+            'questions' => [],
+            'existing_answers' => (object)[],
+        ]);
+    }
+
+    /**
+     * Authoritative start endpoint. Called when student explicitly accepts rules.
+     */
     public function startExam(Request $request, $examId)
     {
         $user = $request->user();
         $exam = Exam::with('questions')->findOrFail($examId);
         
         $lesson = $exam->lesson;
-        $courseId = $lesson->unit->course_id;
-
         $courseIdParam = $request->query('course_id') ?: $request->input('course_id');
         $packageIdParam = $request->query('package_id') ?: $request->input('package_id');
 
@@ -2211,9 +2361,22 @@ class StudentController extends Controller
 
                 // Check expiration
                 $now = \Carbon\Carbon::now();
-                if (!$activeAttempt->expires_at && $exam->time_limit_minutes) {
-                    $activeAttempt->expires_at = \Carbon\Carbon::parse($activeAttempt->started_at ?? $now)
-                        ->addMinutes($activeAttempt->duration_minutes ?: $exam->time_limit_minutes);
+                $window = $exam->getAvailabilityWindow();
+                $endsAt = $window['ends_at'];
+
+                if (!$activeAttempt->expires_at && ($exam->time_limit_minutes || $endsAt)) {
+                    $timing = $exam->calculateEffectiveTiming(
+                        \Carbon\Carbon::parse($activeAttempt->started_at ?? $now),
+                        $activeAttempt->duration_minutes ?: $exam->time_limit_minutes
+                    );
+                    $activeAttempt->expires_at = $timing['expires_at'];
+                    if (!$activeAttempt->duration_minutes && $timing['effective_duration_minutes']) {
+                        $activeAttempt->duration_minutes = $timing['effective_duration_minutes'];
+                    }
+                    $activeAttempt->save();
+                } elseif ($activeAttempt->expires_at && $endsAt && $activeAttempt->expires_at->gt($endsAt)) {
+                    // Ensure existing active attempt never exceeds global availability deadline
+                    $activeAttempt->expires_at = $endsAt->copy();
                     $activeAttempt->save();
                 }
 
@@ -2280,8 +2443,17 @@ class StudentController extends Controller
             }
 
             $startedAt = \Carbon\Carbon::now();
-            $durationMinutes = $exam->time_limit_minutes ?: null;
-            $expiresAt = $durationMinutes ? $startedAt->copy()->addMinutes($durationMinutes) : null;
+            $timing = $exam->calculateEffectiveTiming($startedAt, $exam->time_limit_minutes ?: null);
+
+            // If the deadline is already passed or effective duration is 0, reject start
+            if ($timing['expires_at'] && $startedAt->gte($timing['expires_at'])) {
+                return response()->json([
+                    'message' => 'انتهت مدة إتاحة الامتحان.',
+                    'status' => 'expired',
+                    'error_code' => 'SCHEDULE_EXPIRED',
+                    'ends_at' => $timing['availability_end_at']?->toIso8601String(),
+                ], 403);
+            }
 
             $newAttempt = StudentExam::create([
                 'student_id' => $user->id,
@@ -2292,8 +2464,8 @@ class StudentController extends Controller
                 'lesson_id' => $contextLessonId,
                 'score' => null,
                 'started_at' => $startedAt,
-                'duration_minutes' => $durationMinutes,
-                'expires_at' => $expiresAt,
+                'duration_minutes' => $timing['effective_duration_minutes'],
+                'expires_at' => $timing['expires_at'],
             ]);
 
             return $newAttempt;
@@ -2305,6 +2477,18 @@ class StudentController extends Controller
 
         $attempt = $attemptOrResponse;
 
+        if ($user->role === 'student' && $attempt->wasRecentlyCreated) {
+            StudentActivityService::logExamEvent($user, $exam, 'started', $attempt, [], $request);
+        }
+
+        return $this->formatExamAttemptResponse($exam, $attempt, $user, $request, !$attempt->wasRecentlyCreated);
+    }
+
+    /**
+     * Formats an exam attempt response with randomized questions and timing.
+     */
+    private function formatExamAttemptResponse($exam, $attempt, $user, $request, $isResumed = false)
+    {
         // Persistent exam randomization (anti-cheating)
         if (!$attempt->shuffle_mapping) {
             $questionIds = $exam->questions->pluck('id')->toArray();
@@ -2382,23 +2566,31 @@ class StudentController extends Controller
             $answersFormatted[$ans->question_id] = $ans->answer_text;
         }
 
-        if ($user->role === 'student') {
-            StudentActivityService::logExamEvent($user, $exam, 'started', $attempt, [], $request);
-        }
-
         $serverNow = \Carbon\Carbon::now();
         $timeRemainingSeconds = null;
         if ($attempt->expires_at) {
             $timeRemainingSeconds = max(0, $serverNow->diffInSeconds($attempt->expires_at, false));
         }
 
+        $window = $exam->getAvailabilityWindow();
+        $endsAt = $window['ends_at'];
+        $configuredDurationMinutes = $exam->time_limit_minutes ?: null;
+        $configuredDurationSeconds = $configuredDurationMinutes ? $configuredDurationMinutes * 60 : null;
+        $effectiveDurationSeconds = ($attempt->expires_at && $attempt->started_at)
+            ? (int) max(0, $attempt->started_at->diffInSeconds($attempt->expires_at, false))
+            : $configuredDurationSeconds;
+        $effectiveDurationMinutes = $attempt->duration_minutes
+            ?: ($effectiveDurationSeconds ? (int) max(1, (int) ceil($effectiveDurationSeconds / 60)) : $configuredDurationMinutes);
+
         return response()->json([
+            'has_active_attempt' => true,
+            'is_resumed' => $isResumed,
             'attempt_id' => $attempt->id,
             'exam' => [
                 'id' => $exam->id,
                 'title' => $exam->title,
                 'type' => $exam->type,
-                'homework_type' => $exam->homework_type,
+                'homework_type' => $exam->homework_type ?: 'normal',
                 'time_limit_minutes' => $exam->time_limit_minutes,
                 'max_score' => $exam->max_score,
                 'allowed_violations' => $exam->allowed_violations ?? 3,
@@ -2406,9 +2598,14 @@ class StudentController extends Controller
                 'enable_fullscreen' => (bool)($exam->enable_fullscreen ?? true),
                 'enable_anti_tab_switching' => (bool)($exam->enable_anti_tab_switching ?? true),
                 'enable_copy_protection' => (bool)($exam->enable_copy_protection ?? true),
-                'close_datetime' => $exam->close_date ? \Carbon\Carbon::parse($exam->close_date->format('Y-m-d') . ' ' . ($exam->close_time ?: '23:59:59'))->toIso8601String() : null,
+                'close_datetime' => $endsAt ? $endsAt->toIso8601String() : null,
+                'open_datetime' => $window['starts_at'] ? $window['starts_at']->toIso8601String() : null,
             ],
             'started_at' => $attempt->started_at?->toIso8601String(),
+            'availability_end_at' => $endsAt?->toIso8601String(),
+            'duration_seconds' => $configuredDurationSeconds,
+            'effective_duration_seconds' => $effectiveDurationSeconds,
+            'effective_duration_minutes' => $effectiveDurationMinutes,
             'expires_at' => $attempt->expires_at?->toIso8601String(),
             'server_now' => $serverNow->toIso8601String(),
             'time_remaining_seconds' => $timeRemainingSeconds,

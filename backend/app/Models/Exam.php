@@ -149,6 +149,57 @@ class Exam extends Model
     }
 
     /**
+     * Calculate server-authoritative effective timing for an exam attempt:
+     * - effective_duration = MIN(configured_duration, remaining_time_until_availability_end)
+     * - expires_at = MIN(started_at + configured_duration, availability_end_at)
+     *
+     * @param \Carbon\Carbon $startedAt
+     * @param int|null $configuredDurationMinutes
+     * @return array
+     */
+    public function calculateEffectiveTiming(\Carbon\Carbon $startedAt, ?int $configuredDurationMinutes = null): array
+    {
+        $window = $this->getAvailabilityWindow();
+        $endsAt = $window['ends_at'] ? $window['ends_at']->copy() : null;
+
+        $durationMinutes = $configuredDurationMinutes !== null ? $configuredDurationMinutes : ($this->time_limit_minutes ?: null);
+        $nominalExpiresAt = $durationMinutes ? $startedAt->copy()->addMinutes($durationMinutes) : null;
+
+        $expiresAt = null;
+        if ($nominalExpiresAt && $endsAt) {
+            $expiresAt = $nominalExpiresAt->gt($endsAt) ? $endsAt : $nominalExpiresAt;
+        } elseif ($nominalExpiresAt) {
+            $expiresAt = $nominalExpiresAt;
+        } elseif ($endsAt) {
+            $expiresAt = $endsAt;
+        }
+
+        $durationSeconds = $durationMinutes ? $durationMinutes * 60 : null;
+        $effectiveDurationSeconds = null;
+        $effectiveDurationMinutes = null;
+
+        if ($expiresAt) {
+            $effectiveDurationSeconds = (int) max(0, $startedAt->diffInSeconds($expiresAt, false));
+            $effectiveDurationMinutes = $effectiveDurationSeconds > 0 ? (int) max(1, (int) ceil($effectiveDurationSeconds / 60)) : 0;
+        } elseif ($durationMinutes) {
+            $effectiveDurationSeconds = $durationSeconds;
+            $effectiveDurationMinutes = $durationMinutes;
+        }
+
+        return [
+            'started_at' => $startedAt,
+            'availability_end_at' => $endsAt,
+            'nominal_expires_at' => $nominalExpiresAt,
+            'expires_at' => $expiresAt,
+            'duration_minutes' => $durationMinutes,
+            'duration_seconds' => $durationSeconds,
+            'effective_duration_seconds' => $effectiveDurationSeconds,
+            'effective_duration_minutes' => $effectiveDurationMinutes,
+            'is_capped_by_deadline' => ($nominalExpiresAt && $endsAt && $nominalExpiresAt->gt($endsAt)),
+        ];
+    }
+
+    /**
      * Check if the exam is currently available to START by a student.
      * NOW < starts_at -> not_started
      * starts_at <= NOW <= ends_at -> available

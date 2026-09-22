@@ -306,9 +306,22 @@ class MonthlyExamsController extends Controller
             // If still started and not expired, resume active attempt
             if ($existingAttempt->status === 'started') {
                 $now = Carbon::now();
+                $window = $exam->getAvailabilityWindow();
+                $endsAt = $window['ends_at'];
+
                 if (!$existingAttempt->expires_at) {
-                    $existingAttempt->expires_at = Carbon::parse($existingAttempt->started_at ?? $now)
-                        ->addMinutes($existingAttempt->duration_minutes ?: ($exam->time_limit_minutes ?: 60));
+                    $timing = $exam->calculateEffectiveTiming(
+                        Carbon::parse($existingAttempt->started_at ?? $now),
+                        $existingAttempt->duration_minutes ?: ($exam->time_limit_minutes ?: 60)
+                    );
+                    $existingAttempt->expires_at = $timing['expires_at'];
+                    if (!$existingAttempt->duration_minutes && $timing['effective_duration_minutes']) {
+                        $existingAttempt->duration_minutes = $timing['effective_duration_minutes'];
+                    }
+                    $existingAttempt->save();
+                } elseif ($existingAttempt->expires_at && $endsAt && $existingAttempt->expires_at->gt($endsAt)) {
+                    // Ensure existing active attempt never exceeds global availability deadline
+                    $existingAttempt->expires_at = $endsAt->copy();
                     $existingAttempt->save();
                 }
 
@@ -358,7 +371,20 @@ class MonthlyExamsController extends Controller
         // Start new attempt
         $durationMinutes = $exam->time_limit_minutes ?: 60;
         $startedAt = Carbon::now();
-        $expiresAt = (clone $startedAt)->addMinutes($durationMinutes);
+        $timing = $exam->calculateEffectiveTiming($startedAt, $durationMinutes);
+
+        // If the deadline is already passed or effective duration is 0, reject start
+        if ($timing['expires_at'] && $startedAt->gte($timing['expires_at'])) {
+            return response()->json([
+                'message' => 'انتهت مدة إتاحة الامتحان.',
+                'status' => 'expired',
+                'error_code' => 'SCHEDULE_EXPIRED',
+                'ends_at' => $timing['availability_end_at']?->toIso8601String(),
+            ], 403);
+        }
+
+        $expiresAt = $timing['expires_at'];
+        $effectiveDurationMinutes = $timing['effective_duration_minutes'];
 
         // Prepare question order & randomization
         $questions = $exam->questions;
@@ -395,7 +421,7 @@ class MonthlyExamsController extends Controller
             'status' => 'started',
             'started_at' => $startedAt,
             'expires_at' => $expiresAt,
-            'duration_minutes' => $durationMinutes,
+            'duration_minutes' => $effectiveDurationMinutes,
             'shuffle_mapping' => $shuffleMapping,
             'cheat_violations_count' => 0,
             'violation_count' => 0,
@@ -436,9 +462,22 @@ class MonthlyExamsController extends Controller
             ->keyBy('question_id');
 
         $serverNow = Carbon::now();
+        $window = $exam->getAvailabilityWindow();
+        $endsAt = $window['ends_at'];
+
         if (!$studentExam->expires_at) {
-            $studentExam->expires_at = Carbon::parse($studentExam->started_at ?? $serverNow)
-                ->addMinutes($studentExam->duration_minutes ?: ($exam->time_limit_minutes ?: 60));
+            $timing = $exam->calculateEffectiveTiming(
+                Carbon::parse($studentExam->started_at ?? $serverNow),
+                $studentExam->duration_minutes ?: ($exam->time_limit_minutes ?: 60)
+            );
+            $studentExam->expires_at = $timing['expires_at'];
+            if (!$studentExam->duration_minutes && $timing['effective_duration_minutes']) {
+                $studentExam->duration_minutes = $timing['effective_duration_minutes'];
+            }
+            $studentExam->save();
+        } elseif ($studentExam->expires_at && $endsAt && $studentExam->expires_at->gt($endsAt)) {
+            // Ensure existing attempt never exceeds global availability deadline
+            $studentExam->expires_at = $endsAt->copy();
             $studentExam->save();
         }
 
@@ -446,6 +485,14 @@ class MonthlyExamsController extends Controller
         if ($serverNow->gt($studentExam->expires_at)) {
             $timeRemainingSeconds = 0;
         }
+
+        $configuredDurationMinutes = $exam->time_limit_minutes ?: 60;
+        $configuredDurationSeconds = $configuredDurationMinutes * 60;
+        $effectiveDurationSeconds = ($studentExam->expires_at && $studentExam->started_at)
+            ? (int) max(0, $studentExam->started_at->diffInSeconds($studentExam->expires_at, false))
+            : $configuredDurationSeconds;
+        $effectiveDurationMinutes = $studentExam->duration_minutes
+            ?: ($effectiveDurationSeconds ? (int) max(1, (int) ceil($effectiveDurationSeconds / 60)) : $configuredDurationMinutes);
 
         return response()->json([
             'attempt_id' => $studentExam->id,
@@ -461,8 +508,14 @@ class MonthlyExamsController extends Controller
                 'enable_fullscreen' => (bool)$exam->enable_fullscreen,
                 'enable_anti_tab_switching' => (bool)$exam->enable_anti_tab_switching,
                 'enable_copy_protection' => (bool)$exam->enable_copy_protection,
+                'close_datetime' => $endsAt ? $endsAt->toIso8601String() : null,
+                'open_datetime' => $window['starts_at'] ? $window['starts_at']->toIso8601String() : null,
             ],
             'started_at' => $studentExam->started_at?->toIso8601String(),
+            'availability_end_at' => $endsAt?->toIso8601String(),
+            'duration_seconds' => $configuredDurationSeconds,
+            'effective_duration_seconds' => $effectiveDurationSeconds,
+            'effective_duration_minutes' => $effectiveDurationMinutes,
             'expires_at' => $studentExam->expires_at?->toIso8601String(),
             'server_now' => $serverNow->toIso8601String(),
             'time_remaining_seconds' => $timeRemainingSeconds,

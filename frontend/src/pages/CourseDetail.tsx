@@ -231,6 +231,10 @@ export default function CourseDetail() {
         label = type === 'homework' ? 'تم التصحيح' : 'تمت المراجعة';
         colorClass = 'bg-blue-500/10 text-blue-400 border-blue-500/25';
         break;
+      case 'terminated_for_cheating':
+        label = 'حرمان (مخالفة)';
+        colorClass = 'bg-rose-500/10 text-rose-400 border-rose-500/25';
+        break;
       case 'expired':
         label = type === 'video' ? 'منتهي المشاهدات' : 'انتهى الموعد';
         colorClass = 'bg-slate-500/10 text-slate-400 border-slate-500/25';
@@ -249,6 +253,28 @@ export default function CourseDetail() {
       </span>
     );
   }
+
+  const hasValidFinalResult = (ex: any) => {
+    const status = ex.progress?.status;
+    const attemptsUsed = ex.progress?.attempts_used ?? ex.attempts_count ?? 0;
+    const attemptsRemaining = ex.progress?.attempts_remaining;
+
+    if (status === 'in_progress') return false;
+
+    if (status === 'completed' || status === 'graded' || status === 'submitted' || status === 'terminated_for_cheating') {
+      return true;
+    }
+
+    if (status === 'expired' && attemptsUsed > 0) {
+      return true;
+    }
+
+    if (attemptsUsed > 0 && attemptsRemaining !== undefined && attemptsRemaining <= 0) {
+      return true;
+    }
+
+    return false;
+  };
 
   const renderLessonsList = (unitLessons: any[]) => {
     if (!unitLessons || unitLessons.length === 0) {
@@ -303,8 +329,7 @@ export default function CourseDetail() {
                       });
                     } else if (lesson.exams && lesson.exams.length > 0) {
                       const ex = lesson.exams[0];
-                      const isFinished = ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0);
-                      if (isFinished) {
+                      if (hasValidFinalResult(ex)) {
                         navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                       } else {
                         checkExamAvailability(ex.id).then((allowed) => {
@@ -540,28 +565,33 @@ export default function CourseDetail() {
                             e.stopPropagation();
                             if (ex.is_locked) {
                               useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                            } else if (hasValidFinalResult(ex)) {
+                              navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                             } else {
-                              const isFinished = ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0);
-                              if (isFinished) {
-                                navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
-                              } else {
-                                checkExamAvailability(ex.id).then((allowed) => {
-                                  if (allowed) {
-                                    navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
-                                  }
-                                })
-                              }
+                              checkExamAvailability(ex.id).then((allowed) => {
+                                if (allowed) {
+                                  navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                                }
+                              });
                             }
                           }}
                           className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
                             ex.is_locked
                               ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
-                              : (ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0))
+                              : ex.progress?.status === 'in_progress'
+                              ? "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                              : hasValidFinalResult(ex)
                               ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
-                              : "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                              : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border-brand-primary/20 hover:border-brand-primary/45"
                           }`}
                         >
-                          {ex.is_locked ? "ابدأ الآن 🔒" : ((ex.progress?.status === 'completed' || ex.progress?.status === 'graded' || ex.progress?.status === 'submitted' || (ex.progress?.attempts_remaining !== undefined && ex.progress.attempts_remaining <= 0)) ? 'عرض النتيجة' : (ex.progress?.status === 'in_progress' ? 'استكمال' : 'ابدأ الآن'))}
+                          {(() => {
+                            if (ex.is_locked) return "ابدأ الآن 🔒";
+                            if (ex.progress?.status === 'in_progress') return "استكمال";
+                            if (hasValidFinalResult(ex)) return "عرض النتيجة";
+                            if (ex.progress?.status === 'expired') return "انتهى الموعد";
+                            return "ابدأ الآن";
+                          })()}
                         </button>
                         <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
                       </div>

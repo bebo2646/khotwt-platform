@@ -70,6 +70,9 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
   
   // Timer state (seconds)
   const [timeLeft, setTimeLeft] = React.useState<number | null>(null)
+  const [expiresAt, setExpiresAt] = React.useState<string | null>(null)
+  const [clockSkewMs, setClockSkewMs] = React.useState<number>(0)
+  const isSubmittingRef = React.useRef(false)
 
   // Scheduling Errors and Countdown
   const [scheduleError, setScheduleError] = React.useState<{ code: 'SCHEDULE_NOT_STARTED' | 'SCHEDULE_EXPIRED'; message: string; datetime?: string; countdown_seconds?: number } | null>(null)
@@ -91,21 +94,38 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     API.get(`/exams/${id}`, { params })
       .then((res) => {
         setExam(res.data.exam)
-        setQuestions(res.data.questions)
-        setAttemptId(res.data.attempt_id)
-        if (res.data.existing_answers) {
-          setAnswers(res.data.existing_answers)
-        }
-        
-        // Initialize timer if set, evaluating close_datetime
-        let initialTimeLeft = res.data.exam.time_limit_minutes ? res.data.exam.time_limit_minutes * 60 : null;
-        if (res.data.exam.close_datetime) {
-          const timeUntilClose = Math.max(0, Math.floor((new Date(res.data.exam.close_datetime).getTime() - new Date().getTime()) / 1000));
-          if (initialTimeLeft === null || timeUntilClose < initialTimeLeft) {
-            initialTimeLeft = timeUntilClose;
+
+        if (res.data.has_active_attempt && res.data.attempt_id) {
+          setQuestions(res.data.questions || [])
+          setAttemptId(res.data.attempt_id)
+          if (res.data.existing_answers) {
+            setAnswers(res.data.existing_answers)
           }
+
+          if (res.data.server_now) {
+            const serverNowTime = new Date(res.data.server_now).getTime()
+            const clientNowTime = Date.now()
+            setClockSkewMs(serverNowTime - clientNowTime)
+          }
+
+          if (res.data.expires_at) {
+            setExpiresAt(res.data.expires_at)
+          }
+
+          let initialTimeLeft = res.data.time_remaining_seconds;
+          if (initialTimeLeft === null || initialTimeLeft === undefined) {
+            initialTimeLeft = res.data.exam?.time_limit_minutes ? res.data.exam.time_limit_minutes * 60 : null;
+          }
+          setTimeLeft(initialTimeLeft)
+          setIsStarted(true)
+        } else {
+          // Preflight rules screen: no active attempt yet!
+          setQuestions([])
+          setAttemptId(null)
+          setIsStarted(false)
+          setTimeLeft(null)
+          setExpiresAt(null)
         }
-        setTimeLeft(initialTimeLeft)
       })
       .catch((err: any) => {
         console.error(err)
@@ -126,20 +146,33 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       .finally(() => setLoading(false))
   }, [id])
 
-  // Count down timer ticks
+  // Count down timer ticks (server-authoritative)
   React.useEffect(() => {
-    if (!isStarted || timeLeft === null) return
-    if (timeLeft <= 0) {
-      handleAutoSubmit()
-      return
+    if (!isStarted) return
+    if (timeLeft === null && !expiresAt) return
+
+    const tick = () => {
+      if (expiresAt) {
+        const currentServerTimeMs = Date.now() + clockSkewMs
+        const targetTimeMs = new Date(expiresAt).getTime()
+        const remaining = Math.max(0, Math.floor((targetTimeMs - currentServerTimeMs) / 1000))
+        setTimeLeft(remaining)
+        if (remaining <= 0) {
+          handleAutoSubmit()
+        }
+      } else if (timeLeft !== null) {
+        if (timeLeft <= 0) {
+          handleAutoSubmit()
+        } else {
+          setTimeLeft((prev) => (prev !== null ? Math.max(0, prev - 1) : null))
+        }
+      }
     }
 
-    const interval = setTimeout(() => {
-      setTimeLeft(timeLeft - 1)
-    }, 1000)
-
-    return () => clearTimeout(interval)
-  }, [timeLeft, isStarted])
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [isStarted, expiresAt, clockSkewMs])
 
   // Schedule countdown timer ticks
   React.useEffect(() => {
@@ -333,16 +366,70 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     }
   }, [isStarted, exam])
 
+  const [starting, setStarting] = React.useState(false)
+
   const startExam = async () => {
-    setIsStarted(true)
-    if (exam?.enable_fullscreen) {
-      try {
-        if (document.documentElement.requestFullscreen) {
-          await document.documentElement.requestFullscreen()
-        }
-      } catch (err) {
-        console.error('Failed to enter fullscreen:', err)
+    if (starting) return
+    setStarting(true)
+
+    try {
+      const payload: any = { confirmed_rules: true }
+      if (courseId) payload.course_id = courseId
+      if (packageId) payload.package_id = packageId
+
+      const res = await API.post(`/exams/${id}/start`, payload)
+
+      setAttemptId(res.data.attempt_id)
+      setQuestions(res.data.questions || [])
+      if (res.data.existing_answers) {
+        setAnswers(res.data.existing_answers)
       }
+
+      if (res.data.server_now) {
+        const serverNowTime = new Date(res.data.server_now).getTime()
+        const clientNowTime = Date.now()
+        setClockSkewMs(serverNowTime - clientNowTime)
+      }
+
+      if (res.data.expires_at) {
+        setExpiresAt(res.data.expires_at)
+      }
+
+      let remaining = res.data.time_remaining_seconds
+      if (remaining === null || remaining === undefined) {
+        remaining = res.data.exam?.time_limit_minutes ? res.data.exam.time_limit_minutes * 60 : null
+      }
+      setTimeLeft(remaining)
+      setIsStarted(true)
+
+      if (exam?.enable_fullscreen) {
+        try {
+          if (document.documentElement.requestFullscreen) {
+            await document.documentElement.requestFullscreen()
+          }
+        } catch (err) {
+          console.error('Failed to enter fullscreen:', err)
+        }
+      }
+    } catch (err: any) {
+      console.error(err)
+      const resp = err.response?.data
+      if (resp && (resp.error_code === 'SCHEDULE_NOT_STARTED' || resp.error_code === 'SCHEDULE_EXPIRED')) {
+        setScheduleError({
+          code: resp.error_code,
+          message: resp.message,
+          datetime: resp.open_datetime || resp.close_datetime,
+          countdown_seconds: resp.countdown_seconds,
+        })
+      } else {
+        useModalStore.getState().showAlert({
+          title: resp?.error_code === 'ATTEMPTS_LIMIT_REACHED' ? 'تم استنفاد المحاولات' : 'تعذر بدء الامتحان',
+          description: resp?.message || 'فشل بدء الامتحان. يرجى المحاولة مرة أخرى.',
+          type: 'error'
+        })
+      }
+    } finally {
+      setStarting(false)
     }
   }
 
@@ -472,6 +559,8 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
   };
 
   const handleAutoSubmit = () => {
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {})
     }
@@ -481,7 +570,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
 
   const submitExamAnswers = async () => {
     if (!attemptId) return
-    
+    isSubmittingRef.current = true
     setSubmitting(true)
     try {
       await API.post(`/exams/${exam?.id}/submit`, {
@@ -678,9 +767,11 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
             </button>
             <button
               onClick={startExam}
-              className="px-8 py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-2xl text-xs font-black transition-all shadow-lg shadow-brand-primary/15 cursor-pointer"
+              disabled={starting}
+              className="px-8 py-3 bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white rounded-2xl text-xs font-black transition-all shadow-lg shadow-brand-primary/15 cursor-pointer flex items-center gap-2"
             >
-              {exam.homework_type === 'bubble_sheet' ? 'البدء في إدخال الإجابات' : 'أوافق على الشروط وأبدأ الامتحان'}
+              {starting && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{exam.homework_type === 'bubble_sheet' ? 'البدء في إدخال الإجابات' : 'أوافق على الشروط وأبدأ الامتحان'}</span>
             </button>
           </div>
         </motion.div>
