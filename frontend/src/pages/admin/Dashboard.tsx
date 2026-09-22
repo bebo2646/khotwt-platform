@@ -943,7 +943,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => window.open('/maintenance', '_blank')}
-                  className="mt-4 px-4 py-2 border border-[var(--border-color)] hover:border-slate-500 text-slate-300 text-xs font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
+                  className="mt-4 px-4 py-2 border maintenance-preview-btn text-xs font-bold rounded-xl transition-all active:scale-[0.98] cursor-pointer"
                 >
                   معاينة صفحة الصيانة
                 </button>
@@ -959,26 +959,30 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Custom Message */}
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold block text-slate-300">رسالة مخصصة تظهر للطلاب (اختياري)</label>
+                    <label className="text-xs font-semibold block maintenance-field-label">
+                      رسالة مخصصة تظهر للطلاب <span className="maintenance-field-helper font-normal">(اختياري)</span>
+                    </label>
                     <textarea
                       value={maintenanceMessage}
                       onChange={(e) => setMaintenanceMessage(e.target.value)}
                       disabled={savingSettings}
                       placeholder="مثال: يتم إضافة مميزات جديدة..."
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 min-h-[80px] disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full maintenance-field-input rounded-2xl px-4 py-3 text-xs min-h-[80px] disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
 
                   {/* Estimated Time */}
                   <div className="space-y-2">
-                    <label className="text-xs font-semibold block text-slate-300">الوقت المتوقع للانتهاء (اختياري)</label>
+                    <label className="text-xs font-semibold block maintenance-field-label">
+                      الوقت المتوقع للانتهاء <span className="maintenance-field-helper font-normal">(اختياري)</span>
+                    </label>
                     <input
                       type="text"
                       value={maintenanceEta}
                       onChange={(e) => setMaintenanceEta(e.target.value)}
                       disabled={savingSettings}
                       placeholder="مثال: سيتم الانتهاء خلال ساعة"
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-2xl px-4 py-3 text-xs focus:outline-none focus:border-indigo-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full maintenance-field-input rounded-2xl px-4 py-3 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -987,7 +991,7 @@ export default function Dashboard() {
                   <button
                     type="submit"
                     disabled={savingSettings}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-950/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
+                    className="px-6 py-3 bg-[#6D5DFC] hover:bg-[#5B4AE3] text-white text-xs font-black rounded-2xl shadow-lg shadow-indigo-950/20 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
                   >
                     {savingSettings ? 'جاري حفظ الإعدادات...' : 'حفظ إعدادات الصيانة'}
                   </button>

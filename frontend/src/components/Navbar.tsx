@@ -1,5 +1,5 @@
 import React from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useThemeStore } from '../store/themeStore'
 import { Sun, Moon, LogOut, Menu, X, Wallet, User as UserIcon, BookOpen, Settings, Bell, Check, CheckCircle, AlertTriangle, AlertCircle, ChevronDown } from 'lucide-react'
@@ -9,6 +9,8 @@ import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { UserProfileDropdown } from './UserProfileDropdown'
 import { AnimatePresence, motion } from 'framer-motion'
+import { TEACHER_NAV_ITEMS, STUDENT_NAV_ITEMS } from './navigation/dashboardNavConfig'
+import { useResponsiveNav } from '../hooks/useResponsiveNav'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
   const text = (title + ' ' + message).toLowerCase()
@@ -28,6 +30,7 @@ export default function Navbar() {
   const { isLoggedIn, user, logout } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
+  const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false)
   const [isScrolled, setIsScrolled] = React.useState(false)
 
@@ -95,14 +98,39 @@ export default function Navbar() {
     return '/'
   }
 
+  // Determine active configuration for Teacher or Student
+  const activeRoleConfig = React.useMemo(() => {
+    if (!isLoggedIn || !user) return null
+    if (user.role === 'teacher') return TEACHER_NAV_ITEMS
+    if (user.role === 'student') return STUDENT_NAV_ITEMS
+    return null
+  }, [isLoggedIn, user])
+
+  // Shared responsive navigation engine
+  const {
+    visibleItems,
+    overflowItems,
+    hasActiveOverflow,
+    containerRef: responsiveNavContainerRef,
+    measureContainerRef,
+  } = useResponsiveNav({
+    items: activeRoleConfig || [],
+    currentPath: location.pathname,
+    safetyBuffer: 12,
+  })
+
   const isLinkActive = (path: string) => {
-    return window.location.pathname === path
+    if (path === '/' || path === '/teacher/dashboard' || path === '/student/dashboard') {
+      return location.pathname === path
+    }
+    return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
-  const navLink = (to: string, label: string) => {
+  const navLink = (to: string, label: string, key?: string) => {
     const active = isLinkActive(to)
     return (
       <Link 
+        key={key || to}
         to={to} 
         onClick={() => setMobileMenuOpen(false)}
         className={`font-black text-xs transition-all duration-200 relative py-2 px-3.5 rounded-xl whitespace-nowrap shrink-0 border ${
@@ -116,8 +144,8 @@ export default function Navbar() {
     )
   }
 
-  // Define navigation links based on user role
-  const renderNavLinks = () => {
+  // Desktop navigation links renderer: Adapts to available width
+  const renderDesktopNavLinks = () => {
     if (!isLoggedIn || !user) {
       return (
         <>
@@ -126,6 +154,14 @@ export default function Navbar() {
           {navLink("/courses", "الكورسات")}
           {navLink("/teachers", "المعلمون")}
           {navLink("/exams", "الامتحانات")}
+        </>
+      )
+    }
+
+    if (activeRoleConfig) {
+      return (
+        <>
+          {visibleItems.map((item) => navLink(item.to, item.label, item.id))}
         </>
       )
     }
@@ -152,32 +188,62 @@ export default function Navbar() {
       )
     }
 
-    if (user.role === 'teacher') {
+    return null
+  }
+
+  // Mobile drawer links renderer: Always renders ALL links for the user
+  const renderMobileNavLinks = () => {
+    if (!isLoggedIn || !user) {
       return (
         <>
-          {navLink("/teacher/dashboard", "الرئيسية")}
-          {navLink("/teacher/courses", "كورساتي")}
-          {navLink("/teacher/bundles", "الكورسات المجمعة")}
-          {navLink("/teacher/monthly-exams", "الامتحانات الشهرية")}
-          {navLink("/teacher/students", "الطلاب")}
-          {navLink("/teacher/revenue", "تقرير الأرباح")}
-          {navLink("/teacher/subscription", "اشتراكي")}
-          {navLink("/teacher/videos", "إدارة الفيديوهات")}
-          {navLink("/change-password", "تغيير المرور")}
+          {navLink("/", "الرئيسية")}
+          {navLink("/departments", "الأقسام")}
+          {navLink("/courses", "الكورسات")}
+          {navLink("/teachers", "المعلمون")}
+          {navLink("/exams", "الامتحانات")}
         </>
       )
     }
 
-    // Default Student role
-    return (
-      <>
-        {navLink("/student/dashboard", "الرئيسية")}
-        {navLink("/departments", "الأقسام")}
-        {navLink("/student/courses", "كورساتي")}
-        {navLink("/exams", "الامتحانات")}
-        {navLink("/student/wallet", "المحفظة")}
-      </>
-    )
+    if (user.role === 'teacher') {
+      return (
+        <>
+          {TEACHER_NAV_ITEMS.map((item) => navLink(item.to, item.label, `mob-${item.id}`))}
+        </>
+      )
+    }
+
+    if (user.role === 'student') {
+      return (
+        <>
+          {STUDENT_NAV_ITEMS.map((item) => navLink(item.to, item.label, `mob-${item.id}`))}
+        </>
+      )
+    }
+
+    if (user.role === 'admin') {
+      const isSuper = !!user.is_super_admin || !!user.is_super;
+      const hasPerm = (perm: string) => isSuper || (!!user.permissions && user.permissions.includes(perm));
+
+      return (
+        <>
+          {navLink("/admin/dashboard", "الرئيسية")}
+          {hasPerm('teachers.manage') && navLink("/admin/teachers", "المعلمون")}
+          {hasPerm('students.manage') && navLink("/admin/students", "الطلاب")}
+          {hasPerm('courses.manage') && navLink("/admin/courses", "الكورسات")}
+          {hasPerm('exams.manage') && navLink("/admin/monthly-exams", "الامتحانات الشهرية")}
+          {hasPerm('coupons.manage') && navLink("/admin/codes", "أكواد الشحن")}
+          {hasPerm('reports.view') && navLink("/admin/reports", "التقارير")}
+          {navLink("/admin/notifications", "إرسال الإشعارات")}
+          {navLink("/admin/subscriptions/requests", "طلبات الاشتراكات")}
+          {navLink("/admin/subscription-plans", "إدارة الباقات")}
+          {navLink("/admin/bunny", "إحصائيات Bunny")}
+          {hasPerm('admins.manage') && navLink("/admin/manage", "الصلاحيات")}
+        </>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -276,16 +342,19 @@ export default function Navbar() {
           </div>
 
           {/* Centered Navigation Links */}
-          <div className="hidden md:flex flex-row flex-nowrap items-center justify-center gap-4 lg:gap-6 overflow-x-auto whitespace-nowrap scrollbar-none py-1 mx-4 flex-1">
-            {renderNavLinks()}
+          <div 
+            ref={activeRoleConfig ? responsiveNavContainerRef : undefined}
+            className="hidden md:flex flex-row flex-nowrap items-center justify-center gap-2 lg:gap-3 overflow-hidden whitespace-nowrap py-1 mx-2 lg:mx-4 flex-1 min-w-0"
+          >
+            {renderDesktopNavLinks()}
           </div>
 
           {/* User Controls & Mobile Toggle */}
-          <div className="flex items-center gap-3 lg:gap-4">
+          <div className="flex items-center gap-3 lg:gap-4 shrink-0">
             
             {/* Notifications Bell */}
             {isLoggedIn && (
-              <div className="relative" ref={notifRef}>
+              <div className="relative shrink-0" ref={notifRef}>
                 <button
                   onMouseDown={(e) => {
                     e.stopPropagation();
@@ -323,17 +392,17 @@ export default function Navbar() {
             </button>
 
             {/* Auth Buttons */}
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-3 shrink-0">
               {isLoggedIn && user ? (
                 <div className="flex items-center gap-3">
                   {user.role === 'student' && user.wallet && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-brand-primary text-xs font-bold shadow-sm">
-                      <Wallet className="h-3.5 w-3.5" />
-                      <span>{user.wallet.balance} ج.م</span>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-primary/10 border border-brand-primary/20 rounded-full text-brand-primary text-xs font-bold shadow-sm shrink-0">
+                      <Wallet className="h-3.5 w-3.5 shrink-0" />
+                      <span className="whitespace-nowrap">{user.wallet.balance} ج.م</span>
                     </div>
                   )}
                   
-                  <div className="relative" ref={profileDropdownRef}>
+                  <div className="relative shrink-0" ref={profileDropdownRef}>
                     <button
                       data-profile-toggle="true"
                       onClick={(e) => {
@@ -341,21 +410,43 @@ export default function Navbar() {
                         const nextState = !showProfileDropdown;
                         setShowProfileDropdown(nextState);
                       }}
-                      className="flex items-center gap-2 px-3 py-1.5 bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] rounded-xl text-sm transition cursor-pointer text-foreground"
+                      className={`flex items-center gap-2 px-3 py-1.5 bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border rounded-xl text-sm transition cursor-pointer text-foreground shrink-0 ${
+                        hasActiveOverflow
+                          ? 'border-brand-primary/40 bg-brand-primary/5 shadow-[0_0_12px_rgba(109,93,252,0.15)]'
+                          : 'border-[var(--border-color)]'
+                      }`}
+                      aria-expanded={showProfileDropdown}
+                      aria-haspopup="menu"
+                      title={hasActiveOverflow ? 'توجد صفحات نشطة في القائمة' : 'قائمة المستخدم'}
                     >
                       {user.avatar ? (
-                        <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover" />
+                        <img src={ensureHttps(user.avatar)} alt="Avatar" className="w-6.5 h-6.5 rounded-lg object-cover shrink-0" />
                       ) : (
-                        <div className="w-6.5 h-6.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-[10px] uppercase">
+                        <div className="w-6.5 h-6.5 rounded-lg bg-indigo-500/10 text-indigo-400 font-bold flex items-center justify-center text-[10px] uppercase shrink-0">
                           {user.name.slice(0, 2)}
                         </div>
                       )}
-                      <span className="font-bold text-xs text-[var(--text-secondary)]">{user.name}</span>
-                      <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                      <span className="font-bold text-xs text-[var(--text-secondary)] max-w-[100px] sm:max-w-[130px] lg:max-w-[160px] truncate select-none">
+                        {user.name}
+                      </span>
+                      {hasActiveOverflow && (
+                        <span
+                          className="w-2 h-2 rounded-full bg-brand-primary shrink-0 animate-pulse"
+                          title="الصفحة الحالية متوفرة في القائمة"
+                        />
+                      )}
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-[var(--text-muted)] shrink-0 transition-transform duration-200 ${
+                          showProfileDropdown ? 'rotate-180' : ''
+                        }`}
+                      />
                     </button>
                     
                     {showProfileDropdown && (
-                      <UserProfileDropdown onClose={() => setShowProfileDropdown(false)} />
+                      <UserProfileDropdown
+                        onClose={() => setShowProfileDropdown(false)}
+                        overflowItems={activeRoleConfig ? overflowItems : undefined}
+                      />
                     )}
                   </div>
                 </div>
@@ -387,6 +478,33 @@ export default function Navbar() {
       </div>
 
     </nav>
+
+    {/* Hidden Off-Screen Measurement Container for Precise Responsive Calculations */}
+    {activeRoleConfig && (
+      <div
+        ref={measureContainerRef}
+        aria-hidden="true"
+        className="invisible fixed pointer-events-none flex flex-row flex-nowrap"
+        style={{
+          position: 'fixed',
+          top: -9999,
+          left: -9999,
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {activeRoleConfig.map((item) => (
+          <span
+            key={item.id}
+            data-measure-id={item.id}
+            className="font-black text-xs py-2 px-3.5 rounded-xl whitespace-nowrap shrink-0 border border-transparent inline-block"
+          >
+            {item.label}
+          </span>
+        ))}
+      </div>
+    )}
 
     {/* Mobile Menu Drawer */}
     <AnimatePresence>
@@ -438,7 +556,7 @@ export default function Navbar() {
               
               {/* Navigation Links */}
               <div className="flex flex-col gap-3">
-                {renderNavLinks()}
+                {renderMobileNavLinks()}
               </div>
             </div>
             
@@ -473,6 +591,16 @@ export default function Navbar() {
                       <span className="text-sm font-black text-brand-primary">{user.wallet.balance} ج.م</span>
                     </div>
                   )}
+                  
+                  {/* Profile Action Link */}
+                  <Link
+                    to={user.role === 'student' ? '/student/profile' : user.role === 'teacher' ? '/teacher/dashboard' : '/admin/dashboard'}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center gap-2.5 px-3 h-11 text-xs font-bold rounded-[12px] bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] text-[var(--text-color)] transition-all cursor-pointer"
+                  >
+                    <UserIcon className="w-4 h-4 text-brand-primary shrink-0" />
+                    <span>الملف الشخصي</span>
+                  </Link>
                   
                   {/* Logout Button */}
                   <button

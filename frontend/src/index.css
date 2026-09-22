@@ -1326,12 +1326,182 @@ html:not(.light-theme) .toast-notification-item.toast-indigo {
   color: #374151 !important;
 }
 
+/* ========================================================
+   Maintenance Mode Accessible Contrast Styles (WCAG AA)
+   ======================================================== */
 
+/* Dark Theme (Default) */
+.maintenance-field-input {
+  background-color: #091426 !important;
+  color: #F8FAFC !important;
+  border: 1px solid #263A61 !important;
+  caret-color: #F8FAFC !important;
+  transition: all 0.2s ease-in-out;
+}
 
+.maintenance-field-input:not(:disabled) {
+  opacity: 1 !important;
+}
 
+.maintenance-field-input::placeholder {
+  color: #94A3B8 !important;
+  opacity: 1 !important;
+}
 
+.maintenance-field-input:focus {
+  border-color: #6D5DFC !important;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.25) !important;
+  outline: none !important;
+}
 
+.maintenance-field-label {
+  color: #F8FAFC !important;
+}
 
+.maintenance-field-helper {
+  color: #94A3B8 !important;
+}
 
+.maintenance-preview-btn {
+  background-color: #091426 !important;
+  color: #F8FAFC !important;
+  border: 1px solid #263A61 !important;
+  transition: all 0.2s ease-in-out;
+}
 
+.maintenance-preview-btn:hover {
+  border-color: #6D5DFC !important;
+  color: #FFFFFF !important;
+}
 
+/* Light Theme Overrides */
+.light-theme .maintenance-field-input {
+  background-color: #FFFFFF !important;
+  color: #0B1E48 !important;
+  border: 1px solid #CBD5E1 !important;
+  caret-color: #0B1E48 !important;
+}
+
+.light-theme .maintenance-field-input::placeholder {
+  color: #64748B !important;
+  opacity: 1 !important;
+}
+
+.light-theme .maintenance-field-input:focus {
+  border-color: #6D5DFC !important;
+  box-shadow: 0 0 0 3px rgba(109, 93, 252, 0.2) !important;
+}
+
+.light-theme .maintenance-field-label {
+  color: #0B1E48 !important;
+}
+
+.light-theme .maintenance-field-helper {
+  color: #64748B !important;
+}
+
+.light-theme .maintenance-preview-btn {
+  background-color: #FFFFFF !important;
+  color: #0B1E48 !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.light-theme .maintenance-preview-btn:hover {
+  border-color: #6D5DFC !important;
+  color: #6D5DFC !important;
+}
+
+/* Maintenance Banner helper in AdminLayout */
+.maintenance-banner-desc {
+  color: #CBD5E1 !important;
+}
+.light-theme .maintenance-banner-desc {
+  color: #475569 !important;
+}
+
+/* ========================================================
+   Public Maintenance Screen (/maintenance) High Contrast
+   ======================================================== */
+.maintenance-screen {
+  background-color: #030712 !important;
+}
+.light-theme .maintenance-screen {
+  background-color: #F8FAFC !important;
+}
+
+.maintenance-card {
+  background-color: rgba(9, 20, 38, 0.96) !important;
+  border: 1px solid #1E2E4A !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(38, 58, 97, 0.3) !important;
+}
+.light-theme .maintenance-card {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(226, 232, 240, 0.8) !important;
+}
+
+.maintenance-card-title {
+  color: #FFFFFF !important;
+}
+.light-theme .maintenance-card-title {
+  color: #0B1E48 !important;
+}
+
+.maintenance-brand-accent {
+  color: #6D5DFC !important;
+}
+
+.maintenance-card-body {
+  color: #CBD5E1 !important;
+}
+.light-theme .maintenance-card-body {
+  color: #334155 !important;
+}
+
+.maintenance-card-secondary {
+  color: #94A3B8 !important;
+}
+.light-theme .maintenance-card-secondary {
+  color: #64748B !important;
+}
+
+.maintenance-details-box {
+  background-color: #091426 !important;
+  border: 1px solid #263A61 !important;
+}
+.light-theme .maintenance-details-box {
+  background-color: #F1F5F9 !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.maintenance-details-title {
+  color: #94A3B8 !important;
+}
+.light-theme .maintenance-details-title {
+  color: #64748B !important;
+}
+
+.maintenance-details-content {
+  color: #F8FAFC !important;
+}
+.light-theme .maintenance-details-content {
+  color: #0B1E48 !important;
+}
+
+.maintenance-details-eta {
+  color: #6D5DFC !important;
+}
+
+.maintenance-card-divider {
+  border-color: #1E2E4A !important;
+}
+.light-theme .maintenance-card-divider {
+  border-color: #CBD5E1 !important;
+}
+
+.maintenance-bar-track {
+  background-color: #1E2E4A !important;
+}
+.light-theme .maintenance-bar-track {
+  background-color: #E2E8F0 !important;
+}

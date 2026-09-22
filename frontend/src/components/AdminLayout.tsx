@@ -621,7 +621,7 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-xs sm:text-sm text-amber-500">وضع الصيانة مفعل حالياً</span>
                   <span className="hidden sm:inline text-xs text-slate-500">|</span>
-                  <span className="hidden sm:inline text-[10px] sm:text-xs text-slate-300 font-light">يمكنك متابعة إدارة المنصة بينما الطلاب والمعلمون لا يمكنهم استخدامها.</span>
+                  <span className="hidden sm:inline text-[10px] sm:text-xs maintenance-banner-desc font-normal">يمكنك متابعة إدارة المنصة بينما الطلاب والمعلمون لا يمكنهم استخدامها.</span>
                 </div>
               </div>
               <button
