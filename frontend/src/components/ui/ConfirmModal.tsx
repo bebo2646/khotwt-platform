@@ -1,5 +1,4 @@
 import React from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { useModalStore } from '../../store/modalStore'
 import { 
   AlertTriangle, 
@@ -71,22 +70,17 @@ export function ConfirmModal() {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop overlay */}
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div 
         onClick={() => {
           closeConfirm()
           if (onCancel) onCancel()
         }}
-        className="absolute inset-0 bg-transparent z-[9998]"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs z-[9998] animate-fade-in"
       />
 
       {/* Modal Card */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-[9999] text-right font-sans space-y-6"
+      <div
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-md w-full shadow-2xl z-[9999] text-right font-sans space-y-6 max-h-[90vh] overflow-y-auto animate-scale-in"
         dir="rtl"
       >
         {/* Header section with Icon */}
@@ -127,7 +121,7 @@ export function ConfirmModal() {
             {confirmText}
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
@@ -188,21 +182,16 @@ export function AlertModal() {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div 
         onClick={() => {
           closeAlert()
           if (onConfirm) onConfirm()
         }}
-        className="absolute inset-0 bg-transparent z-[9998]"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs z-[9998] animate-fade-in"
       />
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ type: 'spring', duration: 0.3 }}
-        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-[9999] text-right font-sans space-y-6"
+      <div
+        className="relative bg-brand-card border border-[var(--border-color)] rounded-[20px] p-6 max-w-sm w-full shadow-2xl z-[9999] text-right font-sans space-y-6 max-h-[90vh] overflow-y-auto animate-scale-in"
         dir="rtl"
       >
         <div className="flex items-start gap-4">
@@ -227,7 +216,7 @@ export function AlertModal() {
             {buttonText}
           </button>
         </div>
-      </motion.div>
+      </div>
     </div>
   )
 }
@@ -238,40 +227,35 @@ export function ToastContainer() {
 
   return (
     <div className="fixed top-6 left-4 right-4 md:left-6 md:right-auto md:w-96 md:max-w-sm z-[100000] flex flex-col gap-3 w-auto pointer-events-none" dir="rtl">
-      <AnimatePresence>
-        {toasts.map((toast) => (
-          <motion.div
-            key={toast.id}
-            initial={{ opacity: 0, y: -20, scale: 0.9, x: -50 }}
-            animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.95, x: -100 }}
-            className={`toast-notification-item toast-${toast.type} p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto bg-[var(--card-bg)] ${
-              toast.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                : toast.type === 'error'
-                ? 'bg-rose-500/10 border-rose-500/25 text-rose-500'
-                : toast.type === 'warning'
-                ? 'bg-amber-500/10 border-amber-500/25 text-amber-500'
-                : 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400'
-            }`}
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`toast-notification-item toast-${toast.type} p-4 rounded-2xl border flex items-center justify-between gap-3 shadow-lg pointer-events-auto bg-[var(--card-bg)] animate-scale-in ${
+            toast.type === 'success'
+              ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+              : toast.type === 'error'
+              ? 'bg-rose-500/10 border-rose-500/25 text-rose-500'
+              : toast.type === 'warning'
+              ? 'bg-amber-500/10 border-amber-500/25 text-amber-500'
+              : 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 text-xs font-semibold leading-relaxed">
+            {toast.type === 'success' && <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />}
+            {toast.type === 'error' && <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-500" />}
+            {toast.type === 'warning' && <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-amber-500" />}
+            {toast.type === 'info' && <Info className="h-4.5 w-4.5 shrink-0 text-blue-400" />}
+            <span>{toast.message}</span>
+          </div>
+          
+          <button
+            onClick={() => removeToast(toast.id)}
+            className="p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 text-xs font-semibold leading-relaxed">
-              {toast.type === 'success' && <CheckCircle2 className="h-4.5 w-4.5 shrink-0 text-emerald-500" />}
-              {toast.type === 'error' && <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-rose-500" />}
-              {toast.type === 'warning' && <AlertTriangle className="h-4.5 w-4.5 shrink-0 text-amber-500" />}
-              {toast.type === 'info' && <Info className="h-4.5 w-4.5 shrink-0 text-blue-400" />}
-              <span>{toast.message}</span>
-            </div>
-            
-            <button
-              onClick={() => removeToast(toast.id)}
-              className="p-1 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </motion.div>
-        ))}
-      </AnimatePresence>
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
     </div>
   )
 }

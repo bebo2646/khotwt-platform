@@ -8,8 +8,7 @@ import { ensureHttps } from '../utils/urls'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { UserProfileDropdown } from './UserProfileDropdown'
-import { AnimatePresence, motion } from 'framer-motion'
-import { TEACHER_NAV_ITEMS, STUDENT_NAV_ITEMS } from './navigation/dashboardNavConfig'
+import { TEACHER_NAV_ITEMS, STUDENT_NAV_ITEMS, ADMIN_NAV_ITEMS } from './navigation/dashboardNavConfig'
 import { useResponsiveNav } from '../hooks/useResponsiveNav'
 
 const getNotificationType = (title: string, message: string): 'success' | 'warning' | 'error' | 'info' => {
@@ -98,11 +97,16 @@ export default function Navbar() {
     return '/'
   }
 
-  // Determine active configuration for Teacher or Student
+  // Determine active configuration for Teacher, Student, or Admin
   const activeRoleConfig = React.useMemo(() => {
     if (!isLoggedIn || !user) return null
     if (user.role === 'teacher') return TEACHER_NAV_ITEMS
     if (user.role === 'student') return STUDENT_NAV_ITEMS
+    if (user.role === 'admin') {
+      const isSuper = !!user.is_super_admin || !!user.is_super
+      const hasPerm = (perm: string) => isSuper || (!!user.permissions && user.permissions.includes(perm))
+      return ADMIN_NAV_ITEMS.filter(item => !item.permission || hasPerm(item.permission))
+    }
     return null
   }, [isLoggedIn, user])
 
@@ -120,7 +124,7 @@ export default function Navbar() {
   })
 
   const isLinkActive = (path: string) => {
-    if (path === '/' || path === '/teacher/dashboard' || path === '/student/dashboard') {
+    if (path === '/' || path === '/teacher/dashboard' || path === '/student/dashboard' || path === '/admin/dashboard') {
       return location.pathname === path
     }
     return location.pathname === path || location.pathname.startsWith(path + '/')
@@ -166,28 +170,6 @@ export default function Navbar() {
       )
     }
 
-    if (user.role === 'admin') {
-      const isSuper = !!user.is_super_admin || !!user.is_super;
-      const hasPerm = (perm: string) => isSuper || (!!user.permissions && user.permissions.includes(perm));
-
-      return (
-        <>
-          {navLink("/admin/dashboard", "الرئيسية")}
-          {hasPerm('teachers.manage') && navLink("/admin/teachers", "المعلمون")}
-          {hasPerm('students.manage') && navLink("/admin/students", "الطلاب")}
-          {hasPerm('courses.manage') && navLink("/admin/courses", "الكورسات")}
-          {hasPerm('exams.manage') && navLink("/admin/monthly-exams", "الامتحانات الشهرية")}
-          {hasPerm('coupons.manage') && navLink("/admin/codes", "أكواد الشحن")}
-          {hasPerm('reports.view') && navLink("/admin/reports", "التقارير")}
-          {navLink("/admin/notifications", "إرسال الإشعارات")}
-          {navLink("/admin/subscriptions/requests", "طلبات الاشتراكات")}
-          {navLink("/admin/subscription-plans", "إدارة الباقات")}
-          {navLink("/admin/bunny", "إحصائيات Bunny")}
-          {hasPerm('admins.manage') && navLink("/admin/manage", "الصلاحيات")}
-        </>
-      )
-    }
-
     return null
   }
 
@@ -205,40 +187,10 @@ export default function Navbar() {
       )
     }
 
-    if (user.role === 'teacher') {
+    if (activeRoleConfig) {
       return (
         <>
-          {TEACHER_NAV_ITEMS.map((item) => navLink(item.to, item.label, `mob-${item.id}`))}
-        </>
-      )
-    }
-
-    if (user.role === 'student') {
-      return (
-        <>
-          {STUDENT_NAV_ITEMS.map((item) => navLink(item.to, item.label, `mob-${item.id}`))}
-        </>
-      )
-    }
-
-    if (user.role === 'admin') {
-      const isSuper = !!user.is_super_admin || !!user.is_super;
-      const hasPerm = (perm: string) => isSuper || (!!user.permissions && user.permissions.includes(perm));
-
-      return (
-        <>
-          {navLink("/admin/dashboard", "الرئيسية")}
-          {hasPerm('teachers.manage') && navLink("/admin/teachers", "المعلمون")}
-          {hasPerm('students.manage') && navLink("/admin/students", "الطلاب")}
-          {hasPerm('courses.manage') && navLink("/admin/courses", "الكورسات")}
-          {hasPerm('exams.manage') && navLink("/admin/monthly-exams", "الامتحانات الشهرية")}
-          {hasPerm('coupons.manage') && navLink("/admin/codes", "أكواد الشحن")}
-          {hasPerm('reports.view') && navLink("/admin/reports", "التقارير")}
-          {navLink("/admin/notifications", "إرسال الإشعارات")}
-          {navLink("/admin/subscriptions/requests", "طلبات الاشتراكات")}
-          {navLink("/admin/subscription-plans", "إدارة الباقات")}
-          {navLink("/admin/bunny", "إحصائيات Bunny")}
-          {hasPerm('admins.manage') && navLink("/admin/manage", "الصلاحيات")}
+          {activeRoleConfig.map((item) => navLink(item.to, item.label, `mob-${item.id}`))}
         </>
       )
     }
@@ -373,11 +325,9 @@ export default function Navbar() {
                   )}
                 </button>
 
-                <AnimatePresence>
-                  {showNotifDropdown && (
-                    <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
-                  )}
-                </AnimatePresence>
+                {showNotifDropdown && (
+                  <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
+                )}
               </div>
             )}
 
@@ -507,28 +457,20 @@ export default function Navbar() {
     )}
 
     {/* Mobile Menu Drawer */}
-    <AnimatePresence>
-      {mobileMenuOpen && (
-        <>
-          {/* Backdrop Overlay */}
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileMenuOpen(false)}
-            className="fixed inset-0 z-[999] md:hidden"
-            style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
-          />
-          
-          {/* Drawer */}
-          <motion.div 
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 left-0 h-screen w-[min(340px,85vw)] bg-[var(--surface-bg)] border-r border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[1000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right text-[var(--text-color)]"
-            dir="rtl"
-          >
+    {mobileMenuOpen && (
+      <>
+        {/* Backdrop Overlay */}
+        <div 
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-[999] md:hidden animate-fade-in"
+          style={{ backgroundColor: 'rgba(0,0,0,0.35)' }}
+        />
+        
+        {/* Drawer */}
+        <div 
+          className="fixed top-0 left-0 h-screen w-[min(340px,85vw)] bg-[var(--surface-bg)] border-r border-[var(--border-color)] shadow-[0_0_30px_rgba(0,0,0,0.3)] z-[1000] md:hidden flex flex-col justify-between p-6 overflow-y-auto text-right text-[var(--text-color)] animate-slide-in-left"
+          dir="rtl"
+        >
             {/* Top part: Header + Navigation */}
             <div className="flex flex-col flex-1">
               {/* Header */}
@@ -622,10 +564,9 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         </>
       )}
-    </AnimatePresence>
   </>
 )
 }

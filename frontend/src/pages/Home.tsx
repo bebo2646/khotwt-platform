@@ -825,7 +825,7 @@ export default function Home() {
                         >
                           <div className="w-9 h-9 rounded-full bg-[var(--surface-bg)] border border-[var(--border-color)] flex items-center justify-center font-black text-xs shrink-0 overflow-hidden text-brand-primary">
                             {t.avatar ? (
-                              <img src={t.avatar} alt={t.name} className="w-full h-full object-cover" />
+                              <img src={t.avatar} alt={t.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                             ) : (
                               t.name.charAt(0)
                             )}

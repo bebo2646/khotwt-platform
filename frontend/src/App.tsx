@@ -5,20 +5,23 @@ import Footer from './components/Footer'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useThemeStore } from './store/themeStore'
 import { useAuthStore } from './store/authStore'
-import { ModalProvider } from './components/ui/ConfirmModal'
 import { useModalStore } from './store/modalStore'
-import WhatsAppButton from './components/WhatsAppButton'
-import PWAManager from './components/PWAManager'
 import API from './services/api'
 import AnalyticsTracker from './components/AnalyticsTracker'
 import RobotsTracker from './components/RobotsTracker'
 import TeacherActivityTracker from './components/TeacherActivityTracker'
 import { NotificationProvider } from './context/NotificationContext'
-import { AdminLayout } from './components/AdminLayout'
 import { NotificationToast } from './components/NotificationToast'
 import { ThemeProvider } from './context/ThemeContext'
 import { useConfigStore } from './store/configStore'
 import ErrorBoundary from './components/ErrorBoundary'
+import ScrollToTop from './components/ScrollToTop'
+
+// Lazy-loaded auxiliary and layout components for optimal code-splitting
+const AdminLayout = React.lazy(() => import('./components/AdminLayout').then(m => ({ default: m.AdminLayout })))
+const ModalProvider = React.lazy(() => import('./components/ui/ConfirmModal').then(m => ({ default: m.ModalProvider })))
+const WhatsAppButton = React.lazy(() => import('./components/WhatsAppButton'))
+const PWAManager = React.lazy(() => import('./components/PWAManager'))
 
 
 // Public Pages (Lazy Loaded)
@@ -269,12 +272,15 @@ function App() {
 
   return (
     <Router>
+      <ScrollToTop />
       <ThemeProvider>
         <NotificationProvider>
           <AnalyticsTracker />
           <RobotsTracker />
           <TeacherActivityTracker />
-          <ModalProvider />
+          <React.Suspense fallback={null}>
+            <ModalProvider />
+          </React.Suspense>
       <React.Suspense fallback={
         <div className="flex items-center justify-center min-h-[60vh] text-brand-primary">
           <div className="w-12 h-12 border-4 border-current border-t-transparent rounded-full animate-spin"></div>
@@ -585,8 +591,10 @@ function App() {
         </Routes>
         </ErrorBoundary>
       </React.Suspense>
-      <WhatsAppButton />
-      <PWAManager />
+      <React.Suspense fallback={null}>
+        <WhatsAppButton />
+        <PWAManager />
+      </React.Suspense>
       </NotificationProvider>
       </ThemeProvider>
     </Router>

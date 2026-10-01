@@ -115,11 +115,6 @@ export default function Subscription() {
     return subscription.total_codes.toString()
   }
 
-  console.log("Subscription Page Render");
-  console.log("Packages Response:", plans);
-  console.log("Subscription State:", subscription);
-  console.log("Current User:", user);
-
   const showToast = (message: string, type: 'success' | 'error' | 'warning') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
@@ -868,7 +863,7 @@ export default function Subscription() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-stretch">
           {plansToShow.map(p => {
             const isCurrent = subscription?.plan?.id === p.id
             return (

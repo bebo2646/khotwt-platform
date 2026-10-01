@@ -29,12 +29,23 @@ class TeacherController extends Controller
     {
         $teacher = $request->user();
 
+        if ($request->has('phone') && is_string($request->phone)) {
+            $normalizedPhone = preg_replace('/\s+/', '', $request->phone);
+            if (preg_match('/^(?:\+?20|0020)(1[0125][0-9]{8})$/', $normalizedPhone, $m)) {
+                $normalizedPhone = '0' . $m[1];
+            }
+            $request->merge(['phone' => $normalizedPhone]);
+        }
+
         $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string',
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[\p{L}\s\.\'\-]+$/u'],
+            'phone' => ['sometimes', 'required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
             'bio' => 'nullable|string',
             'experience' => 'nullable|string',
             'teaching_mode' => 'required|string|in:online,center,both',
+        ], [
+            'name.regex' => 'اسم المعلم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
+            'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
         $teacher->update($request->only([
@@ -184,41 +195,27 @@ class TeacherController extends Controller
      */
     private function fetchBunnyVideoDetails($videoId)
     {
-        $libraryId = config('services.bunny.library_id');
-        $apiKey = config('services.bunny.api_key');
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $res = $bunnyService->validateVideoExists($videoId);
 
-        if (empty($libraryId) || empty($apiKey)) {
-            return null;
-        }
+        if ($res['success'] && $res['exists']) {
+            $data = $res['data'] ?? [];
+            $duration = isset($data['length']) ? intval($data['length']) : 0;
+            $thumbnail = !empty($data['thumbnailUrl']) 
+                ? $data['thumbnailUrl'] 
+                : $bunnyService->getThumbnailUrl($videoId);
+            $width = $data['width'] ?? null;
+            $height = $data['height'] ?? null;
+            $resolution = ($width && $height) ? "{$width}x{$height}" : null;
 
-        try {
-            $response = \Illuminate\Support\Facades\Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $apiKey,
-                'accept' => 'application/json',
-            ])->get("https://video.bunnycdn.com/library/{$libraryId}/videos/{$videoId}");
-
-            if ($response->successful()) {
-                $data = $response->json();
-                $duration = isset($data['length']) ? intval($data['length']) : 0;
-                
-                // Construct standard embed and thumbnail URLs
-                $thumbnail = isset($data['thumbnailUrl']) && !empty($data['thumbnailUrl']) 
-                    ? $data['thumbnailUrl'] 
-                    : "https://iframe.mediadelivery.net/play/{$libraryId}/{$videoId}/thumbnail.jpg";
-                
-                $width = isset($data['width']) ? $data['width'] : null;
-                $height = isset($data['height']) ? $data['height'] : null;
-                $resolution = ($width && $height) ? "{$width}x{$height}" : null;
-
-                return [
-                    'duration_seconds' => $duration,
-                    'thumbnail_path' => $thumbnail,
-                    'resolution' => $resolution,
-                    'title' => isset($data['title']) ? $data['title'] : null,
-                ];
-            }
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Failed to fetch Bunny video details: " . $e->getMessage());
+            return [
+                'duration_seconds' => $duration,
+                'thumbnail_path' => $thumbnail,
+                'resolution' => $resolution,
+                'title' => $data['title'] ?? null,
+                'storage_size' => $data['storageSize'] ?? 0,
+                'status' => $data['status'] ?? 0,
+            ];
         }
 
         return null;
@@ -278,71 +275,57 @@ class TeacherController extends Controller
             ], 403);
         }
 
-        try {
-            // 1. Create a video placeholder in Bunny Stream
-            $response = \Illuminate\Support\Facades\Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $apiKey,
-                'Content-Type' => 'application/json',
-                'accept' => 'application/json',
-            ])->post("https://video.bunnycdn.com/library/{$libraryId}/videos", [
-                'title' => $request->title,
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                $videoId = $data['guid']; // Bunny Stream Video ID (GUID)
-
-                // 2. Generate authorization signature for TUS upload
-                $expirationTime = time() + 7200; // 2 hours expiration
-                $signature = hash('sha256', $libraryId . $apiKey . $expirationTime . $videoId);
-
-                $cdnHost = config('services.bunny.cdn_hostname');
-                $pullZone = config('services.bunny.pull_zone');
-                $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
-
-                $embedUrl = "https://iframe.mediadelivery.net/embed/{$libraryId}/{$videoId}";
-                $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$videoId}/thumbnail.jpg";
-
-                // 3. Create local video record in database immediately
-                $video = Video::create([
-                    'lesson_id' => $request->lesson_id,
-                    'title' => $request->title,
-                    'bunny_video_id' => $videoId,
-                    'bunny_stream_id' => $videoId,
-                    'bunny_embed_url' => $embedUrl,
-                    'bunny_thumbnail_url' => $thumbnailUrl,
-                    'bunny_duration' => 0,
-                    'bunny_size_bytes' => $fileSize,
-                    'bunny_status' => 'queued',
-                    'duration_seconds' => 0,
-                    'thumbnail_path' => $thumbnailUrl,
-                ]);
-
-                // Recalculate teacher storage
-                $bunnyService->recalculateStorage($teacherId);
-
-                // Dispatch background status polling job
-                \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
-
-                return response()->json([
-                    'video_id' => $videoId,
-                    'library_id' => $libraryId,
-                    'signature' => $signature,
-                    'expiration_time' => $expirationTime,
-                    'embed_url' => $embedUrl,
-                    'video' => $video,
-                ]);
-            } else {
-                return response()->json([
-                    'message' => 'Failed to create video object in Bunny Stream.',
-                    'details' => $response->body()
-                ], 500);
-            }
-        } catch (\Exception $e) {
+        $bunnyService = new \App\Services\BunnyStreamService();
+        if (!$bunnyService->isConfigured()) {
             return response()->json([
-                'message' => 'Error generating signed upload: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Bunny Stream integration is not configured on the server.'
+            ], 400);
         }
+
+        $createRes = $bunnyService->createVideo($request->title);
+        if (!$createRes['success']) {
+            $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+            return response()->json([
+                'message' => $createRes['error'],
+                'bunny_error' => $createRes['bunny_message'],
+                'status_code' => $createRes['status'],
+            ], $status);
+        }
+
+        $videoId = $createRes['video_id'];
+        $expirationTime = time() + 7200;
+        $signature = hash('sha256', $libraryId . $apiKey . $expirationTime . $videoId);
+
+        $embedUrl = $bunnyService->getEmbedUrl($videoId);
+        $thumbnailUrl = $bunnyService->getThumbnailUrl($videoId);
+
+        // Create local video record in database
+        $video = Video::create([
+            'lesson_id' => $request->lesson_id,
+            'title' => $request->title,
+            'bunny_video_id' => $videoId,
+            'bunny_stream_id' => $videoId,
+            'bunny_embed_url' => $embedUrl,
+            'bunny_thumbnail_url' => $thumbnailUrl,
+            'bunny_duration' => 0,
+            'bunny_size_bytes' => $fileSize,
+            'bunny_status' => 'queued',
+            'duration_seconds' => 0,
+            'thumbnail_path' => $thumbnailUrl,
+        ]);
+
+        $this->updateLessonDuration($request->lesson_id);
+        $bunnyService->recalculateStorage($teacherId);
+        \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+
+        return response()->json([
+            'video_id' => $videoId,
+            'library_id' => $libraryId,
+            'signature' => $signature,
+            'expiration_time' => $expirationTime,
+            'embed_url' => $embedUrl,
+            'video' => $video,
+        ]);
     }
 
     /**
@@ -898,6 +881,8 @@ class TeacherController extends Controller
     {
         $unit = Unit::findOrFail($unitId);
         $this->verifyCourseTeacher($request, $unit->course_id);
+        $teacher = $request->user();
+        $teacherId = $teacher ? $teacher->id : null;
 
         $request->validate([
             'title' => 'required|string|max:255',
@@ -906,13 +891,196 @@ class TeacherController extends Controller
             'price' => 'nullable|numeric|min:0',
         ]);
 
-        $lesson = Lesson::create([
-            'unit_id' => $unitId,
-            'title' => $request->title,
-            'description' => $request->description,
-            'order' => $request->order ?? 0,
-            'price' => $request->price ?? 0.00,
-        ]);
+        $hasFile = $request->hasFile('video_file') || $request->hasFile('video') || $request->hasFile('file');
+        $bunnyVideoId = $request->input('bunny_video_id') ?: $request->input('bunny_stream_id');
+        $hasBunnyId = !empty($bunnyVideoId);
+
+        $manualUrl = $request->input('video_url');
+        if (empty($manualUrl)) {
+            $candidateUrl = $request->input('bunny_embed_url') ?: $request->input('url');
+            if (!empty($candidateUrl) && !$hasBunnyId) {
+                $manualUrl = $candidateUrl;
+            }
+        }
+        $hasManualUrl = !empty($manualUrl);
+
+        $activeFlowsCount = ($hasFile ? 1 : 0) + ($hasManualUrl ? 1 : 0) + ($hasBunnyId ? 1 : 0);
+        if ($activeFlowsCount > 1) {
+            return response()->json([
+                'message' => 'تعارض في بيانات الإدخال: لا يمكن إرسال أكثر من طريقة لربط الفيديو في نفس الطلب.',
+                'errors' => ['flow' => ['Conflicting video fields provided. Please provide only one video flow.']]
+            ], 422);
+        }
+
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $videoDataToCreate = null;
+
+        // If direct file upload is attached to new lesson:
+        if ($hasFile) {
+            $uploadedFile = $request->file('video_file') ?: ($request->file('video') ?: $request->file('file'));
+            $allowedExtensions = ['mp4', 'm4v', 'mov', 'webm', 'qt', 'avi', 'mkv'];
+            $fileExt = strtolower($uploadedFile->getClientOriginalExtension());
+            if (!in_array($fileExt, $allowedExtensions)) {
+                return response()->json([
+                    'message' => 'صيغة ملف الفيديو غير مدعومة. الصيغ المدعومة هي: MP4, M4V, MOV, WEBM.',
+                    'errors' => ['video_file' => ['Unsupported video file format.']]
+                ], 422);
+            }
+
+            $fileSize = $uploadedFile->getSize();
+            if ($teacherId && $bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
+                return response()->json([
+                    'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك.',
+                    'errors' => ['storage' => ['Storage quota exceeded.']]
+                ], 403);
+            }
+
+            $videoTitle = $request->input('video_title') ?: $request->title;
+            $createRes = $bunnyService->createVideo($videoTitle);
+            if (!$createRes['success']) {
+                $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+                return response()->json([
+                    'message' => $createRes['error'],
+                    'bunny_error' => $createRes['bunny_message'],
+                    'status_code' => $createRes['status'],
+                ], $status);
+            }
+
+            $bunnyGuid = $createRes['video_id'];
+            $uploadRes = $bunnyService->uploadVideo(
+                $bunnyGuid,
+                $uploadedFile->getRealPath(),
+                $uploadedFile->getMimeType() ?: 'application/octet-stream'
+            );
+
+            if (!$uploadRes['success']) {
+                $bunnyService->deleteVideo($bunnyGuid);
+                $status = ($uploadRes['status'] >= 400 && $uploadRes['status'] < 600) ? $uploadRes['status'] : 502;
+                return response()->json([
+                    'message' => $uploadRes['error'],
+                    'bunny_error' => $uploadRes['bunny_message'],
+                    'status_code' => $uploadRes['status'],
+                ], $status);
+            }
+
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $thumbnailUrl = $bunnyService->getThumbnailUrl($bunnyGuid);
+            $durationSeconds = (int) $request->input('duration_seconds', 0);
+            if ($durationSeconds <= 0) {
+                $durationSeconds = 300;
+            }
+
+            $videoDataToCreate = [
+                'title' => $videoTitle,
+                'bunny_video_id' => $bunnyGuid,
+                'bunny_stream_id' => $bunnyGuid,
+                'bunny_embed_url' => $embedUrl,
+                'bunny_thumbnail_url' => $thumbnailUrl,
+                'bunny_duration' => $durationSeconds,
+                'bunny_size_bytes' => $fileSize,
+                'bunny_status' => 'queued',
+                'duration_seconds' => $durationSeconds,
+                'thumbnail_path' => $thumbnailUrl,
+            ];
+        } elseif ($hasBunnyId) {
+            $bunnyGuid = trim($bunnyVideoId);
+            $check = $bunnyService->validateVideoExists($bunnyGuid);
+            if (!$check['success']) {
+                $status = ($check['status'] >= 400 && $check['status'] < 600) ? $check['status'] : 422;
+                return response()->json([
+                    'message' => $check['error'],
+                    'bunny_error' => $check['bunny_message'],
+                    'status_code' => $check['status'],
+                ], $status);
+            }
+
+            $meta = $check['data'] ?? [];
+            $duration = intval($meta['length'] ?? 0);
+            $sizeBytes = intval($meta['storageSize'] ?? 0);
+            $thumbnailUrl = !empty($meta['thumbnailUrl']) 
+                ? $meta['thumbnailUrl'] 
+                : $bunnyService->getThumbnailUrl($bunnyGuid);
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $statusCode = intval($meta['status'] ?? 0);
+            $bunnyStatus = $bunnyService->mapStatusCodeToString($statusCode);
+            $durationSeconds = $duration > 0 ? $duration : (intval($request->input('duration_seconds')) ?: 300);
+
+            $videoTitle = $request->input('video_title') ?: ($meta['title'] ?? $request->title);
+
+            $videoDataToCreate = [
+                'title' => $videoTitle,
+                'bunny_video_id' => $bunnyGuid,
+                'bunny_stream_id' => $bunnyGuid,
+                'bunny_embed_url' => $embedUrl,
+                'bunny_thumbnail_url' => $thumbnailUrl,
+                'bunny_duration' => $durationSeconds,
+                'bunny_size_bytes' => $sizeBytes,
+                'bunny_status' => $bunnyStatus ?: 'finished',
+                'duration_seconds' => $durationSeconds,
+                'thumbnail_path' => $thumbnailUrl,
+            ];
+        } elseif ($hasManualUrl) {
+            $url = trim($manualUrl);
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return response()->json([
+                    'message' => 'رابط الفيديو المدخل غير صالح.',
+                    'errors' => ['video_url' => ['Invalid video URL provided.']]
+                ], 422);
+            }
+
+            $durationSeconds = (int) $request->input('duration_seconds', 0);
+            $thumbnailPath = $request->input('thumbnail_path');
+            if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
+                $ytMeta = $this->fetchYoutubeVideoDetails($url);
+                if ($ytMeta) {
+                    $durationSeconds = $durationSeconds ?: $ytMeta['duration_seconds'];
+                    $thumbnailPath = $thumbnailPath ?: $ytMeta['thumbnail_path'];
+                }
+            }
+            if ($durationSeconds <= 0) {
+                $durationSeconds = 300;
+            }
+
+            $videoTitle = $request->input('video_title') ?: $request->title;
+            $videoDataToCreate = [
+                'title' => $videoTitle,
+                'bunny_video_id' => null,
+                'bunny_stream_id' => null,
+                'bunny_embed_url' => $url,
+                'duration_seconds' => $durationSeconds,
+                'thumbnail_path' => $thumbnailPath,
+                'bunny_status' => 'finished',
+            ];
+        }
+
+        // Create lesson (and video if provided) atomically
+        $lesson = \Illuminate\Support\Facades\DB::transaction(function () use ($unitId, $request, $videoDataToCreate) {
+            $createdLesson = Lesson::create([
+                'unit_id' => $unitId,
+                'title' => $request->title,
+                'description' => $request->description,
+                'order' => $request->order ?? 0,
+                'price' => $request->price ?? 0.00,
+            ]);
+
+            if ($videoDataToCreate) {
+                $videoDataToCreate['lesson_id'] = $createdLesson->id;
+                Video::create($videoDataToCreate);
+                $this->updateLessonDuration($createdLesson->id);
+            }
+
+            return $createdLesson;
+        });
+
+        if ($videoDataToCreate && !empty($videoDataToCreate['bunny_video_id'])) {
+            if ($teacherId) {
+                $bunnyService->recalculateStorage($teacherId);
+            }
+            $vRecord = Video::where('lesson_id', $lesson->id)->first();
+            if ($vRecord) {
+                \App\Jobs\PollBunnyVideoStatus::dispatch($vRecord->id);
+            }
+        }
 
         // Send Student Notification
         try {
@@ -932,7 +1100,7 @@ class TeacherController extends Controller
             \App\Services\TeacherActivityService::logLessonCreated($request->user(), $lesson, $course, $request);
         }
 
-        return response()->json($lesson, 201);
+        return response()->json($lesson->load('videos'), 201);
     }
 
     /**
@@ -1020,84 +1188,319 @@ class TeacherController extends Controller
     {
         $lesson = Lesson::with('unit')->findOrFail($lessonId);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+        $teacher = $request->user();
+        $teacherId = $teacher ? $teacher->id : null;
 
-        $url = $request->input('bunny_embed_url', '');
+        // 1. Identify which flow fields are present
+        $hasFile = $request->hasFile('video_file') || $request->hasFile('video') || $request->hasFile('file');
 
-        // Auto detect provider
-        $provider = 'unknown';
-        if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
-            $provider = 'youtube';
-        } elseif (str_contains($url, '.mp4')) {
-            $provider = 'direct';
-        } elseif (str_contains($url, 'iframe.mediadelivery.net')) {
-            $provider = 'bunny';
-        }
+        $bunnyVideoId = $request->input('bunny_video_id') ?: $request->input('bunny_stream_id');
+        $hasBunnyId = !empty($bunnyVideoId);
 
-        $bunnyStreamId = $request->input('bunny_stream_id');
-        if (!empty($bunnyStreamId)) {
-            $bunnyMeta = $this->fetchBunnyVideoDetails($bunnyStreamId);
-            if ($bunnyMeta) {
-                $request->merge([
-                    'duration_seconds' => $bunnyMeta['duration_seconds'],
-                    'thumbnail_path' => $bunnyMeta['thumbnail_path'],
-                    'resolution' => $bunnyMeta['resolution'],
-                ]);
+        $manualUrl = $request->input('video_url');
+        if (empty($manualUrl)) {
+            $candidateUrl = $request->input('bunny_embed_url') ?: $request->input('url');
+            if (!empty($candidateUrl) && !$hasBunnyId) {
+                $manualUrl = $candidateUrl;
             }
         }
+        $hasManualUrl = !empty($manualUrl);
 
-        if ($provider === 'youtube') {
-            $ytMeta = $this->fetchYoutubeVideoDetails($url);
-            if ($ytMeta) {
-                $request->merge([
-                    'duration_seconds' => $ytMeta['duration_seconds'],
-                    'thumbnail_path' => $ytMeta['thumbnail_path'],
-                ]);
-            }
+        // Conflicting fields check: Only one flow is allowed at a time
+        $activeFlowsCount = ($hasFile ? 1 : 0) + ($hasManualUrl ? 1 : 0) + ($hasBunnyId ? 1 : 0);
+
+        if ($activeFlowsCount > 1) {
+            return response()->json([
+                'error_code' => 'CONFLICTING_VIDEO_FLOWS',
+                'message' => 'تعارض في بيانات الإدخال: لا يمكن إرسال أكثر من طريقة لربط الفيديو في نفس الطلب (رفع مباشر، رابط يدوي، أو معرف Bunny).',
+                'errors' => [
+                    'flow' => ['Conflicting video fields provided. Please provide only one: direct video file, manual video URL, or existing Bunny Video ID.']
+                ]
+            ], 422);
         }
 
-        $isBunnyConfigured = !empty(config('services.bunny.library_id'));
-        $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
+        if ($activeFlowsCount === 0) {
+            return response()->json([
+                'error_code' => 'MISSING_VIDEO_FLOW',
+                'message' => 'يرجى تقديم ملف فيديو للرفع، أو رابط فيديو يدوياً، أو معرف فيديو Bunny صالح.',
+                'errors' => [
+                    'flow' => ['Please provide either a direct video file, a manual video URL, or an existing Bunny Video ID.']
+                ]
+            ], 422);
+        }
 
-        $rules = [
+        $request->validate([
             'title' => 'required|string|max:255',
-            'bunny_embed_url' => 'required|string',
-            'duration_seconds' => 'nullable|integer',
-            'thumbnail_path' => 'nullable|string',
-            'resolution' => 'nullable|string',
-        ];
-
-        if ($provider === 'bunny' && $isBunnyConfigured && !$isDevMode) {
-            $rules['bunny_stream_id'] = 'required|string';
-        } else {
-            $rules['bunny_stream_id'] = 'nullable|string';
-        }
-
-        $request->validate($rules);
-
-        $durationSeconds = $request->duration_seconds;
-        if (empty($durationSeconds) || $durationSeconds <= 0) {
-            $durationSeconds = 300; // fallback default
-        }
-
-        $video = Video::create([
-            'lesson_id' => $lessonId,
-            'title' => $request->title,
-            'bunny_video_id' => $request->bunny_stream_id,
-            'bunny_stream_id' => $request->bunny_stream_id,
-            'bunny_embed_url' => $request->bunny_embed_url,
-            'duration_seconds' => $durationSeconds,
-            'thumbnail_path' => $request->thumbnail_path,
-            'resolution' => $request->resolution,
-            'bunny_status' => $request->bunny_stream_id ? 'finished' : 'finished',
         ]);
+        $title = trim($request->input('title'));
 
-        $this->updateLessonDuration($lessonId);
-
-        if ($request->user() && $request->user()->role === 'teacher') {
-            \App\Services\TeacherActivityService::logVideoUploaded($request->user(), $video, $request);
+        // Check for duplicate video submission (by title in this lesson)
+        if (Video::where('lesson_id', $lessonId)->where('title', $title)->exists()) {
+            return response()->json([
+                'error_code' => 'DUPLICATE_VIDEO_TITLE',
+                'message' => 'يوجد فيديو آخر بنفس العنوان مرتبط بالفعل بهذه المحاضرة/الدرس (فيديو مكرر).',
+                'errors' => [
+                    'title' => ['A video with this title is already linked to this lesson.']
+                ]
+            ], 422);
         }
 
-        return response()->json($video, 201);
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+
+        // -------------------------------------------------------------
+        // FLOW 1: Direct Video File Upload
+        // -------------------------------------------------------------
+        if ($hasFile) {
+            $uploadedFile = $request->file('video_file') ?: ($request->file('video') ?: $request->file('file'));
+
+            $allowedExtensions = ['mp4', 'm4v', 'mov', 'webm', 'qt', 'avi', 'mkv'];
+            $fileExt = strtolower($uploadedFile->getClientOriginalExtension());
+            if (!in_array($fileExt, $allowedExtensions)) {
+                return response()->json([
+                    'error_code' => 'UNSUPPORTED_VIDEO_FORMAT',
+                    'message' => 'صيغة ملف الفيديو غير مدعومة. الصيغ المدعومة هي: MP4, M4V, MOV, WEBM.',
+                    'errors' => ['video_file' => ['Unsupported video file format.']]
+                ], 422);
+            }
+
+            $fileSize = $uploadedFile->getSize();
+            if ($teacherId && $bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
+                return response()->json([
+                    'error_code' => 'STORAGE_LIMIT_EXCEEDED',
+                    'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة لتتمكن من إضافة فيديوهات جديدة.',
+                    'errors' => ['storage' => ['Storage quota exceeded.']]
+                ], 403);
+            }
+
+            // 1. Create Bunny Stream video object
+            $createResult = $bunnyService->createVideo($title);
+            if (!$createResult['success']) {
+                $status = ($createResult['status'] >= 400 && $createResult['status'] < 600) ? $createResult['status'] : 502;
+                return response()->json([
+                    'error_code' => 'BUNNY_CREATION_FAILED',
+                    'message' => $createResult['error'],
+                    'bunny_error' => $createResult['bunny_message'],
+                    'status_code' => $createResult['status'],
+                ], $status);
+            }
+
+            $bunnyGuid = $createResult['video_id'] ?? $createResult['guid'] ?? null;
+
+            // 2. Upload video binary to Bunny Stream
+            $uploadResult = $bunnyService->uploadVideo(
+                $bunnyGuid,
+                $uploadedFile->getRealPath(),
+                $uploadedFile->getMimeType() ?: 'application/octet-stream'
+            );
+
+            if (!$uploadResult['success']) {
+                // Delete orphaned video object on Bunny
+                $bunnyService->deleteVideo($bunnyGuid);
+
+                $status = ($uploadResult['status'] >= 400 && $uploadResult['status'] < 600) ? $uploadResult['status'] : 502;
+                return response()->json([
+                    'error_code' => 'BUNNY_UPLOAD_FAILED',
+                    'message' => $uploadResult['error'],
+                    'bunny_error' => $uploadResult['bunny_message'],
+                    'status_code' => $uploadResult['status'],
+                ], $status);
+            }
+
+            // 3. Save returned Bunny Video ID and metadata, and only then create video / update lesson
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $thumbnailUrl = $bunnyService->getThumbnailUrl($bunnyGuid);
+            $durationSeconds = (int) $request->input('duration_seconds', 0);
+            if ($durationSeconds <= 0) {
+                $durationSeconds = 300;
+            }
+
+            $video = \Illuminate\Support\Facades\DB::transaction(function () use (
+                $lessonId, $title, $bunnyGuid, $embedUrl, $thumbnailUrl, $fileSize, $durationSeconds
+            ) {
+                $createdVideo = Video::create([
+                    'lesson_id' => $lessonId,
+                    'title' => $title,
+                    'bunny_video_id' => $bunnyGuid,
+                    'bunny_stream_id' => $bunnyGuid,
+                    'bunny_embed_url' => $embedUrl,
+                    'bunny_thumbnail_url' => $thumbnailUrl,
+                    'bunny_duration' => $durationSeconds,
+                    'bunny_size_bytes' => $fileSize,
+                    'bunny_status' => 'queued',
+                    'duration_seconds' => $durationSeconds,
+                    'thumbnail_path' => $thumbnailUrl,
+                ]);
+
+                $this->updateLessonDuration($lessonId);
+                return $createdVideo;
+            });
+
+            if ($teacherId) {
+                $bunnyService->recalculateStorage($teacherId);
+            }
+            \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+
+            if ($teacher && $teacher->role === 'teacher') {
+                \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
+            }
+
+            $payload = array_merge($video->toArray(), [
+                'success' => true,
+                'video' => $video->toArray(),
+            ]);
+
+            return response()->json($payload, 201);
+        }
+
+        // -------------------------------------------------------------
+        // FLOW 2: Existing Bunny Video ID
+        // -------------------------------------------------------------
+        if ($hasBunnyId) {
+            $bunnyGuid = trim($bunnyVideoId);
+
+            // Check duplicate submission of this Bunny ID to this lesson
+            if (Video::where('lesson_id', $lessonId)
+                ->where(function ($q) use ($bunnyGuid) {
+                    $q->where('bunny_video_id', $bunnyGuid)->orWhere('bunny_stream_id', $bunnyGuid);
+                })->exists()) {
+                return response()->json([
+                    'error_code' => 'DUPLICATE_BUNNY_VIDEO',
+                    'message' => 'هذا الفيديو مرتبط بالفعل بهذا الدرس مسبقاً (معرف فيديو مكرر).',
+                    'errors' => ['bunny_video_id' => ['This Bunny video ID is already linked to this lesson.']]
+                ], 422);
+            }
+
+            // Validate that the video actually exists in the configured Bunny Library
+            $check = $bunnyService->validateVideoExists($bunnyGuid);
+            if (!$check['success']) {
+                return response()->json([
+                    'error_code' => 'BUNNY_VIDEO_NOT_FOUND',
+                    'message' => $check['error'],
+                    'bunny_error' => $check['bunny_message'] ?? null,
+                    'status_code' => $check['status'],
+                    'errors' => [
+                        'bunny_video_id' => [$check['error']]
+                    ]
+                ], 422);
+            }
+
+            $meta = $check['data'] ?? [];
+            $duration = intval($meta['length'] ?? 0);
+            $sizeBytes = intval($meta['storageSize'] ?? 0);
+            $thumbnailUrl = !empty($meta['thumbnailUrl']) 
+                ? $meta['thumbnailUrl'] 
+                : $bunnyService->getThumbnailUrl($bunnyGuid);
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $statusCode = intval($meta['status'] ?? 0);
+            $bunnyStatus = $bunnyService->mapStatusCodeToString($statusCode);
+            $width = $meta['width'] ?? null;
+            $height = $meta['height'] ?? null;
+            $resolution = ($width && $height) ? "{$width}x{$height}" : null;
+
+            $durationSeconds = $duration > 0 ? $duration : (intval($request->input('duration_seconds')) ?: 300);
+
+            $video = \Illuminate\Support\Facades\DB::transaction(function () use (
+                $lessonId, $title, $bunnyGuid, $embedUrl, $thumbnailUrl, $durationSeconds, $sizeBytes, $bunnyStatus, $resolution
+            ) {
+                $createdVideo = Video::create([
+                    'lesson_id' => $lessonId,
+                    'title' => $title,
+                    'bunny_video_id' => $bunnyGuid,
+                    'bunny_stream_id' => $bunnyGuid,
+                    'bunny_embed_url' => $embedUrl,
+                    'bunny_thumbnail_url' => $thumbnailUrl,
+                    'bunny_duration' => $durationSeconds,
+                    'bunny_size_bytes' => $sizeBytes,
+                    'bunny_status' => $bunnyStatus ?: 'finished',
+                    'duration_seconds' => $durationSeconds,
+                    'thumbnail_path' => $thumbnailUrl,
+                    'resolution' => $resolution,
+                ]);
+
+                $this->updateLessonDuration($lessonId);
+                return $createdVideo;
+            });
+
+            if ($teacherId) {
+                $bunnyService->recalculateStorage($teacherId);
+            }
+
+            if ($teacher && $teacher->role === 'teacher') {
+                \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
+            }
+
+            $payload = array_merge($video->toArray(), [
+                'success' => true,
+                'video' => $video->toArray(),
+            ]);
+
+            return response()->json($payload, 201);
+        }
+
+        // -------------------------------------------------------------
+        // FLOW 3: Manual Video URL
+        // -------------------------------------------------------------
+        if ($hasManualUrl) {
+            $url = trim($manualUrl);
+
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return response()->json([
+                    'message' => 'رابط الفيديو المدخل غير صالح.',
+                    'errors' => ['video_url' => ['Invalid video URL provided.']]
+                ], 422);
+            }
+
+            // Check duplicate submission of this URL to this lesson
+            if (Video::where('lesson_id', $lessonId)->where('bunny_embed_url', $url)->exists()) {
+                return response()->json([
+                    'message' => 'هذا الرابط مرتبط بالفعل بهذا الدرس (رابط مكرر).',
+                    'errors' => ['video_url' => ['This video URL is already linked to this lesson.']]
+                ], 422);
+            }
+
+            $durationSeconds = (int) $request->input('duration_seconds', 0);
+            $thumbnailPath = $request->input('thumbnail_path');
+
+            if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
+                $ytMeta = $this->fetchYoutubeVideoDetails($url);
+                if ($ytMeta) {
+                    if (empty($durationSeconds)) {
+                        $durationSeconds = $ytMeta['duration_seconds'];
+                    }
+                    if (empty($thumbnailPath)) {
+                        $thumbnailPath = $ytMeta['thumbnail_path'];
+                    }
+                }
+            }
+
+            if ($durationSeconds <= 0) {
+                $durationSeconds = 300;
+            }
+
+            $video = \Illuminate\Support\Facades\DB::transaction(function () use (
+                $lessonId, $title, $url, $durationSeconds, $thumbnailPath
+            ) {
+                $createdVideo = Video::create([
+                    'lesson_id' => $lessonId,
+                    'title' => $title,
+                    'bunny_video_id' => null,
+                    'bunny_stream_id' => null,
+                    'bunny_embed_url' => $url,
+                    'duration_seconds' => $durationSeconds,
+                    'thumbnail_path' => $thumbnailPath,
+                    'bunny_status' => 'finished',
+                ]);
+
+                $this->updateLessonDuration($lessonId);
+                return $createdVideo;
+            });
+
+            if ($teacher && $teacher->role === 'teacher') {
+                \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
+            }
+
+            return response()->json($video, 201);
+        }
     }
 
     /**
@@ -1149,75 +1552,202 @@ class TeacherController extends Controller
         $video = Video::findOrFail($id);
         $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+        $teacher = $request->user();
+        $teacherId = $teacher ? $teacher->id : null;
 
-        $url = $request->input('bunny_embed_url', $video->bunny_embed_url);
+        $hasFile = $request->hasFile('video_file') || $request->hasFile('video') || $request->hasFile('file');
+        $bunnyVideoId = $request->input('bunny_video_id') ?: $request->input('bunny_stream_id');
+        $hasBunnyId = !empty($bunnyVideoId);
 
-        // Auto detect provider
-        $provider = 'unknown';
-        if (str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be')) {
-            $provider = 'youtube';
-        } elseif (str_contains($url, '.mp4')) {
-            $provider = 'direct';
-        } elseif (str_contains($url, 'iframe.mediadelivery.net')) {
-            $provider = 'bunny';
-        }
-
-        $bunnyStreamId = $request->input('bunny_stream_id');
-        if (!empty($bunnyStreamId)) {
-            $bunnyMeta = $this->fetchBunnyVideoDetails($bunnyStreamId);
-            if ($bunnyMeta) {
-                $request->merge([
-                    'duration_seconds' => $bunnyMeta['duration_seconds'],
-                    'thumbnail_path' => $bunnyMeta['thumbnail_path'],
-                    'resolution' => $bunnyMeta['resolution'],
-                ]);
+        $manualUrl = $request->input('video_url');
+        if (empty($manualUrl)) {
+            $candidateUrl = $request->input('bunny_embed_url') ?: $request->input('url');
+            if (!empty($candidateUrl) && !$hasBunnyId) {
+                $manualUrl = $candidateUrl;
             }
         }
+        $hasManualUrl = !empty($manualUrl);
 
-        if ($provider === 'youtube') {
-            $ytMeta = $this->fetchYoutubeVideoDetails($url);
-            if ($ytMeta) {
-                $request->merge([
-                    'duration_seconds' => $ytMeta['duration_seconds'],
-                    'thumbnail_path' => $ytMeta['thumbnail_path'],
-                ]);
-            }
+        $activeFlowsCount = ($hasFile ? 1 : 0) + ($hasManualUrl ? 1 : 0) + ($hasBunnyId ? 1 : 0);
+        if ($activeFlowsCount > 1) {
+            return response()->json([
+                'message' => 'تعارض في بيانات الإدخال: لا يمكن إرسال أكثر من طريقة لربط الفيديو في نفس الطلب.',
+                'errors' => [
+                    'flow' => ['Conflicting video fields provided. Please provide only one video flow.']
+                ]
+            ], 422);
         }
 
-        $isBunnyConfigured = !empty(config('services.bunny.library_id'));
-        $isDevMode = filter_var(env('DEVELOPMENT_MODE', false), FILTER_VALIDATE_BOOLEAN);
-
-        $rules = [
+        $request->validate([
             'title' => 'required|string|max:255',
-            'bunny_embed_url' => 'required|string',
             'duration_seconds' => 'nullable|integer',
             'thumbnail_path' => 'nullable|string',
             'resolution' => 'nullable|string',
-        ];
-
-        if ($provider === 'bunny' && $isBunnyConfigured && !$isDevMode) {
-            $rules['bunny_stream_id'] = 'required|string';
-        } else {
-            $rules['bunny_stream_id'] = 'nullable|string';
-        }
-
-        $request->validate($rules);
-
-        $durationSeconds = $request->duration_seconds;
-        if (empty($durationSeconds) || $durationSeconds <= 0) {
-            $durationSeconds = $video->duration_seconds ?: 300;
-        }
-
-        $video->update([
-            'title' => $request->title,
-            'bunny_video_id' => $request->bunny_stream_id,
-            'bunny_stream_id' => $request->bunny_stream_id,
-            'bunny_embed_url' => $request->bunny_embed_url,
-            'duration_seconds' => $durationSeconds,
-            'thumbnail_path' => $request->thumbnail_path,
-            'resolution' => $request->resolution,
-            'bunny_status' => $request->bunny_stream_id ? ($video->bunny_status ?: 'finished') : 'finished',
         ]);
+
+        $title = trim($request->input('title'));
+
+        // Check duplicate title in same lesson
+        if (Video::where('lesson_id', $video->lesson_id)->where('id', '!=', $id)->where('title', $title)->exists()) {
+            return response()->json([
+                'message' => 'يوجد فيديو آخر بنفس العنوان مرتبط بالفعل بهذه المحاضرة/الدرس.',
+                'errors' => ['title' => ['A video with this title already exists in this lesson.']]
+            ], 422);
+        }
+
+        $bunnyService = new \App\Services\BunnyStreamService();
+        $durationSeconds = $request->duration_seconds ?: $video->duration_seconds;
+        $thumbnailPath = $request->thumbnail_path ?: $video->thumbnail_path;
+        $resolution = $request->resolution ?: $video->resolution;
+
+        if ($hasFile) {
+            $uploadedFile = $request->file('video_file') ?: ($request->file('video') ?: $request->file('file'));
+            $fileSize = $uploadedFile->getSize();
+            $currentSize = $video->bunny_size_bytes ?? 0;
+            $netChange = max(0, $fileSize - $currentSize);
+
+            if ($teacherId && $bunnyService->isStorageLimitExceeded($teacherId, $netChange)) {
+                return response()->json([
+                    'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك.',
+                    'errors' => ['storage' => ['Storage quota exceeded.']]
+                ], 403);
+            }
+
+            $createResult = $bunnyService->createVideo($title);
+            if (!$createResult['success']) {
+                $status = ($createResult['status'] >= 400 && $createResult['status'] < 600) ? $createResult['status'] : 502;
+                return response()->json([
+                    'message' => $createResult['error'],
+                    'bunny_error' => $createResult['bunny_message'],
+                    'status_code' => $createResult['status'],
+                ], $status);
+            }
+
+            $bunnyGuid = $createResult['video_id'];
+            $uploadResult = $bunnyService->uploadVideo(
+                $bunnyGuid,
+                $uploadedFile->getRealPath(),
+                $uploadedFile->getMimeType() ?: 'application/octet-stream'
+            );
+
+            if (!$uploadResult['success']) {
+                $bunnyService->deleteVideo($bunnyGuid);
+                $status = ($uploadResult['status'] >= 400 && $uploadResult['status'] < 600) ? $uploadResult['status'] : 502;
+                return response()->json([
+                    'message' => $uploadResult['error'],
+                    'bunny_error' => $uploadResult['bunny_message'],
+                    'status_code' => $uploadResult['status'],
+                ], $status);
+            }
+
+            // Delete old Bunny video if existed
+            $oldBunnyId = $video->bunny_video_id ?: $video->bunny_stream_id;
+            if (!empty($oldBunnyId)) {
+                $bunnyService->deleteVideo($oldBunnyId);
+            }
+
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $thumbnailUrl = $bunnyService->getThumbnailUrl($bunnyGuid);
+
+            $video->update([
+                'title' => $title,
+                'bunny_video_id' => $bunnyGuid,
+                'bunny_stream_id' => $bunnyGuid,
+                'bunny_embed_url' => $embedUrl,
+                'bunny_thumbnail_url' => $thumbnailUrl,
+                'bunny_duration' => $durationSeconds,
+                'bunny_size_bytes' => $fileSize,
+                'bunny_status' => 'queued',
+                'duration_seconds' => $durationSeconds ?: 300,
+                'thumbnail_path' => $thumbnailUrl,
+            ]);
+
+            if ($teacherId) {
+                $bunnyService->recalculateStorage($teacherId);
+            }
+            \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+        } elseif ($hasBunnyId) {
+            $bunnyGuid = trim($bunnyVideoId);
+
+            if (Video::where('lesson_id', $video->lesson_id)->where('id', '!=', $id)
+                ->where(function ($q) use ($bunnyGuid) {
+                    $q->where('bunny_video_id', $bunnyGuid)->orWhere('bunny_stream_id', $bunnyGuid);
+                })->exists()) {
+                return response()->json([
+                    'message' => 'هذا الفيديو مرتبط بالفعل بهذا الدرس.',
+                    'errors' => ['bunny_video_id' => ['This Bunny video ID is already linked to this lesson.']]
+                ], 422);
+            }
+
+            $check = $bunnyService->validateVideoExists($bunnyGuid);
+            if (!$check['success']) {
+                $status = ($check['status'] >= 400 && $check['status'] < 600) ? $check['status'] : 422;
+                return response()->json([
+                    'message' => $check['error'],
+                    'bunny_error' => $check['bunny_message'],
+                    'status_code' => $check['status'],
+                ], $status);
+            }
+
+            $meta = $check['data'] ?? [];
+            $duration = intval($meta['length'] ?? 0);
+            $sizeBytes = intval($meta['storageSize'] ?? 0);
+            $thumbnailUrl = !empty($meta['thumbnailUrl']) ? $meta['thumbnailUrl'] : $bunnyService->getThumbnailUrl($bunnyGuid);
+            $embedUrl = $bunnyService->getEmbedUrl($bunnyGuid);
+            $statusCode = intval($meta['status'] ?? 0);
+            $bunnyStatus = $bunnyService->mapStatusCodeToString($statusCode);
+
+            $video->update([
+                'title' => $title,
+                'bunny_video_id' => $bunnyGuid,
+                'bunny_stream_id' => $bunnyGuid,
+                'bunny_embed_url' => $embedUrl,
+                'bunny_thumbnail_url' => $thumbnailUrl,
+                'bunny_duration' => $duration > 0 ? $duration : $durationSeconds,
+                'bunny_size_bytes' => $sizeBytes,
+                'bunny_status' => $bunnyStatus ?: 'finished',
+                'duration_seconds' => $duration > 0 ? $duration : ($durationSeconds ?: 300),
+                'thumbnail_path' => $thumbnailUrl,
+                'resolution' => $resolution,
+            ]);
+
+            if ($teacherId) {
+                $bunnyService->recalculateStorage($teacherId);
+            }
+        } elseif ($hasManualUrl) {
+            $url = trim($manualUrl);
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return response()->json([
+                    'message' => 'رابط الفيديو المدخل غير صالح.',
+                    'errors' => ['video_url' => ['Invalid video URL provided.']]
+                ], 422);
+            }
+
+            if (Video::where('lesson_id', $video->lesson_id)->where('id', '!=', $id)->where('bunny_embed_url', $url)->exists()) {
+                return response()->json([
+                    'message' => 'هذا الرابط مرتبط بالفعل بهذا الدرس.',
+                    'errors' => ['video_url' => ['This video URL is already linked to this lesson.']]
+                ], 422);
+            }
+
+            $video->update([
+                'title' => $title,
+                'bunny_video_id' => null,
+                'bunny_stream_id' => null,
+                'bunny_embed_url' => $url,
+                'duration_seconds' => $durationSeconds ?: 300,
+                'thumbnail_path' => $thumbnailPath,
+                'bunny_status' => 'finished',
+            ]);
+        } else {
+            // Updating metadata only (title, duration, thumbnail)
+            $video->update([
+                'title' => $title,
+                'duration_seconds' => $durationSeconds ?: $video->duration_seconds,
+                'thumbnail_path' => $thumbnailPath ?: $video->thumbnail_path,
+                'resolution' => $resolution ?: $video->resolution,
+            ]);
+        }
 
         $this->updateLessonDuration($video->lesson_id);
 
@@ -1285,11 +1815,23 @@ class TeacherController extends Controller
             ], 400);
         }
 
-        $teacherId = $request->user()->id;
         $bunnyService = new \App\Services\BunnyStreamService();
+        if (!$bunnyService->isConfigured()) {
+            return response()->json([
+                'message' => 'Bunny Stream integration is not configured on the server.'
+            ], 400);
+        }
+
+        $teacherId = $request->user()->id;
 
         // Validate storage limit: subtract the current video size because we are replacing it
         $fileSize = (int) $request->input('file_size', 0);
+        $hasFile = $request->hasFile('video_file') || $request->hasFile('video') || $request->hasFile('file');
+        if ($hasFile) {
+            $uploadedFile = $request->file('video_file') ?: ($request->file('video') ?: $request->file('file'));
+            $fileSize = $uploadedFile->getSize();
+        }
+
         $currentVideoSize = (int) ($video->bunny_size_bytes ?? $video->storage_size ?? 0);
         $netSizeChange = max(0, $fileSize - $currentVideoSize);
 
@@ -1299,79 +1841,81 @@ class TeacherController extends Controller
             ], 403);
         }
 
-        // 1. Delete old video from Bunny Stream if exists
+        // 1. Create a new video placeholder on Bunny Stream
+        $createRes = $bunnyService->createVideo($video->title);
+        if (!$createRes['success']) {
+            $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+            return response()->json([
+                'message' => $createRes['error'],
+                'bunny_error' => $createRes['bunny_message'],
+                'status_code' => $createRes['status'],
+            ], $status);
+        }
+
+        $newVideoId = $createRes['video_id'];
+
+        // If a file was directly submitted, upload it immediately
+        if ($hasFile) {
+            $uploadRes = $bunnyService->uploadVideo(
+                $newVideoId,
+                $uploadedFile->getRealPath(),
+                $uploadedFile->getMimeType() ?: 'application/octet-stream'
+            );
+
+            if (!$uploadRes['success']) {
+                $bunnyService->deleteVideo($newVideoId);
+                $status = ($uploadRes['status'] >= 400 && $uploadRes['status'] < 600) ? $uploadRes['status'] : 502;
+                return response()->json([
+                    'message' => $uploadRes['error'],
+                    'bunny_error' => $uploadRes['bunny_message'],
+                    'status_code' => $uploadRes['status'],
+                ], $status);
+            }
+        }
+
+        // 2. Delete old video from Bunny Stream only now that new video object is safely ready
         $oldBunnyId = $video->bunny_video_id ?: $video->bunny_stream_id;
         if (!empty($oldBunnyId)) {
             $bunnyService->deleteVideo($oldBunnyId);
         }
 
-        try {
-            // 2. Create a new video placeholder in Bunny Stream
-            $response = \Illuminate\Support\Facades\Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $apiKey,
-                'Content-Type' => 'application/json',
-                'accept' => 'application/json',
-            ])->post("https://video.bunnycdn.com/library/{$libraryId}/videos", [
-                'title' => $video->title,
-            ]);
+        $embedUrl = $bunnyService->getEmbedUrl($newVideoId);
+        $thumbnailUrl = $bunnyService->getThumbnailUrl($newVideoId);
 
-            if ($response->successful()) {
-                $data = $response->json();
-                $newVideoId = $data['guid']; // New GUID
+        // 3. Update local video record
+        $video->update([
+            'bunny_video_id' => $newVideoId,
+            'bunny_stream_id' => $newVideoId,
+            'bunny_embed_url' => $embedUrl,
+            'bunny_thumbnail_url' => $thumbnailUrl,
+            'bunny_duration' => 0,
+            'bunny_size_bytes' => $fileSize,
+            'bunny_status' => 'queued',
+            'duration_seconds' => 0,
+            'thumbnail_path' => $thumbnailUrl,
+        ]);
 
-                // 3. Generate authorization signature for TUS upload
-                $expirationTime = time() + 7200; // 2 hours expiration
-                $signature = hash('sha256', $libraryId . $apiKey . $expirationTime . $newVideoId);
+        // Recalculate teacher storage
+        $bunnyService->recalculateStorage($teacherId);
 
-                $cdnHost = config('services.bunny.cdn_hostname');
-                $pullZone = config('services.bunny.pull_zone');
-                $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
+        // Dispatch background status polling job
+        \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
 
-                $embedUrl = "https://{$domain}/embed/{$libraryId}/{$newVideoId}";
-                $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$newVideoId}/thumbnail.jpg";
-
-                // 4. Update local video record immediately
-                $video->update([
-                    'bunny_video_id' => $newVideoId,
-                    'bunny_stream_id' => $newVideoId,
-                    'bunny_embed_url' => $embedUrl,
-                    'bunny_thumbnail_url' => $thumbnailUrl,
-                    'bunny_duration' => 0,
-                    'bunny_size_bytes' => $fileSize,
-                    'bunny_status' => 'queued',
-                    'duration_seconds' => 0,
-                    'thumbnail_path' => $thumbnailUrl,
-                ]);
-
-                // Recalculate teacher storage
-                $bunnyService->recalculateStorage($teacherId);
-
-                // Dispatch background status polling job
-                \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
-
-                if ($request->user() && $request->user()->role === 'teacher') {
-                    \App\Services\TeacherActivityService::logVideoReplaced($request->user(), $video, $request);
-                }
-
-                return response()->json([
-                    'video_id' => $newVideoId,
-                    'library_id' => $libraryId,
-                    'signature' => $signature,
-                    'expiration_time' => $expirationTime,
-                    'embed_url' => $embedUrl,
-                    'video' => $video,
-                ]);
-            } else {
-                return response()->json([
-                    'message' => 'Failed to create replacement video object in Bunny Stream.',
-                    'details' => $response->body()
-                ], 500);
-            }
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error generating signed replacement: ' . $e->getMessage()
-            ], 500);
+        if ($request->user() && $request->user()->role === 'teacher') {
+            \App\Services\TeacherActivityService::logVideoReplaced($request->user(), $video, $request);
         }
+
+        $expirationTime = time() + 7200;
+        $signature = hash('sha256', $libraryId . $apiKey . $expirationTime . $newVideoId);
+
+        return response()->json([
+            'video_id' => $newVideoId,
+            'library_id' => $libraryId,
+            'signature' => $signature,
+            'expiration_time' => $expirationTime,
+            'embed_url' => $embedUrl,
+            'video' => $video,
+        ]);
     }
 
     /**

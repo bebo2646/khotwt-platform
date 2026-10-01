@@ -1,6 +1,5 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { ensureHttps } from '../../utils/urls'
 
 export interface TeacherCardProps {
@@ -117,16 +116,14 @@ export default function TeacherCard({
   }
 
   return (
-    <motion.div
-      whileHover={{ y: -6 }}
-      transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+    <div
       data-teacher-id={id}
       style={{
         backgroundColor: 'var(--teacher-card-bg)',
         borderColor: 'var(--teacher-card-border)',
         boxShadow: 'var(--teacher-card-shadow)',
       }}
-      className={`teacher-theme-transition group relative rounded-[26px] border hover:shadow-[0_16px_36px_rgba(109,93,252,0.18)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-[475px] sm:h-[505px] w-full select-none ${className}`}
+      className={`teacher-theme-transition group relative rounded-[26px] border hover:-translate-y-1.5 hover:shadow-[0_16px_36px_rgba(109,93,252,0.18)] transition-all duration-300 flex flex-col justify-between overflow-hidden h-[475px] sm:h-[505px] w-full select-none ${className}`}
       dir="rtl"
     >
       {/* 1. Large Portrait Image Area with Natural Composition */}
@@ -141,7 +138,8 @@ export default function TeacherCard({
             alt={name}
             className="w-full h-full object-cover object-[center_20%] transition-transform duration-500 group-hover:scale-105"
             onError={() => setImageError(true)}
-            loading="eager"
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div
@@ -239,6 +237,6 @@ export default function TeacherCard({
           </Link>
         </div>
       </div>
-    </motion.div>
+    </div>
   )
 }

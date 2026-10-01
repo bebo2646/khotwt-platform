@@ -60,3 +60,33 @@ export const STUDENT_NAV_ITEMS: DashboardNavItem[] = [
   { id: 'student-wallet', to: '/student/wallet', label: 'المحفظة', icon: Wallet, priority: 4 },
   { id: 'student-departments', to: '/departments', label: 'الأقسام', icon: Layers, priority: 5 },
 ]
+
+/**
+ * Admin Navigation Items and Priorities:
+ * Priority 1: الرئيسية - Admin overview dashboard (Highest priority)
+ * Priority 2: المعلمون - Teacher management
+ * Priority 3: الطلاب - Student management
+ * Priority 4: الكورسات - Course management
+ * Priority 5: الامتحانات الشهرية - Exam management
+ * Priority 6: أكواد الشحن - Coupon and codes
+ * Priority 7: التقارير - Financial and usage reports
+ * Priority 8: إرسال الإشعارات - Notification dispatch
+ * Priority 9: طلبات الاشتراكات - Teacher subscription requests
+ * Priority 10: إدارة الباقات - Platform pricing plans
+ * Priority 11: إحصائيات Bunny - Bunny Stream analytics
+ * Priority 12: الصلاحيات - Role & admin user permissions (First to overflow)
+ */
+export const ADMIN_NAV_ITEMS: (DashboardNavItem & { permission?: string })[] = [
+  { id: 'admin-dashboard', to: '/admin/dashboard', label: 'الرئيسية', icon: LayoutDashboard, priority: 1 },
+  { id: 'admin-teachers', to: '/admin/teachers', label: 'المعلمون', icon: Users, priority: 2, permission: 'teachers.manage' },
+  { id: 'admin-students', to: '/admin/students', label: 'الطلاب', icon: Users, priority: 3, permission: 'students.manage' },
+  { id: 'admin-courses', to: '/admin/courses', label: 'الكورسات', icon: BookOpen, priority: 4, permission: 'courses.manage' },
+  { id: 'admin-exams', to: '/admin/monthly-exams', label: 'الامتحانات الشهرية', icon: ClipboardList, priority: 5, permission: 'exams.manage' },
+  { id: 'admin-codes', to: '/admin/codes', label: 'أكواد الشحن', icon: KeyRound, priority: 6, permission: 'coupons.manage' },
+  { id: 'admin-reports', to: '/admin/reports', label: 'التقارير', icon: BarChart3, priority: 7, permission: 'reports.view' },
+  { id: 'admin-notifications', to: '/admin/notifications', label: 'إرسال الإشعارات', icon: Sparkles, priority: 8 },
+  { id: 'admin-sub-requests', to: '/admin/subscriptions/requests', label: 'طلبات الاشتراكات', icon: Package, priority: 9 },
+  { id: 'admin-plans', to: '/admin/subscription-plans', label: 'إدارة الباقات', icon: Layers, priority: 10 },
+  { id: 'admin-bunny', to: '/admin/bunny', label: 'إحصائيات Bunny', icon: Video, priority: 11 },
+  { id: 'admin-manage', to: '/admin/manage', label: 'الصلاحيات', icon: KeyRound, priority: 12, permission: 'admins.manage' },
+]

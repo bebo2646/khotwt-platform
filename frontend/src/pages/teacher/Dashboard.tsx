@@ -106,6 +106,7 @@ export default function Dashboard() {
   const { user, updateUser } = useAuthStore()
   const [showProfileModal, setShowProfileModal] = React.useState(false)
   const [profileName, setProfileName] = React.useState(user?.name || '')
+  const [profilePhone, setProfilePhone] = React.useState(user?.phone || '')
   const [profileExperience, setProfileExperience] = React.useState(user?.experience || '')
   const [profileBio, setProfileBio] = React.useState(user?.bio || '')
   const [profileTeachingMode, setProfileTeachingMode] = React.useState(user?.teaching_mode || 'online')
@@ -441,6 +442,7 @@ export default function Dashboard() {
         <button
           onClick={() => {
             setProfileName(user?.name || '')
+            setProfilePhone(user?.phone || '')
             setProfileExperience(user?.experience || '')
             setProfileBio(user?.bio || '')
             setProfileTeachingMode(user?.teaching_mode || 'online')
@@ -1064,10 +1066,27 @@ export default function Dashboard() {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault()
+                  const trimmedName = profileName.trim()
+                  if (!trimmedName || trimmedName.length < 2) {
+                    useModalStore.getState().showToast('يرجى إدخال اسمك بالكامل.', 'warning')
+                    return
+                  }
+                  if (/[0-9\u0660-\u0669\u06F0-\u06F9]/.test(trimmedName)) {
+                    useModalStore.getState().showToast('اسم المعلم غير صالح: يجب أن يتكون الاسم من أحرف فقط ولا يمكن أن يحتوي على أرقام.', 'error')
+                    return
+                  }
+
+                  const cleanedPhone = profilePhone.trim().replace(/\s+/g, '')
+                  if (cleanedPhone && !/^01[0125][0-9]{8}$/.test(cleanedPhone)) {
+                    useModalStore.getState().showToast('رقم الهاتف غير صحيح: يجب إدخال رقم هاتف مصري صالح مكون من 11 رقماً (مثال: 01012345678).', 'error')
+                    return
+                  }
+
                   setProfileSaving(true)
                   try {
                     const res = await API.post('/teacher/profile/update', {
-                      name: profileName,
+                      name: trimmedName,
+                      phone: cleanedPhone || undefined,
                       experience: profileExperience,
                       bio: profileBio,
                       teaching_mode: profileTeachingMode
@@ -1077,7 +1096,10 @@ export default function Dashboard() {
                     setShowProfileModal(false)
                   } catch (err: any) {
                     console.error(err)
-                    useModalStore.getState().showToast('حدث خطأ أثناء تحديث البيانات.', 'error')
+                    const errMsg = err.response?.data?.errors 
+                      ? Object.values(err.response.data.errors).flat().join('\n')
+                      : (err.response?.data?.message || 'حدث خطأ أثناء تحديث البيانات.')
+                    useModalStore.getState().showToast(errMsg, 'error')
                   } finally {
                     setProfileSaving(false)
                   }
@@ -1092,6 +1114,18 @@ export default function Dashboard() {
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
                     className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">رقم الهاتف / الواتساب</label>
+                  <input
+                    type="text"
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    placeholder="010XXXXXXXX"
+                    dir="ltr"
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-slate-800 focus:border-brand-primary rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none text-left"
                   />
                 </div>
 

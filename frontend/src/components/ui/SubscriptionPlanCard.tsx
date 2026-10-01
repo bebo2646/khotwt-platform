@@ -186,7 +186,7 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
 
   return (
     <div
-      className={`bg-[var(--card-bg)] border-2 rounded-[24px] p-6 flex flex-col justify-between relative transition-all duration-300 text-right ${
+      className={`bg-[var(--card-bg)] border-2 rounded-[24px] p-6 pt-7 flex flex-col justify-between relative transition-all duration-300 text-right mt-2 ${
         isCurrent
           ? 'border-emerald-500 bg-emerald-500/5 shadow-[0_0_50px_rgba(16,185,129,0.18)] md:scale-105 z-10 ring-4 ring-emerald-500/10'
           : plan.most_popular
@@ -199,25 +199,25 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
     >
       {/* Dynamic Badges Showcase */}
       {isCurrent && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-600 to-teal-600 text-[10px] font-black text-white px-5 py-1 rounded-full border border-emerald-400 shadow-md whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-emerald-600 to-teal-600 text-[10px] font-black text-white px-4 py-1 rounded-full border border-emerald-400 shadow-md max-w-[90%] truncate text-center">
           ✓ باقة اشتراكك الحالية
         </div>
       )}
 
       {!isCurrent && plan.most_popular && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-[10px] font-black text-white px-5 py-1 rounded-full border border-indigo-400 shadow-md whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-[10px] font-black text-white px-4 py-1 rounded-full border border-indigo-400 shadow-md max-w-[90%] truncate text-center">
           ⭐ الأكثر شعبية
         </div>
       )}
 
       {!isCurrent && !plan.most_popular && plan.recommended && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-600 to-purple-600 text-[10px] font-black text-white px-5 py-1 rounded-full border border-pink-400 shadow-md whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-pink-600 to-purple-600 text-[10px] font-black text-white px-4 py-1 rounded-full border border-pink-400 shadow-md max-w-[90%] truncate text-center">
           👑 موصى بها
         </div>
       )}
 
       {!isCurrent && !plan.most_popular && !plan.recommended && plan.featured && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-600 text-[10px] font-black text-white px-5 py-1 rounded-full border border-amber-400 shadow-md whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-gradient-to-r from-amber-500 to-orange-600 text-[10px] font-black text-white px-4 py-1 rounded-full border border-amber-400 shadow-md max-w-[90%] truncate text-center">
           🔥 أفضل قيمة
         </div>
       )}
@@ -225,11 +225,11 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
       <div>
         {/* Plan Header */}
         <div className="text-center mb-6">
-          <h3 className="text-lg font-black text-[var(--text-color)] mb-2">{plan.name}</h3>
+          <h3 className="text-lg font-black text-[var(--text-color)] mb-2 break-words leading-tight">{plan.name}</h3>
 
           {/* Duration Selector for configurable billing options */}
           {customOpts.length > 0 && !calculated.isRevenueSharing && (
-            <div className="flex justify-center gap-1.5 mb-4 bg-[var(--bg-color)]/30 p-1.5 rounded-xl border border-[var(--border-color)]">
+            <div className="flex flex-wrap justify-center gap-1.5 mb-4 bg-[var(--bg-color)]/40 p-1.5 rounded-xl border border-[var(--border-color)]">
               {customOpts.map(opt => {
                 const isSelected = selectedPeriod === opt.key
                 return (
@@ -237,7 +237,7 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
                     key={opt.key}
                     type="button"
                     onClick={() => setSelectedPeriod(opt.key)}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer whitespace-nowrap ${
                       isSelected
                         ? 'bg-indigo-600 text-white shadow-sm'
                         : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
@@ -250,32 +250,32 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
             </div>
           )}
 
-          <div className="flex flex-col items-center justify-center mb-2 min-h-[75px]">
+          <div className="flex flex-col items-center justify-center mb-2 min-h-[85px] gap-0.5">
             {calculated.isRevenueSharing ? (
               <div className="text-center space-y-1">
                 <span className="text-3xl font-black text-indigo-400">نظام النسبة</span>
-                <p className="text-[10px] text-slate-400 font-bold">بدون رسوم شهرية ثابتة</p>
+                <p className="text-xs text-slate-400 font-bold">بدون رسوم شهرية ثابتة</p>
               </div>
             ) : (
               <>
                 {calculated.originalPrice && (
-                  <div className="text-[10px] text-[var(--text-secondary)] font-medium mb-1 flex flex-col items-center">
+                  <div className="text-xs text-[var(--text-secondary)] font-medium mb-1 flex flex-col items-center">
                     <span className="line-through">{calculated.originalPrice.toFixed(2)} EGP</span>
                     {calculated.discountAmount && (
-                      <span className="text-[10px] text-rose-500 font-bold">الخصم: -{calculated.discountAmount.toFixed(2)} EGP</span>
+                      <span className="text-[11px] text-rose-500 font-bold">الخصم: -{calculated.discountAmount.toFixed(2)} EGP</span>
                     )}
                   </div>
                 )}
-                <div className="flex items-baseline justify-center gap-1.5">
+                <div className="flex items-baseline justify-center gap-1.5 flex-wrap">
                   <span className="text-3xl font-black text-[var(--text-color)]">
                     {calculated.price.toFixed(2)}
                   </span>
-                  <span className="text-[10px] text-[var(--text-secondary)] font-bold">
+                  <span className="text-xs text-[var(--text-secondary)] font-bold">
                     {calculated.text}
                   </span>
                 </div>
                 {calculated.discountPercent && (
-                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 px-2.5 py-0.5 rounded-full mt-1.5">
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-500/20 px-2.5 py-0.5 rounded-full mt-1.5">
                     وفر {calculated.discountPercent}%
                   </span>
                 )}
@@ -287,51 +287,51 @@ export const SubscriptionPlanCard: React.FC<SubscriptionPlanCardProps> = ({
         <hr className="border-[var(--border-color)] mb-6" />
 
         {/* Plan Spec List */}
-        <ul className="space-y-4 text-xs text-[var(--text-secondary)] pr-1 mb-8">
+        <ul className="space-y-3.5 text-xs text-slate-300 dark:text-slate-200 pr-1 mb-8">
           {plan.billing_type === 'revenue_sharing' ? (
             <>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>نسبة المنصة: <strong className="text-[var(--text-color)]">{plan.commission_percentage}% من المبيعات</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">نسبة المنصة: <strong className="text-[var(--text-color)] font-bold">{plan.commission_percentage}% من المبيعات</strong></span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>مساحة الفيديو الافتراضية: <strong className="text-[var(--text-color)]">{plan.default_storage_gb || plan.video_storage_gb} جيجابايت</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">مساحة الفيديو الافتراضية: <strong className="text-[var(--text-color)] font-bold">{plan.default_storage_gb || plan.video_storage_gb} جيجابايت</strong></span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>زيادة المساحة: <strong className="text-[var(--text-color)]">تلقائية مجانية عند كل عملية مبيعات</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">زيادة المساحة: <strong className="text-[var(--text-color)] font-bold">تلقائية مجانية عند كل عملية مبيعات</strong></span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>سعة أكواد الطلاب: <strong className="text-[var(--text-color)]">
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">سعة أكواد الطلاب: <strong className="text-[var(--text-color)] font-bold">
                   {plan.codes_limit_type === 'unlimited' ? 'غير محدودة' : `${plan.max_codes_limit || plan.student_codes} كود/طالب`}
                 </strong></span>
               </li>
             </>
           ) : (
             <>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>قدرة الطلاب: <strong className="text-[var(--text-color)]">{plan.student_codes} طالب نشط</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">قدرة الطلاب: <strong className="text-[var(--text-color)] font-bold">{plan.student_codes} طالب نشط</strong></span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>أكواد نشطة: <strong className="text-[var(--text-color)]">{plan.student_codes} كود طلاب</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">أكواد نشطة: <strong className="text-[var(--text-color)] font-bold">{plan.student_codes} كود طلاب</strong></span>
               </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                <span>مساحة الفيديو: <strong className="text-[var(--text-color)]">{plan.video_storage_gb} جيجابايت</strong></span>
+              <li className="flex items-start gap-2.5 leading-relaxed">
+                <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                <span className="break-words">مساحة الفيديو: <strong className="text-[var(--text-color)] font-bold">{plan.video_storage_gb} جيجابايت</strong></span>
               </li>
             </>
           )}
-          <li className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-            <span>دعم رفع Bunny Stream</span>
+          <li className="flex items-start gap-2.5 leading-relaxed">
+            <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+            <span className="break-words">دعم رفع وتشفير Bunny Stream</span>
           </li>
-          <li className="flex items-center gap-2">
-            <Check className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-            <span>تقارير الطلاب والامتحانات</span>
+          <li className="flex items-start gap-2.5 leading-relaxed">
+            <Check className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+            <span className="break-words">تقارير الطلاب والامتحانات الإلكترونية</span>
           </li>
         </ul>
       </div>

@@ -7,7 +7,6 @@ import { ensureHttps } from '../utils/urls'
 import { useNotifications } from '../context/NotificationContext'
 import { NotificationDropdown } from './NotificationDropdown'
 import { NotificationToast } from './NotificationToast'
-import { AnimatePresence } from 'framer-motion'
 import API from '../services/api'
 import { useModalStore } from '../store/modalStore'
 import {
@@ -558,11 +557,9 @@ export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children 
                 )}
               </button>
 
-              <AnimatePresence>
-                {showNotifDropdown && (
-                  <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
-                )}
-              </AnimatePresence>
+              {showNotifDropdown && (
+                <NotificationDropdown onClose={() => setShowNotifDropdown(false)} alignRight={true} />
+              )}
             </div>
 
             {/* Profile Dropdown wrapper */}

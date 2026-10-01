@@ -1144,6 +1144,7 @@ export default function CourseDetail() {
                 <img 
                   src={course.teacher.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${course.teacher.name}`} 
                   alt={course.teacher.name} 
+                  decoding="async"
                   className="object-cover w-full h-full" 
                 />
               </div>
@@ -1172,6 +1173,7 @@ export default function CourseDetail() {
             <img 
               src={course.cover_image || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
               alt={course.title} 
+              decoding="async"
               className="object-cover w-full h-full" 
             />
           </div>
@@ -1360,6 +1362,8 @@ export default function CourseDetail() {
                     <img 
                       src={thumbnailToUse} 
                       alt={pkg.title} 
+                      loading="lazy"
+                      decoding="async"
                       className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500" 
                     />
                     
@@ -1381,7 +1385,7 @@ export default function CourseDetail() {
                       <div className="flex items-center gap-2.5 justify-start">
                         <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0">
                           {course?.teacher?.avatar ? (
-                            <img src={course.teacher.avatar} alt={course.teacher.name} className="object-cover w-full h-full" />
+                            <img src={course.teacher.avatar} alt={course.teacher.name} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                           ) : (
                             course?.teacher?.name?.charAt(0) || ''
                           )}

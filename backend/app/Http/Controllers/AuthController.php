@@ -18,35 +18,42 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|unique:users|max:255',
-            'password' => 'required|string|min:6',
-            'phone' => 'required|string',
-            'parent_phone' => 'required|string',
-            'grade' => 'required|string|max:100',
-            'student_type' => 'required|string|in:online,center',
-        ]);
-
-        $phone = $request->phone;
-        $parentPhone = $request->parent_phone;
-        
-        $normalize = function ($num) {
-            if (!$num) return '';
+        $normalizePhone = function ($num) {
+            if (!$num || !is_string($num)) return $num;
             $clean = preg_replace('/\D/', '', $num);
-            if (strpos($clean, '00201') === 0 && strlen($clean) === 14) {
-                $clean = substr($clean, 4);
-            } elseif (strpos($clean, '201') === 0 && strlen($clean) === 12) {
-                $clean = substr($clean, 2);
-            } elseif (strpos($clean, '01') === 0 && strlen($clean) === 11) {
-                $clean = substr($clean, 1);
-            } elseif (strpos($clean, '0') === 0) {
-                $clean = substr($clean, 1);
+            if (str_starts_with($clean, '00201') && strlen($clean) === 14) {
+                return '0' . substr($clean, 4);
+            } elseif (str_starts_with($clean, '201') && strlen($clean) === 12) {
+                return '0' . substr($clean, 2);
             }
             return $clean;
         };
 
-        if ($normalize($phone) === $normalize($parentPhone)) {
+        if ($request->has('phone')) {
+            $request->merge(['phone' => $normalizePhone($request->input('phone'))]);
+        }
+        if ($request->has('parent_phone')) {
+            $request->merge(['parent_phone' => $normalizePhone($request->input('parent_phone'))]);
+        }
+
+        $request->validate([
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[\p{L}\s\.\'\-]+$/u'],
+            'email' => 'required|string|email|unique:users|max:255',
+            'password' => 'required|string|min:6',
+            'phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
+            'parent_phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
+            'grade' => 'required|string|max:100',
+            'student_type' => 'required|string|in:online,center',
+        ], [
+            'name.regex' => 'الاسم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
+            'phone.regex' => 'رقم هاتف الطالب يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
+            'parent_phone.regex' => 'رقم هاتف ولي الأمر يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
+        ]);
+
+        $phone = $request->phone;
+        $parentPhone = $request->parent_phone;
+
+        if ($phone === $parentPhone) {
             throw ValidationException::withMessages([
                 'parent_phone' => ["The student's phone number cannot be the same as the parent's phone number."],
             ]);

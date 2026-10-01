@@ -46,6 +46,7 @@ export default function PurchaseModal({
   }, [isOpen]);
 
   const handlePurchase = async () => {
+    if (loading) return
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -97,7 +98,7 @@ export default function PurchaseModal({
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ type: 'spring', duration: 0.4 }}
-          className="relative w-full max-w-md bg-brand-card border border-[var(--border-color)] rounded-[32px] shadow-2xl p-6 sm:p-8 text-right z-50 font-sans"
+          className="relative w-full max-w-md bg-brand-card border border-[var(--border-color)] rounded-[32px] shadow-2xl p-6 sm:p-8 text-right z-50 font-sans max-h-[90vh] overflow-y-auto"
           dir="rtl"
         >
           {/* Close button */}

@@ -138,6 +138,8 @@ export default function ManageCourses() {
   const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [videoFileDetails, setVideoFileDetails] = React.useState<{ name: string; size: string; status: string } | null>(null)
   const [isDevMode, setIsDevMode] = React.useState(false)
+  const [videoFlowType, setVideoFlowType] = React.useState<'direct' | 'url' | 'bunny_id'>('direct')
+  const [selectedVideoFile, setSelectedVideoFile] = React.useState<File | null>(null)
   const [isBunnyConfigured, setIsBunnyConfigured] = React.useState(false)
 
   const [pdfTitle, setPdfTitle] = React.useState('')
@@ -697,183 +699,175 @@ export default function ManageCourses() {
     }
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resetVideoModal = () => {
+    setVidTitle('');
+    setVidStreamId('');
+    setVidEmbedUrl('');
+    setVidDuration('');
+    setVidThumbnail('');
+    setSelectedVideoFile(null);
+    setVideoFileDetails(null);
+    setUploadingVideo(false);
+    setUploadProgress(null);
+    setShowVideoForm(null);
+    setEditingVideo(null);
+  };
+
+  const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const allowedExtensions = ['.mp4', '.m4v', '.mov', '.webm'];
+    const allowedExtensions = ['.mp4', '.m4v', '.mov', '.webm', '.qt', '.avi', '.mkv'];
     const hasValidExt = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
     if (!hasValidExt) {
       useModalStore.getState().showToast('عذراً، يجب اختيار ملف فيديو بصيغة مدعومة (MP4, M4V, MOV, WEBM).', 'error');
       return;
     }
 
-    setUploadingVideo(true);
-    setUploadProgress(0);
-
-    // Validate storage quota before starting upload
-    try {
-      const subRes = await API.get('/teacher/subscription');
-      const remainingStorageGb = subRes.data.subscription?.remaining_storage_gb ?? 0;
-      const fileSizeGb = file.size / (1024 * 1024 * 1024);
-      if (fileSizeGb > remainingStorageGb) {
-        useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
-        setUploadingVideo(false);
-        return;
-      }
-    } catch (errQuota) {
-      console.warn("Could not verify storage quota:", errQuota);
+    setSelectedVideoFile(file);
+    if (!vidTitle.trim()) {
+      setVidTitle(file.name.replace(/\.[^/.]+$/, ''));
     }
 
     setVideoFileDetails({
       name: file.name,
       size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-      status: 'جاري إنشاء كائن الفيديو على Bunny Stream...'
+      status: 'جاهز للرفع والمزامنة المباشرة'
     });
 
+    // Detect duration and thumbnail in background
     detectVideoDuration(file).then(duration => {
       setVidDuration(duration.toString());
     }).catch(e => {
       console.warn("Could not read local video duration:", e);
     });
 
-    try {
-      // 1. Request signed upload credentials or replace credentials from our server
-      let signedRes;
-      if (replacingVideo) {
-        signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`, {
-          file_size: file.size,
-        });
-      } else {
-        signedRes = await API.post('/teacher/videos/signed-upload', {
-          title: file.name.replace(/\.[^/.]+$/, ''), // strip extension
-          lesson_id: showVideoForm || editingVideo?.lesson_id,
-          file_size: file.size,
-        });
+    generateVideoThumbnail(file).then(thumb => {
+      if (thumb && !vidThumbnail) {
+        setVidThumbnail(thumb);
       }
-
-      const { video_id, library_id, signature, expiration_time, embed_url } = signedRes.data;
-
-      setVideoFileDetails({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        status: 'جاري بدء الرفع المباشر إلى Bunny Stream...'
-      });
-
-      // 2. Initiate direct upload using TUS protocol
-      const upload = new tus.Upload(file, {
-        endpoint: 'https://video.bunnycdn.com/tusupload',
-        retryDelays: [0, 3000, 5000, 10000, 20000],
-        headers: {
-          AuthorizationSignature: signature,
-          AuthorizationExpire: String(expiration_time),
-          LibraryId: String(library_id),
-          VideoId: video_id,
-        },
-        metadata: {
-          filetype: file.type,
-          title: replacingVideo ? replacingVideo.title : file.name,
-        },
-        onError: (error) => {
-          console.error('TUS upload failed:', error);
-          setUploadingVideo(false);
-          setUploadProgress(null);
-          setVideoFileDetails({
-            name: file.name,
-            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-            status: 'فشل الرفع إلى Bunny Stream'
-          });
-          useModalStore.getState().showToast('فشل رفع الفيديو إلى Bunny Stream.', 'error');
-        },
-        onProgress: (bytesSent, bytesTotal) => {
-          const percentage = Math.round((bytesSent / bytesTotal) * 100);
-          setUploadProgress(percentage);
-          setVideoFileDetails({
-            name: file.name,
-            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-            status: `جاري الرفع: ${percentage}%`
-          });
-        },
-        onSuccess: () => {
-          // Success! Set the embed URL, video stream ID, and metadata
-          setVidEmbedUrl(embed_url);
-          setVidStreamId(video_id);
-          
-          // Let's set a default thumbnail path using standard schema
-          const defaultThumb = `https://iframe.mediadelivery.net/play/${library_id}/${video_id}/thumbnail.jpg`;
-          setVidThumbnail(defaultThumb);
-
-          setVideoFileDetails({
-            name: file.name,
-            size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-            status: 'تم الرفع بنجاح! سيتم معالجة الفيديو تلقائياً.'
-          });
-          setUploadingVideo(false);
-          setUploadProgress(null);
-          useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح.', 'success');
-        }
-      });
-
-      upload.start();
-
-    } catch (err: any) {
-      console.error(err);
-      setUploadingVideo(false);
-      setUploadProgress(null);
-      setVideoFileDetails(null);
-      const errMsg = err.response?.data?.message || err.message || 'حدث خطأ غير متوقع.';
-      useModalStore.getState().showToast(`فشل إعداد الرفع: ${errMsg}`, 'error');
-    }
+    }).catch(e => {
+      console.warn("Could not generate local video thumbnail:", e);
+    });
   };
 
   const handleSaveVideo = async (e: React.FormEvent, lessonId: number) => {
-    e.preventDefault()
-    if (!selectedCourse || !vidTitle.trim() || !vidEmbedUrl.trim()) {
-      useModalStore.getState().showToast('يرجى التأكد من ملء الحقول المطلوبة.', 'warning')
-      return
+    e.preventDefault();
+    if (!selectedCourse) return;
+
+    if (!vidTitle.trim()) {
+      useModalStore.getState().showToast('يرجى إدخال عنوان لمقطع الفيديو.', 'warning');
+      return;
     }
 
-    const url = vidEmbedUrl.trim()
-    const detectedProvider = (() => {
-      if (!url) return null;
-      if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
-      if (url.includes('.mp4')) return 'direct';
-      if (url.includes('iframe.mediadelivery.net')) return 'bunny';
-      return 'unknown';
-    })();
+    // -------------------------------------------------------------
+    // FLOW 1: Direct Video File Upload
+    // -------------------------------------------------------------
+    if (videoFlowType === 'direct') {
+      if (!selectedVideoFile) {
+        useModalStore.getState().showToast('يرجى اختيار ملف الفيديو للرفع أولاً.', 'warning');
+        return;
+      }
 
-    if (detectedProvider === 'bunny' && isBunnyConfigured && !isDevMode && !vidStreamId.trim()) {
-      useModalStore.getState().showToast('يرجى إدخال معرف الفيديو الخاص بـ Bunny Stream.', 'warning')
-      return
+      setUploadingVideo(true);
+      setUploadProgress(0);
+      setActionLoading(true);
+
+      const formData = new FormData();
+      formData.append('title', vidTitle.trim());
+      formData.append('video_file', selectedVideoFile);
+      if (vidDuration) formData.append('duration_seconds', vidDuration);
+      if (vidThumbnail) formData.append('thumbnail_path', vidThumbnail);
+
+      try {
+        await API.post(`/teacher/lessons/${lessonId}/video`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(percent);
+              setVideoFileDetails(prev => prev ? { ...prev, status: `جاري الرفع: ${percent}%` } : null);
+            }
+          }
+        });
+
+        useModalStore.getState().showToast('تم رفع الفيديو ومعالجته بنجاح على Bunny Stream.', 'success');
+        resetVideoModal();
+        handleSelectCourse(selectedCourse);
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل رفع الفيديو.';
+        useModalStore.getState().showToast(errMsg, 'error');
+      } finally {
+        setUploadingVideo(false);
+        setUploadProgress(null);
+        setActionLoading(false);
+      }
+      return;
     }
 
-    setActionLoading(true)
-    try {
-      await API.post(`/teacher/lessons/${lessonId}/video`, {
-        title: vidTitle,
-        bunny_stream_id: (detectedProvider === 'youtube' || detectedProvider === 'direct') ? '' : vidStreamId,
-        bunny_embed_url: vidEmbedUrl,
-        duration_seconds: Number(vidDuration) || 300,
-        thumbnail_path: vidThumbnail,
-      })
-      setVidTitle('')
-      setVidStreamId('')
-      setVidEmbedUrl('')
-      setVidDuration('')
-      setVidThumbnail('')
-      setVideoFileDetails(null)
-      setShowVideoForm(null)
-      handleSelectCourse(selectedCourse)
-    } catch (err: any) {
-      console.error(err)
-      const errMsg = err.response?.data?.errors 
-        ? Object.values(err.response.data.errors).flat().join('\n') 
-        : (err.response?.data?.message || err.message || 'الرجاء التحقق من صحة البيانات والمحاولة مرة أخرى.');
-      useModalStore.getState().showToast(errMsg, 'warning')
-    } finally {
-      setActionLoading(false)
+    // -------------------------------------------------------------
+    // FLOW 2: Existing Bunny Video ID
+    // -------------------------------------------------------------
+    if (videoFlowType === 'bunny_id') {
+      if (!vidStreamId.trim()) {
+        useModalStore.getState().showToast('يرجى إدخال معرف الفيديو على Bunny Stream (Video ID).', 'warning');
+        return;
+      }
+
+      setActionLoading(true);
+      try {
+        await API.post(`/teacher/lessons/${lessonId}/video`, {
+          title: vidTitle.trim(),
+          bunny_video_id: vidStreamId.trim(),
+          duration_seconds: Number(vidDuration) || undefined,
+          thumbnail_path: vidThumbnail || undefined,
+        });
+
+        useModalStore.getState().showToast('تم التحقق من وجود فيديو Bunny وربطه بنجاح.', 'success');
+        resetVideoModal();
+        handleSelectCourse(selectedCourse);
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل التحقق من معرف فيديو Bunny.';
+        useModalStore.getState().showToast(errMsg, 'error');
+      } finally {
+        setActionLoading(false);
+      }
+      return;
     }
-  }
+
+    // -------------------------------------------------------------
+    // FLOW 3: Manual Video URL
+    // -------------------------------------------------------------
+    if (videoFlowType === 'url') {
+      if (!vidEmbedUrl.trim()) {
+        useModalStore.getState().showToast('يرجى إدخال رابط الفيديو.', 'warning');
+        return;
+      }
+
+      setActionLoading(true);
+      try {
+        await API.post(`/teacher/lessons/${lessonId}/video`, {
+          title: vidTitle.trim(),
+          video_url: vidEmbedUrl.trim(),
+          duration_seconds: Number(vidDuration) || 300,
+          thumbnail_path: vidThumbnail || undefined,
+        });
+
+        useModalStore.getState().showToast('تم ربط رابط الفيديو بنجاح.', 'success');
+        resetVideoModal();
+        handleSelectCourse(selectedCourse);
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل ربط رابط الفيديو.';
+        useModalStore.getState().showToast(errMsg, 'error');
+      } finally {
+        setActionLoading(false);
+      }
+      return;
+    }
+  };
 
   // PDF Handler
   const handleSavePdf = async (e: React.FormEvent, lessonId: number) => {
@@ -968,34 +962,40 @@ export default function ManageCourses() {
 
   const handleSaveReplaceVideo = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!replacingVideo || !vidEmbedUrl.trim()) {
-      useModalStore.getState().showToast('يرجى اختيار فيديو جديد أو إدخال رابط.', 'warning')
+    if (!replacingVideo) return
+
+    if (!selectedVideoFile && !vidEmbedUrl.trim() && !vidStreamId.trim()) {
+      useModalStore.getState().showToast('يرجى اختيار ملف فيديو جديد أو إدخال رابط أو معرف Bunny.', 'warning')
       return
     }
 
     setActionLoading(true)
     try {
-      await API.put(`/teacher/videos/${replacingVideo.id}`, {
-        title: vidTitle || replacingVideo.title,
-        bunny_stream_id: vidStreamId,
-        bunny_embed_url: vidEmbedUrl,
-        duration_seconds: Number(vidDuration) || replacingVideo.duration_seconds || 300,
-        thumbnail_path: vidThumbnail || replacingVideo.thumbnail_path,
-      })
-      setVidTitle('')
-      setVidStreamId('')
-      setVidEmbedUrl('')
-      setVidDuration('')
-      setVidThumbnail('')
-      setVideoFileDetails(null)
+      if (selectedVideoFile) {
+        const formData = new FormData()
+        formData.append('title', vidTitle || replacingVideo.title)
+        formData.append('video_file', selectedVideoFile)
+        if (vidDuration) formData.append('duration_seconds', vidDuration)
+        if (vidThumbnail) formData.append('thumbnail_path', vidThumbnail)
+        await API.post(`/teacher/videos/${replacingVideo.id}/replace`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      } else {
+        await API.put(`/teacher/videos/${replacingVideo.id}`, {
+          title: vidTitle || replacingVideo.title,
+          bunny_video_id: vidStreamId || undefined,
+          video_url: vidEmbedUrl || undefined,
+          duration_seconds: Number(vidDuration) || replacingVideo.duration_seconds || 300,
+          thumbnail_path: vidThumbnail || replacingVideo.thumbnail_path,
+        })
+      }
+      resetVideoModal()
       setReplacingVideo(null)
       if (selectedCourse) handleSelectCourse(selectedCourse)
       useModalStore.getState().showToast('تم استبدال الفيديو بنجاح.', 'success')
     } catch (err: any) {
       console.error(err)
-      const errMsg = err.response?.data?.errors 
-        ? Object.values(err.response.data.errors).flat().join('\n') 
-        : (err.response?.data?.message || err.message || 'فشل استبدال الفيديو.');
+      const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل استبدال الفيديو.'
       useModalStore.getState().showToast(errMsg, 'error')
     } finally {
       setActionLoading(false)
@@ -1964,6 +1964,57 @@ export default function ManageCourses() {
                 <span className="px-2 py-0.5 text-[9px] bg-amber-500/20 text-amber-500 rounded-full font-bold">وضع التطوير</span>
               )}
             </h3>
+
+            {/* Segmented Flow Switcher */}
+            <div className="grid grid-cols-3 gap-1 p-1 bg-brand-surface/40 rounded-2xl border border-[var(--border-color)] text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoFlowType('direct');
+                  setVidEmbedUrl('');
+                  setVidStreamId('');
+                }}
+                className={`py-2 px-1 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                  videoFlowType === 'direct'
+                    ? 'bg-brand-primary text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                رفع ملف مباشر
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoFlowType('url');
+                  setSelectedVideoFile(null);
+                  setVideoFileDetails(null);
+                  setVidStreamId('');
+                }}
+                className={`py-2 px-1 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                  videoFlowType === 'url'
+                    ? 'bg-brand-primary text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                رابط خارجي
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoFlowType('bunny_id');
+                  setSelectedVideoFile(null);
+                  setVideoFileDetails(null);
+                  setVidEmbedUrl('');
+                }}
+                className={`py-2 px-1 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                  videoFlowType === 'bunny_id'
+                    ? 'bg-brand-primary text-white shadow'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                معرف Bunny ID
+              </button>
+            </div>
             
             <form onSubmit={(e) => handleSaveVideo(e, showVideoForm)} className="space-y-4">
               <div className="space-y-1">
@@ -1978,131 +2029,123 @@ export default function ManageCourses() {
                 />
               </div>
 
-              {isBunnyConfigured ? (
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى Bunny Stream</label>
-                  <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
-                    {uploadingVideo ? (
-                      <div className="space-y-2 text-right">
-                        <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
-                          <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
-                          {uploadProgress !== null && <span>{uploadProgress}%</span>}
-                        </div>
-                        {uploadProgress !== null && (
-                          <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+              {/* FLOW 1: Direct File Upload */}
+              {videoFlowType === 'direct' && (
+                isBunnyConfigured ? (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-slate-300 block">رفع مباشر إلى خوادم Bunny Stream</label>
+                    <div className="border-2 border-dashed border-[var(--border-color)] bg-brand-surface/10 rounded-2xl p-4 text-center">
+                      {uploadingVideo ? (
+                        <div className="space-y-2 text-right">
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-slate-300">
+                            <span className="animate-pulse">{videoFileDetails?.status || 'جاري الرفع المباشر...'}</span>
+                            {uploadProgress !== null && <span>{uploadProgress}%</span>}
                           </div>
-                        )}
-                      </div>
-                    ) : vidEmbedUrl && videoFileDetails ? (
-                      <div className="space-y-2 text-xs text-right">
-                        <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
-                        <div className="text-[10px] text-slate-400 flex justify-between px-2">
-                          <span>الحجم: {videoFileDetails.size}</span>
-                          <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                          {uploadProgress !== null && (
+                            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-brand-primary h-full transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                            </div>
+                          )}
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
-                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
-                        >
-                          إزالة وتغيير الفيديو
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار (الحد الأقصى 250 ميجابايت)</span>
-                        <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
-                          <span>اختر ملف فيديو</span>
-                          <input 
-                            type="file" 
-                            accept="video/mp4,video/m4v,video/quicktime,video/webm" 
-                            className="hidden" 
-                            onChange={handleVideoUpload}
-                          />
-                        </label>
-                      </div>
-                    )}
+                      ) : selectedVideoFile && videoFileDetails ? (
+                        <div className="space-y-2 text-xs text-right">
+                          <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
+                          <div className="text-[10px] text-slate-400 flex justify-between px-2">
+                            <span>الحجم: {videoFileDetails.size}</span>
+                            <span className="text-emerald-500 font-bold">{videoFileDetails.status}</span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => { setSelectedVideoFile(null); setVideoFileDetails(null); }}
+                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
+                          >
+                            إزالة واختيار ملف آخر
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <span className="text-[10px] text-slate-400 block font-medium">اسحب ملف الفيديو هنا أو اضغط للاختيار</span>
+                          <label className="inline-block px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow shadow-brand-primary/10">
+                            <span>اختر ملف فيديو</span>
+                            <input 
+                              type="file" 
+                              accept="video/mp4,video/m4v,video/quicktime,video/webm" 
+                              className="hidden" 
+                              onChange={handleVideoFileSelect}
+                            />
+                          </label>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="border border-amber-500/20 bg-amber-500/5 rounded-2xl p-3 text-right">
-                  <div className="text-[11px] font-bold text-amber-500">
-                    تكامل Bunny Stream غير مهيأ حالياً على السيرفر. الرفع المباشر معطل.
+                ) : (
+                  <div className="border border-amber-500/20 bg-amber-500/5 rounded-2xl p-3 text-right">
+                    <div className="text-[11px] font-bold text-amber-500">
+                      تكامل Bunny Stream غير مهيأ حالياً على السيرفر. الرفع المباشر معطل.
+                    </div>
                   </div>
+                )
+              )}
+
+              {/* FLOW 2: Manual URL */}
+              {videoFlowType === 'url' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300 font-bold">رابط الفيديو (YouTube، MP4، أو خارجي)</label>
+                  <input
+                    type="url"
+                    required
+                    value={vidEmbedUrl}
+                    onChange={(e) => setVidEmbedUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... أو رابط مباشر"
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left"
+                  />
+                  {(() => {
+                    const url = vidEmbedUrl.trim();
+                    if (!url) return null;
+                    const detected = url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
+                                     url.includes('.mp4') ? 'direct' : 'external';
+                    return (
+                      <div className="mt-1 flex items-center gap-1.5 text-[10px] select-none">
+                        <span className="text-slate-400">النوع:</span>
+                        {detected === 'youtube' && <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-md font-bold">YouTube</span>}
+                        {detected === 'direct' && <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-md font-bold">فيديو مباشر (MP4)</span>}
+                        {detected === 'external' && <span className="px-1.5 py-0.5 bg-slate-500/20 text-slate-400 rounded-md font-bold">رابط خارجي</span>}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 font-bold">أو أدخل رابط الفيديو يدوياً</label>
-                <input
-                  type="text"
-                  required
-                  value={vidEmbedUrl}
-                  onChange={(e) => setVidEmbedUrl(e.target.value)}
-                  placeholder="رابط YouTube، ملف MP4 مباشر، أو كود تضمين Bunny..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                />
-                {(() => {
-                  const url = vidEmbedUrl.trim();
-                  if (!url) return null;
-                  const detected = url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
-                                   url.includes('.mp4') ? 'direct' :
-                                   url.includes('iframe.mediadelivery.net') ? 'bunny' : 'unknown';
-                  return (
-                    <div className="mt-1 flex items-center gap-1.5 text-[10px] select-none">
-                      <span className="text-slate-400">مزود الفيديو:</span>
-                      {detected === 'youtube' && (
-                        <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-md font-bold">YouTube</span>
-                      )}
-                      {detected === 'direct' && (
-                        <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-md font-bold">فيديو مباشر (MP4)</span>
-                      )}
-                      {detected === 'bunny' && (
-                        <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 rounded-md font-bold">Bunny Stream</span>
-                      )}
-                      {detected === 'unknown' && (
-                        <span className="px-1.5 py-0.5 bg-slate-500/20 text-slate-400 rounded-md font-bold">إطار تضمين عام (Iframe)</span>
-                      )}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {(() => {
-                const url = vidEmbedUrl.trim();
-                const detected = url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' :
-                                 url.includes('.mp4') ? 'direct' :
-                                 url.includes('iframe.mediadelivery.net') ? 'bunny' : 'unknown';
-                
-                if (detected === 'youtube' || detected === 'direct') return null;
-
-                return (
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-300">
-                      معرف الفيديو على Bunny (Video ID) {isBunnyConfigured && !isDevMode ? '' : '(اختياري)'}
-                    </label>
-                    <input
-                      type="text"
-                      required={isBunnyConfigured && !isDevMode}
-                      value={vidStreamId}
-                      onChange={(e) => setVidStreamId(e.target.value)}
-                      placeholder="d74ff7e1-88f1-4db5-9e67-ea26c3619be9"
-                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none"
-                    />
-                  </div>
-                );
-              })()}
-
+              {/* FLOW 3: Existing Bunny Video ID */}
+              {videoFlowType === 'bunny_id' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-300">
+                    معرف الفيديو في Bunny Stream (Video GUID)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={vidStreamId}
+                    onChange={(e) => setVidStreamId(e.target.value)}
+                    placeholder="مثال: d74ff7e1-88f1-4db5-9e67-ea26c3619be9"
+                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none text-left font-mono"
+                  />
+                  <span className="text-[10px] text-slate-400 block">
+                    سيتم التحقق تلقائياً من وجود الفيديو في مكتبة Bunny Stream المعتمدة قبل الربط.
+                  </span>
+                </div>
+              )}
 
               {/* Thumbnail Display & Manual replacement */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">غلاف الفيديو (تم توليده تلقائياً أو تعديله يدوياً)</label>
-                <div className="border border-[var(--border-color)] bg-brand-surface/30 rounded-2xl p-4 flex flex-col items-center gap-3">
+                <label className="text-xs font-semibold text-slate-300 block">غلاف الفيديو (اختياري)</label>
+                <div className="border border-[var(--border-color)] bg-brand-surface/30 rounded-2xl p-3 flex flex-col items-center gap-2">
                   {vidThumbnail ? (
                     <img src={vidThumbnail} alt="Video cover" className="w-full aspect-video object-cover rounded-xl border border-[var(--border-color)]" />
                   ) : (
-                    <div className="w-full aspect-video bg-brand-surface rounded-xl border border-dashed border-[var(--border-color)] flex items-center justify-center text-slate-500 text-[10px] font-bold">لا يوجد غلاف بعد (سيتم توليده تلقائياً عند اختيار فيديو)</div>
+                    <div className="w-full aspect-video bg-brand-surface rounded-xl border border-dashed border-[var(--border-color)] flex items-center justify-center text-slate-500 text-[10px] font-bold">
+                      سيتم توليد الغلاف تلقائياً أو يمكنك رفعه يدوياً
+                    </div>
                   )}
                   
                   <label className="inline-block px-3 py-1.5 bg-[rgba(255,255,255,0.02)] hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] text-slate-300 hover:text-white rounded-xl text-[10px] font-bold cursor-pointer transition-all shadow-sm">
@@ -2121,8 +2164,10 @@ export default function ManageCourses() {
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button type="button" onClick={() => setShowVideoForm(null)} className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
-                <button type="submit" className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl">ربط الفيديو</button>
+                <button type="button" onClick={resetVideoModal} className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
+                <button type="submit" disabled={actionLoading || uploadingVideo} className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl disabled:opacity-50">
+                  {actionLoading ? 'جاري الحفظ...' : 'ربط الفيديو'}
+                </button>
               </div>
             </form>
           </div>
@@ -2338,7 +2383,7 @@ export default function ManageCourses() {
                           </div>
                         )}
                       </div>
-                    ) : vidEmbedUrl && videoFileDetails ? (
+                    ) : selectedVideoFile && videoFileDetails ? (
                       <div className="space-y-2 text-xs text-right">
                         <div className="font-bold text-slate-200 truncate">{videoFileDetails.name}</div>
                         <div className="text-[10px] text-slate-400 flex justify-between px-2">
@@ -2347,10 +2392,10 @@ export default function ManageCourses() {
                         </div>
                         <button 
                           type="button" 
-                          onClick={() => { setVidEmbedUrl(''); setVidDuration(''); setVideoFileDetails(null); }}
+                          onClick={() => { setSelectedVideoFile(null); setVideoFileDetails(null); }}
                           className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-black cursor-pointer transition-all"
                         >
-                          إزالة الفيديو
+                          إزالة الملف
                         </button>
                       </div>
                     ) : (
@@ -2362,7 +2407,7 @@ export default function ManageCourses() {
                             type="file" 
                             accept="video/mp4,video/m4v,video/quicktime,video/webm" 
                             className="hidden" 
-                            onChange={handleVideoUpload}
+                            onChange={handleVideoFileSelect}
                           />
                         </label>
                       </div>
@@ -2381,7 +2426,6 @@ export default function ManageCourses() {
                 <label className="text-xs font-semibold text-slate-300 font-bold">أو أدخل رابط الفيديو الجديد يدوياً</label>
                 <input
                   type="text"
-                  required
                   value={vidEmbedUrl}
                   onChange={(e) => setVidEmbedUrl(e.target.value)}
                   placeholder="رابط YouTube، ملف MP4، أو Bunny..."

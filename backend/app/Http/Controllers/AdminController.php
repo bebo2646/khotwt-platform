@@ -203,9 +203,17 @@ class AdminController extends Controller
      */
     public function createTeacher(Request $request)
     {
+        if ($request->has('phone') && is_string($request->phone)) {
+            $normalizedPhone = preg_replace('/\s+/', '', $request->phone);
+            if (preg_match('/^(?:\+?20|0020)(1[0125][0-9]{8})$/', $normalizedPhone, $m)) {
+                $normalizedPhone = '0' . $m[1];
+            }
+            $request->merge(['phone' => $normalizedPhone]);
+        }
+
         $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string',
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[\p{L}\s\.\'\-]+$/u'],
+            'phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
             'subject' => 'required|string',
             'category' => 'nullable|string',
             'bio' => 'nullable|string',
@@ -220,6 +228,9 @@ class AdminController extends Controller
             'extra_storage_gb' => 'nullable|integer|min:0',
             'extra_codes' => 'nullable|integer|min:0',
             'teaching_mode' => 'nullable|string|in:online,center,both',
+        ], [
+            'name.regex' => 'اسم المعلم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
+            'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
         $status = $request->status ?? 'active';
@@ -398,9 +409,17 @@ class AdminController extends Controller
     {
         $teacher = User::where('id', $id)->where('role', 'teacher')->firstOrFail();
 
+        if ($request->has('phone') && is_string($request->phone)) {
+            $normalizedPhone = preg_replace('/\s+/', '', $request->phone);
+            if (preg_match('/^(?:\+?20|0020)(1[0125][0-9]{8})$/', $normalizedPhone, $m)) {
+                $normalizedPhone = '0' . $m[1];
+            }
+            $request->merge(['phone' => $normalizedPhone]);
+        }
+
         $request->validate([
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string',
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[\p{L}\s\.\'\-]+$/u'],
+            'phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
             'subject' => 'required|string',
             'category' => 'nullable|string',
             'bio' => 'nullable|string',
@@ -409,6 +428,9 @@ class AdminController extends Controller
             'status' => 'required|string|in:active,disabled',
             'avatar' => 'nullable|string',
             'teaching_mode' => 'nullable|string|in:online,center,both',
+        ], [
+            'name.regex' => 'اسم المعلم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
+            'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
         $teacher->update($request->only([

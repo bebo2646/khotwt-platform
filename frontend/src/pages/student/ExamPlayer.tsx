@@ -73,6 +73,9 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
   const [expiresAt, setExpiresAt] = React.useState<string | null>(null)
   const [clockSkewMs, setClockSkewMs] = React.useState<number>(0)
   const isSubmittingRef = React.useRef(false)
+  const lastViolationTimeRef = React.useRef<number>(0)
+  const lastViolationTypeRef = React.useRef<string>('')
+  const VIOLATION_DEDUPE_MS = 2000
 
   // Scheduling Errors and Countdown
   const [scheduleError, setScheduleError] = React.useState<{ code: 'SCHEDULE_NOT_STARTED' | 'SCHEDULE_EXPIRED'; message: string; datetime?: string; countdown_seconds?: number } | null>(null)
@@ -295,6 +298,11 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     }
 
     const handleBlur = () => {
+      // Avoid false positive blur when interacting with text inputs or controls
+      const active = document.activeElement
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+        return
+      }
       if (exam.enable_anti_tab_switching) {
         registerViolation('window_blur')
       }
@@ -315,6 +323,19 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       window.removeEventListener('focus', handleFocus)
     }
   }, [isStarted, exam])
+
+  // Prevent accidental page close or refresh during an active exam attempt
+  React.useEffect(() => {
+    if (!isStarted || submitting) return
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isStarted, submitting])
 
   // Fullscreen change listener
   React.useEffect(() => {
@@ -435,6 +456,21 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
 
   const registerViolation = async (type: string) => {
     if (!exam || !attemptId) return
+
+    const now = Date.now()
+    const correlatedTypes = ['tab_switch', 'window_blur', 'fullscreen_exit', 'visibility_hidden']
+
+    // Debounce correlated events within 2000ms to avoid tab_switch + window_blur firing together
+    if (
+      now - lastViolationTimeRef.current < VIOLATION_DEDUPE_MS &&
+      (lastViolationTypeRef.current === type ||
+        (correlatedTypes.includes(lastViolationTypeRef.current) && correlatedTypes.includes(type)))
+    ) {
+      return
+    }
+
+    lastViolationTimeRef.current = now
+    lastViolationTypeRef.current = type
 
     try {
       const { timeLeft: latestTimeLeft, currentQuestionIndex: latestQIdx, focusedIndex: latestFIdx, questions: latestQs } = stateRef.current;
@@ -583,6 +619,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
       else navigate(`/student/exams/${exam?.id}/result${courseId ? `?course_id=${courseId}` : ''}`)
     } catch (err: any) {
       console.error(err)
+      isSubmittingRef.current = false
       const errorMsg = err.response?.data?.message || 'حدث خطأ أثناء إرسال الإجابات. يرجى المحاولة مجدداً.'
       useModalStore.getState().showToast(errorMsg, 'error')
     } finally {

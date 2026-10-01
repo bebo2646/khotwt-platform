@@ -12,10 +12,30 @@ export default defineConfig({
     },
   },
   build: {
+    modulePreload: {
+      resolveDependencies: (_filename, deps) => {
+        // Only preload essential chunks on initial entry, defer vendor-framer and vendor-recharts
+        return deps.filter(dep => !dep.includes('vendor-framer') && !dep.includes('vendor-recharts'));
+      }
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (
+              id.includes('/react/') ||
+              id.includes('\\react\\') ||
+              id.includes('/react-dom/') ||
+              id.includes('\\react-dom\\') ||
+              id.includes('/react-router/') ||
+              id.includes('\\react-router\\') ||
+              id.includes('/react-router-dom/') ||
+              id.includes('\\react-router-dom\\') ||
+              id.includes('/scheduler/') ||
+              id.includes('\\scheduler\\')
+            ) {
+              return 'vendor-react';
+            }
             if (id.includes('recharts')) {
               return 'vendor-recharts';
             }
@@ -24,9 +44,6 @@ export default defineConfig({
             }
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
-            }
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react';
             }
           }
         }

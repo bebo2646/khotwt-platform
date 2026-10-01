@@ -3884,12 +3884,16 @@ class StudentController extends Controller
         $user = $request->user();
 
         $request->validate([
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'min:2', 'max:255', 'regex:/^[\p{L}\s\.\'\-]+$/u'],
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'phone' => 'required|string',
-            'parent_phone' => 'required|string',
+            'phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
+            'parent_phone' => ['required', 'string', 'regex:/^01[0125][0-9]{8}$/'],
             'grade' => 'required|string|max:100',
             'student_type' => 'nullable|string|in:online,center',
+        ], [
+            'name.regex' => 'الاسم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
+            'phone.regex' => 'رقم هاتف الطالب يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
+            'parent_phone.regex' => 'رقم هاتف ولي الأمر يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
         $user->name = $request->name;

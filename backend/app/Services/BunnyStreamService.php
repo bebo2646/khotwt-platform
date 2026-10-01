@@ -33,14 +33,105 @@ class BunnyStreamService
         return !empty($this->libraryId) && !empty($this->apiKey);
     }
 
+    public function getLibraryId(): string
+    {
+        return $this->libraryId;
+    }
+
+    public function getEmbedUrl(string $videoId): string
+    {
+        return "https://iframe.mediadelivery.net/embed/{$this->libraryId}/{$videoId}";
+    }
+
+    public function getThumbnailUrl(string $videoId): string
+    {
+        $cdnHost = config('services.bunny.cdn_hostname');
+        $pullZone = config('services.bunny.pull_zone') ?: $this->pullZone;
+        $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
+        if (!str_contains($domain, '.')) {
+            $domain = "{$domain}.b-cdn.net";
+        }
+        return "https://{$domain}/play/{$this->libraryId}/{$videoId}/thumbnail.jpg";
+    }
+
+    /**
+     * Sanitize strings to ensure API keys and secrets are never leaked.
+     */
+    public function sanitizeErrorMessage(?string $message): string
+    {
+        if (empty($message)) {
+            return '';
+        }
+        $toRedact = array_filter([
+            $this->apiKey,
+            config('services.bunny.api_key'),
+            config('services.bunny.webhook_secret'),
+        ]);
+        if (!empty($toRedact)) {
+            $message = str_replace($toRedact, '[REDACTED]', $message);
+        }
+        return $message;
+    }
+
+    /**
+     * Parse error response from Bunny API, log details, and generate sanitized error message.
+     */
+    public function parseBunnyErrorResponse($response, string $context): array
+    {
+        $status = $response->status();
+        $rawBody = $response->body();
+        $data = $response->json();
+
+        $bunnyMessage = null;
+        if (is_array($data)) {
+            $bunnyMessage = $data['Message'] ?? $data['message'] ?? $data['error'] ?? null;
+        }
+        if (!$bunnyMessage && !empty($rawBody)) {
+            $bunnyMessage = mb_substr(strip_tags($rawBody), 0, 255);
+        }
+        if (!$bunnyMessage) {
+            $bunnyMessage = "HTTP {$status}";
+        }
+
+        $sanitizedBunnyMessage = $this->sanitizeErrorMessage((string)$bunnyMessage);
+        $sanitizedBody = $this->sanitizeErrorMessage($rawBody);
+
+        Log::error("Bunny Stream API error during [{$context}]: HTTP {$status}", [
+            'status' => $status,
+            'response_body' => $sanitizedBody,
+            'bunny_message' => $sanitizedBunnyMessage,
+        ]);
+
+        $friendlyMessage = match ($status) {
+            401 => "فشل التحقق من صلاحية مفتاح Bunny Stream (رمز 401): {$sanitizedBunnyMessage}",
+            404 => "الفيديو غير موجود في مكتبة Bunny Stream (رمز 404): {$sanitizedBunnyMessage}",
+            400 => "طلب غير صالح إلى Bunny Stream (رمز 400): {$sanitizedBunnyMessage}",
+            default => "خطأ في الاتصال بـ Bunny Stream (رمز {$status}): {$sanitizedBunnyMessage}",
+        };
+
+        return [
+            'status' => $status,
+            'raw_body' => $sanitizedBody,
+            'bunny_message' => $sanitizedBunnyMessage,
+            'sanitized_message' => $friendlyMessage,
+        ];
+    }
+
     /**
      * Create a video placeholder on Bunny Stream.
+     * Returns structured result array.
      */
-    public function createVideo(string $title): ?array
+    public function createVideo(string $title): array
     {
         if (!$this->isConfigured()) {
-            Log::error('Bunny Stream Service: Not configured.');
-            return null;
+            Log::error('Bunny Stream Service createVideo: Not configured.');
+            return [
+                'success' => false,
+                'status' => 400,
+                'error' => 'خدمة Bunny Stream غير مهيأة على الخادم.',
+                'raw_body' => null,
+                'bunny_message' => 'Bunny Stream is not configured on the server.',
+            ];
         }
 
         try {
@@ -53,65 +144,136 @@ class BunnyStreamService
             ]);
 
             if ($response->successful()) {
-                return $response->json(); // Returns array with 'guid', etc.
+                $data = $response->json();
+                return [
+                    'success' => true,
+                    'video_id' => $data['guid'] ?? null,
+                    'guid' => $data['guid'] ?? null,
+                    'data' => $data,
+                    'status' => $response->status(),
+                ];
             }
 
-            Log::error('Bunny Stream createVideo failed: ' . $response->body());
-            return null;
+            $parsed = $this->parseBunnyErrorResponse($response, 'createVideo');
+            return [
+                'success' => false,
+                'video_id' => null,
+                'guid' => null,
+                'status' => $parsed['status'],
+                'error' => $parsed['sanitized_message'],
+                'raw_body' => $parsed['raw_body'],
+                'bunny_message' => $parsed['bunny_message'],
+            ];
         } catch (\Exception $e) {
-            Log::error('Bunny Stream createVideo error: ' . $e->getMessage());
-            return null;
+            $sanitizedMsg = $this->sanitizeErrorMessage($e->getMessage());
+            Log::error('Bunny Stream createVideo exception: ' . $sanitizedMsg);
+            return [
+                'success' => false,
+                'video_id' => null,
+                'guid' => null,
+                'status' => 500,
+                'error' => "استثناء أثناء إنشاء الفيديو على Bunny Stream: {$sanitizedMsg}",
+                'raw_body' => null,
+                'bunny_message' => $sanitizedMsg,
+            ];
         }
     }
 
     /**
      * Upload video binary to the placeholder.
+     * Returns structured result array.
      */
-    public function uploadVideo(string $videoId, string $filePath): bool
+    public function uploadVideo(string $videoId, string $filePath, string $mimeType = 'application/octet-stream'): array
     {
         if (!$this->isConfigured()) {
-            Log::error('Bunny Stream Service: Not configured.');
-            return false;
+            Log::error('Bunny Stream Service uploadVideo: Not configured.');
+            return [
+                'success' => false,
+                'status' => 400,
+                'error' => 'خدمة Bunny Stream غير مهيأة على الخادم.',
+                'raw_body' => null,
+                'bunny_message' => 'Bunny Stream is not configured on the server.',
+            ];
         }
 
         if (!file_exists($filePath)) {
             Log::error("Bunny Stream Upload: File not found at {$filePath}");
-            return false;
+            return [
+                'success' => false,
+                'status' => 404,
+                'error' => 'لم يتم العثور على ملف الفيديو للرفع.',
+                'raw_body' => null,
+                'bunny_message' => 'Local video file not found.',
+            ];
         }
 
         try {
-            // Read file stream and put it to Bunny
             $fileStream = fopen($filePath, 'r');
             if (!$fileStream) {
-                return false;
+                return [
+                    'success' => false,
+                    'status' => 500,
+                    'error' => 'تعذر فتح ملف الفيديو للقراءة.',
+                    'raw_body' => null,
+                    'bunny_message' => 'Could not open file stream for reading.',
+                ];
             }
 
             $response = Http::withoutVerifying()->withHeaders([
                 'AccessKey' => $this->apiKey,
-            ])->withBody($fileStream, 'video/mp4')
+                'Content-Type' => $mimeType ?: 'application/octet-stream',
+            ])->withBody($fileStream, $mimeType ?: 'application/octet-stream')
               ->put("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
-            fclose($fileStream);
-
-            if ($response->successful()) {
-                return true;
+            if (is_resource($fileStream)) {
+                fclose($fileStream);
             }
 
-            Log::error('Bunny Stream uploadVideo failed: ' . $response->body());
-            return false;
+            if ($response->successful()) {
+                return [
+                    'success' => true,
+                    'status' => $response->status(),
+                    'data' => $response->json(),
+                ];
+            }
+
+            $parsed = $this->parseBunnyErrorResponse($response, 'uploadVideo');
+            return [
+                'success' => false,
+                'status' => $parsed['status'],
+                'error' => $parsed['sanitized_message'],
+                'raw_body' => $parsed['raw_body'],
+                'bunny_message' => $parsed['bunny_message'],
+            ];
         } catch (\Exception $e) {
-            Log::error('Bunny Stream uploadVideo error: ' . $e->getMessage());
-            return false;
+            $sanitizedMsg = $this->sanitizeErrorMessage($e->getMessage());
+            Log::error('Bunny Stream uploadVideo exception: ' . $sanitizedMsg);
+            return [
+                'success' => false,
+                'status' => 500,
+                'error' => "استثناء أثناء رفع الفيديو إلى Bunny Stream: {$sanitizedMsg}",
+                'raw_body' => null,
+                'bunny_message' => $sanitizedMsg,
+            ];
         }
     }
 
     /**
-     * Fetch video details from Bunny Stream.
+     * Validate whether a video actually exists in the configured Bunny Library.
+     * Returns structured result array with video details if found.
      */
-    public function getVideoDetails(string $videoId): ?array
+    public function validateVideoExists(string $videoId): array
     {
         if (!$this->isConfigured()) {
-            return null;
+            return [
+                'success' => false,
+                'exists' => false,
+                'status' => 400,
+                'error' => 'خدمة Bunny Stream غير مهيأة على الخادم.',
+                'raw_body' => null,
+                'bunny_message' => 'Bunny Stream is not configured.',
+                'data' => null,
+            ];
         }
 
         try {
@@ -120,15 +282,62 @@ class BunnyStreamService
                 'accept' => 'application/json',
             ])->get("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
-            if ($response->successful()) {
-                return $response->json();
+            if ($response->status() === 200) {
+                return [
+                    'success' => true,
+                    'exists' => true,
+                    'status' => 200,
+                    'data' => $response->json(),
+                    'error' => null,
+                ];
             }
 
-            return null;
+            if ($response->status() === 404) {
+                Log::warning("Bunny Stream validateVideoExists: Video {$videoId} not found in library {$this->libraryId} (HTTP 404).");
+                return [
+                    'success' => false,
+                    'exists' => false,
+                    'status' => 404,
+                    'error' => "الفيديو المحدد ({$videoId}) غير موجود في مكتبة Bunny Stream المعتمدة.",
+                    'raw_body' => $response->body(),
+                    'bunny_message' => 'Video not found in library.',
+                    'data' => null,
+                ];
+            }
+
+            $parsed = $this->parseBunnyErrorResponse($response, 'validateVideoExists');
+            return [
+                'success' => false,
+                'exists' => false,
+                'status' => $parsed['status'],
+                'error' => $parsed['sanitized_message'],
+                'raw_body' => $parsed['raw_body'],
+                'bunny_message' => $parsed['bunny_message'],
+                'data' => null,
+            ];
         } catch (\Exception $e) {
-            Log::error('Bunny Stream getVideoDetails error: ' . $e->getMessage());
-            return null;
+            $sanitizedMsg = $this->sanitizeErrorMessage($e->getMessage());
+            Log::error('Bunny Stream validateVideoExists exception: ' . $sanitizedMsg);
+            return [
+                'success' => false,
+                'exists' => false,
+                'status' => 500,
+                'error' => "استثناء أثناء التحقق من وجود فيديو Bunny: {$sanitizedMsg}",
+                'raw_body' => null,
+                'bunny_message' => $sanitizedMsg,
+                'data' => null,
+            ];
         }
+    }
+
+    /**
+     * Fetch video details from Bunny Stream.
+     * Backwards-compatible helper returning array on success, or null on failure.
+     */
+    public function getVideoDetails(string $videoId): ?array
+    {
+        $result = $this->validateVideoExists($videoId);
+        return ($result['success'] && $result['exists']) ? $result['data'] : null;
     }
 
     /**
@@ -146,9 +355,13 @@ class BunnyStreamService
                 'accept' => 'application/json',
             ])->delete("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
+            if (!$response->successful()) {
+                $this->parseBunnyErrorResponse($response, 'deleteVideo');
+            }
+
             return $response->successful();
         } catch (\Exception $e) {
-            Log::error('Bunny Stream deleteVideo error: ' . $e->getMessage());
+            Log::error('Bunny Stream deleteVideo error: ' . $this->sanitizeErrorMessage($e->getMessage()));
             return false;
         }
     }

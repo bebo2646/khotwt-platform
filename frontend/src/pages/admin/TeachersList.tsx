@@ -302,10 +302,27 @@ export default function TeachersList() {
       return
     }
 
+    const trimmedName = name.trim()
+    if (!trimmedName || trimmedName.length < 2) {
+      useModalStore.getState().showToast('يرجى إدخال اسم المعلم بالكامل.', 'warning')
+      return
+    }
+
+    if (/[0-9\u0660-\u0669\u06F0-\u06F9]/.test(trimmedName)) {
+      useModalStore.getState().showToast('اسم المعلم غير صالح: يجب أن يتكون الاسم من أحرف فقط ولا يمكن أن يحتوي على أرقام.', 'error')
+      return
+    }
+
+    const cleanedPhone = phone.trim().replace(/\s+/g, '')
+    if (!/^01[0125][0-9]{8}$/.test(cleanedPhone)) {
+      useModalStore.getState().showToast('رقم الهاتف غير صحيح: يجب إدخال رقم هاتف مصري صالح مكون من 11 رقماً (مثال: 01012345678).', 'error')
+      return
+    }
+
     setSaving(true)
     const payload = {
-      name,
-      phone,
+      name: trimmedName,
+      phone: cleanedPhone,
       subject: selectedSubjects.join(','),
       experience,
       bio,

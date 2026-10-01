@@ -70,6 +70,7 @@ API.interceptors.response.use(
       
       if (status === 401) {
         // Clear auth on unauthenticated
+        const hadToken = !!(localStorage.getItem('auth_token') || localStorage.getItem('elm_token'))
         const savedTheme = localStorage.getItem('theme')
         const rememberedEmail = localStorage.getItem('elm_remembered_email')
         localStorage.clear()
@@ -81,9 +82,15 @@ API.interceptors.response.use(
           localStorage.setItem('elm_remembered_email', rememberedEmail)
         }
         
-        if (data && (data.code === 'SESSION_EXPIRED' || status === 401)) {
+        if (data && (data.code === 'SESSION_EXPIRED' || data.code === 'SESSION_INVALID')) {
           useModalStore.getState().showToast('تم تسجيل الدخول من جهاز آخر.', 'error')
           window.dispatchEvent(new CustomEvent('elm_session_invalid'))
+        } else if (hadToken) {
+          const isAuthPage = window.location.pathname === '/login' || window.location.pathname === '/register'
+          if (!isAuthPage) {
+            useModalStore.getState().showToast(data?.message || 'انتهت الجلسة، يرجى تسجيل الدخول مجدداً.', 'warning')
+            window.dispatchEvent(new CustomEvent('elm_session_invalid'))
+          }
         }
       }
 

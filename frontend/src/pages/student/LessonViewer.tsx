@@ -200,9 +200,9 @@ export default function LessonViewer({
     let url = video.bunny_embed_url || '';
     const pos = video.progress?.last_position_seconds || 0;
     
-    // Auto-regeneration fallback if URL is empty or misconfigured
-    if ((!url || !url.includes('691418') || (video.bunny_stream_id && !url.includes(video.bunny_stream_id))) && video.bunny_stream_id) {
-      url = `https://iframe.mediadelivery.net/embed/691418/${video.bunny_stream_id}`;
+    // Normalize legacy player URLs to standard embed
+    if (url.includes('player.mediadelivery.net/play/')) {
+      url = url.replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/');
     }
 
     if (isYoutubeUrl(url)) {
@@ -1234,17 +1234,26 @@ export default function LessonViewer({
 
                   let url = activeVideo.bunny_embed_url || '';
                   
-                  // Auto-regeneration fallback if URL is empty or misconfigured
-                  if ((!url || !url.includes('691418') || (activeVideo.bunny_stream_id && !url.includes(activeVideo.bunny_stream_id))) && activeVideo.bunny_stream_id) {
-                    url = `https://iframe.mediadelivery.net/embed/691418/${activeVideo.bunny_stream_id}`;
+                  // Normalize legacy player URLs to standard embed
+                  if (url.includes('player.mediadelivery.net/play/')) {
+                    url = url.replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/');
                   }
 
                   if (!url) {
                     return (
                       <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
-                        <Play className="h-12 w-12 text-rose-500 mb-3 animate-pulse" />
-                        <h4 className="text-sm font-bold text-slate-200 mb-1">رابط الفيديو غير متوفر</h4>
-                        <p className="text-xs font-light max-w-xs">يرجى التواصل مع المعلم أو إدارة المنصة لحل هذه المشكلة.</p>
+                        <Play className="h-12 w-12 text-amber-500 mb-3" />
+                        <h4 className="text-base font-bold text-slate-200 mb-2">الفيديو غير متاح حالياً</h4>
+                        <p className="text-xs font-light text-slate-400 max-w-sm mb-4">
+                          عذراً، محتوى هذا الفيديو غير متوفر في مكتبة العرض أو قيد المعالجة من قبل المحاضر.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => fetchLessonData()}
+                          className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                        >
+                          إعادة المحاولة
+                        </button>
                       </div>
                     );
                   }

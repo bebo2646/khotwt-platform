@@ -1,7 +1,6 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, CheckCircle, ArrowLeft } from 'lucide-react'
-import { motion } from 'framer-motion'
 import { getCourseDisplayPrice } from '../../utils/pricing'
 import { ensureHttps } from '../../utils/urls'
 import { useAuthStore } from '../../store/authStore'
@@ -96,6 +95,8 @@ export default function CourseCard({
         <img 
           src={ensureHttps(coverImage) || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
           alt={title} 
+          loading="lazy"
+          decoding="async"
           className="object-cover w-full h-full group-hover/img:scale-105 transition-transform duration-500 ease-out" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-80 group-hover:opacity-60 transition-opacity"></div>
@@ -181,12 +182,10 @@ export default function CourseCard({
               <span className="text-brand-primary font-black">{progressPercentage}%</span>
             </div>
             <div className="w-full bg-slate-800/60 rounded-full h-2 overflow-hidden p-0.5 border border-slate-700/50">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercentage}%` }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full"
-              ></motion.div>
+              <div 
+                style={{ width: `${progressPercentage}%` }}
+                className="bg-gradient-to-r from-brand-primary to-brand-secondary h-full rounded-full transition-all duration-700 ease-out"
+              ></div>
             </div>
           </div>
         )}

@@ -55,6 +55,21 @@ class Video extends Model
         return self::formatSecondsToWords($this->duration_seconds);
     }
 
+    public function getBunnyEmbedUrlAttribute($value)
+    {
+        $videoId = $this->bunny_stream_id ?: $this->bunny_video_id;
+        if (!empty($videoId)) {
+            $libraryId = config('services.bunny.stream_library_id', env('BUNNY_STREAM_LIBRARY_ID', '766707'));
+            return "https://iframe.mediadelivery.net/embed/{$libraryId}/{$videoId}";
+        }
+
+        if (!empty($value) && str_contains($value, 'player.mediadelivery.net/play/')) {
+            return str_replace('player.mediadelivery.net/play/', 'iframe.mediadelivery.net/embed/', $value);
+        }
+
+        return $value;
+    }
+
     public function lesson()
     {
         return $this->belongsTo(Lesson::class);
