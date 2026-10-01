@@ -40,16 +40,99 @@ Route::get('/academic-grades', [TaxonomyController::class, 'getAcademicGrades'])
 Route::get('/filter/subjects', [PublicController::class, 'filterSubjects']);
 Route::get('/filter/teachers', [PublicController::class, 'filterTeachers']);
 Route::get('/config', [PublicController::class, 'config']);
-Route::get('/debug/bunny-config', function () {
+Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
+    if ($request->has('clear_cache')) {
+        \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+        \Illuminate\Support\Facades\Artisan::call('config:clear');
+        \Illuminate\Support\Facades\Artisan::call('cache:clear');
+        \Illuminate\Support\Facades\Artisan::call('config:cache');
+    }
+
     $libraryId = config('services.bunny.library_id');
+    $streamLibraryId = config('services.bunny.stream_library_id');
     $apiKey = config('services.bunny.api_key');
+    $streamApiKey = config('services.bunny.stream_api_key');
     $cdnHost = config('services.bunny.cdn_hostname');
+    $pullZone = config('services.bunny.pull_zone');
+
+    $envStreamLib = getenv('BUNNY_STREAM_LIBRARY_ID') ?: ($_ENV['BUNNY_STREAM_LIBRARY_ID'] ?? ($_SERVER['BUNNY_STREAM_LIBRARY_ID'] ?? null));
+    $envLib = getenv('BUNNY_LIBRARY_ID') ?: ($_ENV['BUNNY_LIBRARY_ID'] ?? ($_SERVER['BUNNY_LIBRARY_ID'] ?? null));
+    $envStreamKey = getenv('BUNNY_STREAM_API_KEY') ?: ($_ENV['BUNNY_STREAM_API_KEY'] ?? ($_SERVER['BUNNY_STREAM_API_KEY'] ?? ''));
+    $envKey = getenv('BUNNY_API_KEY') ?: ($_ENV['BUNNY_API_KEY'] ?? ($_SERVER['BUNNY_API_KEY'] ?? ''));
+
+    $bunnyTest = null;
+    if ($request->has('test_bunny')) {
+        try {
+            $testTitle = 'backend-auth-audit-' . time();
+            $testRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(15)
+                ->withHeaders([
+                    'AccessKey' => $apiKey,
+                    'Content-Type' => 'application/json',
+                    'accept' => 'application/json',
+                ])->post("https://video.bunnycdn.com/library/{$libraryId}/videos", [
+                    'title' => $testTitle,
+                ]);
+
+            $status = $testRes->status();
+            $data = $testRes->json();
+            $guid = $data['guid'] ?? null;
+            $deleted = false;
+
+            if ($guid) {
+                // Clean up harmless test video immediately
+                $delRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                    ->timeout(15)
+                    ->withHeaders([
+                        'AccessKey' => $apiKey,
+                        'accept' => 'application/json',
+                    ])->delete("https://video.bunnycdn.com/library/{$libraryId}/videos/{$guid}");
+                $deleted = $delRes->successful();
+            }
+
+            $bunnyTest = [
+                'http_status' => $status,
+                'response_structure' => is_array($data) ? array_keys($data) : null,
+                'bunny_error_message' => $data['Message'] ?? ($data['message'] ?? ($data['error'] ?? ($status === 200 ? 'OK' : $testRes->body()))),
+                'video_guid_created' => (bool)$guid,
+                'video_deleted' => $deleted,
+            ];
+        } catch (\Throwable $e) {
+            $bunnyTest = [
+                'http_status' => 500,
+                'error_message' => $e->getMessage(),
+            ];
+        }
+    }
 
     return response()->json([
-        'configured' => !empty($libraryId) && !empty($apiKey),
-        'library_id_exists' => !empty($libraryId),
-        'api_key_exists' => !empty($apiKey),
-        'cdn_hostname_exists' => !empty($cdnHost),
+        'deployed_location' => [
+            'railway_environment' => getenv('RAILWAY_ENVIRONMENT') ?: ($_ENV['RAILWAY_ENVIRONMENT'] ?? 'railway'),
+            'app_url' => config('app.url'),
+            'host' => request()->getHost(),
+        ],
+        'config_cached' => app()->configurationIsCached(),
+        'runtime_config' => [
+            'library_id' => $libraryId,
+            'stream_library_id' => $streamLibraryId,
+            'api_key_present' => !empty($apiKey),
+            'api_key_length' => strlen($apiKey ?? ''),
+            'stream_api_key_present' => !empty($streamApiKey),
+            'stream_api_key_length' => strlen($streamApiKey ?? ''),
+            'cdn_hostname' => $cdnHost,
+            'pull_zone' => $pullZone,
+        ],
+        'raw_env_vars' => [
+            'BUNNY_STREAM_LIBRARY_ID' => $envStreamLib,
+            'BUNNY_LIBRARY_ID' => $envLib,
+            'BUNNY_STREAM_API_KEY_present' => !empty($envStreamKey),
+            'BUNNY_STREAM_API_KEY_length' => strlen($envStreamKey),
+            'BUNNY_API_KEY_present' => !empty($envKey),
+            'BUNNY_API_KEY_length' => strlen($envKey),
+            'BUNNY_STREAM_CDN_HOSTNAME' => getenv('BUNNY_STREAM_CDN_HOSTNAME') ?: null,
+            'BUNNY_STREAM_PULL_ZONE' => getenv('BUNNY_STREAM_PULL_ZONE') ?: null,
+        ],
+        'bunny_test' => $bunnyTest,
     ]);
 });
 

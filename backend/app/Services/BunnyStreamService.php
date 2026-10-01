@@ -52,7 +52,6 @@ class BunnyStreamService
             'library_id' => $this->libraryId,
             'api_key_present' => !empty($this->apiKey),
             'api_key_length' => strlen($this->apiKey),
-            'api_key_fingerprint' => !empty($this->apiKey) ? md5($this->apiKey) : null,
             'cdn_hostname' => config('services.bunny.cdn_hostname') ?: $this->pullZone,
             'app_env' => config('app.env', 'production'),
         ];
