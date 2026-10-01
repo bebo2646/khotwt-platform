@@ -8,6 +8,7 @@ import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
 import { getCourseDisplayPrice } from '../../utils/pricing'
 import { formatDurationArabic } from '../../utils/video'
+import { startBunnyTusUpload, type BunnyUploadHandle } from '../../utils/bunnyUpload'
 
 interface CourseItem {
   id: number
@@ -154,6 +155,10 @@ export default function ManageCourses() {
   const [editingVideo, setEditingVideo] = React.useState<any | null>(null)
   const [replacingVideo, setReplacingVideo] = React.useState<any | null>(null)
   const [replacingPdf, setReplacingPdf] = React.useState<any | null>(null)
+
+  // Direct Bunny TUS upload refs to guarantee persistent session & abort control across re-renders
+  const videoUploadRef = React.useRef<BunnyUploadHandle | null>(null)
+  const activePendingVideoIdRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     const url = vidEmbedUrl.trim();
@@ -700,6 +705,14 @@ export default function ManageCourses() {
   };
 
   const resetVideoModal = () => {
+    if (videoUploadRef.current) {
+      videoUploadRef.current.abort();
+      videoUploadRef.current = null;
+    }
+    if (activePendingVideoIdRef.current) {
+      API.delete(`/teacher/videos/${activePendingVideoIdRef.current}`).catch(() => {});
+      activePendingVideoIdRef.current = null;
+    }
     setVidTitle('');
     setVidStreamId('');
     setVidEmbedUrl('');
@@ -762,7 +775,7 @@ export default function ManageCourses() {
     }
 
     // -------------------------------------------------------------
-    // FLOW 1: Direct Video File Upload
+    // FLOW 1: Direct Video File Upload to Bunny Stream via TUS
     // -------------------------------------------------------------
     if (videoFlowType === 'direct') {
       if (!selectedVideoFile) {
@@ -773,37 +786,88 @@ export default function ManageCourses() {
       setUploadingVideo(true);
       setUploadProgress(0);
       setActionLoading(true);
+      setVideoFileDetails(prev => prev ? { ...prev, status: 'جاري التحقق من المساحة التخزينية...' } : null);
 
-      const formData = new FormData();
-      formData.append('title', vidTitle.trim());
-      formData.append('video_file', selectedVideoFile);
-      if (vidDuration) formData.append('duration_seconds', vidDuration);
-      if (vidThumbnail) formData.append('thumbnail_path', vidThumbnail);
-
+      // Verify quota before contacting Bunny
       try {
-        await API.post(`/teacher/lessons/${lessonId}/video`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(percent);
-              setVideoFileDetails(prev => prev ? { ...prev, status: `جاري الرفع: ${percent}%` } : null);
-            }
-          }
-        });
+        const subRes = await API.get('/teacher/subscription');
+        const remainingStorageGb = subRes.data?.subscription?.remaining_storage_gb ?? 0;
+        const fileSizeGb = selectedVideoFile.size / (1024 * 1024 * 1024);
+        if (fileSizeGb > remainingStorageGb) {
+          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
+          setUploadingVideo(false);
+          setUploadProgress(null);
+          setActionLoading(false);
+          return;
+        }
+      } catch (errQuota) {
+        console.warn('Could not verify storage quota before direct upload:', errQuota);
+      }
 
-        useModalStore.getState().showToast('تم رفع الفيديو ومعالجته بنجاح على Bunny Stream.', 'success');
-        resetVideoModal();
-        handleSelectCourse(selectedCourse);
+      setVideoFileDetails(prev => prev ? { ...prev, status: 'جاري إنشاء كائن الفيديو على خوادم Bunny Stream...' } : null);
+
+      let signedRes: any;
+      try {
+        signedRes = await API.post('/teacher/videos/signed-upload', {
+          title: vidTitle.trim(),
+          lesson_id: lessonId,
+          file_size: selectedVideoFile.size,
+          duration_seconds: Number(vidDuration) || undefined,
+          thumbnail_path: vidThumbnail || undefined,
+        });
       } catch (err: any) {
-        console.error(err);
-        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل رفع الفيديو.';
+        console.error('Failed to create signed upload session:', err);
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل تهيئة رفع الفيديو على Bunny Stream.';
         useModalStore.getState().showToast(errMsg, 'error');
-      } finally {
         setUploadingVideo(false);
         setUploadProgress(null);
         setActionLoading(false);
+        return;
       }
+
+      const { video_id, library_id, signature, expiration_time, video } = signedRes.data;
+      activePendingVideoIdRef.current = video?.id || null;
+
+      setVideoFileDetails(prev => prev ? { ...prev, status: 'جاري بدء الرفع المباشر إلى خوادم Bunny Stream...' } : null);
+
+      videoUploadRef.current = startBunnyTusUpload(
+        selectedVideoFile,
+        {
+          video_id,
+          library_id,
+          signature,
+          expiration_time,
+          title: vidTitle.trim(),
+        },
+        {
+          onProgress: (_bytesSent, _bytesTotal, percent) => {
+            setUploadProgress(percent);
+            setVideoFileDetails(prev => prev ? { ...prev, status: `جاري الرفع المباشر: ${percent}%` } : null);
+          },
+          onSuccess: () => {
+            activePendingVideoIdRef.current = null;
+            videoUploadRef.current = null;
+            setUploadingVideo(false);
+            setUploadProgress(null);
+            setActionLoading(false);
+            useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
+            resetVideoModal();
+            handleSelectCourse(selectedCourse);
+          },
+          onError: (_error, diagnostic) => {
+            console.error('Direct Bunny upload error:', diagnostic);
+            if (activePendingVideoIdRef.current) {
+              API.delete(`/teacher/videos/${activePendingVideoIdRef.current}`).catch(() => {});
+              activePendingVideoIdRef.current = null;
+            }
+            videoUploadRef.current = null;
+            setUploadingVideo(false);
+            setUploadProgress(null);
+            setActionLoading(false);
+            useModalStore.getState().showToast(`فشل رفع الفيديو إلى Bunny Stream: ${diagnostic.message}`, 'error');
+          },
+        }
+      );
       return;
     }
 
@@ -964,6 +1028,7 @@ export default function ManageCourses() {
   const handleSaveReplaceVideo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!replacingVideo) return
+    if (actionLoading || uploadingVideo) return
 
     if (!selectedVideoFile && !vidEmbedUrl.trim() && !vidStreamId.trim()) {
       useModalStore.getState().showToast('يرجى اختيار ملف فيديو جديد أو إدخال رابط أو معرف Bunny.', 'warning')
@@ -973,14 +1038,67 @@ export default function ManageCourses() {
     setActionLoading(true)
     try {
       if (selectedVideoFile) {
-        const formData = new FormData()
-        formData.append('title', vidTitle || replacingVideo.title)
-        formData.append('video_file', selectedVideoFile)
-        if (vidDuration) formData.append('duration_seconds', vidDuration)
-        if (vidThumbnail) formData.append('thumbnail_path', vidThumbnail)
-        await API.post(`/teacher/videos/${replacingVideo.id}/replace`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
+        setUploadingVideo(true)
+        setUploadProgress(0)
+
+        // Storage limit validation
+        try {
+          const subRes = await API.get('/teacher/subscription')
+          const remainingStorageGb = subRes.data?.subscription?.remaining_storage_gb ?? 0
+          const oldVideoSize = replacingVideo.bunny_size_bytes || replacingVideo.storage_size || 0
+          const netChangeGb = Math.max(0, selectedVideoFile.size - oldVideoSize) / (1024 * 1024 * 1024)
+          if (netChangeGb > remainingStorageGb) {
+            useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح باستبدال هذا الفيديو بهذا الحجم. يمكنك طلب مساحة إضافية.', 'error')
+            setUploadingVideo(false)
+            setUploadProgress(null)
+            setActionLoading(false)
+            return
+          }
+        } catch (errQuota) {
+          console.warn('Could not verify storage quota:', errQuota)
+        }
+
+        const signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`, {
+          title: vidTitle || replacingVideo.title,
+          file_size: selectedVideoFile.size,
         })
+
+        const { video_id, library_id, signature, expiration_time } = signedRes.data
+
+        videoUploadRef.current = startBunnyTusUpload(
+          selectedVideoFile,
+          {
+            video_id,
+            library_id,
+            signature,
+            expiration_time,
+            title: vidTitle || replacingVideo.title,
+          },
+          {
+            onProgress: (_bytesSent, _bytesTotal, percent) => {
+              setUploadProgress(percent)
+            },
+            onSuccess: () => {
+              videoUploadRef.current = null
+              setUploadingVideo(false)
+              setUploadProgress(null)
+              setActionLoading(false)
+              resetVideoModal()
+              setReplacingVideo(null)
+              if (selectedCourse) handleSelectCourse(selectedCourse)
+              useModalStore.getState().showToast('تم استبدال الفيديو مباشرة على Bunny Stream بنجاح وجاري المعالجة.', 'success')
+            },
+            onError: (_error, diagnostic) => {
+              console.error('Replace upload failed:', diagnostic)
+              videoUploadRef.current = null
+              setUploadingVideo(false)
+              setUploadProgress(null)
+              setActionLoading(false)
+              useModalStore.getState().showToast(`فشل استبدال الفيديو: ${diagnostic.message}`, 'error')
+            }
+          }
+        )
+        return
       } else {
         await API.put(`/teacher/videos/${replacingVideo.id}`, {
           title: vidTitle || replacingVideo.title,
@@ -989,17 +1107,19 @@ export default function ManageCourses() {
           duration_seconds: Number(vidDuration) || replacingVideo.duration_seconds || 300,
           thumbnail_path: vidThumbnail || replacingVideo.thumbnail_path,
         })
+        resetVideoModal()
+        setReplacingVideo(null)
+        if (selectedCourse) handleSelectCourse(selectedCourse)
+        useModalStore.getState().showToast('تم استبدال الفيديو بنجاح.', 'success')
       }
-      resetVideoModal()
-      setReplacingVideo(null)
-      if (selectedCourse) handleSelectCourse(selectedCourse)
-      useModalStore.getState().showToast('تم استبدال الفيديو بنجاح.', 'success')
     } catch (err: any) {
       console.error(err)
       const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل استبدال الفيديو.'
       useModalStore.getState().showToast(errMsg, 'error')
     } finally {
-      setActionLoading(false)
+      if (!selectedVideoFile) {
+        setActionLoading(false)
+      }
     }
   }
 
@@ -2447,8 +2567,30 @@ export default function ManageCourses() {
 
 
               <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button type="button" onClick={() => setReplacingVideo(null)} className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl">إلغاء</button>
-                <button type="submit" disabled={actionLoading} className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl">{actionLoading ? 'جاري الاستبدال...' : 'استبدال الفيديو'}</button>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    if (videoUploadRef.current) {
+                      videoUploadRef.current.abort();
+                      videoUploadRef.current = null;
+                    }
+                    setReplacingVideo(null);
+                    setSelectedVideoFile(null);
+                    setVideoFileDetails(null);
+                    setUploadingVideo(false);
+                    setUploadProgress(null);
+                  }} 
+                  className="px-4 py-2 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl"
+                >
+                  إلغاء
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={actionLoading || uploadingVideo} 
+                  className="px-5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl disabled:opacity-50"
+                >
+                  {actionLoading || uploadingVideo ? 'جاري الاستبدال...' : 'استبدال الفيديو'}
+                </button>
               </div>
             </form>
           </div>

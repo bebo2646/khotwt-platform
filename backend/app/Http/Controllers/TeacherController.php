@@ -242,15 +242,31 @@ class TeacherController extends Controller
             'title' => 'required|string|max:255',
             'lesson_id' => 'required|exists:lessons,id',
             'file_size' => 'sometimes|integer|min:0',
+            'duration_seconds' => 'sometimes|integer|min:0',
+            'thumbnail_path' => 'sometimes|nullable|string',
         ]);
 
         $lesson = Lesson::with('unit')->findOrFail($request->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
 
+        $title = trim($request->input('title'));
+
+        // Check for duplicate video submission (by title in this lesson)
+        if (Video::where('lesson_id', $request->lesson_id)->where('title', $title)->exists()) {
+            return response()->json([
+                'error_code' => 'DUPLICATE_VIDEO_TITLE',
+                'message' => 'يوجد فيديو آخر بنفس العنوان مرتبط بالفعل بهذه المحاضرة/الدرس (فيديو مكرر).',
+                'errors' => [
+                    'title' => ['A video with this title is already linked to this lesson.']
+                ]
+            ], 422);
+        }
+
         $libraryId = config('services.bunny.library_id');
         $apiKey = config('services.bunny.api_key');
 
-        if (empty($libraryId) || empty($apiKey)) {
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+        if (!$bunnyService->isConfigured() || empty($libraryId) || empty($apiKey)) {
             return response()->json([
                 'message' => 'Bunny Stream integration is not configured on the server.'
             ], 400);
@@ -258,7 +274,7 @@ class TeacherController extends Controller
 
         // Validate teacher subscription storage limit
         $teacher = $request->user();
-        $teacherId = $teacher->id;
+        $teacherId = $teacher ? $teacher->id : null;
         $fileSize = (int) $request->input('file_size', 0);
         if ($request->hasFile('video')) {
             $fileSize = $request->file('video')->getSize();
@@ -267,7 +283,7 @@ class TeacherController extends Controller
         }
 
         $videoSizeGb = $fileSize / 1024 / 1024 / 1024;
-        $remainingStorageGb = $teacher->remaining_storage_gb;
+        $remainingStorageGb = $teacher ? $teacher->remaining_storage_gb : 0;
 
         \Log::info('VIDEO STORAGE CHECK', [
             'teacher_id' => $teacherId,
@@ -282,22 +298,14 @@ class TeacherController extends Controller
             ], 422);
         }
 
-        $bunnyService = new \App\Services\BunnyStreamService();
-        if ($bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
+        if ($teacherId && $bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
             return response()->json([
                 'success' => false,
                 'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة لتتمكن من إضافة فيديوهات جديدة.'
             ], 403);
         }
 
-        $bunnyService = new \App\Services\BunnyStreamService();
-        if (!$bunnyService->isConfigured()) {
-            return response()->json([
-                'message' => 'Bunny Stream integration is not configured on the server.'
-            ], 400);
-        }
-
-        $createRes = $bunnyService->createVideo($request->title);
+        $createRes = $bunnyService->createVideo($title);
         if (!$createRes['success']) {
             $status = $this->safeBunnyHttpStatus($createRes['status']);
             return response()->json([
@@ -313,25 +321,33 @@ class TeacherController extends Controller
 
         $embedUrl = $bunnyService->getEmbedUrl($videoId);
         $thumbnailUrl = $bunnyService->getThumbnailUrl($videoId);
+        $durationSeconds = (int) $request->input('duration_seconds', 0);
+        $thumbnailPath = $request->input('thumbnail_path') ?: $thumbnailUrl;
 
         // Create local video record in database
         $video = Video::create([
             'lesson_id' => $request->lesson_id,
-            'title' => $request->title,
+            'title' => $title,
             'bunny_video_id' => $videoId,
             'bunny_stream_id' => $videoId,
             'bunny_embed_url' => $embedUrl,
             'bunny_thumbnail_url' => $thumbnailUrl,
-            'bunny_duration' => 0,
+            'bunny_duration' => $durationSeconds,
             'bunny_size_bytes' => $fileSize,
             'bunny_status' => 'queued',
-            'duration_seconds' => 0,
-            'thumbnail_path' => $thumbnailUrl,
+            'duration_seconds' => $durationSeconds,
+            'thumbnail_path' => $thumbnailPath,
         ]);
 
         $this->updateLessonDuration($request->lesson_id);
-        $bunnyService->recalculateStorage($teacherId);
+        if ($teacherId) {
+            $bunnyService->recalculateStorage($teacherId);
+        }
         \App\Jobs\PollBunnyVideoStatus::dispatch($video->id);
+
+        if ($teacher && $teacher->role === 'teacher') {
+            \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
+        }
 
         return response()->json([
             'video_id' => $videoId,
@@ -1830,7 +1846,7 @@ class TeacherController extends Controller
             ], 400);
         }
 
-        $bunnyService = new \App\Services\BunnyStreamService();
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
         if (!$bunnyService->isConfigured()) {
             return response()->json([
                 'message' => 'Bunny Stream integration is not configured on the server.'
@@ -1856,8 +1872,10 @@ class TeacherController extends Controller
             ], 403);
         }
 
+        $title = $request->input('title') ? trim($request->input('title')) : $video->title;
+
         // 1. Create a new video placeholder on Bunny Stream
-        $createRes = $bunnyService->createVideo($video->title);
+        $createRes = $bunnyService->createVideo($title);
         if (!$createRes['success']) {
             $status = $this->safeBunnyHttpStatus($createRes['status']);
             return response()->json([
@@ -1899,6 +1917,7 @@ class TeacherController extends Controller
 
         // 3. Update local video record
         $video->update([
+            'title' => $title,
             'bunny_video_id' => $newVideoId,
             'bunny_stream_id' => $newVideoId,
             'bunny_embed_url' => $embedUrl,

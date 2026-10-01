@@ -307,4 +307,73 @@ class BunnyStreamVideoFlowTest extends TestCase
         $this->assertStringNotContainsString('AccessKey', $content);
         $this->assertStringNotContainsString('api_key', $content);
     }
+
+    public function test_generate_signed_upload_rejects_duplicate_video_title()
+    {
+        Video::create([
+            'lesson_id' => $this->lesson->id,
+            'title' => 'فيديو كوانتم مكرر',
+            'duration_seconds' => 300,
+        ]);
+
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/signed-upload', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'فيديو كوانتم مكرر',
+            'file_size' => 1024 * 1024 * 10,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'error_code' => 'DUPLICATE_VIDEO_TITLE',
+        ]);
+    }
+
+    public function test_generate_signed_upload_success_creates_placeholder_and_tus_credentials()
+    {
+        config(['services.bunny.library_id' => '766707']);
+        config(['services.bunny.api_key' => 'mock-api-key']);
+
+        $mockBunny = Mockery::mock(BunnyStreamService::class);
+        $mockBunny->shouldReceive('isConfigured')->andReturn(true);
+        $mockBunny->shouldReceive('isStorageLimitExceeded')->andReturn(false);
+        $mockBunny->shouldReceive('recalculateStorage')->andReturn(null);
+        $mockBunny->shouldReceive('createVideo')->once()->with('شرح نموذج بور الذري')->andReturn([
+            'success' => true,
+            'video_id' => 'bunny-guid-9999-8888',
+            'guid' => 'bunny-guid-9999-8888',
+            'status' => 200,
+        ]);
+        $mockBunny->shouldReceive('getEmbedUrl')->with('bunny-guid-9999-8888')->andReturn('https://iframe.mediadelivery.net/embed/766707/bunny-guid-9999-8888');
+        $mockBunny->shouldReceive('getThumbnailUrl')->with('bunny-guid-9999-8888')->andReturn('https://vz-766707.b-cdn.net/bunny-guid-9999-8888/thumbnail.jpg');
+
+        $this->app->instance(BunnyStreamService::class, $mockBunny);
+
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/signed-upload', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'شرح نموذج بور الذري',
+            'file_size' => 1024 * 1024 * 50,
+            'duration_seconds' => 600,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure([
+            'video_id',
+            'library_id',
+            'signature',
+            'expiration_time',
+            'embed_url',
+            'video',
+        ]);
+
+        $this->assertEquals('bunny-guid-9999-8888', $response->json('video_id'));
+        $this->assertEquals('766707', $response->json('library_id'));
+
+        $this->assertDatabaseHas('videos', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'شرح نموذج بور الذري',
+            'bunny_video_id' => 'bunny-guid-9999-8888',
+            'bunny_status' => 'queued',
+            'duration_seconds' => 600,
+        ]);
+    }
 }

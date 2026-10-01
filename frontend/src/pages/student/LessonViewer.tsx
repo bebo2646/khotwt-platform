@@ -86,6 +86,8 @@ interface LessonViewerProps {
   isEmbedded?: boolean
   initialVideoId?: number
   initialPdfId?: number
+  activeVideoProp?: VideoItem | null
+  onVideoChange?: (video: VideoItem) => void
   onClose?: () => void
 }
 
@@ -95,6 +97,8 @@ export default function LessonViewer({
   isEmbedded = false,
   initialVideoId,
   initialPdfId,
+  activeVideoProp,
+  onVideoChange,
   onClose
 }: LessonViewerProps = {}) {
   const { id: routeId } = useParams()
@@ -282,10 +286,12 @@ export default function LessonViewer({
             setActiveTab('pdfs')
           }
         } else if (res.data.videos.length > 0) {
-          const match = res.data.videos.find((v: VideoItem) => v.id.toString() === preSelectedVideoId)
+          const currentId = activeVideoRef.current?.id;
+          const match = activeVideoProp || res.data.videos.find((v: VideoItem) => v.id.toString() === preSelectedVideoId) || (currentId ? res.data.videos.find((v: VideoItem) => v.id === currentId) : undefined)
           const defaultVideo = match || res.data.videos[0]
           
           setActiveVideo(defaultVideo)
+          activeVideoRef.current = defaultVideo
           if (defaultVideo.progress?.view_limit_details) {
             setViewLimitDetails(defaultVideo.progress.view_limit_details)
             isSessionAuthorizedRef.current = defaultVideo.progress.view_limit_details.remaining > 0 || defaultVideo.progress.view_limit_details.is_unlimited;
@@ -955,10 +961,19 @@ export default function LessonViewer({
     };
   }, [activeVideo?.id, activeTab === 'videos']);
 
-  // Handle active video selection switch
-  const selectVideo = async (video: VideoItem) => {
-    setIsPlaying(false)
-    const prevVideo = activeVideoRef.current
+  // Handle active video selection switch - SYNCHRONOUS, IMMEDIATE, NON-BLOCKING
+  const selectVideo = React.useCallback((video: VideoItem) => {
+    if (!video) return;
+    if (activeVideoRef.current && activeVideoRef.current.id === video.id) return;
+
+    console.log('[LessonViewer Debug] Switching video:', {
+      from: activeVideoRef.current?.id,
+      to: video.id,
+      title: video.title
+    });
+
+    // 1. Non-blocking flush of previous video progress (never block state updates with await)
+    const prevVideo = activeVideoRef.current;
     if (prevVideo) {
       pushAndMergeCurrentSegment();
       const current = lastPositionRef.current;
@@ -970,17 +985,37 @@ export default function LessonViewer({
       const savedPercentage = Number(prevVideo.progress?.watched_percentage) || 0;
       const percentage = Math.max(savedPercentage, currentProgress);
 
-      await saveLessonProgressRef.current({
+      saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
         watched_seconds: totalSecs,
         progress_percentage: percentage,
         watched_segments: merged
-      });
+      }).catch(() => {});
     }
-    setActiveVideo(video)
+
+    // 2. Immediately reset playback and session
+    setIsPlaying(false);
+    currentSegmentRef.current = null;
+    watchSessionIdRef.current = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    sessionWatchTimeRef.current = 0;
+
+    // 3. Immediately reset metrics for the incoming video
+    const pos = video.progress?.last_position_seconds || 0;
+    const watchedSecs = video.progress?.watched_seconds || 0;
+    const segments = video.progress?.watched_segments || [];
+    const videoDuration = video.duration_seconds || 300;
+
+    setLastPosition(pos);
+    setWatchedTime(watchedSecs);
+    setSecondsWatched(watchedSecs);
+    setWatchedSegments(segments);
+    setDuration(videoDuration);
+    setProgressPercentage(Number(video.progress?.watched_percentage) || 0);
+
+    // 4. Update view limits
     if (video.progress?.view_limit_details) {
-      setViewLimitDetails(video.progress.view_limit_details)
+      setViewLimitDetails(video.progress.view_limit_details);
       isSessionAuthorizedRef.current = video.progress.view_limit_details.remaining > 0 || video.progress.view_limit_details.is_unlimited;
     } else if (viewLimitDetails) {
       setViewLimitDetails({
@@ -988,41 +1023,51 @@ export default function LessonViewer({
         views_used: 0,
         remaining_views: viewLimitDetails.total_allowed_views !== -1 ? viewLimitDetails.total_allowed_views : -1,
         remaining: viewLimitDetails.total_allowed_views !== -1 ? viewLimitDetails.total_allowed_views : -1,
-      })
+      });
       isSessionAuthorizedRef.current = viewLimitDetails.total_allowed_views === -1 || viewLimitDetails.total_allowed_views > 0;
     } else {
       isSessionAuthorizedRef.current = true;
     }
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('video_id', video.id.toString());
-      return next;
-    });
-    
-    
-    // Set stable video embed URL for the new video
-    const newEmbedUrl = getEmbedUrl(video)
-    setVideoEmbedUrl(newEmbedUrl)
-    console.log('[YouTube Player Debug] selectVideo - Set new embed URL:', newEmbedUrl)
 
-    const pos = video.progress?.last_position_seconds || 0
-    const watchedSecs = video.progress?.watched_seconds || 0
-    const segments = video.progress?.watched_segments || []
-    setLastPosition(pos)
-    setWatchedTime(watchedSecs)
-    setSecondsWatched(watchedSecs)
-    setWatchedSegments(segments)
-    currentSegmentRef.current = null
-    
-    const videoDuration = video.duration_seconds || 300
-    setDuration(videoDuration)
-    setProgressPercentage(Number(video.progress?.watched_percentage) || 0)
-    
-    // Seek native video element if it's rendered
-    if (videoRef.current) {
-      videoRef.current.currentTime = pos
+    // 5. Cleanup YouTube player instance if active
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+      try {
+        ytPlayerRef.current.destroy();
+      } catch (e) {}
+      ytPlayerRef.current = null;
     }
-  }
+
+    // 6. Set embed URL and active video synchronously
+    const newEmbedUrl = getEmbedUrl(video);
+    setVideoEmbedUrl(newEmbedUrl);
+    setActiveVideo(video);
+    activeVideoRef.current = video;
+
+    // 7. Seek native video element if applicable
+    if (videoRef.current) {
+      videoRef.current.currentTime = pos;
+    }
+
+    // 8. If standalone viewer, sync searchParams
+    if (!isEmbedded) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('video_id', video.id.toString());
+        return next;
+      });
+    }
+
+    if (onVideoChange) {
+      onVideoChange(video);
+    }
+  }, [id, viewLimitDetails, isEmbedded, onVideoChange]);
+
+  // React to activeVideoProp from parent
+  React.useEffect(() => {
+    if (activeVideoProp && activeVideoProp.id !== activeVideoRef.current?.id) {
+      selectVideo(activeVideoProp);
+    }
+  }, [activeVideoProp, selectVideo]);
 
   // React to initialVideoId or searchParams video_id changes while viewer is open
   React.useEffect(() => {
@@ -1037,7 +1082,7 @@ export default function LessonViewer({
         selectVideo(found);
       }
     }
-  }, [initialVideoId, searchParams.get('video_id'), videos]);
+  }, [initialVideoId, searchParams.get('video_id'), videos, selectVideo]);
 
   // React to initialPdfId or searchParams pdf_id changes while viewer is open
   React.useEffect(() => {
@@ -1307,7 +1352,7 @@ export default function LessonViewer({
                   }
 
                   if (isYoutubeUrl(url)) {
-                    const finalSrc = videoEmbedUrl || getEmbedUrl(activeVideo);
+                    const finalSrc = getEmbedUrl(activeVideo);
                     console.log('[YouTube Player Debug] Rendering YouTube iframe. finalSrc:', finalSrc);
                     return (
                       <iframe
@@ -1363,7 +1408,7 @@ export default function LessonViewer({
                     );
                   } else {
                     // Fallback to normal embed (mediadelivery.net / bunny CDN, etc.)
-                    const finalSrc = videoEmbedUrl || getEmbedUrl(activeVideo);
+                    const finalSrc = getEmbedUrl(activeVideo);
                     return (
                       <iframe
                         key={`bunny-${activeVideo.id}`}

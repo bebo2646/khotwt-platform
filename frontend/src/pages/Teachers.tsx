@@ -26,6 +26,11 @@ export default function Teachers() {
         keywords="مدرسين ثانوية عامة, معلمي منصة خطوتك, مدرس الكيمياء, كورسات برمجة, خبراء تصميم"
       />
       
+      <div className="max-w-[1500px] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+        <h1 className="text-3xl sm:text-5xl font-black text-foreground">نخبة المعلمين والخبراء</h1>
+        <p className="text-xs sm:text-sm text-[var(--text-muted)] font-medium mt-1">تصفح أفضل الكوادر التعليمية وتعرف على شروحاتهم ومؤهلاتهم على منصة خطوتك</p>
+      </div>
+
       <TeachersCarousel
         teachers={teachers}
         loading={loading}

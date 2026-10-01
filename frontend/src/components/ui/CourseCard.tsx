@@ -91,10 +91,10 @@ export default function CourseCard({
       className="relative group bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:border-brand-primary/30 transition-all duration-300 ease-in-out flex flex-col justify-between h-full hover:shadow-[0_0_30px_var(--glow-color)] course-card"
     >
       {/* Thumbnail area */}
-      <div className="aspect-video w-full bg-brand-surface relative overflow-hidden group/img">
+      <Link to={`/course/${slug || id}`} className="aspect-video w-full bg-brand-surface relative overflow-hidden group/img block">
         <img 
           src={ensureHttps(coverImage) || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'} 
-          alt={title} 
+          alt={`غلاف كورس ${title}`} 
           loading="lazy"
           decoding="async"
           className="object-cover w-full h-full group-hover/img:scale-105 transition-transform duration-500 ease-out" 
@@ -144,7 +144,7 @@ export default function CourseCard({
             <span>مشترك</span>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Card Content */}
       <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
@@ -164,7 +164,9 @@ export default function CourseCard({
           {/* Title and description */}
           <div className="space-y-1.5">
             <h3 className="font-black text-base text-foreground group-hover:text-brand-primary transition-colors duration-200 line-clamp-2 min-h-[48px] leading-snug">
-              {title}
+              <Link to={`/course/${slug || id}`} className="hover:underline">
+                {title}
+              </Link>
             </h3>
             {description && (
               <p className="text-xs text-text-secondary font-medium line-clamp-2 leading-relaxed opacity-90">

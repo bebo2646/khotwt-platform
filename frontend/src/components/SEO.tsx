@@ -80,7 +80,10 @@ export default function SEO({
     setMetaTag('og:type', ogType, true)
 
     // 7. URL
-    const finalUrl = canonicalUrl || window.location.href
+    const cleanCurrentUrl = typeof window !== 'undefined' 
+      ? `${window.location.origin}${window.location.pathname}` 
+      : 'https://khotwtak.com'
+    const finalUrl = canonicalUrl || cleanCurrentUrl
     setMetaTag('og:url', finalUrl, true)
     setCanonicalLink(finalUrl)
 

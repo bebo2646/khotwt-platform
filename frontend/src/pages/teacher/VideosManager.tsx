@@ -4,6 +4,7 @@ import { Film, UploadCloud, Copy, Check, Trash2, RefreshCw, AlertTriangle, HardD
 import { useModalStore } from '../../store/modalStore'
 import { useConfigStore } from '../../store/configStore'
 import * as tus from 'tus-js-client'
+import { startBunnyTusUpload, type BunnyUploadHandle } from '../../utils/bunnyUpload'
 
 interface VideoItem {
   id: number
@@ -64,6 +65,11 @@ export default function VideosManager() {
   const [replaceProgress, setReplaceProgress] = React.useState<number | null>(null)
   const [replaceStatusText, setReplaceStatusText] = React.useState('')
   const [replacing, setReplacing] = React.useState(false)
+
+  // Stable refs for TUS upload instances to survive re-renders and provide abort control
+  const uploadRef = React.useRef<BunnyUploadHandle | null>(null)
+  const replaceUploadRef = React.useRef<BunnyUploadHandle | null>(null)
+  const pendingVideoIdRef = React.useRef<number | null>(null)
 
   // Copy success indicator
   const [copiedId, setCopiedId] = React.useState<number | null>(null)
@@ -132,6 +138,20 @@ export default function VideosManager() {
     loadCourseDetails()
   }, [selectedCourseId])
 
+  const handleCancelUpload = () => {
+    if (uploadRef.current) {
+      uploadRef.current.abort();
+      uploadRef.current = null;
+    }
+    if (pendingVideoIdRef.current) {
+      API.delete(`/teacher/videos/${pendingVideoIdRef.current}`).catch(() => {});
+      pendingVideoIdRef.current = null;
+    }
+    setUploading(false);
+    setUploadProgress(null);
+    setUploadStatusText('');
+  };
+
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (uploading) return
@@ -160,67 +180,68 @@ export default function VideosManager() {
 
       setUploadStatusText('جاري إنشاء كائن الفيديو على خوادم Bunny Stream...')
 
-      // 1. Get signed upload credentials from our server
+      // 1. Get signed upload credentials from our server (passing file_size for accurate quota check)
       const signedRes = await API.post('/teacher/videos/signed-upload', {
         title: title.trim(),
         lesson_id: selectedLessonId,
+        file_size: videoFile.size,
       });
 
-      const { video_id, library_id, signature, expiration_time } = signedRes.data;
+      const { video_id, library_id, signature, expiration_time, video } = signedRes.data;
+      pendingVideoIdRef.current = video?.id || null;
 
-      setUploadStatusText('جاري بدء الرفع المباشر إلى Bunny Stream...')
+      setUploadStatusText('جاري بدء الرفع المباشر إلى Bunny Stream...');
 
-      // 2. Upload file binary directly to Bunny Stream using TUS
-      const upload = new tus.Upload(videoFile, {
-        endpoint: 'https://video.bunnycdn.com/tusupload',
-        retryDelays: [0, 3000, 5000, 10000, 20000],
-        headers: {
-          AuthorizationSignature: signature,
-          AuthorizationExpire: String(expiration_time),
-          LibraryId: String(library_id),
-          VideoId: video_id,
-        },
-        metadata: {
-          filetype: videoFile.type,
+      // 2. Upload file binary directly to Bunny Stream using chunked, resumable TUS
+      uploadRef.current = startBunnyTusUpload(
+        videoFile,
+        {
+          video_id,
+          library_id,
+          signature,
+          expiration_time,
           title: title.trim(),
         },
-        onError: (error) => {
-          console.error('TUS upload failed:', error);
-          setUploading(false);
-          setUploadProgress(null);
-          setUploadStatusText('');
-          if (signedRes?.data?.video?.id) {
-            API.delete(`/teacher/videos/${signedRes.data.video.id}`).catch(() => {});
-          }
-          useModalStore.getState().showToast('فشل رفع الفيديو إلى Bunny Stream.', 'error');
-        },
-        onProgress: (bytesSent, bytesTotal) => {
-          const percentage = Math.round((bytesSent / bytesTotal) * 100);
-          setUploadProgress(percentage);
-          setUploadStatusText(`جاري الرفع المباشر: ${percentage}%`);
-        },
-        onSuccess: () => {
-          useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
-          
-          // Reset form
-          setTitle('')
-          setSelectedCourseId('')
-          setSelectedUnitId('')
-          setSelectedLessonId('')
-          setVideoFile(null)
-          const fileInput = document.getElementById('video-upload-input') as HTMLInputElement
-          if (fileInput) fileInput.value = ''
+        {
+          onProgress: (_bytesSent, _bytesTotal, percent) => {
+            setUploadProgress(percent);
+            setUploadStatusText(`جاري الرفع المباشر: ${percent}%`);
+          },
+          onSuccess: () => {
+            pendingVideoIdRef.current = null;
+            uploadRef.current = null;
+            useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
 
-          setUploading(false);
-          setUploadProgress(null);
-          setUploadStatusText('');
+            // Reset form
+            setTitle('');
+            setSelectedCourseId('');
+            setSelectedUnitId('');
+            setSelectedLessonId('');
+            setVideoFile(null);
+            const fileInput = document.getElementById('video-upload-input') as HTMLInputElement;
+            if (fileInput) fileInput.value = '';
 
-          // Reload list and storage
-          fetchData();
+            setUploading(false);
+            setUploadProgress(null);
+            setUploadStatusText('');
+
+            // Reload list and storage
+            fetchData();
+          },
+          onError: (_error, diagnostic) => {
+            console.error('TUS upload failed:', diagnostic);
+            if (pendingVideoIdRef.current) {
+              API.delete(`/teacher/videos/${pendingVideoIdRef.current}`).catch(() => {});
+              pendingVideoIdRef.current = null;
+            }
+            uploadRef.current = null;
+            setUploading(false);
+            setUploadProgress(null);
+            setUploadStatusText('');
+            useModalStore.getState().showToast(`فشل رفع الفيديو إلى Bunny Stream: ${diagnostic.message}`, 'error');
+          },
         }
-      });
-
-      upload.start();
+      );
 
     } catch (err: any) {
       console.error(err)
@@ -232,6 +253,18 @@ export default function VideosManager() {
     }
   }
 
+  const handleCancelReplace = () => {
+    if (replaceUploadRef.current) {
+      replaceUploadRef.current.abort();
+      replaceUploadRef.current = null;
+    }
+    setReplacing(false);
+    setReplaceProgress(null);
+    setReplaceStatusText('');
+    setReplacingVideo(null);
+    setReplaceFile(null);
+  };
+
   const handleReplaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (replacing) return
@@ -242,56 +275,72 @@ export default function VideosManager() {
       setReplaceProgress(0)
       setReplaceStatusText('جاري التحضير واستدعاء خادم المزامنة...')
 
-      // 1. Get signed credentials for replacement
-      const signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`);
+      // Validate storage quota for replace
+      try {
+        const subRes = await API.get('/teacher/subscription');
+        const remainingStorageGb = subRes.data?.subscription?.remaining_storage_gb ?? 0;
+        const oldSize = replacingVideo.bunny_size_bytes || 0;
+        const netChangeGb = Math.max(0, replaceFile.size - oldSize) / (1024 * 1024 * 1024);
+        if (netChangeGb > remainingStorageGb) {
+          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح باستبدال هذا الفيديو بهذا الحجم. يمكنك طلب مساحة إضافية.', 'error');
+          setReplacing(false);
+          setReplaceProgress(null);
+          setReplaceStatusText('');
+          return;
+        }
+      } catch (errQuota) {
+        console.warn('Could not verify storage quota for replace:', errQuota);
+      }
+
+      // 1. Get signed credentials for replacement (passing file_size)
+      const signedRes = await API.post(`/teacher/videos/${replacingVideo.id}/replace`, {
+        file_size: replaceFile.size,
+        title: replacingVideo.title,
+      });
 
       const { video_id, library_id, signature, expiration_time } = signedRes.data;
 
-      setReplaceStatusText('جاري بدء الرفع البديل المباشر إلى Bunny Stream...')
+      setReplaceStatusText('جاري بدء الرفع البديل المباشر إلى Bunny Stream...');
 
-      // 2. Upload replacement file directly to Bunny Stream using TUS
-      const upload = new tus.Upload(replaceFile, {
-        endpoint: 'https://video.bunnycdn.com/tusupload',
-        retryDelays: [0, 3000, 5000, 10000, 20000],
-        headers: {
-          AuthorizationSignature: signature,
-          AuthorizationExpire: String(expiration_time),
-          LibraryId: String(library_id),
-          VideoId: video_id,
-        },
-        metadata: {
-          filetype: replaceFile.type,
+      // 2. Upload replacement file directly to Bunny Stream using chunked, resumable TUS
+      replaceUploadRef.current = startBunnyTusUpload(
+        replaceFile,
+        {
+          video_id,
+          library_id,
+          signature,
+          expiration_time,
           title: replacingVideo.title,
         },
-        onError: (error) => {
-          console.error('TUS replace failed:', error);
-          setReplacing(false);
-          setReplaceProgress(null);
-          setReplaceStatusText('');
-          useModalStore.getState().showToast('فشل استبدال الفيديو على Bunny Stream.', 'error');
-        },
-        onProgress: (bytesSent, bytesTotal) => {
-          const percentage = Math.round((bytesSent / bytesTotal) * 100);
-          setReplaceProgress(percentage);
-          setReplaceStatusText(`جاري رفع الفيديو الجديد: ${percentage}%`);
-        },
-        onSuccess: () => {
-          useModalStore.getState().showToast('تم استبدال الفيديو مباشرة على Bunny Stream بنجاح وجاري المعالجة.', 'success');
-          
-          // Reset replace state
-          setReplacingVideo(null)
-          setReplaceFile(null)
+        {
+          onProgress: (_bytesSent, _bytesTotal, percent) => {
+            setReplaceProgress(percent);
+            setReplaceStatusText(`جاري رفع الفيديو الجديد: ${percent}%`);
+          },
+          onSuccess: () => {
+            replaceUploadRef.current = null;
+            useModalStore.getState().showToast('تم استبدال الفيديو مباشرة على Bunny Stream بنجاح وجاري المعالجة.', 'success');
+            
+            // Reset replace state
+            setReplacingVideo(null);
+            setReplaceFile(null);
+            setReplacing(false);
+            setReplaceProgress(null);
+            setReplaceStatusText('');
 
-          setReplacing(false);
-          setReplaceProgress(null);
-          setReplaceStatusText('');
-
-          // Reload list and storage
-          fetchData();
+            // Reload list and storage
+            fetchData();
+          },
+          onError: (_error, diagnostic) => {
+            console.error('TUS replace failed:', diagnostic);
+            replaceUploadRef.current = null;
+            setReplacing(false);
+            setReplaceProgress(null);
+            setReplaceStatusText('');
+            useModalStore.getState().showToast(`فشل استبدال الفيديو: ${diagnostic.message}`, 'error');
+          },
         }
-      });
-
-      upload.start();
+      );
 
     } catch (err: any) {
       console.error(err)
@@ -536,6 +585,13 @@ export default function VideosManager() {
                       <div className="bg-brand-primary h-full transition-all" style={{ width: `${uploadProgress}%` }}></div>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleCancelUpload}
+                    className="mt-2 block w-full text-center text-[11px] text-red-400 hover:text-red-300 font-bold transition-all cursor-pointer"
+                  >
+                    إلغاء عملية الرفع
+                  </button>
                 </div>
               ) : (
                 <button
@@ -757,6 +813,13 @@ export default function VideosManager() {
                       <div className="bg-brand-primary h-full transition-all" style={{ width: `${replaceProgress}%` }}></div>
                     </div>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleCancelReplace}
+                    className="mt-2 block w-full text-center text-[11px] text-red-400 hover:text-red-300 font-bold transition-all cursor-pointer"
+                  >
+                    إلغاء الاستبدال
+                  </button>
                 </div>
               ) : (
                 <div className="flex gap-3">

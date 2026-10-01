@@ -241,6 +241,53 @@ export default function CourseDetail() {
     }))
   }
 
+  // Single Source of Truth for Selected Video
+  const [selectedVideo, setSelectedVideo] = React.useState<any | null>(null)
+
+  const findVideoInUnits = React.useCallback((targetId: number) => {
+    for (const unit of units) {
+      if (unit.lessons) {
+        for (const lesson of unit.lessons) {
+          const found = lesson.videos?.find((v: any) => v.id === targetId)
+          if (found) return { video: found, lesson }
+        }
+      }
+    }
+    return null
+  }, [units])
+
+  React.useEffect(() => {
+    if (videoId && units.length > 0) {
+      const match = findVideoInUnits(Number(videoId))
+      if (match && (!selectedVideo || selectedVideo.id !== match.video.id)) {
+        setSelectedVideo(match.video)
+      }
+    } else if (!videoId) {
+      setSelectedVideo(null)
+    }
+  }, [videoId, units, findVideoInUnits])
+
+  const handlePlayVideo = (vid: any, targetLessonId: number) => {
+    if (vid.is_locked) {
+      useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning")
+      return
+    }
+
+    // 1. Immediately update selected video (Single Source of Truth)
+    setSelectedVideo(vid)
+
+    // 2. Synchronize URL searchParams
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('video_id', vid.id.toString())
+      next.set('lesson_id', targetLessonId.toString())
+      next.delete('pdf_id')
+      next.delete('exam_id')
+      next.delete('show_result')
+      return next
+    })
+  }
+
   const renderStatusBadge = (status: string, type: 'video' | 'pdf' | 'exam' | 'homework') => {
     let label = '';
     let colorClass = '';
@@ -336,15 +383,7 @@ export default function CourseDetail() {
                     useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
                   } else {
                     if (lesson.videos && lesson.videos.length > 0) {
-                      setSearchParams((prev) => {
-                        const next = new URLSearchParams(prev);
-                        next.set('video_id', lesson.videos[0].id.toString());
-                        next.set('lesson_id', lesson.id.toString());
-                        next.delete('pdf_id');
-                        next.delete('exam_id');
-                        next.delete('show_result');
-                        return next;
-                      });
+                      handlePlayVideo(lesson.videos[0], lesson.id);
                     } else if (lesson.pdfs && lesson.pdfs.length > 0) {
                       setSearchParams((prev) => {
                         const next = new URLSearchParams(prev);
@@ -392,52 +431,57 @@ export default function CourseDetail() {
           {hasContent && (
             <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-4 pt-2 text-right">
               {/* Videos */}
-              {lesson.videos && lesson.videos.map((vid: any) => (
-                <div key={vid.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
-                  
-                  {/* Video Header / Trigger */}
-                  <div 
-                    onClick={() => toggleContentItem(`video-${vid.id}`)}
-                    className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none font-sans"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <Play className="h-3.5 w-3.5 text-brand-primary shrink-0" />
-                      <span className="font-semibold text-slate-200">▶ مشاهدة الفيديو: {vid.title}</span>
-                      {(vid.duration_seconds || vid.duration_text) && (
-                        <span className="text-[10px] text-slate-500">({formatDurationArabic(vid.duration_seconds || 0)})</span>
-                      )}
-                      {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
-                    </div>
+              {lesson.videos && lesson.videos.map((vid: any) => {
+                const isCurrentActive = (selectedVideo?.id === vid.id) || (videoId === vid.id.toString());
+                return (
+                  <div key={vid.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
                     
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (vid.is_locked) {
-                            useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
-                          } else {
-                            setSearchParams((prev) => {
-                              const next = new URLSearchParams(prev);
-                              next.set('video_id', vid.id.toString());
-                              next.set('lesson_id', lesson.id.toString());
-                              next.delete('pdf_id');
-                              next.delete('exam_id');
-                              next.delete('show_result');
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
-                          vid.is_locked
-                            ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
-                            : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45"
-                        }`}
-                      >
-                        {vid.is_locked ? "تشغيل 🔒" : "تشغيل"}
-                      </button>
-                      <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`video-${vid.id}`] ? 'rotate-180' : ''}`} />
+                    {/* Video Header / Trigger */}
+                    <div 
+                      onClick={() => handlePlayVideo(vid, lesson.id)}
+                      className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none font-sans"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Play className={`h-3.5 w-3.5 shrink-0 ${isCurrentActive ? 'text-brand-success' : 'text-brand-primary'}`} />
+                        <span className={`font-semibold ${isCurrentActive ? 'text-brand-success font-bold' : 'text-slate-200'}`}>
+                          ▶ مشاهدة الفيديو: {vid.title}
+                        </span>
+                        {(vid.duration_seconds || vid.duration_text) && (
+                          <span className="text-[10px] text-slate-500">({formatDurationArabic(vid.duration_seconds || 0)})</span>
+                        )}
+                        {!vid.is_locked && vid.progress && renderStatusBadge(vid.progress.status, 'video')}
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayVideo(vid, lesson.id);
+                          }}
+                          className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
+                            vid.is_locked
+                              ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                              : isCurrentActive
+                              ? "bg-brand-primary text-white border-brand-primary shadow-sm"
+                              : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border border-brand-primary/20 hover:border-brand-primary/45"
+                          }`}
+                        >
+                          {vid.is_locked ? "تشغيل 🔒" : isCurrentActive ? "يعمل الآن ▶" : "تشغيل"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleContentItem(`video-${vid.id}`);
+                          }}
+                          className="p-1 hover:text-slate-300 text-slate-500 transition-colors cursor-pointer"
+                          title="تفاصيل إضافية"
+                        >
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`video-${vid.id}`] ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
                   {/* Video Info Panel */}
                   {expandedContentItems[`video-${vid.id}`] && (
@@ -483,7 +527,8 @@ export default function CourseDetail() {
                     </div>
                   )}
                 </div>
-              ))}
+              );
+            })}
 
               {/* PDFs */}
               {lesson.pdfs && lesson.pdfs.map((pdf: any) => (
@@ -938,6 +983,7 @@ export default function CourseDetail() {
 
 
   const getActiveVideoTitle = () => {
+    if (selectedVideo?.title) return selectedVideo.title;
     if (videoId) {
       for (const unit of units) {
         if (unit.lessons) {
@@ -1037,6 +1083,7 @@ export default function CourseDetail() {
             </div>
             <button
               onClick={() => {
+                setSelectedVideo(null);
                 setSearchParams((prev) => {
                   const next = new URLSearchParams(prev);
                   next.delete('video_id');
@@ -1058,12 +1105,17 @@ export default function CourseDetail() {
           <div className="w-full bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6">
             {videoId && (
               <LessonViewer
-                key={`lesson-${lessonId}`}
+                key="course-embedded-viewer"
                 overrideLessonId={Number(lessonId)}
                 overrideCourseId={course?.id}
                 isEmbedded={true}
                 initialVideoId={Number(videoId)}
+                activeVideoProp={selectedVideo || findVideoInUnits(Number(videoId))?.video}
+                onVideoChange={(newVid) => {
+                  setSelectedVideo(newVid);
+                }}
                 onClose={() => {
+                  setSelectedVideo(null);
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.delete('video_id');
@@ -1374,10 +1426,13 @@ export default function CourseDetail() {
           </div>
           <button
             onClick={() => {
-              if (course.is_bundle) {
+              const matched = findVideoInUnits(lastWatched.video_id);
+              if (matched) {
+                handlePlayVideo(matched.video, matched.lesson.id);
+              } else if (course.is_bundle) {
                 setSearchParams((prev) => {
                   const next = new URLSearchParams(prev);
-                  let foundLessonId = units[0].lessons[0].id;
+                  let foundLessonId = units[0]?.lessons[0]?.id || 0;
                   for (const unit of units) {
                     for (const lesson of unit.lessons) {
                       if (lesson.videos && lesson.videos.some((v: any) => v.id === lastWatched.video_id)) {
@@ -1386,7 +1441,7 @@ export default function CourseDetail() {
                       }
                     }
                   }
-                  next.set('lesson_id', foundLessonId.toString());
+                  if (foundLessonId) next.set('lesson_id', foundLessonId.toString());
                   next.set('video_id', lastWatched.video_id.toString());
                   next.delete('pdf_id');
                   next.delete('exam_id');
@@ -1394,7 +1449,7 @@ export default function CourseDetail() {
                   return next;
                 });
               } else {
-                navigate(`/student/lessons/${units[0].lessons[0].id}?course_id=${course.id}&play=${lastWatched.video_id}`)
+                navigate(`/student/lessons/${units[0]?.lessons[0]?.id}?course_id=${course.id}&play=${lastWatched.video_id}`)
               }
             }}
             className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer"

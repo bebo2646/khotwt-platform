@@ -387,7 +387,7 @@ export default function Home() {
                 className="space-y-4"
               >
                 <h1 className="text-4xl sm:text-6xl xl:text-7xl font-black tracking-tight leading-[1.15] text-foreground">
-                  استكشف شغفك، اكتسب مهاراتك، واصنع مستقبلك مع <span className="bg-gradient-to-r from-brand-primary via-indigo-500 to-brand-secondary bg-clip-text text-transparent drop-shadow-sm">خطوتك</span>
+                  خطوتك - منصة تعليمية متكاملة للطلاب <span className="block text-2xl sm:text-4xl xl:text-5xl mt-2 font-extrabold bg-gradient-to-r from-brand-primary via-indigo-500 to-brand-secondary bg-clip-text text-transparent drop-shadow-sm">استكشف شغفك واصنع مستقبلك</span>
                 </h1>
                 
                 <p className="text-base sm:text-xl text-[var(--text-secondary)] font-medium leading-relaxed max-w-2xl">
@@ -400,9 +400,11 @@ export default function Home() {
                 {departments.filter(d => d.is_active).map((cat) => {
                   const IconComp = getDepartmentIcon(cat.slug, cat.name)
                   return (
-                    <button
+                    <a
                       key={cat.id || cat.slug}
-                      onClick={() => {
+                      href={`/courses?category=${cat.slug}`}
+                      onClick={(e) => {
+                        e.preventDefault()
                         handleCategorySelect(cat.slug)
                         const el = document.getElementById('advanced-filter')
                         if (el) el.scrollIntoView({ behavior: 'smooth' })
@@ -411,7 +413,7 @@ export default function Home() {
                     >
                       <IconComp className="w-3.5 h-3.5 shrink-0 opacity-75 group-hover:opacity-100 transition-opacity" />
                       <span>{cat.name}</span>
-                    </button>
+                    </a>
                   )
                 })}
               </div>
@@ -479,7 +481,7 @@ export default function Home() {
                     <Sparkles className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-black text-lg text-foreground">أرقامنا بتتكلم</h3>
+                    <div className="font-black text-lg text-foreground">أرقامنا بتتكلم</div>
                     <p className="text-xs text-[var(--text-muted)] font-medium">إحصائيات حية ومباشرة من قاعدة بيانات المنصة</p>
                   </div>
                 </div>
@@ -573,9 +575,11 @@ export default function Home() {
             const IconComp = getDepartmentIcon(cat.slug, cat.name)
             const isActive = selectedCategory === cat.slug
             return (
-              <button
+              <a
                 key={cat.id || cat.slug}
-                onClick={() => {
+                href={`/courses?category=${cat.slug}`}
+                onClick={(e) => {
+                  e.preventDefault()
                   handleCategorySelect(cat.slug)
                   const el = document.getElementById('advanced-filter')
                   if (el) el.scrollIntoView({ behavior: 'smooth' })
@@ -616,7 +620,7 @@ export default function Home() {
                   <span>استكشف الكورسات</span>
                   <ChevronLeft className="h-4 w-4" />
                 </div>
-              </button>
+              </a>
             )
           })}
         </div>
@@ -1108,7 +1112,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between p-5 text-right font-black text-sm sm:text-base cursor-pointer text-foreground hover:text-brand-primary transition-colors"
       >
-        <span>{question}</span>
+        <h3 className="font-black text-sm sm:text-base m-0 p-0 text-foreground">{question}</h3>
         <ChevronDown className={`h-5 w-5 text-brand-primary transition-transform duration-300 shrink-0 ${open ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence>

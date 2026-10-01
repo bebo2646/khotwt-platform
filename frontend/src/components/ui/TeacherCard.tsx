@@ -133,23 +133,27 @@ export default function TeacherCard({
       >
         {teachingModeBadge}
         {showRealImage ? (
-          <img
-            src={ensureHttps(avatar)}
-            alt={name}
-            className="w-full h-full object-cover object-[center_20%] transition-transform duration-500 group-hover:scale-105"
-            onError={() => setImageError(true)}
-            loading="lazy"
-            decoding="async"
-          />
+          <Link to={`/teacher/${slug || id}`} className="block w-full h-full">
+            <img
+              src={ensureHttps(avatar)}
+              alt={`صورة المعلم ${name}`}
+              className="w-full h-full object-cover object-[center_20%] transition-transform duration-500 group-hover:scale-105"
+              onError={() => setImageError(true)}
+              loading="lazy"
+              decoding="async"
+            />
+          </Link>
         ) : (
-          <div
-            className="w-full h-full flex items-center justify-center select-none relative"
-            style={{ background: 'var(--teacher-card-header-bg)' }}
-          >
-            <span className="text-4xl sm:text-5xl font-black tracking-wider text-slate-200/90 drop-shadow-md">
-              {getTeacherInitials(name)}
-            </span>
-          </div>
+          <Link to={`/teacher/${slug || id}`} className="block w-full h-full">
+            <div
+              className="w-full h-full flex items-center justify-center select-none relative"
+              style={{ background: 'var(--teacher-card-header-bg)' }}
+            >
+              <span className="text-4xl sm:text-5xl font-black tracking-wider text-slate-200/90 drop-shadow-md">
+                {getTeacherInitials(name)}
+              </span>
+            </div>
+          </Link>
         )}
         {/* Subtle soft gradient overlay at bottom of image for seamless transition to body */}
         <div
@@ -169,7 +173,9 @@ export default function TeacherCard({
             style={{ color: 'var(--teacher-card-name)' }}
             className="teacher-theme-transition font-black text-lg sm:text-xl group-hover:!text-[#6D5DFC] transition-colors duration-200 line-clamp-1"
           >
-            {name}
+            <Link to={`/teacher/${slug || id}`} className="hover:underline">
+              {name}
+            </Link>
           </h3>
 
           {/* Teacher Subject / Specialization */}
