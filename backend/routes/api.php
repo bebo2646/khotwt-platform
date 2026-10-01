@@ -63,6 +63,7 @@ Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
     $bunnyTest = null;
     if ($request->has('test_bunny')) {
         try {
+            $testLibraryId = $request->input('target_library', $libraryId);
             $testTitle = 'backend-auth-audit-' . time();
             $testRes = \Illuminate\Support\Facades\Http::withoutVerifying()
                 ->timeout(15)
@@ -70,7 +71,7 @@ Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
                     'AccessKey' => $apiKey,
                     'Content-Type' => 'application/json',
                     'accept' => 'application/json',
-                ])->post("https://video.bunnycdn.com/library/{$libraryId}/videos", [
+                ])->post("https://video.bunnycdn.com/library/{$testLibraryId}/videos", [
                     'title' => $testTitle,
                 ]);
 
@@ -86,11 +87,12 @@ Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
                     ->withHeaders([
                         'AccessKey' => $apiKey,
                         'accept' => 'application/json',
-                    ])->delete("https://video.bunnycdn.com/library/{$libraryId}/videos/{$guid}");
+                    ])->delete("https://video.bunnycdn.com/library/{$testLibraryId}/videos/{$guid}");
                 $deleted = $delRes->successful();
             }
 
             $bunnyTest = [
+                'tested_library_id' => $testLibraryId,
                 'http_status' => $status,
                 'response_structure' => is_array($data) ? array_keys($data) : null,
                 'bunny_error_message' => $data['Message'] ?? ($data['message'] ?? ($data['error'] ?? ($status === 200 ? 'OK' : $testRes->body()))),
