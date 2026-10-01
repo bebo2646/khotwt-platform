@@ -57,13 +57,8 @@ class PollBunnyVideoStatus implements ShouldQueue
         $duration = intval($details['length'] ?? 0);
         $sizeBytes = intval($details['storageSize'] ?? 0);
 
-        $libraryId = config('services.bunny.library_id') ?? '';
-        $cdnHost = config('services.bunny.cdn_hostname');
-        $pullZone = config('services.bunny.pull_zone');
-        $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
-
-        $embedUrl = "https://iframe.mediadelivery.net/embed/{$libraryId}/{$video->bunny_video_id}";
-        $thumbnailUrl = "https://{$domain}/play/{$libraryId}/{$video->bunny_video_id}/thumbnail.jpg";
+        $embedUrl = $bunnyService->getEmbedUrl($video->bunny_video_id);
+        $thumbnailUrl = $bunnyService->getThumbnailUrl($video->bunny_video_id);
 
         // Update the video attributes
         $video->update([

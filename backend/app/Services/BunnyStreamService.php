@@ -70,7 +70,7 @@ class BunnyStreamService
         if (!str_contains($domain, '.')) {
             $domain = "{$domain}.b-cdn.net";
         }
-        return "https://{$domain}/play/{$this->libraryId}/{$videoId}/thumbnail.jpg";
+        return "https://{$domain}/{$videoId}/thumbnail.jpg";
     }
 
     /**

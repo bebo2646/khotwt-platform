@@ -252,14 +252,19 @@ class TeacherController extends Controller
         $title = trim($request->input('title'));
 
         // Check for duplicate video submission (by title in this lesson)
-        if (Video::where('lesson_id', $request->lesson_id)->where('title', $title)->exists()) {
-            return response()->json([
-                'error_code' => 'DUPLICATE_VIDEO_TITLE',
-                'message' => 'يوجد فيديو آخر بنفس العنوان مرتبط بالفعل بهذه المحاضرة/الدرس (فيديو مكرر).',
-                'errors' => [
-                    'title' => ['A video with this title is already linked to this lesson.']
-                ]
-            ], 422);
+        $existingDuplicate = Video::where('lesson_id', $request->lesson_id)->where('title', $title)->first();
+        if ($existingDuplicate) {
+            if ($existingDuplicate->bunny_status === 'failed' || ($existingDuplicate->bunny_status === 'queued' && $existingDuplicate->created_at && $existingDuplicate->created_at->diffInMinutes(now()) > 30)) {
+                $existingDuplicate->delete();
+            } else {
+                return response()->json([
+                    'error_code' => 'DUPLICATE_VIDEO_TITLE',
+                    'message' => 'يوجد فيديو آخر بنفس العنوان مرتبط بالفعل بهذه المحاضرة/الدرس (فيديو مكرر). يرجى اختيار عنوان مختلف أو حذف الفيديو السابق.',
+                    'errors' => [
+                        'title' => ['A video with this title is already linked to this lesson.']
+                    ]
+                ], 422);
+            }
         }
 
         $libraryId = config('services.bunny.library_id');
@@ -1404,15 +1409,25 @@ class TeacherController extends Controller
             // Validate that the video actually exists in the configured Bunny Library
             $check = $bunnyService->validateVideoExists($bunnyGuid);
             if (!$check['success']) {
+                $bStatus = $check['status'] ?? 400;
+                $isAuth = ($bStatus === 401);
+                $isNotFound = ($bStatus === 404);
+
+                $errorCode = $isAuth 
+                    ? 'BUNNY_AUTHENTICATION_ERROR' 
+                    : ($isNotFound ? 'BUNNY_VIDEO_NOT_FOUND' : 'BUNNY_VALIDATION_ERROR');
+
+                $httpCode = $isAuth ? 502 : 422;
+
                 return response()->json([
-                    'error_code' => 'BUNNY_VIDEO_NOT_FOUND',
+                    'error_code' => $errorCode,
                     'message' => $check['error'],
                     'bunny_error' => $check['bunny_message'] ?? null,
-                    'status_code' => $check['status'],
+                    'status_code' => $bStatus,
                     'errors' => [
                         'bunny_video_id' => [$check['error']]
                     ]
-                ], 422);
+                ], $httpCode);
             }
 
             $meta = $check['data'] ?? [];
@@ -1980,14 +1995,43 @@ class TeacherController extends Controller
     public function listVideos(Request $request)
     {
         $teacherId = $request->user()->id;
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
 
-        $videos = Video::whereHas('lesson.unit.course', function ($q) use ($teacherId) {
+        $videosRaw = Video::whereHas('lesson.unit.course', function ($q) use ($teacherId) {
             $q->where('teacher_id', $teacherId);
         })
         ->with('lesson.unit.course')
         ->latest()
-        ->get()
-        ->map(function ($video) {
+        ->get();
+
+        if ($bunnyService->isConfigured()) {
+            foreach ($videosRaw as $v) {
+                $guid = $v->bunny_video_id ?: $v->bunny_stream_id;
+                if ($guid && (in_array($v->bunny_status, ['queued', 'processing', 'uploaded']) || $v->bunny_duration <= 0)) {
+                    $details = $bunnyService->getVideoDetails($guid);
+                    if ($details) {
+                        $code = intval($details['status'] ?? 0);
+                        $statusStr = $bunnyService->mapStatusCodeToString($code);
+                        $len = intval($details['length'] ?? 0);
+                        $sz = intval($details['storageSize'] ?? 0);
+
+                        $v->bunny_status = $statusStr;
+                        if ($len > 0) {
+                            $v->bunny_duration = $len;
+                            $v->duration_seconds = $len;
+                        }
+                        if ($sz > 0) {
+                            $v->bunny_size_bytes = $sz;
+                        }
+                        $v->bunny_embed_url = $bunnyService->getEmbedUrl($guid);
+                        $v->bunny_thumbnail_url = $bunnyService->getThumbnailUrl($guid);
+                        $v->save();
+                    }
+                }
+            }
+        }
+
+        $videos = $videosRaw->map(function ($video) {
             return [
                 'id' => $video->id,
                 'title' => $video->title,

@@ -24,7 +24,12 @@ class Video extends Model
         'bunny_status',
     ];
 
-    protected $appends = ['duration_text'];
+    protected $appends = [
+        'duration_text',
+        'bunny_embed_url',
+        'bunny_id',
+        'video_url',
+    ];
 
     public static function formatSecondsToWords($seconds)
     {
@@ -53,6 +58,16 @@ class Video extends Model
     public function getDurationTextAttribute()
     {
         return self::formatSecondsToWords($this->duration_seconds);
+    }
+
+    public function getBunnyIdAttribute()
+    {
+        return $this->bunny_stream_id ?: $this->bunny_video_id;
+    }
+
+    public function getVideoUrlAttribute($value)
+    {
+        return $value ?: $this->bunny_embed_url;
     }
 
     public function getBunnyEmbedUrlAttribute($value)

@@ -18,8 +18,11 @@ declare global {
 interface VideoItem {
   id: number
   title: string
-  bunny_stream_id: string
+  bunny_stream_id?: string
+  bunny_video_id?: string | null
+  bunny_id?: string | null
   bunny_embed_url: string
+  video_url?: string | null
   duration_seconds: number
   thumbnail_path?: string | null
   bunny_status?: string | null
@@ -287,8 +290,9 @@ export default function LessonViewer({
           }
         } else if (res.data.videos.length > 0) {
           const currentId = activeVideoRef.current?.id;
-          const match = activeVideoProp || res.data.videos.find((v: VideoItem) => v.id.toString() === preSelectedVideoId) || (currentId ? res.data.videos.find((v: VideoItem) => v.id === currentId) : undefined)
-          const defaultVideo = match || res.data.videos[0]
+          const targetId = activeVideoProp?.id || (preSelectedVideoId ? Number(preSelectedVideoId) : (currentId || undefined));
+          const apiMatch = res.data.videos.find((v: VideoItem) => v.id === targetId) || res.data.videos[0];
+          const defaultVideo = activeVideoProp ? { ...apiMatch, ...activeVideoProp, bunny_embed_url: apiMatch?.bunny_embed_url || activeVideoProp.bunny_embed_url } : apiMatch;
           
           setActiveVideo(defaultVideo)
           activeVideoRef.current = defaultVideo
@@ -1308,7 +1312,11 @@ export default function LessonViewer({
                     );
                   }
 
-                  let url = activeVideo.bunny_embed_url || '';
+                  let url = activeVideo.bunny_embed_url || activeVideo.video_url || '';
+                  const videoGuid = activeVideo.bunny_video_id || activeVideo.bunny_stream_id || activeVideo.bunny_id;
+                  if (!url && videoGuid) {
+                    url = `https://iframe.mediadelivery.net/embed/766707/${videoGuid}`;
+                  }
                   
                   // Normalize legacy player URLs to standard embed
                   if (url.includes('player.mediadelivery.net/play/')) {

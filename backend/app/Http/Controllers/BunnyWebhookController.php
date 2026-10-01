@@ -77,13 +77,8 @@ class BunnyWebhookController extends Controller
             $sizeBytes = intval($details['storageSize'] ?? 0);
         }
 
-        $cdnHost = config('services.bunny.cdn_hostname');
-        $pullZone = config('services.bunny.pull_zone');
-        $domain = !empty($cdnHost) ? $cdnHost : (!empty($pullZone) ? $pullZone : 'iframe.mediadelivery.net');
-        $libId = config('services.bunny.library_id');
-
-        $embedUrl = "https://iframe.mediadelivery.net/embed/{$libId}/{$videoId}";
-        $thumbnailUrl = "https://{$domain}/play/{$libId}/{$videoId}/thumbnail.jpg";
+        $embedUrl = $bunnyService->getEmbedUrl($videoId);
+        $thumbnailUrl = $bunnyService->getThumbnailUrl($videoId);
 
         // Update video
         $video->update([

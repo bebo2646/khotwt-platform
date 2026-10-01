@@ -222,7 +222,9 @@ class User extends Authenticatable
         if ($this->teacherSubscription) {
             return $this->teacherSubscription->remaining_storage_gb;
         }
-        return max(0, ($this->bunny_storage_limit_gb ?? 0) - ($this->bunny_storage_used_gb ?? 0));
+        $limit = $this->bunny_storage_limit_gb !== null ? (float)$this->bunny_storage_limit_gb : 10.0;
+        $used = (float)($this->bunny_storage_used_gb ?? 0);
+        return max(0, round($limit - $used, 4));
     }
 
     public function activityLogs()

@@ -1479,11 +1479,15 @@ class StudentController extends Controller
             return [
                 'id' => $video->id,
                 'title' => $video->title,
-                'bunny_stream_id' => $video->bunny_stream_id,
+                'bunny_stream_id' => $video->bunny_stream_id ?: $video->bunny_video_id,
+                'bunny_video_id' => $video->bunny_video_id ?: $video->bunny_stream_id,
+                'bunny_id' => $video->bunny_stream_id ?: $video->bunny_video_id,
                 'bunny_embed_url' => $video->bunny_embed_url,
+                'video_url' => $video->bunny_embed_url ?: $video->video_url,
                 'bunny_status' => $video->bunny_status,
+                'bunny_thumbnail_url' => $video->bunny_thumbnail_url ?: $video->thumbnail_path,
                 'duration_seconds' => $video->duration_seconds,
-                'thumbnail_path' => $video->thumbnail_path,
+                'thumbnail_path' => $video->bunny_thumbnail_url ?: $video->thumbnail_path,
                 'progress' => [
                     'watched_seconds' => $progress ? $progress->watched_seconds : 0,
                     'watched_percentage' => $progress ? $progress->watched_percentage : 0.00,

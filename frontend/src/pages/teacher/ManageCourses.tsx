@@ -865,6 +865,7 @@ export default function ManageCourses() {
             setUploadingVideo(false);
             setUploadProgress(null);
             setActionLoading(false);
+            setVideoFileDetails(prev => prev ? { ...prev, status: `فشل: ${diagnostic.message}` } : null);
             useModalStore.getState().showToast(`فشل رفع الفيديو إلى Bunny Stream: ${diagnostic.message}`, 'error');
           },
         }
