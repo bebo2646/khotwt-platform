@@ -107,6 +107,40 @@ Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
         }
     }
 
+    $guidTest = null;
+    $checkGuid = $request->input('check_guid', 'e894dc24-9362-4ffc-8e8e-bc26860a8759');
+    if ($request->has('test_guid') || $request->has('check_guid')) {
+        try {
+            $testLibraryId = $request->input('target_library', $libraryId);
+            $guidRes = \Illuminate\Support\Facades\Http::withoutVerifying()
+                ->timeout(15)
+                ->withHeaders([
+                    'AccessKey' => $apiKey,
+                    'accept' => 'application/json',
+                ])->get("https://video.bunnycdn.com/library/{$testLibraryId}/videos/{$checkGuid}");
+
+            $status = $guidRes->status();
+            $data = $guidRes->json();
+
+            $guidTest = [
+                'target_library_id' => $testLibraryId,
+                'target_guid' => $checkGuid,
+                'http_method' => 'GET',
+                'bunny_endpoint' => "https://video.bunnycdn.com/library/{$testLibraryId}/videos/{$checkGuid}",
+                'auth_header_used' => 'AccessKey',
+                'http_status' => $status,
+                'bunny_response' => is_array($data) ? ($data['Message'] ?? ($data['message'] ?? ($status === 200 ? 'OK' : $data))) : $guidRes->body(),
+                'video_title' => $data['title'] ?? null,
+                'video_found' => $status === 200,
+            ];
+        } catch (\Throwable $e) {
+            $guidTest = [
+                'http_status' => 500,
+                'error_message' => $e->getMessage(),
+            ];
+        }
+    }
+
     return response()->json([
         'deployed_location' => [
             'railway_environment' => getenv('RAILWAY_ENVIRONMENT') ?: ($_ENV['RAILWAY_ENVIRONMENT'] ?? 'railway'),
@@ -135,6 +169,7 @@ Route::get('/debug/bunny-config', function (\Illuminate\Http\Request $request) {
             'BUNNY_STREAM_PULL_ZONE' => getenv('BUNNY_STREAM_PULL_ZONE') ?: null,
         ],
         'bunny_test' => $bunnyTest,
+        'guid_validation_test' => $guidTest,
     ]);
 });
 
