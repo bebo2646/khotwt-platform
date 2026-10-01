@@ -45,8 +45,8 @@ export default function ScrollToTop() {
       }
     })
 
-    // Secondary micro-tick reset via requestAnimationFrame
-    // Ensures that even if dynamic lazy-loaded (Suspense) chunks mount slightly after route change,
+    // Secondary micro-tick reset via requestAnimationFrame and staggered timers
+    // Ensures that even as dynamic lazy-loaded (Suspense) chunks mount after route change,
     // the viewport remains anchored at the very top (0, 0).
     const rafId = requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
@@ -54,7 +54,30 @@ export default function ScrollToTop() {
       document.body.scrollTop = 0
     })
 
-    return () => cancelAnimationFrame(rafId)
+    const t1 = setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    }, 50)
+
+    const t2 = setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    }, 150)
+
+    const t3 = setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
+      document.documentElement.scrollTop = 0
+      document.body.scrollTop = 0
+    }, 300)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
   }, [pathname])
 
   return null

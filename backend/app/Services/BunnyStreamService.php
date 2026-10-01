@@ -135,13 +135,16 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $this->apiKey,
-                'Content-Type' => 'application/json',
-                'accept' => 'application/json',
-            ])->post("https://video.bunnycdn.com/library/{$this->libraryId}/videos", [
-                'title' => $title,
-            ]);
+            $response = Http::withoutVerifying()
+                ->timeout(60)
+                ->connectTimeout(15)
+                ->withHeaders([
+                    'AccessKey' => $this->apiKey,
+                    'Content-Type' => 'application/json',
+                    'accept' => 'application/json',
+                ])->post("https://video.bunnycdn.com/library/{$this->libraryId}/videos", [
+                    'title' => $title,
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -219,11 +222,14 @@ class BunnyStreamService
                 ];
             }
 
-            $response = Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $this->apiKey,
-                'Content-Type' => $mimeType ?: 'application/octet-stream',
-            ])->withBody($fileStream, $mimeType ?: 'application/octet-stream')
-              ->put("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
+            $response = Http::withoutVerifying()
+                ->timeout(3600)
+                ->connectTimeout(30)
+                ->withHeaders([
+                    'AccessKey' => $this->apiKey,
+                    'Content-Type' => $mimeType ?: 'application/octet-stream',
+                ])->withBody($fileStream, $mimeType ?: 'application/octet-stream')
+                  ->put("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
             if (is_resource($fileStream)) {
                 fclose($fileStream);
@@ -277,10 +283,13 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $this->apiKey,
-                'accept' => 'application/json',
-            ])->get("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
+            $response = Http::withoutVerifying()
+                ->timeout(30)
+                ->connectTimeout(10)
+                ->withHeaders([
+                    'AccessKey' => $this->apiKey,
+                    'accept' => 'application/json',
+                ])->get("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
             if ($response->status() === 200) {
                 return [
@@ -350,10 +359,13 @@ class BunnyStreamService
         }
 
         try {
-            $response = Http::withoutVerifying()->withHeaders([
-                'AccessKey' => $this->apiKey,
-                'accept' => 'application/json',
-            ])->delete("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
+            $response = Http::withoutVerifying()
+                ->timeout(30)
+                ->connectTimeout(10)
+                ->withHeaders([
+                    'AccessKey' => $this->apiKey,
+                    'accept' => 'application/json',
+                ])->delete("https://video.bunnycdn.com/library/{$this->libraryId}/videos/{$videoId}");
 
             if (!$response->successful()) {
                 $this->parseBunnyErrorResponse($response, 'deleteVideo');

@@ -426,6 +426,8 @@ class PublicController extends Controller
                 'teacher_id' => $package->teacher_id,
                 'teacher' => $package->teacher,
                 'is_published' => true,
+                'created_at' => $package->created_at,
+                'updated_at' => $package->updated_at,
             ];
 
             // Group lessons by unit

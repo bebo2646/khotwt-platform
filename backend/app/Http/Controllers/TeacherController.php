@@ -221,6 +221,21 @@ class TeacherController extends Controller
         return null;
     }
 
+    /**
+     * Map Bunny Stream status codes to safe Laravel HTTP response codes.
+     * Prevents returning 401/403 to frontend which causes unexpected session logout.
+     */
+    private function safeBunnyHttpStatus(int $bunnyStatus): int
+    {
+        if ($bunnyStatus === 401 || $bunnyStatus === 403 || $bunnyStatus >= 500) {
+            return 502; // Bad Gateway
+        }
+        if ($bunnyStatus === 400 || $bunnyStatus === 404 || $bunnyStatus === 422) {
+            return $bunnyStatus;
+        }
+        return 502;
+    }
+
     public function generateSignedUpload(Request $request)
     {
         $request->validate([
@@ -284,7 +299,7 @@ class TeacherController extends Controller
 
         $createRes = $bunnyService->createVideo($request->title);
         if (!$createRes['success']) {
-            $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+            $status = $this->safeBunnyHttpStatus($createRes['status']);
             return response()->json([
                 'message' => $createRes['error'],
                 'bunny_error' => $createRes['bunny_message'],
@@ -938,7 +953,7 @@ class TeacherController extends Controller
             $videoTitle = $request->input('video_title') ?: $request->title;
             $createRes = $bunnyService->createVideo($videoTitle);
             if (!$createRes['success']) {
-                $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($createRes['status']);
                 return response()->json([
                     'message' => $createRes['error'],
                     'bunny_error' => $createRes['bunny_message'],
@@ -955,7 +970,7 @@ class TeacherController extends Controller
 
             if (!$uploadRes['success']) {
                 $bunnyService->deleteVideo($bunnyGuid);
-                $status = ($uploadRes['status'] >= 400 && $uploadRes['status'] < 600) ? $uploadRes['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($uploadRes['status']);
                 return response()->json([
                     'message' => $uploadRes['error'],
                     'bunny_error' => $uploadRes['bunny_message'],
@@ -1275,7 +1290,7 @@ class TeacherController extends Controller
             // 1. Create Bunny Stream video object
             $createResult = $bunnyService->createVideo($title);
             if (!$createResult['success']) {
-                $status = ($createResult['status'] >= 400 && $createResult['status'] < 600) ? $createResult['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($createResult['status']);
                 return response()->json([
                     'error_code' => 'BUNNY_CREATION_FAILED',
                     'message' => $createResult['error'],
@@ -1297,7 +1312,7 @@ class TeacherController extends Controller
                 // Delete orphaned video object on Bunny
                 $bunnyService->deleteVideo($bunnyGuid);
 
-                $status = ($uploadResult['status'] >= 400 && $uploadResult['status'] < 600) ? $uploadResult['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($uploadResult['status']);
                 return response()->json([
                     'error_code' => 'BUNNY_UPLOAD_FAILED',
                     'message' => $uploadResult['error'],
@@ -1615,7 +1630,7 @@ class TeacherController extends Controller
 
             $createResult = $bunnyService->createVideo($title);
             if (!$createResult['success']) {
-                $status = ($createResult['status'] >= 400 && $createResult['status'] < 600) ? $createResult['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($createResult['status']);
                 return response()->json([
                     'message' => $createResult['error'],
                     'bunny_error' => $createResult['bunny_message'],
@@ -1632,7 +1647,7 @@ class TeacherController extends Controller
 
             if (!$uploadResult['success']) {
                 $bunnyService->deleteVideo($bunnyGuid);
-                $status = ($uploadResult['status'] >= 400 && $uploadResult['status'] < 600) ? $uploadResult['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($uploadResult['status']);
                 return response()->json([
                     'message' => $uploadResult['error'],
                     'bunny_error' => $uploadResult['bunny_message'],
@@ -1844,7 +1859,7 @@ class TeacherController extends Controller
         // 1. Create a new video placeholder on Bunny Stream
         $createRes = $bunnyService->createVideo($video->title);
         if (!$createRes['success']) {
-            $status = ($createRes['status'] >= 400 && $createRes['status'] < 600) ? $createRes['status'] : 502;
+            $status = $this->safeBunnyHttpStatus($createRes['status']);
             return response()->json([
                 'message' => $createRes['error'],
                 'bunny_error' => $createRes['bunny_message'],
@@ -1864,7 +1879,7 @@ class TeacherController extends Controller
 
             if (!$uploadRes['success']) {
                 $bunnyService->deleteVideo($newVideoId);
-                $status = ($uploadRes['status'] >= 400 && $uploadRes['status'] < 600) ? $uploadRes['status'] : 502;
+                $status = $this->safeBunnyHttpStatus($uploadRes['status']);
                 return response()->json([
                     'message' => $uploadRes['error'],
                     'bunny_error' => $uploadRes['bunny_message'],

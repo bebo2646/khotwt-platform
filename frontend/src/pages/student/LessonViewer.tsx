@@ -102,7 +102,7 @@ export default function LessonViewer({
   const [searchParams, setSearchParams] = useSearchParams()
   
   const id = overrideLessonId ? overrideLessonId.toString() : routeId
-  const preSelectedVideoId = initialVideoId ? initialVideoId.toString() : searchParams.get('play')
+  const preSelectedVideoId = initialVideoId ? initialVideoId.toString() : (searchParams.get('video_id') || searchParams.get('play'))
   const courseId = overrideCourseId ? overrideCourseId.toString() : searchParams.get('course_id')
   const packageId = searchParams.get('package_id')
 
@@ -1024,6 +1024,37 @@ export default function LessonViewer({
     }
   }
 
+  // React to initialVideoId or searchParams video_id changes while viewer is open
+  React.useEffect(() => {
+    const targetVideoId = initialVideoId || (searchParams.get('video_id') ? Number(searchParams.get('video_id')) : null);
+    if (!targetVideoId) return;
+
+    if (activeVideoRef.current && activeVideoRef.current.id === targetVideoId) return;
+
+    if (videos && videos.length > 0) {
+      const found = videos.find(v => v.id === targetVideoId);
+      if (found && found.id !== activeVideoRef.current?.id) {
+        selectVideo(found);
+      }
+    }
+  }, [initialVideoId, searchParams.get('video_id'), videos]);
+
+  // React to initialPdfId or searchParams pdf_id changes while viewer is open
+  React.useEffect(() => {
+    const targetPdfId = initialPdfId || (searchParams.get('pdf_id') ? Number(searchParams.get('pdf_id')) : null);
+    if (!targetPdfId) return;
+
+    if (activePdf && activePdf.id === targetPdfId) return;
+
+    if (pdfs && pdfs.length > 0) {
+      const found = pdfs.find(p => p.id === targetPdfId);
+      if (found) {
+        setActivePdf(found);
+        setActiveTab('pdfs');
+      }
+    }
+  }, [initialPdfId, searchParams.get('pdf_id'), pdfs, activePdf?.id]);
+
   // Handle page visibility change or unload
   React.useEffect(() => {
     const handleVisibilityOrUnload = () => {
@@ -1280,6 +1311,7 @@ export default function LessonViewer({
                     console.log('[YouTube Player Debug] Rendering YouTube iframe. finalSrc:', finalSrc);
                     return (
                       <iframe
+                        key={`yt-${activeVideo.id}`}
                         id="youtube-player"
                         src={finalSrc}
                         className="w-full h-full relative z-[1]"
@@ -1303,6 +1335,7 @@ export default function LessonViewer({
                   } else if (isDirectVideoUrl(url)) {
                     return (
                       <video
+                        key={`vid-${activeVideo.id}`}
                         ref={videoRef}
                         src={url}
                         controls
@@ -1333,6 +1366,7 @@ export default function LessonViewer({
                     const finalSrc = videoEmbedUrl || getEmbedUrl(activeVideo);
                     return (
                       <iframe
+                        key={`bunny-${activeVideo.id}`}
                         src={finalSrc}
                         className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}

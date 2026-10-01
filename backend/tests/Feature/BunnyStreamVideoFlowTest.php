@@ -149,9 +149,10 @@ class BunnyStreamVideoFlowTest extends TestCase
             'video_file' => $fakeVideo,
         ]);
 
-        $response->assertStatus(401);
+        $response->assertStatus(502);
         $response->assertJson([
             'error_code' => 'BUNNY_CREATION_FAILED',
+            'status_code' => 401,
         ]);
 
         // Zero dirty database records

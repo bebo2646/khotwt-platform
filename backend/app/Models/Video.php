@@ -59,7 +59,7 @@ class Video extends Model
     {
         $videoId = $this->bunny_stream_id ?: $this->bunny_video_id;
         if (!empty($videoId)) {
-            $libraryId = config('services.bunny.stream_library_id', env('BUNNY_STREAM_LIBRARY_ID', '766707'));
+            $libraryId = config('services.bunny.library_id') ?: config('services.bunny.stream_library_id', env('BUNNY_STREAM_LIBRARY_ID', '766707'));
             return "https://iframe.mediadelivery.net/embed/{$libraryId}/{$videoId}";
         }
 

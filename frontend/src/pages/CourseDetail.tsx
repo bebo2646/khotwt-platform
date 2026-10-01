@@ -38,6 +38,34 @@ interface CourseItem {
     subject: string
     slug?: string
   }
+  created_at?: string
+  updated_at?: string
+}
+
+export function formatArabicDateTime(dateString?: string | null): string {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+
+    const dateFormatter = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+      timeZone: 'Africa/Cairo',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+
+    const timeFormatter = new Intl.DateTimeFormat('ar-EG-u-nu-latn', {
+      timeZone: 'Africa/Cairo',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+
+    return `${dateFormatter.format(date)} - ${timeFormatter.format(date)}`
+  } catch (e) {
+    return ''
+  }
 }
 
 interface VideoDetail {
@@ -787,15 +815,20 @@ export default function CourseDetail() {
     fetchDetails()
   }, [fetchDetails, isLoggedIn])
 
+  const isViewerOpenRef = React.useRef(false);
+
   React.useEffect(() => {
-    if (videoId || pdfId) {
+    const isCurrentlyOpen = Boolean(videoId || pdfId);
+
+    // Only scroll into view when the viewer transitions from closed -> open for the first time
+    if (isCurrentlyOpen && !isViewerOpenRef.current) {
+      isViewerOpenRef.current = true;
       const handleScroll = () => {
         if (viewerRef.current) {
           viewerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       };
 
-      // Trigger scroll immediately and at staggered intervals to prevent layout shift offset issues
       handleScroll();
       const t1 = setTimeout(handleScroll, 100);
       const t2 = setTimeout(handleScroll, 300);
@@ -806,8 +839,10 @@ export default function CourseDetail() {
         clearTimeout(t2);
         clearTimeout(t3);
       };
+    } else if (!isCurrentlyOpen) {
+      isViewerOpenRef.current = false;
     }
-  }, [videoId, pdfId])
+  }, [videoId, pdfId]);
 
   const toggleUnit = (unitId: number) => {
     setExpandedUnits((prev) => ({
@@ -1023,6 +1058,7 @@ export default function CourseDetail() {
           <div className="w-full bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6">
             {videoId && (
               <LessonViewer
+                key={`lesson-${lessonId}`}
                 overrideLessonId={Number(lessonId)}
                 overrideCourseId={course?.id}
                 isEmbedded={true}
@@ -1043,6 +1079,7 @@ export default function CourseDetail() {
 
             {pdfId && (
               <LessonViewer
+                key={`lesson-${lessonId}`}
                 overrideLessonId={Number(lessonId)}
                 overrideCourseId={course?.id}
                 isEmbedded={true}
@@ -1091,6 +1128,26 @@ export default function CourseDetail() {
                 {isEnrolled ? '✓ مشترك في الكورس' : '🔒 غير مشترك'}
               </span>
             </div>
+
+            {/* Course Database Timestamps */}
+            {(course.created_at || course.updated_at) && (
+              <div className="flex flex-wrap items-center gap-2.5 pt-1 text-[11px] text-slate-400 font-medium">
+                {course.created_at && (
+                  <span className="inline-flex items-center gap-1.5 bg-slate-900/60 border border-[var(--border-color)] px-3 py-1 rounded-xl">
+                    <Calendar className="w-3.5 h-3.5 text-brand-primary shrink-0" />
+                    <span>تاريخ الإنشاء:</span>
+                    <span className="text-slate-200 font-semibold">{formatArabicDateTime(course.created_at)}</span>
+                  </span>
+                )}
+                {course.updated_at && course.updated_at !== course.created_at && (
+                  <span className="inline-flex items-center gap-1.5 bg-slate-900/60 border border-[var(--border-color)] px-3 py-1 rounded-xl">
+                    <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>آخر تعديل:</span>
+                    <span className="text-slate-200 font-semibold">{formatArabicDateTime(course.updated_at)}</span>
+                  </span>
+                )}
+              </div>
+            )}
 
             <h1 className="text-2xl sm:text-4xl font-black leading-snug">{course.title}</h1>
             <p className="text-sm text-slate-300 font-light leading-relaxed">{course.description}</p>

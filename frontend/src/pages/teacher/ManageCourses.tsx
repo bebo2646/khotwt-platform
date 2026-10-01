@@ -754,6 +754,7 @@ export default function ManageCourses() {
   const handleSaveVideo = async (e: React.FormEvent, lessonId: number) => {
     e.preventDefault();
     if (!selectedCourse) return;
+    if (uploadingVideo || actionLoading) return;
 
     if (!vidTitle.trim()) {
       useModalStore.getState().showToast('يرجى إدخال عنوان لمقطع الفيديو.', 'warning');

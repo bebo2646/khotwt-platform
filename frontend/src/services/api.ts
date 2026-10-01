@@ -69,6 +69,11 @@ API.interceptors.response.use(
       }
       
       if (status === 401) {
+        // Guard against any external/upstream provider 401 errors being mistaken for user auth token expiration
+        if (data && (data.error_code?.includes('BUNNY') || data.bunny_error)) {
+          return Promise.reject(error)
+        }
+
         // Clear auth on unauthenticated
         const hadToken = !!(localStorage.getItem('auth_token') || localStorage.getItem('elm_token'))
         const savedTheme = localStorage.getItem('theme')

@@ -134,6 +134,7 @@ export default function VideosManager() {
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (uploading) return
     if (!title.trim() || !selectedLessonId || !videoFile) {
       useModalStore.getState().showToast('يرجى ملء جميع حقول الرفع وتحديد ملف الفيديو.', 'warning')
       return
@@ -188,6 +189,9 @@ export default function VideosManager() {
           setUploading(false);
           setUploadProgress(null);
           setUploadStatusText('');
+          if (signedRes?.data?.video?.id) {
+            API.delete(`/teacher/videos/${signedRes.data.video.id}`).catch(() => {});
+          }
           useModalStore.getState().showToast('فشل رفع الفيديو إلى Bunny Stream.', 'error');
         },
         onProgress: (bytesSent, bytesTotal) => {
@@ -230,6 +234,7 @@ export default function VideosManager() {
 
   const handleReplaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (replacing) return
     if (!replacingVideo || !replaceFile) return
 
     try {
