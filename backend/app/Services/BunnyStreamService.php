@@ -38,6 +38,26 @@ class BunnyStreamService
         return $this->libraryId;
     }
 
+    public function getApiKey(): string
+    {
+        return $this->apiKey;
+    }
+
+    /**
+     * Get safe runtime diagnostic info without exposing secrets.
+     */
+    public function getSafeDiagnostics(): array
+    {
+        return [
+            'library_id' => $this->libraryId,
+            'api_key_present' => !empty($this->apiKey),
+            'api_key_length' => strlen($this->apiKey),
+            'api_key_fingerprint' => !empty($this->apiKey) ? md5($this->apiKey) : null,
+            'cdn_hostname' => config('services.bunny.cdn_hostname') ?: $this->pullZone,
+            'app_env' => config('app.env', 'production'),
+        ];
+    }
+
     public function getEmbedUrl(string $videoId): string
     {
         return "https://iframe.mediadelivery.net/embed/{$this->libraryId}/{$videoId}";

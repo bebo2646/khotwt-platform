@@ -819,6 +819,7 @@ export default function ManageCourses() {
         console.error('Failed to create signed upload session:', err);
         const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل تهيئة رفع الفيديو على Bunny Stream.';
         useModalStore.getState().showToast(errMsg, 'error');
+        setVideoFileDetails(prev => prev ? { ...prev, status: `فشل: ${errMsg}` } : null);
         setUploadingVideo(false);
         setUploadProgress(null);
         setActionLoading(false);

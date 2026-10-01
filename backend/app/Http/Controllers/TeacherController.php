@@ -264,8 +264,8 @@ class TeacherController extends Controller
 
         $libraryId = config('services.bunny.library_id');
         $apiKey = config('services.bunny.api_key');
-
         $bunnyService = app(\App\Services\BunnyStreamService::class);
+
         if (!$bunnyService->isConfigured() || empty($libraryId) || empty($apiKey)) {
             return response()->json([
                 'message' => 'Bunny Stream integration is not configured on the server.'
@@ -1839,15 +1839,9 @@ class TeacherController extends Controller
 
         $libraryId = config('services.bunny.library_id');
         $apiKey = config('services.bunny.api_key');
-
-        if (empty($libraryId) || empty($apiKey)) {
-            return response()->json([
-                'message' => 'Bunny Stream integration is not configured on the server.'
-            ], 400);
-        }
-
         $bunnyService = app(\App\Services\BunnyStreamService::class);
-        if (!$bunnyService->isConfigured()) {
+
+        if (!$bunnyService->isConfigured() || empty($libraryId) || empty($apiKey)) {
             return response()->json([
                 'message' => 'Bunny Stream integration is not configured on the server.'
             ], 400);

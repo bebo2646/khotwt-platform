@@ -229,7 +229,8 @@ export default function CourseDetail() {
   
   // Accordion state (maps unit_id to boolean)
   const [expandedUnits, setExpandedUnits] = React.useState<Record<number, boolean>>({})
-  const viewerRef = React.useRef<HTMLDivElement | null>(null)
+  const videoViewerRef = React.useRef<HTMLDivElement | null>(null)
+  const [videoScrollTrigger, setVideoScrollTrigger] = React.useState(0)
 
   // Expanded content items (maps 'video-id', 'pdf-id', or 'exam-id' to boolean)
   const [expandedContentItems, setExpandedContentItems] = React.useState<Record<string, boolean>>({})
@@ -275,6 +276,7 @@ export default function CourseDetail() {
 
     // 1. Immediately update selected video (Single Source of Truth)
     setSelectedVideo(vid)
+    setVideoScrollTrigger((prev) => prev + 1)
 
     // 2. Synchronize URL searchParams
     setSearchParams((prev) => {
@@ -860,34 +862,36 @@ export default function CourseDetail() {
     fetchDetails()
   }, [fetchDetails, isLoggedIn])
 
-  const isViewerOpenRef = React.useRef(false);
-
+  // Authoritative Single Source of Truth for Video Viewer Scrolling
   React.useEffect(() => {
-    const isCurrentlyOpen = Boolean(videoId || pdfId);
+    const hasActiveContent = Boolean(selectedVideo?.id || videoId || pdfId);
+    if (!hasActiveContent) return;
 
-    // Only scroll into view when the viewer transitions from closed -> open for the first time
-    if (isCurrentlyOpen && !isViewerOpenRef.current) {
-      isViewerOpenRef.current = true;
-      const handleScroll = () => {
-        if (viewerRef.current) {
-          viewerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      };
+    let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
 
-      handleScroll();
-      const t1 = setTimeout(handleScroll, 100);
-      const t2 = setTimeout(handleScroll, 300);
-      const t3 = setTimeout(handleScroll, 600);
+    const performScroll = () => {
+      if (cancelled) return;
+      if (videoViewerRef.current) {
+        videoViewerRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }
+    };
 
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
-    } else if (!isCurrentlyOpen) {
-      isViewerOpenRef.current = false;
-    }
-  }, [videoId, pdfId]);
+    // Wait until new viewer state is committed to DOM, then scroll smoothly
+    const rafId = requestAnimationFrame(() => {
+      performScroll();
+      timerId = setTimeout(performScroll, 80);
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [selectedVideo?.id, videoId, pdfId, videoScrollTrigger]);
 
   const toggleUnit = (unitId: number) => {
     setExpandedUnits((prev) => ({
@@ -1070,7 +1074,12 @@ export default function CourseDetail() {
 
       {/* Dynamic Content Viewer Area */}
       {isEnrolled && (videoId || pdfId) && (
-        <div ref={viewerRef} className="space-y-4 text-right my-8 scroll-mt-24" dir="rtl">
+        <div 
+          ref={videoViewerRef} 
+          className="space-y-4 text-right my-8 scroll-mt-28" 
+          style={{ scrollMarginTop: '110px' }}
+          dir="rtl"
+        >
           
           {/* Viewer Header */}
           <div className="flex justify-between items-center bg-brand-card border border-[var(--border-color)] p-4.5 rounded-3xl shadow-lg">
@@ -1113,6 +1122,12 @@ export default function CourseDetail() {
                 activeVideoProp={selectedVideo || findVideoInUnits(Number(videoId))?.video}
                 onVideoChange={(newVid) => {
                   setSelectedVideo(newVid);
+                  setVideoScrollTrigger((prev) => prev + 1);
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('video_id', newVid.id.toString());
+                    return next;
+                  });
                 }}
                 onClose={() => {
                   setSelectedVideo(null);
