@@ -2037,6 +2037,21 @@ class AdminController extends Controller
     }
 
     /**
+     * Read system logs for production debugging.
+     */
+    public function getSystemLogs(Request $request)
+    {
+        $logPath = storage_path('logs/laravel.log');
+        if (!file_exists($logPath)) {
+            return response()->json(['lines' => []]);
+        }
+        $content = file_get_contents($logPath);
+        $lines = explode("\n", $content);
+        $tail = array_slice($lines, -300);
+        return response()->json(['lines' => $tail]);
+    }
+
+    /**
      * Get maintenance mode settings (Super Admin only).
      */
     public function getMaintenanceSettings(Request $request)
