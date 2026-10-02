@@ -40,6 +40,7 @@ class TeacherSubscription extends Model
         'extra_codes',
         'total_storage_gb',
         'total_codes',
+        'used_storage_gb',
         'remaining_storage_gb',
         'remaining_codes',
         'storage_percentage',
@@ -161,9 +162,14 @@ class TeacherSubscription extends Model
         return max(0, $totalBytes - $usedBytes);
     }
 
+    public function getUsedStorageGbAttribute()
+    {
+        return round($this->used_storage_bytes / (1024 * 1024 * 1024), 2);
+    }
+
     public function getRemainingStorageGbAttribute()
     {
-        $usedGb = round($this->used_storage_bytes / (1024 * 1024 * 1024), 2);
+        $usedGb = $this->getUsedStorageGbAttribute();
         return max(0, round($this->getTotalStorageGbAttribute() - $usedGb, 2));
     }
 

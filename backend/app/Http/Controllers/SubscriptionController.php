@@ -1064,6 +1064,7 @@ class SubscriptionController extends Controller
                 'discount_percentage' => $subscription->discount_percentage,
                 'discount_amount' => $subscription->discount_amount,
                 'used_storage_bytes' => $subscription->used_storage_bytes,
+                'used_storage_gb' => $subscription->used_storage_gb,
                 'used_codes' => $subscription->used_codes,
                 'extra_storage_gb' => $subscription->extra_storage_gb,
                 'extra_codes' => $subscription->extra_codes,
