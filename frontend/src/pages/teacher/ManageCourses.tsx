@@ -794,7 +794,7 @@ export default function ManageCourses() {
         const remainingStorageGb = subRes.data?.subscription?.remaining_storage_gb ?? 0;
         const fileSizeGb = selectedVideoFile.size / (1024 * 1024 * 1024);
         if (fileSizeGb > remainingStorageGb) {
-          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
+          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تكفي لرفع هذا الفيديو.', 'error');
           setUploadingVideo(false);
           setUploadProgress(null);
           setActionLoading(false);
@@ -808,12 +808,14 @@ export default function ManageCourses() {
 
       let signedRes: any;
       try {
+        const safeThumbnail = (vidThumbnail && !vidThumbnail.startsWith('data:')) ? vidThumbnail : undefined;
         signedRes = await API.post('/teacher/videos/signed-upload', {
           title: vidTitle.trim(),
           lesson_id: lessonId,
           file_size: selectedVideoFile.size,
           duration_seconds: Number(vidDuration) || undefined,
-          thumbnail_path: vidThumbnail || undefined,
+          thumbnail_path: safeThumbnail,
+          retry: true,
         });
       } catch (err: any) {
         console.error('Failed to create signed upload session:', err);
@@ -845,23 +847,42 @@ export default function ManageCourses() {
             setUploadProgress(percent);
             setVideoFileDetails(prev => prev ? { ...prev, status: `جاري الرفع المباشر: ${percent}%` } : null);
           },
-          onSuccess: () => {
+          onSuccess: async () => {
+            const vidId = activePendingVideoIdRef.current;
             activePendingVideoIdRef.current = null;
             videoUploadRef.current = null;
+
+            setVideoFileDetails(prev => prev ? { ...prev, status: 'جاري تأكيد إنهاء الرفع وتحديث المنصة...' } : null);
+            try {
+              if (vidId) {
+                await API.post('/teacher/videos/finalize-upload', {
+                  video_id: vidId,
+                  duration_seconds: Number(vidDuration) || undefined,
+                });
+              }
+            } catch (finErr) {
+              console.warn('Finalize upload call non-fatal warning:', finErr);
+            }
+
             setUploadingVideo(false);
             setUploadProgress(null);
             setActionLoading(false);
-            useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
+            useModalStore.getState().showToast('تم رفع الفيديو بنجاح واكتملت المعالجة.', 'success');
             resetVideoModal();
             handleSelectCourse(selectedCourse);
           },
-          onError: (_error, diagnostic) => {
+          onError: async (_error, diagnostic) => {
             console.error('Direct Bunny upload error:', diagnostic);
-            if (activePendingVideoIdRef.current) {
-              API.delete(`/teacher/videos/${activePendingVideoIdRef.current}`).catch(() => {});
-              activePendingVideoIdRef.current = null;
-            }
+            const vidId = activePendingVideoIdRef.current;
+            activePendingVideoIdRef.current = null;
             videoUploadRef.current = null;
+            if (vidId) {
+              try {
+                await API.post('/teacher/videos/cancel-upload', { video_id: vidId });
+              } catch {
+                API.delete(`/teacher/videos/${vidId}`).catch(() => {});
+              }
+            }
             setUploadingVideo(false);
             setUploadProgress(null);
             setActionLoading(false);

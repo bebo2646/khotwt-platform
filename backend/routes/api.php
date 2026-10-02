@@ -301,9 +301,11 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::put('/teacher/lessons/{lesson}', [TeacherController::class, 'updateLesson']);
                 Route::delete('/teacher/lessons/{lesson}', [TeacherController::class, 'deleteLesson']);
                 Route::post('/teacher/lessons/{lesson}/video', [TeacherController::class, 'addVideo']);
-                Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::post('/teacher/videos/signed-upload', [TeacherController::class, 'generateSignedUpload']);
+                Route::post('/teacher/videos/finalize-upload', [TeacherController::class, 'finalizeUpload']);
+                Route::post('/teacher/videos/cancel-upload', [TeacherController::class, 'cancelUpload']);
                 Route::post('/teacher/videos/detect-duration', [TeacherController::class, 'detectVideoDurationUrl']);
+                Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::put('/teacher/videos/{video}', [TeacherController::class, 'updateVideo']);
                 Route::delete('/teacher/videos/{video}', [TeacherController::class, 'deleteVideo']);
                 Route::post('/teacher/lessons/{lesson}/pdf', [TeacherController::class, 'addPdf']);

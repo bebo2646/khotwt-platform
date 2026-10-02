@@ -16,6 +16,7 @@ use App\Models\StudentAnswer;
 use App\Models\Enrollment;
 use App\Models\VideoProgress;
 use App\Models\WalletTransaction;
+use App\Models\TeacherSubscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -266,7 +267,12 @@ class TeacherController extends Controller
         // Clean up any previous failed/abandoned upload for the same title in this lesson to allow clean retries
         $existingDuplicate = Video::where('lesson_id', $request->lesson_id)->where('title', $title)->first();
         if ($existingDuplicate) {
-            if ($existingDuplicate->bunny_status === 'failed' || ($existingDuplicate->bunny_status === 'queued' && $existingDuplicate->created_at && $existingDuplicate->created_at->diffInMinutes(now()) > 30) || $request->boolean('retry')) {
+            $isUnfinished = $request->boolean('retry')
+                || $existingDuplicate->bunny_status === 'failed'
+                || ($existingDuplicate->bunny_status === 'queued' && (int)$existingDuplicate->duration_seconds <= 0 && (int)$existingDuplicate->bunny_duration <= 0)
+                || ($existingDuplicate->bunny_status === 'queued' && $existingDuplicate->created_at && $existingDuplicate->created_at->diffInMinutes(now()) > 30);
+
+            if ($isUnfinished) {
                 $orphanId = $existingDuplicate->bunny_video_id ?: $existingDuplicate->bunny_stream_id;
                 if (!empty($orphanId)) {
                     try {
@@ -295,37 +301,55 @@ class TeacherController extends Controller
             $fileSize = $request->file('file')->getSize();
         }
 
-        $videoSizeGb = $fileSize / 1024 / 1024 / 1024;
-        $remainingStorageGb = $teacher ? (float) $teacher->remaining_storage_gb : 0.0;
-        $storageLimitGb = $teacher && $teacher->bunny_storage_limit_gb ? (float) $teacher->bunny_storage_limit_gb : 10.0;
-        $usedStorageGb = $teacher ? (float) $teacher->bunny_storage_used_gb : 0.0;
+        // Synchronize and calculate remaining storage accurately
+        if ($teacherId) {
+            $bunnyService->recalculateStorage($teacherId);
+            $teacher->refresh();
+        }
+
+        $subscription = TeacherSubscription::with('plan')->where('teacher_id', $teacherId)->first();
+        if ($subscription) {
+            $subscription->refresh();
+            $totalStorageBytes = $subscription->total_storage_bytes;
+            $usedStorageBytes = $subscription->used_storage_bytes;
+            $remainingStorageBytes = max(0, $totalStorageBytes - $usedStorageBytes);
+            $remainingStorageGb = $subscription->remaining_storage_gb;
+        } else {
+            $limitGb = $teacher && $teacher->bunny_storage_limit_gb ? (float)$teacher->bunny_storage_limit_gb : 10.0;
+            $usedGb = $teacher ? (float)($teacher->bunny_storage_used_gb ?? 0.0) : 0.0;
+            $remainingStorageGb = max(0, round($limitGb - $usedGb, 4));
+            $remainingStorageBytes = (int)($remainingStorageGb * 1024 * 1024 * 1024);
+        }
+
+        $fileSizeGb = $fileSize / (1024 * 1024 * 1024);
 
         \Log::info('SIGNED_UPLOAD_REQUEST_INSPECT', [
             'teacher_id' => $teacherId,
             'lesson_id' => $request->lesson_id,
             'title' => $title,
             'file_size' => $fileSize,
-            'video_size_gb' => round($videoSizeGb, 4),
-            'storage_limit' => $storageLimitGb,
-            'used_storage' => $usedStorageGb,
-            'remaining_storage' => $remainingStorageGb,
+            'file_size_gb' => round($fileSizeGb, 4),
+            'remaining_storage_gb' => $remainingStorageGb,
+            'remaining_storage_bytes' => $remainingStorageBytes,
             'library_id' => $libraryId,
         ]);
 
-        if ($videoSizeGb > $remainingStorageGb) {
+        if ($fileSize > 0 && ($fileSize > $remainingStorageBytes || $fileSizeGb > $remainingStorageGb)) {
             return response()->json([
                 'success' => false,
                 'error_code' => 'STORAGE_LIMIT_EXCEEDED',
-                'message' => 'مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.'
+                'message' => 'مساحتك التخزينية المتبقية لا تكفي لرفع هذا الفيديو.',
+                'remaining_storage_gb' => $remainingStorageGb,
+                'file_size_gb' => round($fileSizeGb, 3),
             ], 422);
         }
 
         if ($teacherId && $bunnyService->isStorageLimitExceeded($teacherId, $fileSize)) {
             return response()->json([
                 'success' => false,
-                'error_code' => 'SUBSCRIPTION_STORAGE_LIMIT_EXCEEDED',
-                'message' => 'لقد تجاوزت الحد المسموح به لمساحة التخزين في باقتك. يرجى ترقية الباقة لتتمكن من إضافة فيديوهات جديدة.'
-            ], 403);
+                'error_code' => 'STORAGE_LIMIT_EXCEEDED',
+                'message' => 'مساحتك التخزينية المتبقية لا تكفي لرفع هذا الفيديو.',
+            ], 422);
         }
 
         // 2. Create Bunny Video object with rollback safety
@@ -359,9 +383,16 @@ class TeacherController extends Controller
             $embedUrl = $bunnyService->getEmbedUrl($videoId);
             $thumbnailUrl = $bunnyService->getThumbnailUrl($videoId);
             $durationSeconds = (int) $request->input('duration_seconds', 0);
-            $thumbnailPath = $request->input('thumbnail_path') ?: $thumbnailUrl;
 
-            // Create local video record in database
+            // Never store raw base64 data URIs in thumbnail_path
+            $rawThumbnail = $request->input('thumbnail_path');
+            if ($rawThumbnail && !str_starts_with($rawThumbnail, 'data:') && strlen($rawThumbnail) <= 500) {
+                $thumbnailPath = $rawThumbnail;
+            } else {
+                $thumbnailPath = $thumbnailUrl;
+            }
+
+            // Create local pending video record in database
             $video = Video::create([
                 'lesson_id' => $request->lesson_id,
                 'title' => $title,
@@ -375,33 +406,6 @@ class TeacherController extends Controller
                 'duration_seconds' => $durationSeconds,
                 'thumbnail_path' => $thumbnailPath,
             ]);
-
-            $this->updateLessonDuration($request->lesson_id);
-
-            if ($teacherId) {
-                try {
-                    $bunnyService->recalculateStorage($teacherId);
-                } catch (\Throwable $eStorage) {
-                    \Log::warning('Storage recalculation non-fatal warning: ' . $eStorage->getMessage());
-                }
-            }
-
-            // Safe queue dispatch - never fail signed upload response if queue worker is unavailable
-            try {
-                if (config('queue.default') !== 'sync') {
-                    \App\Jobs\PollBunnyVideoStatus::dispatch($video->id)->delay(now()->addSeconds(30));
-                }
-            } catch (\Throwable $eQueue) {
-                \Log::warning('PollBunnyVideoStatus dispatch non-fatal warning: ' . $eQueue->getMessage());
-            }
-
-            if ($teacher && $teacher->role === 'teacher') {
-                try {
-                    \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
-                } catch (\Throwable $eLog) {
-                    \Log::warning('TeacherActivityService logVideoUploaded non-fatal warning: ' . $eLog->getMessage());
-                }
-            }
 
             \Log::info('SIGNED_UPLOAD_GENERATION_SUCCESS', [
                 'teacher_id' => $teacherId,
@@ -430,6 +434,12 @@ class TeacherController extends Controller
                 }
             }
 
+            if (isset($video) && $video && $video->exists) {
+                try {
+                    $video->delete();
+                } catch (\Throwable $t) {}
+            }
+
             \Log::error('SIGNED_UPLOAD_EXCEPTION', [
                 'teacher_id' => $teacherId,
                 'lesson_id' => $request->lesson_id,
@@ -448,6 +458,152 @@ class TeacherController extends Controller
                 'exception' => config('app.debug') ? $e->getMessage() : null,
             ], 500);
         }
+    }
+
+    /**
+     * Finalize video upload after direct TUS upload completes.
+     */
+    public function finalizeUpload(Request $request)
+    {
+        $request->validate([
+            'video_id' => 'required',
+            'duration_seconds' => 'sometimes|numeric|min:0',
+        ]);
+
+        $inputVideoId = $request->input('video_id');
+        $video = Video::where('id', $inputVideoId)
+            ->orWhere('bunny_video_id', $inputVideoId)
+            ->orWhere('bunny_stream_id', $inputVideoId)
+            ->firstOrFail();
+
+        $lesson = Lesson::with('unit')->findOrFail($video->lesson_id);
+        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+
+        $teacher = $request->user();
+        $teacherId = $teacher ? $teacher->id : null;
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+
+        $guid = $video->bunny_video_id ?: $video->bunny_stream_id;
+        if (!empty($guid) && $bunnyService->isConfigured()) {
+            $bunnyInfo = $bunnyService->getVideo($guid);
+            if ($bunnyInfo['success'] && isset($bunnyInfo['data'])) {
+                $data = $bunnyInfo['data'];
+                $statusInt = (int) ($data['status'] ?? 0);
+                $statusStr = $bunnyService->mapStatusCodeToString($statusInt);
+
+                $video->bunny_status = ($statusStr === 'failed') ? 'failed' : ($statusStr === 'finished' ? 'finished' : 'processing');
+
+                if (isset($data['length']) && (int)$data['length'] > 0) {
+                    $video->duration_seconds = (int)$data['length'];
+                    $video->bunny_duration = (int)$data['length'];
+                } elseif ($request->filled('duration_seconds') && (int)$request->input('duration_seconds') > 0) {
+                    $video->duration_seconds = (int)$request->input('duration_seconds');
+                    $video->bunny_duration = (int)$request->input('duration_seconds');
+                }
+
+                if (isset($data['storageSize']) && (int)$data['storageSize'] > 0) {
+                    $video->bunny_size_bytes = (int)$data['storageSize'];
+                    $video->storage_size = (int)$data['storageSize'];
+                }
+            } else {
+                $video->bunny_status = 'processing';
+                if ($request->filled('duration_seconds') && (int)$request->input('duration_seconds') > 0) {
+                    $video->duration_seconds = (int)$request->input('duration_seconds');
+                    $video->bunny_duration = (int)$request->input('duration_seconds');
+                }
+            }
+        } else {
+            $video->bunny_status = 'processing';
+            if ($request->filled('duration_seconds') && (int)$request->input('duration_seconds') > 0) {
+                $video->duration_seconds = (int)$request->input('duration_seconds');
+                $video->bunny_duration = (int)$request->input('duration_seconds');
+            }
+        }
+
+        $video->save();
+
+        $this->updateLessonDuration($video->lesson_id);
+
+        if ($teacherId) {
+            try {
+                $bunnyService->recalculateStorage($teacherId);
+            } catch (\Throwable $eStorage) {
+                \Log::warning('Storage recalculation non-fatal warning: ' . $eStorage->getMessage());
+            }
+        }
+
+        if ($teacher && $teacher->role === 'teacher') {
+            try {
+                \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
+            } catch (\Throwable $eLog) {
+                \Log::warning('TeacherActivityService logVideoUploaded non-fatal warning: ' . $eLog->getMessage());
+            }
+        }
+
+        \Log::info('VIDEO_FINALIZE_SUCCESS', [
+            'video_id' => $video->id,
+            'bunny_video_id' => $video->bunny_video_id,
+            'bunny_status' => $video->bunny_status,
+            'duration_seconds' => $video->duration_seconds,
+            'bunny_size_bytes' => $video->bunny_size_bytes,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إنهاء رفع الفيديو وتحديث البيانات بنجاح.',
+            'video' => $video,
+        ]);
+    }
+
+    /**
+     * Cancel upload session and cleanup pending Bunny and DB records.
+     */
+    public function cancelUpload(Request $request)
+    {
+        $videoId = $request->input('video_id');
+        $bunnyVideoId = $request->input('bunny_video_id');
+
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+        $teacher = $request->user();
+        $teacherId = $teacher ? $teacher->id : null;
+
+        if (!empty($videoId)) {
+            $video = Video::where('id', $videoId)->first();
+            if ($video) {
+                try {
+                    $lesson = Lesson::with('unit')->find($video->lesson_id);
+                    if ($lesson && $lesson->unit && $lesson->unit->course) {
+                        $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+                    }
+                } catch (\Throwable $e) {}
+
+                $orphanId = $video->bunny_video_id ?: $video->bunny_stream_id;
+                if (!empty($orphanId)) {
+                    try {
+                        $bunnyService->deleteVideo($orphanId);
+                    } catch (\Throwable $t) {}
+                }
+
+                $video->delete();
+            }
+        }
+
+        if (!empty($bunnyVideoId)) {
+            try {
+                $bunnyService->deleteVideo($bunnyVideoId);
+            } catch (\Throwable $t) {}
+        }
+
+        if ($teacherId) {
+            try {
+                $bunnyService->recalculateStorage($teacherId);
+            } catch (\Throwable $t) {}
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إلغاء جلسة الرفع وحذف الكائنات المؤقتة بنجاح.',
+        ]);
     }
 
     /**

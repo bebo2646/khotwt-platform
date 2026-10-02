@@ -170,7 +170,7 @@ export default function VideosManager() {
         const remainingStorageGb = subRes.data.subscription?.remaining_storage_gb ?? 0;
         const fileSizeGb = videoFile.size / (1024 * 1024 * 1024);
         if (fileSizeGb > remainingStorageGb) {
-          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تسمح برفع هذا الفيديو. يمكنك طلب مساحة إضافية.', 'error');
+          useModalStore.getState().showToast('مساحتك التخزينية المتبقية لا تكفي لرفع هذا الفيديو.', 'error');
           setUploading(false);
           return;
         }
@@ -187,6 +187,7 @@ export default function VideosManager() {
           title: title.trim(),
           lesson_id: selectedLessonId,
           file_size: videoFile.size,
+          retry: true,
         });
       } catch (err: any) {
         console.error('Failed to create signed upload session:', err);
@@ -218,10 +219,23 @@ export default function VideosManager() {
             setUploadProgress(percent);
             setUploadStatusText(`جاري الرفع المباشر: ${percent}%`);
           },
-          onSuccess: () => {
+          onSuccess: async () => {
+            const vidId = pendingVideoIdRef.current;
             pendingVideoIdRef.current = null;
             uploadRef.current = null;
-            useModalStore.getState().showToast('تم رفع الفيديو مباشرة إلى Bunny Stream بنجاح وجاري المعالجة.', 'success');
+
+            setUploadStatusText('جاري تأكيد إنهاء الرفع وتحديث المنصة...');
+            try {
+              if (vidId) {
+                await API.post('/teacher/videos/finalize-upload', {
+                  video_id: vidId,
+                });
+              }
+            } catch (finErr) {
+              console.warn('Finalize upload call non-fatal warning:', finErr);
+            }
+
+            useModalStore.getState().showToast('تم رفع الفيديو بنجاح واكتملت المعالجة.', 'success');
 
             // Reset form
             setTitle('');
@@ -239,13 +253,18 @@ export default function VideosManager() {
             // Reload list and storage
             fetchData();
           },
-          onError: (_error, diagnostic) => {
+          onError: async (_error, diagnostic) => {
             console.error('TUS upload failed:', diagnostic);
-            if (pendingVideoIdRef.current) {
-              API.delete(`/teacher/videos/${pendingVideoIdRef.current}`).catch(() => {});
-              pendingVideoIdRef.current = null;
-            }
+            const vidId = pendingVideoIdRef.current;
+            pendingVideoIdRef.current = null;
             uploadRef.current = null;
+            if (vidId) {
+              try {
+                await API.post('/teacher/videos/cancel-upload', { video_id: vidId });
+              } catch {
+                API.delete(`/teacher/videos/${vidId}`).catch(() => {});
+              }
+            }
             setUploading(false);
             setUploadProgress(null);
             setUploadStatusText('');

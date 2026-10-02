@@ -376,4 +376,168 @@ class BunnyStreamVideoFlowTest extends TestCase
             'duration_seconds' => 600,
         ]);
     }
+
+    public function test_signed_upload_rejects_when_storage_quota_exceeded_before_bunny_creation()
+    {
+        // Teacher has 10 GB limit, upload attempt is 20 GB
+        $this->teacher->update([
+            'bunny_storage_limit_gb' => 10.0,
+            'bunny_storage_used_gb' => 0.0,
+        ]);
+
+        $mockBunny = Mockery::mock(BunnyStreamService::class);
+        $mockBunny->shouldReceive('isConfigured')->andReturn(true);
+        $mockBunny->shouldReceive('recalculateStorage')->andReturn(null);
+        $mockBunny->shouldReceive('isStorageLimitExceeded')->andReturn(true);
+        // CRITICAL ASSERTION: createVideo MUST NEVER be called if quota is exceeded!
+        $mockBunny->shouldNotReceive('createVideo');
+
+        $this->app->instance(BunnyStreamService::class, $mockBunny);
+
+        // Try to upload a 20 GB video when limit is 10 GB
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/signed-upload', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'فيديو يتجاوز الباقة',
+            'file_size' => 20 * 1024 * 1024 * 1024,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJson([
+            'success' => false,
+            'error_code' => 'STORAGE_LIMIT_EXCEEDED',
+            'message' => 'مساحتك التخزينية المتبقية لا تكفي لرفع هذا الفيديو.',
+        ]);
+
+        // CRITICAL: ZERO video records created in database
+        $this->assertDatabaseMissing('videos', [
+            'title' => 'فيديو يتجاوز الباقة',
+        ]);
+    }
+
+    public function test_finalize_upload_updates_video_status_and_recalculates_storage()
+    {
+        $video = Video::create([
+            'lesson_id' => $this->lesson->id,
+            'title' => 'فيديو تم رفعه',
+            'bunny_video_id' => 'test-bunny-guid-1234',
+            'bunny_status' => 'queued',
+            'duration_seconds' => 0,
+        ]);
+
+        $mockBunny = Mockery::mock(BunnyStreamService::class);
+        $mockBunny->shouldReceive('isConfigured')->andReturn(true);
+        $mockBunny->shouldReceive('getVideo')->once()->with('test-bunny-guid-1234')->andReturn([
+            'success' => true,
+            'data' => [
+                'status' => 3, // Finished/encoded in Bunny
+                'length' => 450,
+                'storageSize' => 52428800,
+            ],
+        ]);
+        $mockBunny->shouldReceive('mapStatusCodeToString')->with(3)->andReturn('finished');
+        $mockBunny->shouldReceive('recalculateStorage')->once()->with($this->teacher->id)->andReturn(null);
+
+        $this->app->instance(BunnyStreamService::class, $mockBunny);
+
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/finalize-upload', [
+            'video_id' => $video->id,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $video->refresh();
+        $this->assertEquals('finished', $video->bunny_status);
+        $this->assertEquals(450, $video->duration_seconds);
+        $this->assertEquals(52428800, $video->bunny_size_bytes);
+    }
+
+    public function test_cancel_upload_cleans_up_bunny_and_local_record()
+    {
+        $video = Video::create([
+            'lesson_id' => $this->lesson->id,
+            'title' => 'فيديو ملغى',
+            'bunny_video_id' => 'cancel-bunny-guid-5555',
+            'bunny_status' => 'queued',
+            'duration_seconds' => 0,
+        ]);
+
+        $mockBunny = Mockery::mock(BunnyStreamService::class);
+        $mockBunny->shouldReceive('deleteVideo')->once()->with('cancel-bunny-guid-5555')->andReturn(true);
+        $mockBunny->shouldReceive('recalculateStorage')->once()->with($this->teacher->id)->andReturn(null);
+
+        $this->app->instance(BunnyStreamService::class, $mockBunny);
+
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/cancel-upload', [
+            'video_id' => $video->id,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $this->assertDatabaseMissing('videos', [
+            'id' => $video->id,
+        ]);
+    }
+
+    public function test_retry_after_failed_or_draft_upload_cleans_up_and_allows_reupload()
+    {
+        config(['services.bunny.library_id' => '766707']);
+        config(['services.bunny.api_key' => 'mock-api-key']);
+
+        // Previous failed/draft video with 0 duration
+        $draftVideo = Video::create([
+            'lesson_id' => $this->lesson->id,
+            'title' => 'محاضرة فيزياء 1',
+            'bunny_video_id' => 'old-abandoned-guid-0000',
+            'bunny_status' => 'queued',
+            'duration_seconds' => 0,
+            'bunny_duration' => 0,
+        ]);
+
+        $mockBunny = Mockery::mock(BunnyStreamService::class);
+        $mockBunny->shouldReceive('isConfigured')->andReturn(true);
+        $mockBunny->shouldReceive('isStorageLimitExceeded')->andReturn(false);
+        $mockBunny->shouldReceive('recalculateStorage')->andReturn(null);
+        // Deletes the old abandoned Bunny video
+        $mockBunny->shouldReceive('deleteVideo')->once()->with('old-abandoned-guid-0000')->andReturn(true);
+        // Creates the new Bunny video
+        $mockBunny->shouldReceive('createVideo')->once()->with('محاضرة فيزياء 1')->andReturn([
+            'success' => true,
+            'video_id' => 'new-fresh-guid-1111',
+            'guid' => 'new-fresh-guid-1111',
+            'status' => 200,
+        ]);
+        $mockBunny->shouldReceive('getEmbedUrl')->with('new-fresh-guid-1111')->andReturn('https://iframe.mediadelivery.net/embed/766707/new-fresh-guid-1111');
+        $mockBunny->shouldReceive('getThumbnailUrl')->with('new-fresh-guid-1111')->andReturn('https://vz-766707.b-cdn.net/new-fresh-guid-1111/thumbnail.jpg');
+
+        $this->app->instance(BunnyStreamService::class, $mockBunny);
+
+        // Retry the exact same title
+        $response = $this->actingAs($this->teacher, 'sanctum')->postJson('/api/teacher/videos/signed-upload', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'محاضرة فيزياء 1',
+            'file_size' => 1024 * 1024 * 50,
+            'retry' => true,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertEquals('new-fresh-guid-1111', $response->json('video_id'));
+
+        // Old draft record is gone
+        $this->assertDatabaseMissing('videos', [
+            'id' => $draftVideo->id,
+        ]);
+
+        // New record exists
+        $this->assertDatabaseHas('videos', [
+            'lesson_id' => $this->lesson->id,
+            'title' => 'محاضرة فيزياء 1',
+            'bunny_video_id' => 'new-fresh-guid-1111',
+        ]);
+    }
 }
