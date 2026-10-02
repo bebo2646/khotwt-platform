@@ -24,4 +24,17 @@ class Unit extends Model
     {
         return $this->hasMany(Lesson::class)->orderBy('order');
     }
+
+    protected static function booted()
+    {
+        static::created(function ($unit) {
+            Course::touchContent($unit->course_id);
+        });
+        static::updated(function ($unit) {
+            Course::touchContent($unit->course_id);
+        });
+        static::deleted(function ($unit) {
+            Course::touchContent($unit->course_id);
+        });
+    }
 }

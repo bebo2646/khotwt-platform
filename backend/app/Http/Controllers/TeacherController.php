@@ -523,6 +523,7 @@ class TeacherController extends Controller
         $video->save();
 
         $this->updateLessonDuration($video->lesson_id);
+        Course::touchContent($lesson->unit->course_id);
 
         if ($teacherId) {
             try {
@@ -985,6 +986,7 @@ class TeacherController extends Controller
             'discount_value' => $request->discount_value,
             'availability' => $request->availability ?? $course->availability ?? 'both',
             'is_bundle' => $request->has('is_bundle') ? $request->is_bundle : $course->is_bundle,
+            'last_content_updated_at' => now(),
         ]);
 
         if ($request->user() && $request->user()->role === 'teacher') {
@@ -1033,6 +1035,8 @@ class TeacherController extends Controller
             'order' => $request->order ?? 0,
         ]);
 
+        Course::touchContent($courseId);
+
         if ($request->user() && $request->user()->role === 'teacher') {
             $course = Course::find($courseId);
             if ($course) {
@@ -1076,6 +1080,8 @@ class TeacherController extends Controller
         $unit->update([
             'title' => $title,
         ]);
+
+        Course::touchContent($unit->course_id);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logUnitUpdated($request->user(), $unit, $request);
@@ -1141,6 +1147,8 @@ class TeacherController extends Controller
                 $u->update(['order' => $index]);
             }
         });
+
+        Course::touchContent($courseId);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logUnitDeleted($request->user(), (int)$unitId, $unitTitle, (int)$courseId, $request);
@@ -1350,6 +1358,8 @@ class TeacherController extends Controller
             return $createdLesson;
         });
 
+        Course::touchContent($unit->course_id);
+
         if ($videoDataToCreate && !empty($videoDataToCreate['bunny_video_id'])) {
             if ($teacherId) {
                 $bunnyService->recalculateStorage($teacherId);
@@ -1375,7 +1385,9 @@ class TeacherController extends Controller
 
         if ($request->user() && $request->user()->role === 'teacher') {
             $course = Course::find($unit->course_id);
-            \App\Services\TeacherActivityService::logLessonCreated($request->user(), $lesson, $course, $request);
+            if ($course) {
+                \App\Services\TeacherActivityService::logLessonCreated($request->user(), $lesson, $course, $request);
+            }
         }
 
         return response()->json($lesson->load('videos'), 201);
@@ -1401,6 +1413,8 @@ class TeacherController extends Controller
             'price' => $request->price ?: 0.00,
         ]);
 
+        Course::touchContent($lesson->unit->course_id);
+
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logLessonUpdated($request->user(), $lesson, $request);
         }
@@ -1418,6 +1432,7 @@ class TeacherController extends Controller
 
         $teacherId = $request->user()->id;
         $unitId = $lesson->unit_id;
+        $courseId = $lesson->unit->course_id;
         $lessonTitle = $lesson->title;
 
         DB::transaction(function () use ($lesson, $unitId, $teacherId) {
@@ -1451,6 +1466,8 @@ class TeacherController extends Controller
                 $item->update(['order' => $index]);
             }
         });
+
+        Course::touchContent($courseId);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logLessonDeleted($request->user(), (int)$lessonId, $lessonTitle, $request);
@@ -1613,6 +1630,8 @@ class TeacherController extends Controller
                 return $createdVideo;
             });
 
+            Course::touchContent($lesson->unit->course_id);
+
             if ($teacherId) {
                 $bunnyService->recalculateStorage($teacherId);
             }
@@ -1709,6 +1728,8 @@ class TeacherController extends Controller
                 return $createdVideo;
             });
 
+            Course::touchContent($lesson->unit->course_id);
+
             if ($teacherId) {
                 $bunnyService->recalculateStorage($teacherId);
             }
@@ -1783,6 +1804,8 @@ class TeacherController extends Controller
                 return $createdVideo;
             });
 
+            Course::touchContent($lesson->unit->course_id);
+
             if ($teacher && $teacher->role === 'teacher') {
                 \App\Services\TeacherActivityService::logVideoUploaded($teacher, $video, $request);
             }
@@ -1824,6 +1847,8 @@ class TeacherController extends Controller
             'file_size' => $request->file_size,
             'preview_path' => $request->preview_path,
         ]);
+
+        Course::touchContent($lesson->unit->course_id);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logPdfUploaded($request->user(), $pdf, $request);
@@ -2038,6 +2063,7 @@ class TeacherController extends Controller
         }
 
         $this->updateLessonDuration($video->lesson_id);
+        Course::touchContent($lesson->unit->course_id);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logVideoUpdated($request->user(), $video, $request);
@@ -2057,6 +2083,7 @@ class TeacherController extends Controller
 
         $teacherId = $request->user()->id;
         $lessonId = $video->lesson_id;
+        $courseId = $lesson->unit->course_id;
         $videoTitle = $video->title;
 
         // Instantiate BunnyStreamService to delete from Bunny Stream
@@ -2071,6 +2098,7 @@ class TeacherController extends Controller
         // Recalculate storage and lesson duration
         $bunnyService->recalculateStorage($teacherId);
         $this->updateLessonDuration($lessonId);
+        Course::touchContent($courseId);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logVideoDeleted($request->user(), (int)$id, $videoTitle, $request);
@@ -2179,6 +2207,8 @@ class TeacherController extends Controller
             'duration_seconds' => 0,
             'thumbnail_path' => $thumbnailUrl,
         ]);
+
+        Course::touchContent($lesson->unit->course_id);
 
         // Recalculate teacher storage
         $bunnyService->recalculateStorage($teacherId);
@@ -2327,6 +2357,8 @@ class TeacherController extends Controller
             'preview_path' => $request->preview_path,
         ]);
 
+        Course::touchContent($lesson->unit->course_id);
+
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logPdfUpdated($request->user(), $pdf, $request);
         }
@@ -2342,9 +2374,12 @@ class TeacherController extends Controller
         $pdf = Pdf::findOrFail($id);
         $lesson = Lesson::with('unit')->findOrFail($pdf->lesson_id);
         $this->verifyCourseTeacher($request, $lesson->unit->course_id);
+        $courseId = $lesson->unit->course_id;
         $pdfTitle = $pdf->title;
 
         $pdf->delete();
+
+        Course::touchContent($courseId);
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logPdfDeleted($request->user(), (int)$id, $pdfTitle, $request);
@@ -2639,6 +2674,8 @@ class TeacherController extends Controller
             if ($request->user() && $request->user()->role === 'teacher') {
                 \App\Services\TeacherActivityService::logExamCreated($request->user(), $exam, $request);
             }
+
+            Course::touchContent($lesson->unit ? $lesson->unit->course_id : null);
 
             return response()->json($exam->load('questions'), 201);
         });
@@ -3396,6 +3433,11 @@ class TeacherController extends Controller
                 \App\Services\TeacherActivityService::logExamUpdated($request->user(), $exam, $request);
             }
 
+            $courseId = $exam->course_id ?: ($exam->lesson?->unit?->course_id ?: null);
+            if ($courseId) {
+                Course::touchContent($courseId);
+            }
+
             return response()->json($exam->load('questions'), 200);
         });
     }
@@ -3417,9 +3459,14 @@ class TeacherController extends Controller
 
         $examTitle = $exam->title;
         $isMonthly = $exam->type === 'monthly_exam';
+        $courseId = $exam->course_id ?: ($exam->lesson?->unit?->course_id ?: null);
 
         $exam->questions()->delete();
         $exam->delete();
+
+        if ($courseId) {
+            Course::touchContent($courseId);
+        }
 
         if ($request->user() && $request->user()->role === 'teacher') {
             \App\Services\TeacherActivityService::logExamDeleted($request->user(), (int)$examId, $examTitle, $isMonthly, $request);
@@ -3594,6 +3641,7 @@ class TeacherController extends Controller
         }
 
         $course->childCourses()->sync($childIds);
+        Course::touchContent($course->id);
 
         return response()->json($course->load('childCourses'));
     }

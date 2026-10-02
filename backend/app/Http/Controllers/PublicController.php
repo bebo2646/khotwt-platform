@@ -428,6 +428,7 @@ class PublicController extends Controller
                 'is_published' => true,
                 'created_at' => $package->created_at,
                 'updated_at' => $package->updated_at,
+                'last_content_updated_at' => $package->updated_at,
             ];
 
             // Group lessons by unit

@@ -22,6 +22,25 @@ class Question extends Model
         'options' => 'array',
     ];
 
+    protected static function booted()
+    {
+        static::created(function ($question) {
+            $exam = $question->exam ?: Exam::find($question->exam_id);
+            $courseId = $exam?->course_id ?: ($exam?->lesson?->unit?->course_id ?: Lesson::find($exam?->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+        static::updated(function ($question) {
+            $exam = $question->exam ?: Exam::find($question->exam_id);
+            $courseId = $exam?->course_id ?: ($exam?->lesson?->unit?->course_id ?: Lesson::find($exam?->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+        static::deleted(function ($question) {
+            $exam = $question->exam ?: Exam::find($question->exam_id);
+            $courseId = $exam?->course_id ?: ($exam?->lesson?->unit?->course_id ?: Lesson::find($exam?->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+    }
+
     public function exam()
     {
         return $this->belongsTo(Exam::class);

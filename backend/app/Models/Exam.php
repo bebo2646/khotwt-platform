@@ -54,6 +54,22 @@ class Exam extends Model
         'show_answers_after_submission',
     ];
 
+    protected static function booted()
+    {
+        static::created(function ($exam) {
+            $courseId = $exam->course_id ?: ($exam->lesson?->unit?->course_id ?: Lesson::find($exam->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+        static::updated(function ($exam) {
+            $courseId = $exam->course_id ?: ($exam->lesson?->unit?->course_id ?: Lesson::find($exam->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+        static::deleted(function ($exam) {
+            $courseId = $exam->course_id ?: ($exam->lesson?->unit?->course_id ?: Lesson::find($exam->lesson_id)?->unit?->course_id);
+            Course::touchContent($courseId);
+        });
+    }
+
     protected $casts = [
         'auto_submit_on_violation' => 'boolean',
         'enable_fullscreen' => 'boolean',

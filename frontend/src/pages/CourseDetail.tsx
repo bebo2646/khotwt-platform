@@ -40,6 +40,7 @@ interface CourseItem {
   }
   created_at?: string
   updated_at?: string
+  last_content_updated_at?: string
 }
 
 export function formatArabicDateTime(dateString?: string | null): string {
@@ -1197,7 +1198,7 @@ export default function CourseDetail() {
             </div>
 
             {/* Course Database Timestamps */}
-            {(course.created_at || course.updated_at) && (
+            {(course.created_at || course.last_content_updated_at || course.updated_at) && (
               <div className="flex flex-wrap items-center gap-2.5 pt-1 text-[11px] text-slate-400 font-medium">
                 {course.created_at && (
                   <span className="inline-flex items-center gap-1.5 bg-slate-900/60 border border-[var(--border-color)] px-3 py-1 rounded-xl">
@@ -1206,11 +1207,11 @@ export default function CourseDetail() {
                     <span className="text-slate-200 font-semibold">{formatArabicDateTime(course.created_at)}</span>
                   </span>
                 )}
-                {course.updated_at && course.updated_at !== course.created_at && (
+                {(course.last_content_updated_at || course.updated_at) && (course.last_content_updated_at || course.updated_at) !== course.created_at && (
                   <span className="inline-flex items-center gap-1.5 bg-slate-900/60 border border-[var(--border-color)] px-3 py-1 rounded-xl">
                     <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                     <span>آخر تعديل:</span>
-                    <span className="text-slate-200 font-semibold">{formatArabicDateTime(course.updated_at)}</span>
+                    <span className="text-slate-200 font-semibold">{formatArabicDateTime(course.last_content_updated_at || course.updated_at)}</span>
                   </span>
                 )}
               </div>

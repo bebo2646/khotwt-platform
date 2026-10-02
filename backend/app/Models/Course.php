@@ -27,10 +27,17 @@ class Course extends Model
         'view_limit_enabled',
         'max_views',
         'is_bundle',
+        'last_content_updated_at',
     ];
 
     protected static function booted()
     {
+        static::creating(function ($course) {
+            if (empty($course->last_content_updated_at)) {
+                $course->last_content_updated_at = now();
+            }
+        });
+
         static::saving(function ($course) {
             if (empty($course->slug) || $course->isDirty('title')) {
                 $slug = self::makeArabicSlug($course->title);
@@ -43,6 +50,35 @@ class Course extends Model
                 $course->slug = $slug;
             }
         });
+
+        static::updated(function ($course) {
+            if ($course->wasChanged([
+                'title', 'description', 'price', 'cover_image', 'grade', 'subject',
+                'category', 'is_published', 'enable_discount', 'discount_type',
+                'discount_value', 'availability', 'max_views', 'view_limit_enabled'
+            ])) {
+                self::where('id', $course->id)->update(['last_content_updated_at' => now()]);
+            }
+        });
+    }
+
+    public function getLastContentUpdatedAtAttribute($value)
+    {
+        return $value ?: $this->updated_at;
+    }
+
+    public function touchContentUpdated(): void
+    {
+        $now = now();
+        $this->last_content_updated_at = $now;
+        $this->saveQuietly();
+    }
+
+    public static function touchContent(int|Course|null $course): void
+    {
+        if (!$course) return;
+        $id = $course instanceof Course ? $course->id : $course;
+        static::where('id', $id)->update(['last_content_updated_at' => now()]);
     }
 
     private static function makeArabicSlug(string $string): string
@@ -66,6 +102,7 @@ class Course extends Model
         'view_limit_enabled' => 'boolean',
         'max_views' => 'integer',
         'is_bundle' => 'boolean',
+        'last_content_updated_at' => 'datetime',
     ];
 
     protected $appends = ['final_price', 'units_count', 'lessons_count', 'bundle_original_price', 'bundle_savings'];

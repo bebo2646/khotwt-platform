@@ -24,6 +24,24 @@ class Video extends Model
         'bunny_status',
     ];
 
+    protected static function booted()
+    {
+        static::created(function ($video) {
+            $courseId = $video->lesson?->unit?->course_id ?: Lesson::find($video->lesson_id)?->unit?->course_id;
+            Course::touchContent($courseId);
+        });
+        static::updated(function ($video) {
+            if ($video->wasChanged(['title', 'thumbnail_path', 'duration_seconds', 'lesson_id', 'bunny_video_id', 'bunny_stream_id'])) {
+                $courseId = $video->lesson?->unit?->course_id ?: Lesson::find($video->lesson_id)?->unit?->course_id;
+                Course::touchContent($courseId);
+            }
+        });
+        static::deleted(function ($video) {
+            $courseId = $video->lesson?->unit?->course_id ?: Lesson::find($video->lesson_id)?->unit?->course_id;
+            Course::touchContent($courseId);
+        });
+    }
+
     protected $appends = [
         'duration_text',
         'bunny_embed_url',

@@ -24,6 +24,22 @@ class Lesson extends Model
         'price' => 'decimal:2',
     ];
 
+    protected static function booted()
+    {
+        static::created(function ($lesson) {
+            $courseId = $lesson->unit?->course_id ?: Unit::where('id', $lesson->unit_id)->value('course_id');
+            Course::touchContent($courseId);
+        });
+        static::updated(function ($lesson) {
+            $courseId = $lesson->unit?->course_id ?: Unit::where('id', $lesson->unit_id)->value('course_id');
+            Course::touchContent($courseId);
+        });
+        static::deleted(function ($lesson) {
+            $courseId = $lesson->unit?->course_id ?: Unit::where('id', $lesson->unit_id)->value('course_id');
+            Course::touchContent($courseId);
+        });
+    }
+
     public function unit()
     {
         return $this->belongsTo(Unit::class);
