@@ -141,7 +141,7 @@ export default function CourseCard({
         {isSubscribed && (
           <div className="absolute top-3 left-3 px-3 py-1 bg-emerald-500 text-white rounded-full text-[10px] font-black shadow-lg flex items-center gap-1.5 z-10 border border-emerald-400/30">
             <CheckCircle className="h-3.5 w-3.5" />
-            <span>مشترك</span>
+            <span>أنت مشترك بالفعل ✓</span>
           </div>
         )}
       </Link>
@@ -222,11 +222,11 @@ export default function CourseCard({
             <>
               <div className="price-box flex flex-col justify-center">
                 <span className="text-xs font-bold text-emerald-500">
-                  مفعل بحسابك
+                  أنت مشترك بالفعل ✓
                 </span>
               </div>
               <Link 
-                to={`/course/${slug || id}`} 
+                to={`/course/${id}`} 
                 className="px-4 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-md shadow-brand-primary/20 hover:shadow-brand-primary/40 active:scale-95 transition-all duration-200 cursor-pointer shrink-0 flex items-center gap-1.5 group/btn"
               >
                 <span>دخول الكورس</span>

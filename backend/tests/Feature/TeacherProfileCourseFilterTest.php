@@ -134,5 +134,21 @@ class TeacherProfileCourseFilterTest extends TestCase
         // Crucial: Enrollment in parent bundle must NOT mark individual child course as directly subscribed
         $this->assertFalse((bool)$courseARes['is_subscribed']);
         $this->assertFalse((bool)$courseBRes['is_subscribed']);
+        // Confirm all 3 courses remain visible in response
+        $this->assertCount(3, $courses);
+    }
+
+    public function test_unsubscribed_student_sees_all_courses_with_is_subscribed_false(): void
+    {
+        $response = $this->actingAs($this->student, 'sanctum')
+            ->getJson("/api/teachers/{$this->teacher->id}");
+
+        $response->assertStatus(200);
+        $courses = $response->json('courses');
+        $this->assertCount(3, $courses);
+
+        foreach ($courses as $c) {
+            $this->assertFalse((bool)$c['is_subscribed']);
+        }
     }
 }

@@ -90,21 +90,8 @@ export default function TeacherProfile() {
   const [activeTab, setActiveTab] = React.useState<'courses' | 'packages'>('courses')
   const [courseFilter, setCourseFilter] = React.useState<'all' | 'online' | 'center'>('all')
 
-  // Filter out courses the student is already subscribed to
-  const availableCourses = React.useMemo(() => {
-    return courses.filter((course) => {
-      if (user && user.role === 'student') {
-        const isEnrolled = enrolledCourseIds.has(course.id) || course.is_subscribed === true
-        if (isEnrolled) {
-          return false
-        }
-      }
-      return true
-    })
-  }, [courses, user, enrolledCourseIds])
-
   const filteredCourses = React.useMemo(() => {
-    return availableCourses.filter((course) => {
+    return courses.filter((course) => {
       if (courseFilter === 'all') return true
       if (courseFilter === 'online') {
         return course.availability === 'online' || course.availability === 'both'
@@ -114,7 +101,7 @@ export default function TeacherProfile() {
       }
       return true
     })
-  }, [availableCourses, courseFilter])
+  }, [courses, courseFilter])
 
   React.useEffect(() => {
     setLoading(true)
@@ -331,7 +318,7 @@ export default function TeacherProfile() {
             activeTab === 'courses' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-foreground'
           }`}
         >
-          الكورسات المتاحة ({availableCourses.length})
+          الكورسات المتاحة ({courses.length})
         </button>
         <button
           onClick={() => setActiveTab('packages')}
@@ -345,11 +332,11 @@ export default function TeacherProfile() {
 
       {/* Tab Panels */}
       {activeTab === 'courses' ? (
-        availableCourses.length === 0 ? (
+        courses.length === 0 ? (
           <EmptyState 
             type="courses" 
-            title={user && user.role === 'student' && courses.length > 0 ? "أنت مشترك بالفعل في جميع الكورسات المتاحة" : "لا يوجد كورسات منشورة بعد"} 
-            description={user && user.role === 'student' && courses.length > 0 ? "لقد اشتركت في جميع كورسات هذا المعلم بالفعل. لا توجد كورسات إضافية متاحة للشراء حالياً." : "لم يقم المعلم بنشر أي كورسات تفصيلية حتى الآن."} 
+            title="لا يوجد كورسات منشورة بعد" 
+            description="لم يقم المعلم بنشر أي كورسات تفصيلية حتى الآن." 
           />
         ) : (
           <div className="space-y-6">
@@ -409,27 +396,31 @@ export default function TeacherProfile() {
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {filteredCourses.map((course) => (
-                  <CourseCard
-                    key={course.id}
-                    id={course.id}
-                    title={course.title}
-                    description={course.description}
-                    coverImage={course.cover_image}
-                    price={course.price}
-                    subject={course.subject}
-                    teacherName={teacher.name}
-                    teacherAvatar={teacher.avatar}
-                    slug={course.slug}
-                    enableDiscount={course.enable_discount === true}
-                    discountType={course.discount_type ?? undefined}
-                    discountValue={course.discount_value ?? undefined}
-                    finalPrice={course.final_price ?? undefined}
-                    availability={course.availability}
-                    lessonsCount={course.lessons_count}
-                    isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
-                  />
-                ))}
+                {filteredCourses.map((course) => {
+                  const isSubscribed = user?.role === 'student' && (enrolledCourseIds.has(course.id) || course.is_subscribed === true);
+                  return (
+                    <CourseCard
+                      key={course.id}
+                      id={course.id}
+                      title={course.title}
+                      description={course.description}
+                      coverImage={course.cover_image}
+                      price={course.price}
+                      subject={course.subject}
+                      teacherName={teacher.name}
+                      teacherAvatar={teacher.avatar}
+                      slug={course.slug}
+                      enableDiscount={course.enable_discount === true}
+                      discountType={course.discount_type ?? undefined}
+                      discountValue={course.discount_value ?? undefined}
+                      finalPrice={course.final_price ?? undefined}
+                      availability={course.availability}
+                      lessonsCount={course.lessons_count}
+                      isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                      isSubscribed={isSubscribed}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
