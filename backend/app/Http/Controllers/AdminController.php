@@ -2027,6 +2027,16 @@ class AdminController extends Controller
     }
 
     /**
+     * Purge orphaned/abandoned 0-byte video objects from Bunny Stream library.
+     */
+    public function cleanOrphanedBunnyVideos(Request $request)
+    {
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+        $result = $bunnyService->cleanOrphanedVideos();
+        return response()->json($result);
+    }
+
+    /**
      * Get maintenance mode settings (Super Admin only).
      */
     public function getMaintenanceSettings(Request $request)

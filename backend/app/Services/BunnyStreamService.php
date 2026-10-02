@@ -508,5 +508,66 @@ class BunnyStreamService
             default => 'processing'
         };
     }
+
+    /**
+     * Purge orphaned/abandoned 0-byte video objects from Bunny Stream library that are not linked in the database.
+     */
+    public function cleanOrphanedVideos(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['success' => false, 'message' => 'Bunny Stream not configured.'];
+        }
+
+        try {
+            $response = Http::withoutVerifying()
+                ->timeout(30)
+                ->connectTimeout(10)
+                ->withHeaders([
+                    'AccessKey' => $this->apiKey,
+                    'accept' => 'application/json',
+                ])->get("https://video.bunnycdn.com/library/{$this->libraryId}/videos?page=1&itemsPerPage=100");
+
+            if (!$response->successful()) {
+                return ['success' => false, 'message' => 'Failed to list Bunny videos'];
+            }
+
+            $items = $response->json('items') ?? [];
+            $activeGuids = Video::pluck('bunny_video_id')
+                ->merge(Video::pluck('bunny_stream_id'))
+                ->filter()
+                ->unique()
+                ->toArray();
+
+            $deletedCount = 0;
+            $deletedGuids = [];
+
+            foreach ($items as $item) {
+                $guid = $item['guid'] ?? null;
+                $status = intval($item['status'] ?? 0);
+                $length = intval($item['length'] ?? 0);
+                $storageSize = intval($item['storageSize'] ?? 0);
+
+                if ($guid && !in_array($guid, $activeGuids)) {
+                    if ($status === 0 || $storageSize === 0 || $length === 0) {
+                        if ($this->deleteVideo($guid)) {
+                            $deletedCount++;
+                            $deletedGuids[] = $guid;
+                        }
+                    }
+                }
+            }
+
+            return [
+                'success' => true,
+                'deleted_count' => $deletedCount,
+                'deleted_guids' => $deletedGuids,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'message' => 'Exception cleaning orphaned videos: ' . $e->getMessage(),
+            ];
+        }
+    }
 }
 

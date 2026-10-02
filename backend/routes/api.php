@@ -334,6 +334,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
 
             // Bunny storage stats
             Route::middleware('permission:bunny.view')->get('/admin/bunny/dashboard', [AdminController::class, 'bunnyDashboard']);
+            Route::middleware('permission:bunny.view')->post('/admin/bunny/clean-orphaned', [AdminController::class, 'cleanOrphanedBunnyVideos']);
 
             // Academic Year Initialization & Reset
             Route::middleware('permission:academic_year.initialize,academic_year.reset')->post('/admin/reset-year', [AdminController::class, 'resetYear']);
