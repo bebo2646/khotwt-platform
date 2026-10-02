@@ -272,9 +272,23 @@ class PublicController extends Controller
 
         $teacherId = $teacher->id;
 
+        $authUser = auth('sanctum')->user() ?: request()->user();
+        $enrolledCourseIds = [];
+        if ($authUser && $authUser->role === 'student') {
+            $enrolledCourseIds = \App\Models\Enrollment::where('student_id', $authUser->id)
+                ->whereNull('package_id')
+                ->whereNull('lesson_id')
+                ->pluck('course_id')
+                ->toArray();
+        }
+
         $courses = Course::where('teacher_id', $teacherId)
             ->where('is_published', true)
-            ->get();
+            ->get()
+            ->map(function ($c) use ($enrolledCourseIds) {
+                $c->is_subscribed = in_array($c->id, $enrolledCourseIds);
+                return $c;
+            });
 
         // Get monthly packages created by this teacher
         $packages = \App\Models\Package::whereHas('course', function ($q) use ($teacherId) {

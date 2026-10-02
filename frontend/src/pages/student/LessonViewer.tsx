@@ -12,8 +12,44 @@ declare global {
   interface Window {
     YT: any;
     onYouTubeIframeAPIReady: (() => void) | undefined;
+    playerjs?: any;
   }
 }
+
+const isBunnyVideo = (video: VideoItem | null | undefined): boolean => {
+  if (!video) return false;
+  const url = video.bunny_embed_url || video.video_url || '';
+  if (isYoutubeUrl(url) || isDirectVideoUrl(url)) return false;
+  return Boolean(
+    video.bunny_video_id ||
+    video.bunny_stream_id ||
+    video.bunny_id ||
+    url.includes('mediadelivery.net') ||
+    url.includes('b-cdn.net') ||
+    url.includes('bunny')
+  );
+};
+
+const loadPlayerjsAPI = (callback?: () => void) => {
+  if (typeof window !== 'undefined' && window.playerjs) {
+    if (callback) callback();
+    return;
+  }
+  if (typeof document === 'undefined') return;
+  const existing = document.getElementById('playerjs-script');
+  if (existing) {
+    existing.addEventListener('load', () => { if (callback) callback(); });
+    return;
+  }
+  const tag = document.createElement('script');
+  tag.id = 'playerjs-script';
+  tag.src = 'https://assets.mediadelivery.net/playerjs/player-0.1.0.min.js';
+  tag.onload = () => {
+    console.log('[Bunny Player] player.js loaded successfully');
+    if (callback) callback();
+  };
+  document.head.appendChild(tag);
+};
 
 interface VideoItem {
   id: number
@@ -129,24 +165,120 @@ export default function LessonViewer({
   const initialViewsUsedRef = React.useRef<Record<number, number>>({})
   const isSessionAuthorizedRef = React.useRef<boolean>(true)
 
+  // Detect iOS (iPhone/iPad/iPod)
+  const isIOSDevice = () => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && (navigator as any).maxTouchPoints > 1)
+    );
+  };
+
   React.useEffect(() => {
     const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement)
+      const isNativeFs = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isNativeFs);
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        if (
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement
+        ) {
+          if (document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          } else if ((document as any).webkitExitFullscreen) {
+            (document as any).webkitExitFullscreen();
+          }
+        }
+        setIsFullscreen(false);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isFullscreen]);
+
+  // Lock body scroll when pseudo-fullscreen is active (e.g. iOS Safari)
+  React.useEffect(() => {
+    if (isFullscreen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
     }
-    document.addEventListener('fullscreenchange', handleFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
-  }, [])
+  }, [isFullscreen]);
 
   const toggleFullscreen = () => {
-    if (!containerRef.current) return
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(err => {
-        console.error('Error entering fullscreen:', err)
-      })
+    if (!containerRef.current) return;
+
+    const isNativeFs = !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+
+    if (isFullscreen || isNativeFs) {
+      if (isNativeFs) {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        } else if ((document as any).webkitExitFullscreen) {
+          (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          (document as any).msExitFullscreen();
+        }
+      }
+      setIsFullscreen(false);
     } else {
-      document.exitFullscreen()
+      if (isIOSDevice() || !containerRef.current.requestFullscreen) {
+        // iOS or browsers without Element.requestFullscreen support:
+        // Use viewport-covering CSS pseudo-fullscreen to preserve watermark overlay
+        setIsFullscreen(true);
+      } else {
+        const req =
+          containerRef.current.requestFullscreen ||
+          (containerRef.current as any).webkitRequestFullscreen ||
+          (containerRef.current as any).mozRequestFullScreen ||
+          (containerRef.current as any).msRequestFullscreen;
+
+        if (req) {
+          req.call(containerRef.current)
+            .then(() => {
+              setIsFullscreen(true);
+            })
+            .catch((err: any) => {
+              console.warn('Native requestFullscreen failed, falling back to CSS pseudo-fullscreen:', err);
+              setIsFullscreen(true);
+            });
+        } else {
+          setIsFullscreen(true);
+        }
+      }
     }
-  }
+  };
 
   // States
   const [lesson, setLesson] = React.useState<LessonItem | null>(null)
@@ -188,6 +320,8 @@ export default function LessonViewer({
   // Stable video embed URL state to prevent iframe reload/remount
   const [videoEmbedUrl, setVideoEmbedUrl] = React.useState<string>('')
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
+  const bunnyIframeRef = React.useRef<HTMLIFrameElement | null>(null)
+  const bunnyPlayerRef = React.useRef<any>(null)
 
   // Refs for tracking segments without stale closure issues
   const watchedSegmentsRef = React.useRef<Array<{ start: number; end: number }>>([])
@@ -221,7 +355,7 @@ export default function LessonViewer({
       return `${embedBase}?enablejsapi=1&start=${pos}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
-      return `${url}${separator}autoplay=false&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
+      return `${url}${separator}autoplay=false&playsinline=true&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
     } else {
       if (pos > 0) {
         const separator = url.includes('?') ? '&' : '?';
@@ -315,17 +449,23 @@ export default function LessonViewer({
             isSessionAuthorizedRef.current = true;
           }
           const pos = defaultVideo.progress?.last_position_seconds || 0
-          const watchedSecs = defaultVideo.progress?.watched_seconds || 0
+          const watchedSecs = Number(defaultVideo.progress?.watched_seconds) || 0
           const segments = defaultVideo.progress?.watched_segments || []
+          const merged = mergeSegments(segments)
+          const segSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0)
+          const totalSecs = Math.max(watchedSecs, segSecs)
+          const videoDuration = defaultVideo.duration_seconds || 300
+          const savedPercentage = Number(defaultVideo.progress?.watched_percentage) || 0
+          const computedPercentage = videoDuration > 0 ? (totalSecs / videoDuration) * 100 : 0
+
           setLastPosition(pos)
-          setWatchedTime(watchedSecs)
-          setSecondsWatched(watchedSecs)
+          setWatchedTime(totalSecs)
+          setSecondsWatched(totalSecs)
           setWatchedSegments(segments)
           currentSegmentRef.current = null
           
-          const videoDuration = defaultVideo.duration_seconds || 300
           setDuration(videoDuration)
-          setProgressPercentage(Number(defaultVideo.progress?.watched_percentage) || 0)
+          setProgressPercentage(Math.min(100, Math.max(savedPercentage, computedPercentage)))
 
           // Set stable video embed URL once initially
           const initialEmbedUrl = getEmbedUrl(defaultVideo)
@@ -468,6 +608,7 @@ export default function LessonViewer({
     watched_seconds?: number; 
     progress_percentage: number;
     watched_segments?: Array<{ start: number; end: number }>;
+    duration_seconds?: number;
   }) => {
     const video = activeVideoRef.current
     if (!video || progressSavingRef.current) return
@@ -476,6 +617,7 @@ export default function LessonViewer({
       const currentPos = Math.floor(data.last_position_seconds);
       const watched = data.watched_seconds !== undefined ? Math.floor(data.watched_seconds) : Math.max(secondsWatchedRef.current, currentPos);
       const segments = data.watched_segments || watchedSegmentsRef.current;
+      const durVal = data.duration_seconds || durationRef.current || video.duration_seconds || 300;
 
       const currentViewsUsed = video.progress?.views_used || 0;
       if (initialViewsUsedRef.current[video.id] === undefined) {
@@ -497,6 +639,7 @@ export default function LessonViewer({
         watched_seconds: watched,
         last_position_seconds: currentPos,
         watched_segments: segments,
+        duration_seconds: durVal,
         session_id: watchSessionIdRef.current,
         session_watch_time: Math.floor(sessionWatchTimeRef.current),
         skip_view_increment: isAlreadyConsumed,
@@ -552,14 +695,15 @@ export default function LessonViewer({
     // Progress must ALWAYS be calculated from the actual unique watched duration
     const currentProgress = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
     const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
-    const percentage = Math.max(savedPercentage, currentProgress);
+    const percentage = Math.min(100, Math.max(savedPercentage, currentProgress));
     
     await saveLessonProgress({
       lessonId: Number(id),
       last_position_seconds: current,
       watched_seconds: totalSecs,
       progress_percentage: percentage,
-      watched_segments: merged
+      watched_segments: merged,
+      duration_seconds: durVal,
     });
   }
 
@@ -635,7 +779,11 @@ export default function LessonViewer({
       try {
         let msg = e.data
         if (typeof msg === 'string') {
-          msg = JSON.parse(msg)
+          try {
+            msg = JSON.parse(msg)
+          } catch (e) {
+            return
+          }
         }
 
         if (msg && typeof msg === 'object') {
@@ -643,14 +791,60 @@ export default function LessonViewer({
           console.log('[Player Message Debug] Received message:', msg);
 
           // Bunny Stream events (PlayerJS specification)
-          if (msg.event === 'play') {
+          if (msg.event === 'ready') {
+            console.log('[Bunny Player message listener] ready event received');
+            const cw = bunnyIframeRef.current?.contentWindow;
+            if (cw) {
+              const events = ['timeupdate', 'play', 'pause', 'ended', 'seeking', 'seeked'];
+              for (const ev of events) {
+                cw.postMessage(JSON.stringify({
+                  context: 'player.js',
+                  version: '0.0.11',
+                  method: 'addEventListener',
+                  value: ev
+                }), '*');
+              }
+              const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
+              if (pos > 0) {
+                cw.postMessage(JSON.stringify({
+                  context: 'player.js',
+                  version: '0.0.11',
+                  method: 'setCurrentTime',
+                  value: pos
+                }), '*');
+              }
+              cw.postMessage(JSON.stringify({
+                context: 'player.js',
+                version: '0.0.11',
+                method: 'getDuration'
+              }), '*');
+              cw.postMessage(JSON.stringify({
+                context: 'player.js',
+                version: '0.0.11',
+                method: 'getCurrentTime'
+              }), '*');
+            }
+          } else if (msg.event === 'play') {
             setIsPlaying(true)
           } else if (msg.event === 'pause') {
             setIsPlaying(false)
             syncProgressToDbRef.current()
           } else if (msg.event === 'ended') {
             setIsPlaying(false)
-            syncProgressToDbRef.current()
+            const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+            setLastPosition(durVal);
+            setWatchedTime(durVal);
+            setSecondsWatched(durVal);
+            setProgressPercentage(100);
+            watchedSegmentsRef.current = [{ start: 0, end: durVal }];
+            saveLessonProgressRef.current({
+              lessonId: Number(id),
+              last_position_seconds: durVal,
+              watched_seconds: durVal,
+              progress_percentage: 100,
+              watched_segments: [{ start: 0, end: durVal }],
+              duration_seconds: durVal
+            });
           } else if (msg.event === 'timeupdate') {
             let time: number | undefined = undefined;
             let dur: number | undefined = undefined;
@@ -669,13 +863,16 @@ export default function LessonViewer({
               dur = Math.floor(msg.data.duration);
             }
 
-            if (time !== undefined) {
+            if (time !== undefined && time >= 0) {
               setLastPosition(time);
+              if (!isPlaying && time > (lastPositionRef.current || 0)) {
+                setIsPlaying(true);
+              }
             }
             if (dur !== undefined && dur > 0) {
               setDuration(dur);
             }
-          } else if (msg.event === 'seeking') {
+          } else if (msg.event === 'seeking' || msg.event === 'seeked') {
             let time: number | undefined = undefined;
             if (msg.value?.seconds !== undefined) {
               time = Math.floor(msg.value.seconds);
@@ -685,10 +882,18 @@ export default function LessonViewer({
               time = Math.floor(msg.data.currentTime);
             }
 
-            if (time !== undefined) {
+            if (time !== undefined && time >= 0) {
               setLastPosition(time);
               syncProgressToDbRef.current();
             }
+          }
+
+          // Direct method responses
+          if (msg.method === 'getCurrentTime' && typeof msg.value === 'number' && msg.value >= 0) {
+            setLastPosition(Math.floor(msg.value));
+          }
+          if (msg.method === 'getDuration' && typeof msg.value === 'number' && msg.value > 0) {
+            setDuration(Math.floor(msg.value));
           }
         }
 
@@ -716,21 +921,26 @@ export default function LessonViewer({
 
     window.addEventListener('message', handlePlayerMessage)
     return () => window.removeEventListener('message', handlePlayerMessage)
-  }, [])
+  }, [id, isPlaying])
 
   // Initialize and reset segments when active video changes
   React.useEffect(() => {
     if (activeVideo) {
       const segments = activeVideo.progress?.watched_segments || [];
       const merged = mergeSegments(segments);
-      const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-      const durVal = duration || activeVideo.duration_seconds || 300;
+      const segSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      const savedWatchedSecs = Number(activeVideo.progress?.watched_seconds) || 0;
+      const totalSecs = Math.max(savedWatchedSecs, segSecs);
+      const durVal = activeVideo.duration_seconds || durationRef.current || 300;
+      const savedPercentage = Number(activeVideo.progress?.watched_percentage) || 0;
+      const computedPercentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
       
       setWatchedSegments(segments);
       setWatchedTime(totalSecs);
       setSecondsWatched(totalSecs);
+      setDuration(durVal);
       if (durVal > 0) {
-        setProgressPercentage(Math.min(100, (totalSecs / durVal) * 100));
+        setProgressPercentage(Math.min(100, Math.max(savedPercentage, computedPercentage)));
       }
       currentSegmentRef.current = null;
       watchSessionIdRef.current = Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -835,30 +1045,64 @@ export default function LessonViewer({
     }
   }, [isPlaying]);
 
-  // 1-second smooth state updates for YouTube videos
+  // 1-second smooth state updates for YouTube and Bunny videos
   React.useEffect(() => {
     let interval: any = null;
 
-    if (activeVideo && isPlaying && isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
-      console.log('[YouTube Player Debug] Starting YT currentTime query interval');
-      interval = setInterval(() => {
-        const player = ytPlayerRef.current;
-        if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
-          try {
-            const current = Math.floor(player.getCurrentTime());
-            const durVal = Math.floor(player.getDuration());
-            if (durVal > 0 && current >= 0) {
-              setLastPosition(current);
-              setDuration(durVal);
+    if (activeVideo && isPlaying) {
+      if (isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+        interval = setInterval(() => {
+          const player = ytPlayerRef.current;
+          if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+            try {
+              const current = Math.floor(player.getCurrentTime());
+              const durVal = Math.floor(player.getDuration());
+              if (durVal > 0 && current >= 0) {
+                setLastPosition(current);
+                setDuration(durVal);
+              }
+            } catch (e) {}
+          }
+        }, 1000);
+      } else if (isBunnyVideo(activeVideo)) {
+        interval = setInterval(() => {
+          const player = bunnyPlayerRef.current;
+          if (player && typeof player.getCurrentTime === 'function') {
+            try {
+              player.getCurrentTime((t: number) => {
+                if (typeof t === 'number' && t >= 0) {
+                  setLastPosition(Math.floor(t));
+                }
+              });
+              player.getDuration((d: number) => {
+                if (typeof d === 'number' && d > 0) {
+                  setDuration(Math.floor(d));
+                }
+              });
+            } catch (e) {}
+          } else {
+            const cw = bunnyIframeRef.current?.contentWindow;
+            if (cw) {
+              try {
+                cw.postMessage(JSON.stringify({
+                  context: 'player.js',
+                  version: '0.0.11',
+                  method: 'getCurrentTime'
+                }), '*');
+                cw.postMessage(JSON.stringify({
+                  context: 'player.js',
+                  version: '0.0.11',
+                  method: 'getDuration'
+                }), '*');
+              } catch (e) {}
             }
-          } catch (e) {}
-        }
-      }, 1000);
+          }
+        }, 1000);
+      }
     }
 
     return () => {
       if (interval) {
-        console.log('[YouTube Player Debug] Clearing YT currentTime query interval');
         clearInterval(interval);
       }
     };
@@ -1000,6 +1244,169 @@ export default function LessonViewer({
     };
   }, [activeVideo?.id, activeTab === 'videos']);
 
+  const initBunnyPlayer = React.useCallback(() => {
+    const iframe = bunnyIframeRef.current || (document.getElementById('bunny-stream-player') as HTMLIFrameElement | null);
+    if (!iframe) {
+      console.log('[Bunny Player] Cannot init: iframe not mounted yet');
+      return;
+    }
+
+    console.log('[Bunny Player] Initializing Player.js for active video ID:', activeVideoRef.current?.id);
+
+    // Destroy existing instance listeners if any
+    if (bunnyPlayerRef.current) {
+      try {
+        bunnyPlayerRef.current.off('ready');
+        bunnyPlayerRef.current.off('play');
+        bunnyPlayerRef.current.off('pause');
+        bunnyPlayerRef.current.off('ended');
+        bunnyPlayerRef.current.off('timeupdate');
+      } catch (e) {}
+      bunnyPlayerRef.current = null;
+    }
+
+    const sendDirectPostMessage = (method: string, value?: any) => {
+      try {
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage(JSON.stringify({
+            context: 'player.js',
+            version: '0.0.11',
+            method,
+            value
+          }), '*');
+        }
+      } catch (e) {}
+    };
+
+    const registerDirectEvents = () => {
+      sendDirectPostMessage('addEventListener', 'timeupdate');
+      sendDirectPostMessage('addEventListener', 'play');
+      sendDirectPostMessage('addEventListener', 'pause');
+      sendDirectPostMessage('addEventListener', 'ended');
+      sendDirectPostMessage('addEventListener', 'seeking');
+      sendDirectPostMessage('addEventListener', 'seeked');
+      sendDirectPostMessage('getDuration');
+      sendDirectPostMessage('getCurrentTime');
+    };
+    registerDirectEvents();
+    setTimeout(registerDirectEvents, 500);
+    setTimeout(registerDirectEvents, 1500);
+    setTimeout(registerDirectEvents, 3000);
+
+    const attachPlayerJs = () => {
+      if (!window.playerjs || !window.playerjs.Player) {
+        console.warn('[Bunny Player] window.playerjs not available yet');
+        return;
+      }
+
+      try {
+        const player = new window.playerjs.Player(iframe);
+        bunnyPlayerRef.current = player;
+        player.loaded = true;
+
+        player.on('ready', () => {
+          console.log('[Bunny Player] playerjs "ready" event received');
+          const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
+          if (pos > 0) {
+            try { player.setCurrentTime(pos); } catch (e) {}
+          }
+          try {
+            player.getDuration((d: number) => {
+              if (d && d > 0) setDuration(Math.floor(d));
+            });
+            player.getCurrentTime((t: number) => {
+              if (t !== undefined && t >= 0) setLastPosition(Math.floor(t));
+            });
+          } catch (e) {}
+        });
+
+        player.on('play', () => {
+          console.log('[Bunny Player] playerjs "play" event received');
+          setIsPlaying(true);
+        });
+
+        player.on('pause', () => {
+          console.log('[Bunny Player] playerjs "pause" event received');
+          setIsPlaying(false);
+          syncProgressToDbRef.current();
+        });
+
+        player.on('ended', () => {
+          console.log('[Bunny Player] playerjs "ended" event received');
+          setIsPlaying(false);
+          const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+          setLastPosition(durVal);
+          setWatchedTime(durVal);
+          setSecondsWatched(durVal);
+          setProgressPercentage(100);
+          watchedSegmentsRef.current = [{ start: 0, end: durVal }];
+          saveLessonProgressRef.current({
+            lessonId: Number(id),
+            last_position_seconds: durVal,
+            watched_seconds: durVal,
+            progress_percentage: 100,
+            watched_segments: [{ start: 0, end: durVal }],
+            duration_seconds: durVal,
+          });
+        });
+
+        player.on('timeupdate', (data: any) => {
+          const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
+          const durVal = typeof data?.duration === 'number' ? Math.floor(data.duration) : null;
+          if (durVal && durVal > 0) {
+            setDuration(durVal);
+          }
+          if (current !== null && current >= 0) {
+            setLastPosition(current);
+            if (!isPlaying && current > (lastPositionRef.current || 0)) {
+              setIsPlaying(true);
+            }
+          }
+        });
+
+        try {
+          player.getDuration((d: number) => {
+            if (d && d > 0) setDuration(Math.floor(d));
+          });
+          player.getCurrentTime((t: number) => {
+            if (t !== undefined && t >= 0) setLastPosition(Math.floor(t));
+          });
+        } catch (e) {}
+      } catch (err) {
+        console.error('[Bunny Player] Failed to instantiate playerjs:', err);
+      }
+    };
+
+    if (window.playerjs) {
+      attachPlayerJs();
+    } else {
+      loadPlayerjsAPI(() => attachPlayerJs());
+    }
+  }, [id, isPlaying]);
+
+  React.useEffect(() => {
+    if (activeVideo && isBunnyVideo(activeVideo) && activeTab === 'videos') {
+      loadPlayerjsAPI(() => {
+        setTimeout(() => {
+          initBunnyPlayer();
+        }, 150);
+      });
+    }
+
+    return () => {
+      if (bunnyPlayerRef.current) {
+        try {
+          bunnyPlayerRef.current.off('ready');
+          bunnyPlayerRef.current.off('play');
+          bunnyPlayerRef.current.off('pause');
+          bunnyPlayerRef.current.off('ended');
+          bunnyPlayerRef.current.off('timeupdate');
+        } catch (e) {}
+        bunnyPlayerRef.current = null;
+      }
+    };
+  }, [activeVideo?.id, activeTab === 'videos', initBunnyPlayer]);
+
   // Handle active video selection switch - SYNCHRONOUS, IMMEDIATE, NON-BLOCKING
   const selectVideo = React.useCallback((video: VideoItem) => {
     if (!video) return;
@@ -1029,7 +1436,8 @@ export default function LessonViewer({
         last_position_seconds: current,
         watched_seconds: totalSecs,
         progress_percentage: percentage,
-        watched_segments: merged
+        watched_segments: merged,
+        duration_seconds: durVal,
       }).catch(() => {});
     }
 
@@ -1041,16 +1449,21 @@ export default function LessonViewer({
 
     // 3. Immediately reset metrics for the incoming video
     const pos = video.progress?.last_position_seconds || 0;
-    const watchedSecs = video.progress?.watched_seconds || 0;
+    const watchedSecs = Number(video.progress?.watched_seconds) || 0;
     const segments = video.progress?.watched_segments || [];
+    const merged = mergeSegments(segments);
+    const segSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+    const totalSecs = Math.max(watchedSecs, segSecs);
     const videoDuration = video.duration_seconds || 300;
+    const savedPercentage = Number(video.progress?.watched_percentage) || 0;
+    const computedPercentage = videoDuration > 0 ? (totalSecs / videoDuration) * 100 : 0;
 
     setLastPosition(pos);
-    setWatchedTime(watchedSecs);
-    setSecondsWatched(watchedSecs);
+    setWatchedTime(totalSecs);
+    setSecondsWatched(totalSecs);
     setWatchedSegments(segments);
     setDuration(videoDuration);
-    setProgressPercentage(Number(video.progress?.watched_percentage) || 0);
+    setProgressPercentage(Math.min(100, Math.max(savedPercentage, computedPercentage)));
 
     // 4. Update view limits
     if (video.progress?.view_limit_details) {
@@ -1068,13 +1481,24 @@ export default function LessonViewer({
       isSessionAuthorizedRef.current = true;
     }
 
-    // 5. Cleanup YouTube player instance if active
+    // 5. Cleanup YouTube and Bunny player instances
     if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
       try {
         ytPlayerRef.current.destroy();
       } catch (e) {}
       ytPlayerRef.current = null;
     }
+    if (bunnyPlayerRef.current) {
+      try {
+        bunnyPlayerRef.current.off('ready');
+        bunnyPlayerRef.current.off('play');
+        bunnyPlayerRef.current.off('pause');
+        bunnyPlayerRef.current.off('ended');
+        bunnyPlayerRef.current.off('timeupdate');
+      } catch (e) {}
+      bunnyPlayerRef.current = null;
+    }
+    bunnyIframeRef.current = null;
 
     // 6. Set embed URL and active video synchronously
     const newEmbedUrl = getEmbedUrl(video);
@@ -1157,17 +1581,35 @@ export default function LessonViewer({
         const merged = mergeSegments(watchedSegmentsRef.current);
         const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
         
+        const durVal = durationRef.current || video.duration_seconds || 300;
         const payload = {
           watched_seconds: totalSecs,
           last_position_seconds: current,
           watched_segments: merged,
+          duration_seconds: durVal,
+          session_id: watchSessionIdRef.current,
+          session_watch_time: Math.floor(sessionWatchTimeRef.current),
           course_id: courseId ? Number(courseId) : undefined,
           package_id: packageId ? Number(packageId) : undefined,
         };
         
-        console.log('Saving progress', payload);
+        console.log('Saving progress on exit', payload);
 
-        API.post(`/videos/${video.id}/progress`, payload).catch((err) => console.error('Failed to save progress on exit:', err))
+        try {
+          const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
+          fetch(`/api/videos/${video.id}/progress`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }).catch(() => {});
+        } catch (e) {
+          API.post(`/videos/${video.id}/progress`, payload).catch((err) => console.error('Failed to save progress on exit:', err));
+        }
       }
     }
 
@@ -1308,21 +1750,29 @@ export default function LessonViewer({
             <div className="space-y-4">
               <div 
                 ref={containerRef}
-                className={`aspect-video bg-black rounded-3xl overflow-hidden border border-[var(--border-color)] relative ${
+                className={`bg-black overflow-hidden relative transition-all duration-200 ${
                   isFullscreen 
-                    ? 'fixed inset-0 w-[100vw] h-[100vh] z-[99999] rounded-none border-none' 
-                    : ''
+                    ? 'fixed inset-0 w-screen h-screen z-[99999999] rounded-none border-none m-0 p-0 flex items-center justify-center' 
+                    : 'aspect-video rounded-3xl border border-[var(--border-color)]'
                 }`}
               >
                 
                 {/* Fullscreen Button */}
                 {activeVideo && (
                   <button
+                    type="button"
                     onClick={toggleFullscreen}
-                    className="absolute top-4 left-4 p-2 bg-black/60 hover:bg-black/80 border border-slate-700/50 rounded-xl text-slate-300 hover:text-white transition-all cursor-pointer z-40"
-                    title={isFullscreen ? "خروج من ملء الشاشة" : "ملء الشاشة"}
+                    className="absolute top-4 left-4 p-2.5 bg-black/75 hover:bg-black/90 border border-slate-700/70 rounded-xl text-slate-200 hover:text-white transition-all cursor-pointer z-[99999999] shadow-lg flex items-center gap-1.5 backdrop-blur-sm"
+                    title={isFullscreen ? "خروج من ملء الشاشة (Esc)" : "ملء الشاشة"}
                   >
-                    {isFullscreen ? <Minimize className="h-4.5 w-4.5" /> : <Maximize className="h-4.5 w-4.5" />}
+                    {isFullscreen ? (
+                      <>
+                        <Minimize className="h-4.5 w-4.5 text-white" />
+                        <span className="text-xs font-bold hidden sm:inline">خروج</span>
+                      </>
+                    ) : (
+                      <Maximize className="h-4.5 w-4.5 text-white" />
+                    )}
                   </button>
                 )}
 
@@ -1464,6 +1914,8 @@ export default function LessonViewer({
                         ref={videoRef}
                         src={url}
                         controls
+                        playsInline
+                        webkit-playsinline="true"
                         className="w-full h-full object-contain relative z-[1]"
                         controlsList="nodownload"
                         onPlay={() => setIsPlaying(true)}
@@ -1487,17 +1939,27 @@ export default function LessonViewer({
                       />
                     );
                   } else {
-                    // Fallback to normal embed (mediadelivery.net / bunny CDN, etc.)
+                    // Bunny Stream player embed
                     const finalSrc = getEmbedUrl(activeVideo);
                     return (
                       <iframe
+                        id="bunny-stream-player"
                         key={`bunny-${activeVideo.id}`}
+                        ref={(el) => {
+                          bunnyIframeRef.current = el;
+                          if (el) {
+                            iframeRef.current = el;
+                          }
+                        }}
                         src={finalSrc}
                         className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}
                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                        allowFullScreen
                         referrerPolicy="origin"
+                        onLoad={() => {
+                          console.log('[Bunny Player] Bunny iframe onLoad triggered');
+                          initBunnyPlayer();
+                        }}
                       />
                     );
                   }
@@ -1930,69 +2392,58 @@ interface VideoWatermarkProps {
   phone?: string
 }
 
+// Predefined safe positions across the player canvas
+// Designed to keep watermark strictly inside the video frame while avoiding:
+// - Top bar / title area (~12%)
+// - Bottom control bar, progress seekbar, and volume/fullscreen buttons (~22%)
+const WATERMARK_POSITIONS = [
+  { top: '15%', left: '68%' }, // Top-Right (safe for RTL layout)
+  { top: '70%', left: '8%' },  // Bottom-Left
+  { top: '44%', left: '38%' }, // Center
+  { top: '15%', left: '8%' },  // Top-Left
+  { top: '70%', left: '68%' }, // Bottom-Right
+];
+
 function VideoWatermark({ name, phone }: VideoWatermarkProps) {
-  const [pos, setPos] = React.useState({ top: '30%', left: '30%' })
-  const [opacity, setOpacity] = React.useState(0.40)
+  const [posIndex, setPosIndex] = React.useState(0);
 
   React.useEffect(() => {
-    let fadeOutTimeout: any = null
-    let fadeInTimeout: any = null
+    // Pick an initial random safe position
+    setPosIndex(Math.floor(Math.random() * WATERMARK_POSITIONS.length));
 
-    const moveWatermark = () => {
-      // 1. Fade out
-      setOpacity(0)
+    // Slowly cycle to next predefined safe position every 8 seconds
+    const interval = setInterval(() => {
+      setPosIndex((prev) => (prev + 1) % WATERMARK_POSITIONS.length);
+    }, 8000);
 
-      // 2. Wait for fade out animation (500ms)
-      fadeOutTimeout = setTimeout(() => {
-        // 3. Generate safe random positions
-        // Avoid player controls (bottom 25%, top 15%, left/right margins 10% to 75%)
-        const top = Math.floor(Math.random() * 50) + 15 
-        const left = Math.floor(Math.random() * 65) + 10 
-        setPos({ top: `${top}%`, left: `${left}%` })
+    return () => clearInterval(interval);
+  }, []);
 
-        // 4. Fade in
-        fadeInTimeout = setTimeout(() => {
-          setOpacity(0.40)
-        }, 100)
-      }, 500)
-    }
-
-    // Set initial random position
-    const initialTop = Math.floor(Math.random() * 50) + 15
-    const initialLeft = Math.floor(Math.random() * 65) + 10
-    setPos({ top: `${initialTop}%`, left: `${initialLeft}%` })
-
-    const interval = setInterval(moveWatermark, 6000)
-
-    return () => {
-      clearInterval(interval)
-      if (fadeOutTimeout) clearTimeout(fadeOutTimeout)
-      if (fadeInTimeout) clearTimeout(fadeInTimeout)
-    }
-  }, [])
-
-  const commonStyle = {
-    color: '#ffffff',
-    fontWeight: 900,
-    textShadow: '2px 2px 0px #000000, -2px -2px 0px #000000, 2px -2px 0px #000000, -2px 2px 0px #000000, 0 2px 4px rgba(0,0,0,0.8)',
-    fontSize: 'clamp(10px, 1.8vw, 20px)',
-    lineHeight: '1.3',
-    direction: 'rtl' as const,
-    whiteSpace: 'nowrap' as const,
-  }
+  const currentPos = WATERMARK_POSITIONS[posIndex];
 
   return (
     <div
-      className="absolute pointer-events-none select-none z-[999999] transition-all duration-500 ease-in-out text-right font-black font-sans"
+      className="absolute pointer-events-none select-none z-[9999999] text-right font-black"
       style={{
-        ...commonStyle,
-        top: pos.top,
-        left: pos.left,
-        opacity: opacity,
+        top: currentPos.top,
+        left: currentPos.left,
+        transition: 'top 1.5s cubic-bezier(0.4, 0, 0.2, 1), left 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
+        opacity: 0.78,
+        color: '#ffffff',
+        textShadow: '1.5px 1.5px 0px #000000, -1.5px -1.5px 0px #000000, 1.5px -1.5px 0px #000000, -1.5px 1.5px 0px #000000, 0 2px 5px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85)',
+        WebkitTextStroke: '0.6px rgba(0,0,0,0.9)',
+        fontSize: 'clamp(11px, 1.8vw, 17px)',
+        lineHeight: '1.35',
+        direction: 'rtl',
+        whiteSpace: 'nowrap',
       }}
     >
-      <div>{name}</div>
-      {phone && <div className="mt-0.5 tracking-wider font-mono font-black">{phone}</div>}
+      <div className="font-extrabold tracking-wide drop-shadow-md">{name}</div>
+      {phone && (
+        <div className="text-[0.9em] font-mono font-bold tracking-wider opacity-95">
+          {phone}
+        </div>
+      )}
     </div>
-  )
+  );
 }

@@ -7,6 +7,7 @@ import CourseCard from '../components/ui/CourseCard'
 import PackageCard from '../components/ui/PackageCard'
 import SEO from '../components/SEO'
 import { useTaxonomyStore } from '../store/taxonomyStore'
+import { useAuthStore } from '../store/authStore'
 
 interface TeacherItem {
   id: number
@@ -36,6 +37,7 @@ interface CourseItem {
   availability?: 'online' | 'center' | 'both'
   lessons_count?: number
   is_bundle?: boolean | number | string
+  is_subscribed?: boolean
 }
 
 interface PackageItem {
@@ -78,16 +80,31 @@ export default function TeacherProfile() {
     fetchTaxonomy()
   }, [fetchTaxonomy])
   
+  const { user, isLoggedIn } = useAuthStore()
   const [teacher, setTeacher] = React.useState<TeacherItem | null>(null)
   const [courses, setCourses] = React.useState<CourseItem[]>([])
+  const [enrolledCourseIds, setEnrolledCourseIds] = React.useState<Set<number>>(new Set())
   const [packages, setPackages] = React.useState<PackageItem[]>([])
   const [stats, setStats] = React.useState({ courses_count: 0, students_count: 0 })
   const [loading, setLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<'courses' | 'packages'>('courses')
   const [courseFilter, setCourseFilter] = React.useState<'all' | 'online' | 'center'>('all')
 
-  const filteredCourses = React.useMemo(() => {
+  // Filter out courses the student is already subscribed to
+  const availableCourses = React.useMemo(() => {
     return courses.filter((course) => {
+      if (user && user.role === 'student') {
+        const isEnrolled = enrolledCourseIds.has(course.id) || course.is_subscribed === true
+        if (isEnrolled) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [courses, user, enrolledCourseIds])
+
+  const filteredCourses = React.useMemo(() => {
+    return availableCourses.filter((course) => {
       if (courseFilter === 'all') return true
       if (courseFilter === 'online') {
         return course.availability === 'online' || course.availability === 'both'
@@ -97,25 +114,45 @@ export default function TeacherProfile() {
       }
       return true
     })
-  }, [courses, courseFilter])
+  }, [availableCourses, courseFilter])
 
   React.useEffect(() => {
     setLoading(true)
-    API.get(`/teachers/${id}`)
-      .then((res) => {
-        setTeacher(res.data.teacher)
-        setCourses(res.data.courses)
-        setPackages(res.data.packages)
-        setStats(res.data.statistics)
+    const fetchPromises: Promise<any>[] = [
+      API.get(`/teachers/${id}`)
+    ]
+
+    if (user && user.role === 'student' && isLoggedIn) {
+      fetchPromises.push(API.get('/student/courses'))
+    }
+
+    Promise.all(fetchPromises)
+      .then(([teacherRes, enrolledRes]) => {
+        setTeacher(teacherRes.data.teacher)
+        setCourses(teacherRes.data.courses)
+        setPackages(teacherRes.data.packages)
+        setStats(teacherRes.data.statistics)
+
+        if (enrolledRes && Array.isArray(enrolledRes.data)) {
+          const ids = new Set<number>()
+          for (const item of enrolledRes.data) {
+            if (item.course && typeof item.course.id === 'number') {
+              ids.add(item.course.id)
+            }
+          }
+          setEnrolledCourseIds(ids)
+        } else {
+          setEnrolledCourseIds(new Set())
+        }
         
         // Dynamically set page title
-        if (res.data.teacher?.name) {
-          document.title = `${res.data.teacher.name} | خطوتك`;
+        if (teacherRes.data.teacher?.name) {
+          document.title = `${teacherRes.data.teacher.name} | خطوتك`;
         }
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, user?.id, isLoggedIn])
 
   if (loading) {
     return (
@@ -294,7 +331,7 @@ export default function TeacherProfile() {
             activeTab === 'courses' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-text-secondary hover:text-foreground'
           }`}
         >
-          الكورسات المتاحة ({courses.length})
+          الكورسات المتاحة ({availableCourses.length})
         </button>
         <button
           onClick={() => setActiveTab('packages')}
@@ -308,8 +345,12 @@ export default function TeacherProfile() {
 
       {/* Tab Panels */}
       {activeTab === 'courses' ? (
-        courses.length === 0 ? (
-          <EmptyState type="courses" title="لا يوجد كورسات منشورة بعد" description="لم يقم المعلم بنشر أي كورسات تفصيلية حتى الآن." />
+        availableCourses.length === 0 ? (
+          <EmptyState 
+            type="courses" 
+            title={user && user.role === 'student' && courses.length > 0 ? "أنت مشترك بالفعل في جميع الكورسات المتاحة" : "لا يوجد كورسات منشورة بعد"} 
+            description={user && user.role === 'student' && courses.length > 0 ? "لقد اشتركت في جميع كورسات هذا المعلم بالفعل. لا توجد كورسات إضافية متاحة للشراء حالياً." : "لم يقم المعلم بنشر أي كورسات تفصيلية حتى الآن."} 
+          />
         ) : (
           <div className="space-y-6">
             

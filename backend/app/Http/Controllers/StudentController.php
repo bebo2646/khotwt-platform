@@ -1614,6 +1614,10 @@ class StudentController extends Controller
             'watched_segments' => 'nullable|array',
             'session_id' => 'nullable|string',
             'session_watch_time' => 'nullable|integer|min:0',
+            'duration_seconds' => 'nullable|integer|min:1',
+            'skip_view_increment' => 'nullable|boolean',
+            'course_id' => 'nullable|integer',
+            'package_id' => 'nullable|integer',
         ]);
 
         $user = $request->user();
@@ -1682,8 +1686,18 @@ class StudentController extends Controller
             $contextCourse = $course;
         }
 
-        // Fetch duration if set, default to 300 seconds if not provided to avoid divide by zero
-        $duration = $video->duration_seconds ?: 300;
+        // Fetch duration if set, update from client if missing, default to 300 seconds if not provided to avoid divide by zero
+        if ($request->filled('duration_seconds') && (int)$request->input('duration_seconds') > 0) {
+            $incomingDuration = (int)$request->input('duration_seconds');
+            if (!$video->duration_seconds || $video->duration_seconds <= 0) {
+                $video->duration_seconds = $incomingDuration;
+                $video->save();
+            }
+        }
+        $duration = $video->duration_seconds ?: ((int)$request->input('duration_seconds') ?: 300);
+        if ($duration <= 0) {
+            $duration = 300;
+        }
 
         // Track and count views based on session watch time
         $sessionId = $request->input('session_id');
