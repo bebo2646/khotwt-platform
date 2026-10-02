@@ -1439,6 +1439,17 @@ class StudentController extends Controller
         }
 
         $videos = Video::where('lesson_id', $lessonId)->get();
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+        if ($bunnyService->isConfigured()) {
+            foreach ($videos as $vid) {
+                if (in_array($vid->bunny_status, ['queued', 'processing', 'uploaded']) || ($vid->bunny_video_id && empty($vid->bunny_status))) {
+                    try {
+                        $bunnyService->syncVideoStatus($vid);
+                        $vid->refresh();
+                    } catch (\Throwable $t) {}
+                }
+            }
+        }
         $pdfs = \App\Models\Pdf::where('lesson_id', $lessonId)->get();
         $exams = Exam::where('lesson_id', $lessonId)->get();
 

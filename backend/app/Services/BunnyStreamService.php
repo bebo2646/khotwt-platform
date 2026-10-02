@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Log;
 
 class BunnyStreamService
 {
-    protected string $libraryId;
-    protected string $apiKey;
-    protected string $pullZone;
+    protected string $libraryId = '';
+    protected string $apiKey = '';
+    protected string $pullZone = '';
 
     public function __construct()
     {
@@ -369,6 +369,14 @@ class BunnyStreamService
     }
 
     /**
+     * Get structured video existence and details array from Bunny Stream.
+     */
+    public function getVideo(string $videoId): array
+    {
+        return $this->validateVideoExists($videoId);
+    }
+
+    /**
      * Delete video from Bunny Stream.
      */
     public function deleteVideo(string $videoId): bool
@@ -491,22 +499,186 @@ class BunnyStreamService
     }
 
     /**
+     * Check if Bunny player URL is already accessible and playable.
+     */
+    public function isPlayerUrlPlayable(string $videoId): bool
+    {
+        if (empty($this->libraryId) || empty($videoId)) {
+            return false;
+        }
+
+        try {
+            $playerUrl = "https://player.mediadelivery.net/play/{$this->libraryId}/{$videoId}";
+            $response = Http::withoutVerifying()
+                ->timeout(4)
+                ->connectTimeout(2)
+                ->head($playerUrl);
+
+            if ($response->status() === 200) {
+                return true;
+            }
+
+            if ($response->status() === 405 || !$response->successful()) {
+                $getRes = Http::withoutVerifying()
+                    ->timeout(4)
+                    ->connectTimeout(2)
+                    ->withHeaders(['Range' => 'bytes=0-100'])
+                    ->get($playerUrl);
+                return $getRes->status() === 200 || $getRes->status() === 206;
+            }
+
+            return false;
+        } catch (\Throwable $t) {
+            return false;
+        }
+    }
+
+    /**
+     * Determine comprehensive video status from Bunny API details and playability check.
+     */
+    public function determineStatus(array $details, ?string $videoId = null): string
+    {
+        $statusInt = intval($details['status'] ?? 0);
+        $encodeProgress = intval($details['encodeProgress'] ?? 0);
+        $availableResolutions = trim((string)($details['availableResolutions'] ?? ''));
+        $length = intval($details['length'] ?? 0);
+
+        // 1. Permanent failures
+        if ($statusInt === 5 || $statusInt === 6 || $statusInt === 8) {
+            return 'failed';
+        }
+
+        // 2. Definitive finished/ready
+        if ($statusInt === 4 || $encodeProgress >= 100) {
+            return 'ready';
+        }
+
+        // 3. Transcoding with available resolutions and duration is playable
+        if ($statusInt === 3 && !empty($availableResolutions) && $length > 0) {
+            return 'ready';
+        }
+
+        // 4. If status is 2 or 3, check if player URL is confirmed playable
+        if (in_array($statusInt, [2, 3]) && $videoId) {
+            if ($this->isPlayerUrlPlayable($videoId)) {
+                return 'ready';
+            }
+        }
+
+        // 5. Normal processing stages
+        if ($statusInt === 0) {
+            return 'queued';
+        }
+        if ($statusInt === 1) {
+            return 'uploaded';
+        }
+
+        return 'processing';
+    }
+
+    /**
      * Map Bunny Video Status Code (integer) to status string.
      */
     public function mapStatusCodeToString(int $status): string
     {
         return match ($status) {
             0 => 'queued',
-            1 => 'processing',
-            2 => 'processing', // Encoding/transcoding
-            3 => 'finished',   // Transcoding finished
-            4 => 'finished',   // Playable
-            5 => 'failed',
-            6 => 'queued',
-            7 => 'uploaded',
-            8 => 'failed',
+            1 => 'uploaded',
+            2, 3 => 'processing',
+            4 => 'ready',
+            5, 6, 8 => 'failed',
             default => 'processing'
         };
+    }
+
+    /**
+     * Authoritatively synchronize video status, duration, size, and URLs with Bunny Stream.
+     */
+    public function syncVideoStatus(Video $video): array
+    {
+        $guid = $video->bunny_video_id ?: $video->bunny_stream_id;
+        if (empty($guid)) {
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'is_ready' => false,
+                'is_failed' => true,
+                'message' => 'Missing Bunny video GUID',
+            ];
+        }
+
+        if (!$this->isConfigured()) {
+            $isRdy = in_array($video->bunny_status, ['ready', 'finished']);
+            return [
+                'success' => false,
+                'status' => $video->bunny_status ?: 'queued',
+                'is_ready' => $isRdy,
+                'is_failed' => $video->bunny_status === 'failed',
+                'message' => 'Bunny Stream not configured',
+            ];
+        }
+
+        $details = $this->getVideoDetails($guid);
+        if (!$details) {
+            $isOld = $video->created_at && $video->created_at->diffInMinutes(now()) > 30;
+            if ($isOld && !in_array($video->bunny_status, ['ready', 'finished'])) {
+                $video->update(['bunny_status' => 'failed']);
+            }
+            $isRdy = in_array($video->bunny_status, ['ready', 'finished']);
+            return [
+                'success' => false,
+                'status' => $video->bunny_status,
+                'is_ready' => $isRdy,
+                'is_failed' => $video->bunny_status === 'failed',
+                'message' => 'Could not fetch video details from Bunny Stream',
+            ];
+        }
+
+        $statusStr = $this->determineStatus($details, $guid);
+        $duration = intval($details['length'] ?? 0);
+        $sizeBytes = intval($details['storageSize'] ?? 0);
+
+        $embedUrl = $this->getEmbedUrl($guid);
+        $thumbnailUrl = $this->getThumbnailUrl($guid);
+
+        $updateData = [
+            'bunny_status' => $statusStr,
+            'bunny_embed_url' => $embedUrl,
+            'bunny_thumbnail_url' => $thumbnailUrl,
+        ];
+
+        if ($duration > 0) {
+            $updateData['bunny_duration'] = $duration;
+            $updateData['duration_seconds'] = $duration;
+        }
+
+        if ($sizeBytes > 0) {
+            $updateData['bunny_size_bytes'] = $sizeBytes;
+            $updateData['storage_size'] = $sizeBytes;
+        }
+
+        $video->update($updateData);
+
+        // Recalculate teacher storage if needed
+        $course = $video->lesson?->unit?->course ?? null;
+        if ($course && $course->teacher_id && $sizeBytes > 0) {
+            try {
+                $this->recalculateStorage($course->teacher_id);
+            } catch (\Throwable $e) {}
+        }
+
+        $isReady = in_array($statusStr, ['ready', 'finished']);
+        $isFailed = $statusStr === 'failed';
+
+        return [
+            'success' => true,
+            'status' => $statusStr,
+            'is_ready' => $isReady,
+            'is_failed' => $isFailed,
+            'duration' => $duration,
+            'size_bytes' => $sizeBytes,
+            'details' => $details,
+        ];
     }
 
     /**

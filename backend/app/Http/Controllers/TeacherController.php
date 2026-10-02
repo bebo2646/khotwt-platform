@@ -486,12 +486,12 @@ class TeacherController extends Controller
         $guid = $video->bunny_video_id ?: $video->bunny_stream_id;
         if (!empty($guid) && $bunnyService->isConfigured()) {
             $bunnyInfo = $bunnyService->getVideo($guid);
-            if ($bunnyInfo['success'] && isset($bunnyInfo['data'])) {
+            if (!empty($bunnyInfo['success']) && isset($bunnyInfo['data'])) {
                 $data = $bunnyInfo['data'];
                 $statusInt = (int) ($data['status'] ?? 0);
                 $statusStr = $bunnyService->mapStatusCodeToString($statusInt);
 
-                $video->bunny_status = ($statusStr === 'failed') ? 'failed' : ($statusStr === 'finished' ? 'finished' : 'processing');
+                $video->bunny_status = in_array($statusStr, ['ready', 'finished']) ? $statusStr : (($statusStr === 'failed') ? 'failed' : 'processing');
 
                 if (isset($data['length']) && (int)$data['length'] > 0) {
                     $video->duration_seconds = (int)$data['length'];
@@ -505,12 +505,20 @@ class TeacherController extends Controller
                     $video->bunny_size_bytes = (int)$data['storageSize'];
                     $video->storage_size = (int)$data['storageSize'];
                 }
+
+                $video->save();
+
+                if (!in_array($video->bunny_status, ['ready', 'finished', 'failed'])) {
+                    \App\Jobs\PollBunnyVideoStatus::dispatchSafely($video->id);
+                }
             } else {
                 $video->bunny_status = 'processing';
                 if ($request->filled('duration_seconds') && (int)$request->input('duration_seconds') > 0) {
                     $video->duration_seconds = (int)$request->input('duration_seconds');
                     $video->bunny_duration = (int)$request->input('duration_seconds');
                 }
+                $video->save();
+                \App\Jobs\PollBunnyVideoStatus::dispatchSafely($video->id);
             }
         } else {
             $video->bunny_status = 'processing';
@@ -518,9 +526,8 @@ class TeacherController extends Controller
                 $video->duration_seconds = (int)$request->input('duration_seconds');
                 $video->bunny_duration = (int)$request->input('duration_seconds');
             }
+            $video->save();
         }
-
-        $video->save();
 
         $this->updateLessonDuration($video->lesson_id);
         Course::touchContent($lesson->unit->course_id);
@@ -553,6 +560,39 @@ class TeacherController extends Controller
             'success' => true,
             'message' => 'تم إنهاء رفع الفيديو وتحديث البيانات بنجاح.',
             'video' => $video,
+        ]);
+    }
+
+    /**
+     * Get or synchronize the playback readiness status of a Bunny video.
+     */
+    public function getVideoStatus(Request $request, $id)
+    {
+        $video = Video::where('id', $id)
+            ->orWhere('bunny_video_id', $id)
+            ->orWhere('bunny_stream_id', $id)
+            ->firstOrFail();
+
+        $bunnyService = app(\App\Services\BunnyStreamService::class);
+        if ($bunnyService->isConfigured() && !in_array($video->bunny_status, ['ready', 'finished', 'failed'])) {
+            $bunnyService->syncVideoStatus($video);
+            $video->refresh();
+        }
+
+        $isReady = in_array($video->bunny_status, ['ready', 'finished']);
+        $isFailed = $video->bunny_status === 'failed';
+        $isProcessing = in_array($video->bunny_status, ['processing', 'queued', 'uploaded']);
+
+        return response()->json([
+            'id' => $video->id,
+            'bunny_video_id' => $video->bunny_video_id ?: $video->bunny_stream_id,
+            'bunny_status' => $video->bunny_status,
+            'is_ready' => $isReady,
+            'is_processing' => $isProcessing,
+            'is_failed' => $isFailed,
+            'duration_seconds' => $video->duration_seconds,
+            'bunny_embed_url' => $video->bunny_embed_url,
+            'bunny_thumbnail_url' => $video->bunny_thumbnail_url,
         ]);
     }
 

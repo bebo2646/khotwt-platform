@@ -180,6 +180,7 @@ Route::post('/auth/delete-rejected-account', [AuthController::class, 'deleteReje
 
 // Bunny Webhook
 Route::post('/bunny/webhook', [\App\Http\Controllers\BunnyWebhookController::class, 'handle']);
+Route::get('/public/videos/{video}/status', [\App\Http\Controllers\TeacherController::class, 'getVideoStatus']);
 
 /*
 |--------------------------------------------------------------------------
@@ -204,6 +205,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
         Route::post('/notifications/{id}/read', [SubscriptionController::class, 'markNotificationAsRead']);
         Route::post('/notifications/{id}/seen', [SubscriptionController::class, 'markNotificationAsSeen']);
         Route::post('/notifications/read-all', [SubscriptionController::class, 'markAllNotificationsAsRead']);
+        Route::get('/videos/{video}/status', [\App\Http\Controllers\TeacherController::class, 'getVideoStatus']);
 
         /*
          * Student Enrolled Scope
@@ -308,6 +310,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::post('/teacher/videos/{video}/replace', [TeacherController::class, 'replaceVideo']);
                 Route::put('/teacher/videos/{video}', [TeacherController::class, 'updateVideo']);
                 Route::delete('/teacher/videos/{video}', [TeacherController::class, 'deleteVideo']);
+                Route::get('/teacher/videos/{video}/status', [TeacherController::class, 'getVideoStatus']);
                 Route::post('/teacher/lessons/{lesson}/pdf', [TeacherController::class, 'addPdf']);
                 Route::put('/teacher/pdfs/{pdf}', [TeacherController::class, 'updatePdf']);
                 Route::delete('/teacher/pdfs/{pdf}', [TeacherController::class, 'deletePdf']);

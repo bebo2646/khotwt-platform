@@ -1671,7 +1671,7 @@ export default function ManageCourses() {
                                                         ) : video.bunny_embed_url?.includes('mediadelivery.net') || video.bunny_embed_url?.includes('bunny') ? (
                                                           <span className="flex items-center gap-1">
                                                             <span className="px-1 bg-purple-500/10 text-purple-500 rounded text-[8px] font-bold">Bunny Stream</span>
-                                                            {video.bunny_status === 'finished' ? (
+                                                            {video.bunny_status === 'finished' || video.bunny_status === 'ready' ? (
                                                               <span className="px-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[8px] font-bold">Ready</span>
                                                             ) : video.bunny_status === 'processing' ? (
                                                               <span className="px-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded text-[8px] font-bold">Processing on Bunny</span>

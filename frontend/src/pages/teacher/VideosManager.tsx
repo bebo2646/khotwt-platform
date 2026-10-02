@@ -684,7 +684,7 @@ export default function VideosManager() {
                               ) : (
                                 <Play className="h-5 w-5 text-slate-600" />
                               )}
-                              {video.bunny_status === 'finished' && (
+                              {(video.bunny_status === 'finished' || video.bunny_status === 'ready') && (
                                 <span className="absolute bottom-1 right-1 bg-slate-950/80 text-[10px] text-slate-300 px-1 py-0.5 rounded font-mono">
                                   {formatDuration(video.bunny_duration)}
                                 </span>
@@ -716,7 +716,7 @@ export default function VideosManager() {
 
                         <td className="py-4">
                           <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold ${
-                            video.bunny_status === 'finished' 
+                            video.bunny_status === 'finished' || video.bunny_status === 'ready'
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
                               : video.bunny_status === 'processing' 
                                 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
@@ -724,7 +724,7 @@ export default function VideosManager() {
                                   ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                                   : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
                           }`}>
-                            {video.bunny_status === 'finished' && 'مكتمل'}
+                            {(video.bunny_status === 'finished' || video.bunny_status === 'ready') && 'جاهز للعرض'}
                             {video.bunny_status === 'processing' && 'جاري التجهيز'}
                             {video.bunny_status === 'uploaded' && 'تم الرفع'}
                             {video.bunny_status === 'failed' && 'فشل المعالجة'}

@@ -383,6 +383,37 @@ export default function LessonViewer({
     fetchLessonData()
   }, [id])
 
+  // Auto-poll video status while active video is transcoding/processing on Bunny
+  React.useEffect(() => {
+    if (!activeVideo || !activeVideo.id) return;
+    const isBunny = Boolean(activeVideo.bunny_video_id || activeVideo.bunny_stream_id || activeVideo.bunny_embed_url);
+    const isPending = activeVideo.bunny_status && !['finished', 'ready', 'failed'].includes(activeVideo.bunny_status);
+
+    if (!isBunny || !isPending) return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await API.get(`/videos/${activeVideo.id}/status`);
+        if (!isMounted) return;
+        if (res.data && res.data.is_ready) {
+          setActiveVideo((prev: any) => prev ? { ...prev, bunny_status: 'ready', ...res.data } : null);
+          setVideos((prev: VideoItem[]) => prev.map((v) => v.id === activeVideo.id ? { ...v, bunny_status: 'ready', ...res.data } : v));
+        } else if (res.data && res.data.is_failed) {
+          setActiveVideo((prev: any) => prev ? { ...prev, bunny_status: 'failed' } : null);
+          setVideos((prev: VideoItem[]) => prev.map((v) => v.id === activeVideo.id ? { ...v, bunny_status: 'failed' } : v));
+        }
+      } catch (err) {
+        console.warn('Video status polling check error:', err);
+      }
+    }, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeVideo?.id, activeVideo?.bunny_status])
+
   const [isPlaying, setIsPlaying] = React.useState(false)
   const videoRef = React.useRef<HTMLVideoElement>(null)
 
@@ -1346,9 +1377,28 @@ export default function LessonViewer({
                     );
                   }
 
-                  // If Bunny Stream video is still processing, show processing warning
+                  // If Bunny Stream video is still processing or failed, show proper status overlay
                   if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
                     const status = activeVideo.bunny_status;
+                    if (status === 'failed') {
+                      return (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
+                          <AlertCircle className="h-12 w-12 text-rose-500 mb-3" />
+                          <h4 className="text-base font-bold text-slate-200 mb-2">فشل معالجة الفيديو على السيرفر</h4>
+                          <p className="text-xs font-light text-slate-400 max-w-sm mb-4">
+                            حدث خطأ أثناء معالجة وترميز الفيديو على Bunny Stream. يرجى التواصل مع المحاضر أو إعادة الفحص.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fetchLessonData()}
+                            className="px-4 py-2 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                          >
+                            إعادة الفحص الآن
+                          </button>
+                        </div>
+                      );
+                    }
+
                     if (status && status !== 'finished' && status !== 'ready') {
                       return (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-400 p-6 text-center">
@@ -1357,7 +1407,25 @@ export default function LessonViewer({
                             <Play className="h-10 w-10 text-brand-primary animate-pulse relative" />
                           </div>
                           <h4 className="text-sm font-bold text-slate-200 mb-1 font-bold">الفيديو قيد المعالجة حالياً (Transcoding on Bunny)</h4>
-                          <p className="text-[10px] text-slate-400 font-light max-w-xs">يرجى الانتظار بضع دقائق حتى ينتهي السيرفر من معالجة وترميز جودات الفيديو.</p>
+                          <p className="text-[10px] text-slate-400 font-light max-w-xs mb-3">يجري تجهيز جودات الفيديو للبث المباشر. يتم الفحص التلقائي باستمرار...</p>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await API.get(`/videos/${activeVideo.id}/status`);
+                                if (res.data?.is_ready) {
+                                  setActiveVideo((prev: any) => prev ? { ...prev, bunny_status: 'ready', ...res.data } : null);
+                                } else {
+                                  fetchLessonData();
+                                }
+                              } catch {
+                                fetchLessonData();
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary border border-brand-primary/20 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                          >
+                            فحص الجاهزية الآن 🔄
+                          </button>
                         </div>
                       );
                     }
