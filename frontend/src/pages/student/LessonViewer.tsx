@@ -204,7 +204,11 @@ export default function LessonViewer({
   };
 
   const getEmbedUrl = (video: VideoItem) => {
-    let url = video.bunny_embed_url || '';
+    let url = video.bunny_embed_url || video.video_url || '';
+    const videoGuid = video.bunny_video_id || video.bunny_stream_id || video.bunny_id;
+    if (!url && videoGuid) {
+      url = `https://iframe.mediadelivery.net/embed/766707/${videoGuid}`;
+    }
     const pos = video.progress?.last_position_seconds || 0;
     
     // Normalize legacy player URLs to standard embed
