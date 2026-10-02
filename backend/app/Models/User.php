@@ -227,6 +227,25 @@ class User extends Authenticatable
         return max(0, round($limit - $used, 4));
     }
 
+    public function getUsedStorageGbAttribute()
+    {
+        if ($this->teacherSubscription) {
+            return round($this->teacherSubscription->used_storage_bytes / (1024 * 1024 * 1024), 2);
+        }
+        return (float)($this->bunny_storage_used_gb ?? 0);
+    }
+
+    public function getStoragePercentageAttribute()
+    {
+        if ($this->teacherSubscription) {
+            return $this->teacherSubscription->storage_percentage;
+        }
+        $limit = $this->bunny_storage_limit_gb !== null ? (float)$this->bunny_storage_limit_gb : 10.0;
+        if ($limit <= 0) return 0;
+        $used = (float)($this->bunny_storage_used_gb ?? 0);
+        return min(100, round(($used / $limit) * 100, 1));
+    }
+
     public function activityLogs()
     {
         return $this->hasMany(StudentActivityLog::class, 'student_id');

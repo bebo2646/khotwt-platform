@@ -178,14 +178,25 @@ export default function VideosManager() {
         console.warn("Could not verify storage quota:", errQuota);
       }
 
-      setUploadStatusText('جاري إنشاء كائن الفيديو على خوادم Bunny Stream...')
+      setUploadStatusText('جاري إنشاء كائن الفيديو على خوادم Bunny Stream...');
 
       // 1. Get signed upload credentials from our server (passing file_size for accurate quota check)
-      const signedRes = await API.post('/teacher/videos/signed-upload', {
-        title: title.trim(),
-        lesson_id: selectedLessonId,
-        file_size: videoFile.size,
-      });
+      let signedRes: any;
+      try {
+        signedRes = await API.post('/teacher/videos/signed-upload', {
+          title: title.trim(),
+          lesson_id: selectedLessonId,
+          file_size: videoFile.size,
+        });
+      } catch (err: any) {
+        console.error('Failed to create signed upload session:', err);
+        const errMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'فشل تهيئة رفع الفيديو على Bunny Stream.';
+        useModalStore.getState().showToast(errMsg, 'error');
+        setUploadStatusText(`فشل: ${errMsg}`);
+        setUploading(false);
+        setUploadProgress(null);
+        return;
+      }
 
       const { video_id, library_id, signature, expiration_time, video } = signedRes.data;
       pendingVideoIdRef.current = video?.id || null;

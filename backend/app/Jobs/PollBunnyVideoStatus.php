@@ -48,7 +48,9 @@ class PollBunnyVideoStatus implements ShouldQueue
         $details = $bunnyService->getVideoDetails($video->bunny_video_id);
         if (!$details) {
             Log::warning("PollBunnyVideoStatus: Failed to fetch details for Bunny video: {$video->bunny_video_id}. Re-releasing...");
-            $this->release(15);
+            if (config('queue.default') !== 'sync' && method_exists($this, 'release')) {
+                $this->release(15);
+            }
             return;
         }
 
@@ -81,7 +83,9 @@ class PollBunnyVideoStatus implements ShouldQueue
 
         // If it's still encoding or queued, re-release the job back to the queue
         if (in_array($statusString, ['queued', 'processing', 'uploaded'])) {
-            $this->release(15);
+            if (config('queue.default') !== 'sync' && method_exists($this, 'release')) {
+                $this->release(15);
+            }
         }
     }
 }
