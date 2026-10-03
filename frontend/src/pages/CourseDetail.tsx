@@ -243,53 +243,99 @@ export default function CourseDetail() {
     }))
   }
 
-  // Single Source of Truth for Selected Video
-  const [selectedVideo, setSelectedVideo] = React.useState<any | null>(null)
+  // Authoritative Single Source of Truth for Selected Video and Active Lesson
+  const [activeLessonId, setActiveLessonId] = React.useState<number | null>(
+    lessonId ? Number(lessonId) : null
+  );
+  const [activeVideoId, setActiveVideoId] = React.useState<number | null>(
+    videoId ? Number(videoId) : null
+  );
+  const [selectedVideo, setSelectedVideo] = React.useState<any | null>(null);
 
   const findVideoInUnits = React.useCallback((targetId: number) => {
     for (const unit of units) {
       if (unit.lessons) {
         for (const lesson of unit.lessons) {
-          const found = lesson.videos?.find((v: any) => v.id === targetId)
-          if (found) return { video: found, lesson }
+          const found = lesson.videos?.find((v: any) => v.id === targetId);
+          if (found) return { video: found, lesson };
         }
       }
     }
-    return null
-  }, [units])
+    return null;
+  }, [units]);
 
+  const effectiveVideoId = activeVideoId ?? (videoId ? Number(videoId) : null);
+  const effectiveLessonId = activeLessonId ?? (lessonId ? Number(lessonId) : (effectiveVideoId ? findVideoInUnits(effectiveVideoId)?.lesson.id ?? null : null));
+
+  // Sync state when URL searchParams change externally (back/forward navigation or direct links)
   React.useEffect(() => {
-    if (videoId && units.length > 0) {
-      const match = findVideoInUnits(Number(videoId))
-      if (match && (!selectedVideo || selectedVideo.id !== match.video.id)) {
-        setSelectedVideo(match.video)
+    const paramVideoId = videoId ? Number(videoId) : null;
+    const paramLessonId = lessonId ? Number(lessonId) : null;
+
+    if (paramVideoId !== null && paramVideoId !== activeVideoId) {
+      setActiveVideoId(paramVideoId);
+    } else if (paramVideoId === null && activeVideoId !== null && !selectedVideo) {
+      setActiveVideoId(null);
+    }
+
+    if (paramLessonId !== null && paramLessonId !== activeLessonId) {
+      setActiveLessonId(paramLessonId);
+    } else if (paramLessonId === null && activeLessonId !== null && !paramVideoId) {
+      setActiveLessonId(null);
+    }
+  }, [videoId, lessonId]);
+
+  // Synchronize selectedVideo and auto-resolve lesson if only videoId was present
+  React.useEffect(() => {
+    if (effectiveVideoId && units.length > 0) {
+      const match = findVideoInUnits(effectiveVideoId);
+      if (match) {
+        if (!selectedVideo || selectedVideo.id !== match.video.id) {
+          setSelectedVideo(match.video);
+        }
+        if (!activeLessonId) {
+          setActiveLessonId(match.lesson.id);
+        }
       }
-    } else if (!videoId) {
-      setSelectedVideo(null)
+    } else if (!effectiveVideoId) {
+      if (selectedVideo) setSelectedVideo(null);
     }
-  }, [videoId, units, findVideoInUnits])
+  }, [effectiveVideoId, units, findVideoInUnits, activeLessonId, selectedVideo]);
 
-  const handlePlayVideo = (vid: any, targetLessonId: number) => {
+  const handlePlayVideo = (vid: any, targetLessonId?: number, e?: React.SyntheticEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
     if (vid.is_locked) {
-      useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning")
-      return
+      useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+      return;
     }
 
-    // 1. Immediately update selected video (Single Source of Truth)
-    setSelectedVideo(vid)
-    setVideoScrollTrigger((prev) => prev + 1)
+    const resolvedLessonId = Number(targetLessonId) || (vid.id ? findVideoInUnits(vid.id)?.lesson.id : null);
+    if (!resolvedLessonId) {
+      console.warn('[CourseDetail] Could not resolve lesson ID for video:', vid.id);
+      return;
+    }
+
+    // 1. Immediately and synchronously update local state (Single Source of Truth)
+    setActiveLessonId(resolvedLessonId);
+    setActiveVideoId(vid.id);
+    setSelectedVideo(vid);
+    setVideoScrollTrigger((prev) => prev + 1);
 
     // 2. Synchronize URL searchParams
     setSearchParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.set('video_id', vid.id.toString())
-      next.set('lesson_id', targetLessonId.toString())
-      next.delete('pdf_id')
-      next.delete('exam_id')
-      next.delete('show_result')
-      return next
-    })
-  }
+      const next = new URLSearchParams(prev);
+      next.set('video_id', vid.id.toString());
+      next.set('lesson_id', resolvedLessonId.toString());
+      next.delete('pdf_id');
+      next.delete('exam_id');
+      next.delete('show_result');
+      return next;
+    }, { replace: true });
+  };
 
   const renderStatusBadge = (status: string, type: 'video' | 'pdf' | 'exam' | 'homework') => {
     let label = '';
@@ -381,13 +427,19 @@ export default function CourseDetail() {
             
             <div className="flex items-center gap-3">
               <button
-                onClick={() => {
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   if (!isEnrolled) {
                     useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
                   } else {
                     if (lesson.videos && lesson.videos.length > 0) {
-                      handlePlayVideo(lesson.videos[0], lesson.id);
+                      handlePlayVideo(lesson.videos[0], lesson.id, e);
                     } else if (lesson.pdfs && lesson.pdfs.length > 0) {
+                      setActiveVideoId(null);
+                      setActiveLessonId(lesson.id);
+                      setVideoScrollTrigger((prev) => prev + 1);
                       setSearchParams((prev) => {
                         const next = new URLSearchParams(prev);
                         next.set('pdf_id', lesson.pdfs[0].id.toString());
@@ -396,7 +448,7 @@ export default function CourseDetail() {
                         next.delete('exam_id');
                         next.delete('show_result');
                         return next;
-                      });
+                      }, { replace: true });
                     } else if (lesson.exams && lesson.exams.length > 0) {
                       const ex = lesson.exams[0];
                       if (hasValidFinalResult(ex)) {
@@ -435,13 +487,13 @@ export default function CourseDetail() {
             <div className="mr-2 sm:mr-4 pr-2 sm:pr-4 border-r border-[var(--border-color)] space-y-4 pt-2 text-right">
               {/* Videos */}
               {lesson.videos && lesson.videos.map((vid: any) => {
-                const isCurrentActive = (selectedVideo?.id === vid.id) || (videoId === vid.id.toString());
+                const isCurrentActive = (effectiveVideoId === vid.id) || (selectedVideo?.id === vid.id);
                 return (
                   <div key={vid.id} className="border border-slate-900 bg-slate-950/20 hover:bg-slate-900/10 rounded-2xl p-4.5 space-y-3.5 transition-all duration-300">
                     
                     {/* Video Header / Trigger */}
                     <div 
-                      onClick={() => handlePlayVideo(vid, lesson.id)}
+                      onClick={(e) => handlePlayVideo(vid, lesson.id, e)}
                       className="flex items-center justify-between text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none font-sans"
                     >
                       <div className="flex items-center gap-2.5">
@@ -458,10 +510,7 @@ export default function CourseDetail() {
                       <div className="flex items-center gap-3">
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePlayVideo(vid, lesson.id);
-                          }}
+                          onClick={(e) => handlePlayVideo(vid, lesson.id, e)}
                           className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
                             vid.is_locked
                               ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
@@ -550,11 +599,16 @@ export default function CourseDetail() {
                     
                     <div className="flex items-center gap-3">
                       <button
+                        type="button"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           if (pdf.is_locked) {
                             useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
                           } else {
+                            setActiveVideoId(null);
+                            setActiveLessonId(lesson.id);
+                            setVideoScrollTrigger((prev) => prev + 1);
                             setSearchParams((prev) => {
                               const next = new URLSearchParams(prev);
                               next.set('pdf_id', pdf.id.toString());
@@ -563,7 +617,7 @@ export default function CourseDetail() {
                               next.delete('exam_id');
                               next.delete('show_result');
                               return next;
-                            });
+                            }, { replace: true });
                           }
                         }}
                         className={`px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border ${
@@ -810,7 +864,6 @@ export default function CourseDetail() {
   const fetchDetails = React.useCallback(() => {
     const params = new URLSearchParams()
     if (packageId) params.append('package_id', packageId)
-    if (lessonId) params.append('lesson_id', lessonId)
 
     console.log({
         pathname: location.pathname,
@@ -837,7 +890,7 @@ export default function CourseDetail() {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
-  }, [id, packageId, lessonId])
+  }, [id, packageId])
 
   const handleRedeemRechargeCode = async () => {
     if (!rechargeCode.trim()) return
@@ -865,11 +918,10 @@ export default function CourseDetail() {
 
   // Authoritative Single Source of Truth for Video Viewer Scrolling
   React.useEffect(() => {
-    const hasActiveContent = Boolean(selectedVideo?.id || videoId || pdfId);
-    if (!hasActiveContent) return;
+    const hasActiveContent = Boolean(effectiveVideoId || pdfId);
+    if (!hasActiveContent || videoScrollTrigger === 0) return;
 
     let cancelled = false;
-    let timerId: ReturnType<typeof setTimeout> | null = null;
 
     const performScroll = () => {
       if (cancelled) return;
@@ -884,15 +936,13 @@ export default function CourseDetail() {
     // Wait until new viewer state is committed to DOM, then scroll smoothly
     const rafId = requestAnimationFrame(() => {
       performScroll();
-      timerId = setTimeout(performScroll, 80);
     });
 
     return () => {
       cancelled = true;
       cancelAnimationFrame(rafId);
-      if (timerId) clearTimeout(timerId);
     };
-  }, [selectedVideo?.id, videoId, pdfId, videoScrollTrigger]);
+  }, [videoScrollTrigger]);
 
   const toggleUnit = (unitId: number) => {
     setExpandedUnits((prev) => ({
@@ -989,11 +1039,11 @@ export default function CourseDetail() {
 
   const getActiveVideoTitle = () => {
     if (selectedVideo?.title) return selectedVideo.title;
-    if (videoId) {
+    if (effectiveVideoId) {
       for (const unit of units) {
         if (unit.lessons) {
           for (const lesson of unit.lessons) {
-            const foundVid = lesson.videos?.find((v: any) => v.id === Number(videoId));
+            const foundVid = lesson.videos?.find((v: any) => v.id === effectiveVideoId);
             if (foundVid) return foundVid.title;
           }
         }
@@ -1074,10 +1124,10 @@ export default function CourseDetail() {
       </nav>
 
       {/* Dynamic Content Viewer Area */}
-      {isEnrolled && (videoId || pdfId) && (
+      {isEnrolled && (effectiveVideoId || pdfId) && (
         <div 
           ref={videoViewerRef} 
-          className="space-y-4 text-right my-8 scroll-mt-28" 
+          className="space-y-4 text-right my-8 scroll-mt-28 min-h-[500px]" 
           style={{ scrollMarginTop: '110px' }}
           dir="rtl"
         >
@@ -1094,6 +1144,8 @@ export default function CourseDetail() {
             <button
               onClick={() => {
                 setSelectedVideo(null);
+                setActiveVideoId(null);
+                setActiveLessonId(null);
                 setSearchParams((prev) => {
                   const next = new URLSearchParams(prev);
                   next.delete('video_id');
@@ -1102,7 +1154,7 @@ export default function CourseDetail() {
                   next.delete('lesson_id');
                   next.delete('show_result');
                   return next;
-                });
+                }, { replace: true });
               }}
               className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
             >
@@ -1113,25 +1165,30 @@ export default function CourseDetail() {
 
           {/* Embedded Viewer Element */}
           <div className="w-full bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6">
-            {videoId && (
+            {effectiveVideoId && effectiveLessonId && (
               <LessonViewer
-                key={`course-viewer-${lessonId}`}
-                overrideLessonId={Number(lessonId)}
+                key={`course-viewer-${effectiveLessonId}`}
+                overrideLessonId={effectiveLessonId}
                 overrideCourseId={course?.id}
                 isEmbedded={true}
-                initialVideoId={Number(videoId)}
-                activeVideoProp={selectedVideo || findVideoInUnits(Number(videoId))?.video}
+                initialVideoId={effectiveVideoId}
+                activeVideoProp={selectedVideo || findVideoInUnits(effectiveVideoId)?.video}
                 onVideoChange={(newVid) => {
                   setSelectedVideo(newVid);
-                  setVideoScrollTrigger((prev) => prev + 1);
+                  setActiveVideoId(newVid.id);
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.set('video_id', newVid.id.toString());
+                    if (effectiveLessonId) {
+                      next.set('lesson_id', effectiveLessonId.toString());
+                    }
                     return next;
-                  });
+                  }, { replace: true });
                 }}
                 onClose={() => {
                   setSelectedVideo(null);
+                  setActiveVideoId(null);
+                  setActiveLessonId(null);
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.delete('video_id');
@@ -1140,19 +1197,21 @@ export default function CourseDetail() {
                     next.delete('lesson_id');
                     next.delete('show_result');
                     return next;
-                  });
+                  }, { replace: true });
                 }}
               />
             )}
 
             {pdfId && (
               <LessonViewer
-                key={`lesson-${lessonId}`}
-                overrideLessonId={Number(lessonId)}
+                key={`lesson-${effectiveLessonId || lessonId}`}
+                overrideLessonId={Number(effectiveLessonId || lessonId)}
                 overrideCourseId={course?.id}
                 isEmbedded={true}
                 initialPdfId={Number(pdfId)}
                 onClose={() => {
+                  setActiveVideoId(null);
+                  setActiveLessonId(null);
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.delete('video_id');
@@ -1161,7 +1220,7 @@ export default function CourseDetail() {
                     next.delete('lesson_id');
                     next.delete('show_result');
                     return next;
-                  });
+                  }, { replace: true });
                 }}
               />
             )}
@@ -1446,24 +1505,27 @@ export default function CourseDetail() {
               if (matched) {
                 handlePlayVideo(matched.video, matched.lesson.id);
               } else if (course.is_bundle) {
-                setSearchParams((prev) => {
-                  const next = new URLSearchParams(prev);
-                  let foundLessonId = units[0]?.lessons[0]?.id || 0;
-                  for (const unit of units) {
-                    for (const lesson of unit.lessons) {
-                      if (lesson.videos && lesson.videos.some((v: any) => v.id === lastWatched.video_id)) {
-                        foundLessonId = lesson.id;
-                        break;
-                      }
+                let foundLessonId = units[0]?.lessons[0]?.id || 0;
+                for (const unit of units) {
+                  for (const lesson of unit.lessons) {
+                    if (lesson.videos && lesson.videos.some((v: any) => v.id === lastWatched.video_id)) {
+                      foundLessonId = lesson.id;
+                      break;
                     }
                   }
+                }
+                if (foundLessonId) setActiveLessonId(foundLessonId);
+                setActiveVideoId(lastWatched.video_id);
+                setVideoScrollTrigger((prev) => prev + 1);
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
                   if (foundLessonId) next.set('lesson_id', foundLessonId.toString());
                   next.set('video_id', lastWatched.video_id.toString());
                   next.delete('pdf_id');
                   next.delete('exam_id');
                   next.delete('show_result');
                   return next;
-                });
+                }, { replace: true });
               } else {
                 navigate(`/student/lessons/${units[0]?.lessons[0]?.id}?course_id=${course.id}&play=${lastWatched.video_id}`)
               }

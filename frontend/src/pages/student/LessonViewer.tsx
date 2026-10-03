@@ -297,11 +297,11 @@ export default function LessonViewer({
   const [pdfs, setPdfs] = React.useState<PdfItem[]>([])
   const [exams, setExams] = React.useState<ExamItem[]>([])
   
-  const [loading, setLoading] = React.useState(true)
+  const [loading, setLoading] = React.useState(!activeVideoProp)
   const [activeTab, setActiveTab] = React.useState<'videos' | 'pdfs' | 'exams'>('videos')
   
-  // Selected content
-  const [activeVideo, setActiveVideo] = React.useState<VideoItem | null>(null)
+  // Selected content - initialize immediately with activeVideoProp if provided to eliminate blank/jumping states
+  const [activeVideo, setActiveVideo] = React.useState<VideoItem | null>(activeVideoProp || null)
   const [activePdf, setActivePdf] = React.useState<PdfItem | null>(null)
   
   // Progress tracker variables
@@ -328,7 +328,10 @@ export default function LessonViewer({
 
   console.log('[Diagnostic Render] views_used:', viewLimitDetails?.views_used, 'views_remaining:', viewLimitDetails?.remaining_views ?? viewLimitDetails?.remaining, 'isSessionAuthorized:', isSessionAuthorizedRef.current, 'viewLimitDetails:', viewLimitDetails);
 
-  // Stable video embed URL state to prevent iframe reload/remount
+  // Stable video embed URL cache per video ID to strictly prevent iframe reload/remount during playback
+  const initialEmbedUrlsRef = React.useRef<Record<number, string>>({})
+  const hasRestoredPositionRef = React.useRef<Record<number, boolean>>({})
+
   const [videoEmbedUrl, setVideoEmbedUrl] = React.useState<string>('')
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null)
   const bunnyIframeRef = React.useRef<HTMLIFrameElement | null>(null)
@@ -377,6 +380,14 @@ export default function LessonViewer({
       return url;
     }
   };
+
+  const getStableEmbedUrl = React.useCallback((video: VideoItem) => {
+    if (!video || !video.id) return '';
+    if (!initialEmbedUrlsRef.current[video.id]) {
+      initialEmbedUrlsRef.current[video.id] = getEmbedUrl(video);
+    }
+    return initialEmbedUrlsRef.current[video.id];
+  }, []);
 
   const handlePurchaseExam = (exam: ExamItem) => {
     useModalStore.getState().showConfirm({
@@ -485,7 +496,7 @@ export default function LessonViewer({
           setProgressPercentage(Math.min(100, Math.max(savedPercentage, computedPercentage)))
 
           // Set stable video embed URL once initially
-          const initialEmbedUrl = getEmbedUrl(defaultVideo)
+          const initialEmbedUrl = getStableEmbedUrl(defaultVideo)
           setVideoEmbedUrl(initialEmbedUrl)
           console.log('[YouTube Player Debug] fetchLessonData - Set initial embed URL:', initialEmbedUrl)
           
@@ -696,6 +707,13 @@ export default function LessonViewer({
       if (res.data) {
         const progressData = res.data;
         console.log('[Diagnostic Log] Progress save response:', progressData);
+
+        // Async request isolation: discard stale responses if active video or lesson changed
+        if (activeVideoRef.current?.id !== targetVideoId || (activeLessonIdRef.current && activeLessonIdRef.current !== data.lessonId.toString())) {
+          console.log('[saveLessonProgress] Video or lesson changed while saving progress. Discarding stale response for video:', targetVideoId);
+          return;
+        }
+
         if (progressData.view_limit_details && activeVideoRef.current?.id === targetVideoId) {
           setViewLimitDetails(progressData.view_limit_details);
         }
@@ -872,9 +890,13 @@ export default function LessonViewer({
     for (const ev of events) {
       postToBunny('addEventListener', ev);
     }
-    const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
-    if (pos > 0) {
-      postToBunny('setCurrentTime', pos);
+    const currentVid = activeVideoRef.current;
+    if (currentVid && currentVid.id && !hasRestoredPositionRef.current[currentVid.id]) {
+      const pos = currentVid.progress?.last_position_seconds || 0;
+      if (pos > 0) {
+        postToBunny('setCurrentTime', pos);
+      }
+      hasRestoredPositionRef.current[currentVid.id] = true;
     }
     postToBunny('getDuration');
     postToBunny('getCurrentTime');
@@ -1262,23 +1284,21 @@ export default function LessonViewer({
         }, 350);
       } else if (isBunny) {
         interval = setInterval(() => {
-          postToBunny('getCurrentTime');
-          postToBunny('getDuration');
-          postToBunny('getPaused');
-
           const player = bunnyPlayerRef.current;
           if (player && typeof player.getCurrentTime === 'function') {
             try {
               player.getCurrentTime((t: number) => {
                 if (typeof t === 'number' && t >= 0) {
-                  setLastPosition(Math.floor(t));
-                  lastPositionRef.current = Math.floor(t);
+                  const current = Math.floor(t);
+                  setLastPosition(current);
+                  lastPositionRef.current = current;
                 }
               });
               player.getDuration((d: number) => {
                 if (typeof d === 'number' && d > 0) {
-                  setDuration(Math.floor(d));
-                  durationRef.current = Math.floor(d);
+                  const durVal = Math.floor(d);
+                  setDuration(durVal);
+                  durationRef.current = durVal;
                 }
               });
               player.getPaused((p: boolean) => {
@@ -1288,8 +1308,12 @@ export default function LessonViewer({
                 }
               });
             } catch (e) {}
+          } else {
+            postToBunny('getCurrentTime');
+            postToBunny('getDuration');
+            postToBunny('getPaused');
           }
-        }, 350);
+        }, 500);
       }
     }
 
@@ -1554,9 +1578,13 @@ export default function LessonViewer({
 
         player.on('ready', () => {
           registerBunnyEvents();
-          const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
-          if (pos > 0) {
-            try { player.setCurrentTime(pos); } catch (e) {}
+          const targetVid = activeVideoRef.current;
+          if (targetVid && targetVid.id && !hasRestoredPositionRef.current[targetVid.id]) {
+            const pos = targetVid.progress?.last_position_seconds || 0;
+            if (pos > 0) {
+              try { player.setCurrentTime(pos); } catch (e) {}
+            }
+            hasRestoredPositionRef.current[targetVid.id] = true;
           }
           try {
             player.getDuration((d: number) => {
@@ -1794,7 +1822,7 @@ export default function LessonViewer({
     bunnyIframeRef.current = null;
 
     // 6. Set embed URL and active video synchronously
-    const newEmbedUrl = getEmbedUrl(video);
+    const newEmbedUrl = getStableEmbedUrl(video);
     setVideoEmbedUrl(newEmbedUrl);
     setActiveVideo(video);
     activeVideoRef.current = video;
@@ -2194,7 +2222,7 @@ export default function LessonViewer({
                   }
 
                   if (isYoutubeUrl(url)) {
-                    const finalSrc = getEmbedUrl(activeVideo);
+                    const finalSrc = getStableEmbedUrl(activeVideo);
                     console.log('[YouTube Player Debug] Rendering YouTube iframe. finalSrc:', finalSrc);
                     return (
                       <iframe
@@ -2270,7 +2298,7 @@ export default function LessonViewer({
                     );
                   } else {
                     // Bunny Stream player embed
-                    const finalSrc = getEmbedUrl(activeVideo);
+                    const finalSrc = getStableEmbedUrl(activeVideo);
                     return (
                       <iframe
                         id="bunny-stream-player"
