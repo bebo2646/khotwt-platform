@@ -348,4 +348,101 @@ class VideoWatchProgressTest extends TestCase
         // Video record in DB should have duration updated to 39
         $this->assertEquals(39, $videoZero->fresh()->duration_seconds);
     }
+
+    public function test_current_time_updates_and_progress_percentage_calculation(): void
+    {
+        // 1. Progress at 25 seconds of 100s video -> 25%
+        $res25 = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 25,
+                'watched_seconds' => 25,
+                'watched_segments' => [['start' => 0, 'end' => 25]],
+                'duration_seconds' => 100,
+            ]);
+
+        $res25->assertStatus(200);
+        $data25 = $res25->json();
+        $this->assertEquals(25, $data25['last_position_seconds']);
+        $this->assertEquals(25, $data25['watched_seconds']);
+        $this->assertEquals(25.0, (float)$data25['watched_percentage']);
+        $this->assertFalse((bool)$data25['completed']);
+
+        // 2. Playback advances to 75 seconds -> 75%
+        $res75 = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 75,
+                'watched_seconds' => 75,
+                'watched_segments' => [['start' => 0, 'end' => 75]],
+                'duration_seconds' => 100,
+            ]);
+
+        $res75->assertStatus(200);
+        $data75 = $res75->json();
+        $this->assertEquals(75, $data75['last_position_seconds']);
+        $this->assertEquals(75, $data75['watched_seconds']);
+        $this->assertEquals(75.0, (float)$data75['watched_percentage']);
+        $this->assertFalse((bool)$data75['completed']);
+    }
+
+    public function test_progress_does_not_reset_to_zero_when_seeking_backwards(): void
+    {
+        // 1. Initial watch up to 60 seconds (60%)
+        $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 60,
+                'watched_seconds' => 60,
+                'watched_segments' => [['start' => 0, 'end' => 60]],
+                'duration_seconds' => 100,
+            ])
+            ->assertStatus(200);
+
+        // 2. Student seeks backwards to 10 seconds (or reloads at earlier position)
+        $subsequent = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 10,
+                'watched_seconds' => 10,
+                'watched_segments' => [['start' => 0, 'end' => 10]],
+                'duration_seconds' => 100,
+            ]);
+
+        $subsequent->assertStatus(200);
+        $data = $subsequent->json();
+
+        // Current playback position should be 10, but watched_percentage and watched_seconds must NOT reset to 0 or regress
+        $this->assertEquals(10, $data['last_position_seconds']);
+        $this->assertEquals(60, $data['watched_seconds']);
+        $this->assertEquals(60.0, (float)$data['watched_percentage']);
+    }
+
+    public function test_progress_restoration_on_lesson_refresh_returns_last_position_and_percentage(): void
+    {
+        // Save 72% progress with position 72
+        $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 72,
+                'watched_seconds' => 72,
+                'watched_segments' => [['start' => 0, 'end' => 72]],
+                'duration_seconds' => 100,
+            ])
+            ->assertStatus(200);
+
+        // Simulate page reload / refresh by fetching the student lesson details
+        $res = $this->actingAs($this->student, 'sanctum')
+            ->getJson("/api/student/lessons/{$this->lesson->id}?course_id={$this->course->id}");
+
+        $res->assertStatus(200);
+        $videos = $res->json('videos');
+        $videoItem = collect($videos)->firstWhere('id', $this->video->id);
+
+        $this->assertNotNull($videoItem);
+        $this->assertEquals(72, $videoItem['progress']['last_position_seconds']);
+        $this->assertEquals(72, $videoItem['progress']['watched_seconds']);
+        $this->assertEquals(72.0, (float)$videoItem['progress']['watched_percentage']);
+        $this->assertFalse((bool)$videoItem['progress']['completed']);
+    }
 }

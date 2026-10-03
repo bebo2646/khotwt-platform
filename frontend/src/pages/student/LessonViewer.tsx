@@ -218,13 +218,22 @@ export default function LessonViewer({
     };
   }, [isFullscreen]);
 
-  // Lock body scroll when pseudo-fullscreen is active (e.g. iOS Safari)
+  // Lock body scroll and position when pseudo-fullscreen is active (e.g. iOS Safari)
   React.useEffect(() => {
     if (isFullscreen) {
       const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const originalWidth = document.body.style.width;
+      const originalHeight = document.body.style.height;
       document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.height = '100%';
       return () => {
         document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.width = originalWidth;
+        document.body.style.height = originalHeight;
       };
     }
   }, [isFullscreen]);
@@ -453,7 +462,7 @@ export default function LessonViewer({
           const segments = defaultVideo.progress?.watched_segments || []
           const merged = mergeSegments(segments)
           const segSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0)
-          const totalSecs = Math.max(watchedSecs, segSecs)
+          const totalSecs = Math.max(watchedSecs, segSecs, pos)
           const videoDuration = defaultVideo.duration_seconds || 300
           const savedPercentage = Number(defaultVideo.progress?.watched_percentage) || 0
           const computedPercentage = videoDuration > 0 ? (totalSecs / videoDuration) * 100 : 0
@@ -555,6 +564,8 @@ export default function LessonViewer({
   }, [activeVideo?.id, activeVideo?.bunny_status])
 
   const [isPlaying, setIsPlaying] = React.useState(false)
+  const isPlayingRef = React.useRef(isPlaying)
+  React.useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
   const videoRef = React.useRef<HTMLVideoElement>(null)
 
   // Refs for tracking values without stale closures in listeners
@@ -563,6 +574,7 @@ export default function LessonViewer({
   const lastPositionRef = React.useRef(lastPosition)
   const durationRef = React.useRef(duration)
   const progressSavingRef = React.useRef(false)
+  const lastSaveTimeRef = React.useRef<number>(0)
 
   React.useEffect(() => { activeVideoRef.current = activeVideo }, [activeVideo])
   React.useEffect(() => { secondsWatchedRef.current = secondsWatched }, [secondsWatched])
@@ -609,9 +621,17 @@ export default function LessonViewer({
     progress_percentage: number;
     watched_segments?: Array<{ start: number; end: number }>;
     duration_seconds?: number;
+    force?: boolean;
   }) => {
     const video = activeVideoRef.current
     if (!video || progressSavingRef.current) return
+
+    // Throttle non-forced saves to at most once per 2 seconds
+    const now = Date.now();
+    if (!data.force && now - lastSaveTimeRef.current < 2000) {
+      return;
+    }
+
     progressSavingRef.current = true
     try {
       const currentPos = Math.floor(data.last_position_seconds);
@@ -650,6 +670,7 @@ export default function LessonViewer({
       console.log('Saving progress payload:', payload);
 
       const res = await API.post(`/videos/${video.id}/progress`, payload)
+      lastSaveTimeRef.current = Date.now();
       if (res.data) {
         const progressData = res.data;
         console.log('[Diagnostic Log] Progress save response:', progressData);
@@ -682,7 +703,7 @@ export default function LessonViewer({
     }
   }
 
-  const syncProgressToDb = async () => {
+  const syncProgressToDb = async (force: boolean = true) => {
     const current = lastPositionRef.current;
     const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
     
@@ -691,19 +712,22 @@ export default function LessonViewer({
     
     const merged = mergeSegments(watchedSegmentsRef.current);
     const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+    const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
+    const effectiveWatched = Math.max(savedWatched, totalSecs, current);
     
     // Progress must ALWAYS be calculated from the actual unique watched duration
-    const currentProgress = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+    const currentProgress = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
     const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
     const percentage = Math.min(100, Math.max(savedPercentage, currentProgress));
     
     await saveLessonProgress({
       lessonId: Number(id),
       last_position_seconds: current,
-      watched_seconds: totalSecs,
+      watched_seconds: effectiveWatched,
       progress_percentage: percentage,
       watched_segments: merged,
       duration_seconds: durVal,
+      force
     });
   }
 
@@ -774,6 +798,37 @@ export default function LessonViewer({
     }
   }, [progressPercentage, activeVideo]);
 
+  // Safe postMessage helper for Bunny Stream PlayerJS protocol
+  const postToBunny = React.useCallback((method: string, value?: any) => {
+    try {
+      const iframe = bunnyIframeRef.current || (document.getElementById('bunny-stream-player') as HTMLIFrameElement | null);
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
+          context: 'player.js',
+          version: '0.0.11',
+          method,
+          value,
+          listener: method
+        }), '*');
+      }
+    } catch (e) {}
+  }, []);
+
+  // Register Bunny PlayerJS event listeners and restore position
+  const registerBunnyEvents = React.useCallback(() => {
+    const events = ['timeupdate', 'play', 'pause', 'ended', 'seeking', 'seeked'];
+    for (const ev of events) {
+      postToBunny('addEventListener', ev);
+    }
+    const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
+    if (pos > 0) {
+      postToBunny('setCurrentTime', pos);
+    }
+    postToBunny('getDuration');
+    postToBunny('getCurrentTime');
+    postToBunny('getPaused');
+  }, [postToBunny]);
+
   React.useEffect(() => {
     const handlePlayerMessage = (e: MessageEvent) => {
       try {
@@ -787,52 +842,22 @@ export default function LessonViewer({
         }
 
         if (msg && typeof msg === 'object') {
-          // Temporary logging of incoming player messages
-          console.log('[Player Message Debug] Received message:', msg);
-
           // Bunny Stream events (PlayerJS specification)
           if (msg.event === 'ready') {
-            console.log('[Bunny Player message listener] ready event received');
-            const cw = bunnyIframeRef.current?.contentWindow;
-            if (cw) {
-              const events = ['timeupdate', 'play', 'pause', 'ended', 'seeking', 'seeked'];
-              for (const ev of events) {
-                cw.postMessage(JSON.stringify({
-                  context: 'player.js',
-                  version: '0.0.11',
-                  method: 'addEventListener',
-                  value: ev
-                }), '*');
-              }
-              const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
-              if (pos > 0) {
-                cw.postMessage(JSON.stringify({
-                  context: 'player.js',
-                  version: '0.0.11',
-                  method: 'setCurrentTime',
-                  value: pos
-                }), '*');
-              }
-              cw.postMessage(JSON.stringify({
-                context: 'player.js',
-                version: '0.0.11',
-                method: 'getDuration'
-              }), '*');
-              cw.postMessage(JSON.stringify({
-                context: 'player.js',
-                version: '0.0.11',
-                method: 'getCurrentTime'
-              }), '*');
-            }
+            registerBunnyEvents();
           } else if (msg.event === 'play') {
             setIsPlaying(true)
+            isPlayingRef.current = true
           } else if (msg.event === 'pause') {
             setIsPlaying(false)
-            syncProgressToDbRef.current()
+            isPlayingRef.current = false
+            syncProgressToDbRef.current(true)
           } else if (msg.event === 'ended') {
             setIsPlaying(false)
+            isPlayingRef.current = false
             const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
             setLastPosition(durVal);
+            lastPositionRef.current = durVal;
             setWatchedTime(durVal);
             setSecondsWatched(durVal);
             setProgressPercentage(100);
@@ -843,7 +868,8 @@ export default function LessonViewer({
               watched_seconds: durVal,
               progress_percentage: 100,
               watched_segments: [{ start: 0, end: durVal }],
-              duration_seconds: durVal
+              duration_seconds: durVal,
+              force: true
             });
           } else if (msg.event === 'timeupdate') {
             let time: number | undefined = undefined;
@@ -864,13 +890,17 @@ export default function LessonViewer({
             }
 
             if (time !== undefined && time >= 0) {
+              const prev = lastPositionRef.current;
               setLastPosition(time);
-              if (!isPlaying && time > (lastPositionRef.current || 0)) {
+              lastPositionRef.current = time;
+              if (!isPlayingRef.current && time > prev) {
                 setIsPlaying(true);
+                isPlayingRef.current = true;
               }
             }
             if (dur !== undefined && dur > 0) {
               setDuration(dur);
+              durationRef.current = dur;
             }
           } else if (msg.event === 'seeking' || msg.event === 'seeked') {
             let time: number | undefined = undefined;
@@ -884,34 +914,54 @@ export default function LessonViewer({
 
             if (time !== undefined && time >= 0) {
               setLastPosition(time);
-              syncProgressToDbRef.current();
+              lastPositionRef.current = time;
+              syncProgressToDbRef.current(true);
+            }
+          } else if (msg.event === 'getCurrentTime' || msg.method === 'getCurrentTime') {
+            const time = typeof msg.value === 'number' ? Math.floor(msg.value) : (typeof msg.data === 'number' ? Math.floor(msg.data) : undefined);
+            if (time !== undefined && time >= 0) {
+              const prev = lastPositionRef.current;
+              setLastPosition(time);
+              lastPositionRef.current = time;
+              if (!isPlayingRef.current && time > prev) {
+                setIsPlaying(true);
+                isPlayingRef.current = true;
+              }
+            }
+          } else if (msg.event === 'getDuration' || msg.method === 'getDuration') {
+            const dur = typeof msg.value === 'number' ? Math.floor(msg.value) : (typeof msg.data === 'number' ? Math.floor(msg.data) : undefined);
+            if (dur !== undefined && dur > 0) {
+              setDuration(dur);
+              durationRef.current = dur;
+            }
+          } else if (msg.event === 'getPaused' || msg.method === 'getPaused') {
+            const isPaused = typeof msg.value === 'boolean' ? msg.value : (typeof msg.data === 'boolean' ? msg.data : undefined);
+            if (isPaused !== undefined) {
+              setIsPlaying(!isPaused);
+              isPlayingRef.current = !isPaused;
             }
           }
 
-          // Direct method responses
-          if (msg.method === 'getCurrentTime' && typeof msg.value === 'number' && msg.value >= 0) {
-            setLastPosition(Math.floor(msg.value));
-          }
-          if (msg.method === 'getDuration' && typeof msg.value === 'number' && msg.value > 0) {
-            setDuration(Math.floor(msg.value));
-          }
-        }
-
-        // YouTube Embed events (when enablejsapi=1 is passed)
-        if (msg && msg.event === 'infoDelivery' && msg.info) {
-          const state = msg.info.playerState
-          if (state === 1) { // Playing
-            setIsPlaying(true)
-          } else if (state === 2) { // Paused
-            setIsPlaying(false)
-            syncProgressToDbRef.current()
-          } else if (state === 0) { // Ended
-            setIsPlaying(false)
-            syncProgressToDbRef.current()
-          }
-          if (msg.info.currentTime !== undefined) {
-            const time = Math.floor(msg.info.currentTime)
-            setLastPosition(time)
+          // YouTube Embed events (when enablejsapi=1 is passed)
+          if (msg && msg.event === 'infoDelivery' && msg.info) {
+            const state = msg.info.playerState
+            if (state === 1) { // Playing
+              setIsPlaying(true)
+              isPlayingRef.current = true
+            } else if (state === 2) { // Paused
+              setIsPlaying(false)
+              isPlayingRef.current = false
+              syncProgressToDbRef.current(true)
+            } else if (state === 0) { // Ended
+              setIsPlaying(false)
+              isPlayingRef.current = false
+              syncProgressToDbRef.current(true)
+            }
+            if (msg.info.currentTime !== undefined) {
+              const time = Math.floor(msg.info.currentTime)
+              setLastPosition(time)
+              lastPositionRef.current = time
+            }
           }
         }
       } catch (err) {
@@ -921,7 +971,7 @@ export default function LessonViewer({
 
     window.addEventListener('message', handlePlayerMessage)
     return () => window.removeEventListener('message', handlePlayerMessage)
-  }, [id, isPlaying])
+  }, [id, registerBunnyEvents])
 
   // Initialize and reset segments when active video changes
   React.useEffect(() => {
@@ -930,15 +980,19 @@ export default function LessonViewer({
       const merged = mergeSegments(segments);
       const segSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
       const savedWatchedSecs = Number(activeVideo.progress?.watched_seconds) || 0;
-      const totalSecs = Math.max(savedWatchedSecs, segSecs);
+      const pos = activeVideo.progress?.last_position_seconds || 0;
+      const totalSecs = Math.max(savedWatchedSecs, segSecs, pos);
       const durVal = activeVideo.duration_seconds || durationRef.current || 300;
       const savedPercentage = Number(activeVideo.progress?.watched_percentage) || 0;
       const computedPercentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
       
+      setLastPosition(pos);
+      lastPositionRef.current = pos;
       setWatchedSegments(segments);
       setWatchedTime(totalSecs);
       setSecondsWatched(totalSecs);
       setDuration(durVal);
+      durationRef.current = durVal;
       if (durVal > 0) {
         setProgressPercentage(Math.min(100, Math.max(savedPercentage, computedPercentage)));
       }
@@ -950,7 +1004,7 @@ export default function LessonViewer({
 
   // Unified reactive tracking effect
   React.useEffect(() => {
-    if (!activeVideo || !isPlaying) return;
+    if (!activeVideo) return;
     
     // Ignore hidden tab
     if (document.visibilityState === 'hidden') {
@@ -977,37 +1031,40 @@ export default function LessonViewer({
       return;
     }
 
-    const t = lastPosition;
-    const active = currentSegmentRef.current;
-    if (!active) {
-      currentSegmentRef.current = { start: t, end: t };
-    } else {
-      const elapsed = t - active.end;
-      if (elapsed >= 0 && elapsed <= 2.5) {
-        // Continuous playing forward
-        active.end = t;
-        if (elapsed > 0) {
-          sessionWatchTimeRef.current += elapsed;
-        }
-      } else {
-        // Seeking/jumping/reversing
-        pushAndMergeCurrentSegment();
+    if (isPlaying) {
+      const t = lastPosition;
+      const active = currentSegmentRef.current;
+      if (!active) {
         currentSegmentRef.current = { start: t, end: t };
+      } else {
+        const elapsed = t - active.end;
+        if (elapsed >= 0 && elapsed <= 2.5) {
+          // Continuous playing forward
+          active.end = t;
+          if (elapsed > 0) {
+            sessionWatchTimeRef.current += elapsed;
+          }
+        } else {
+          // Seeking/jumping/reversing
+          pushAndMergeCurrentSegment();
+          currentSegmentRef.current = { start: t, end: t };
+        }
       }
     }
 
     // Update real-time progress for display
     const totalSecs = getWatchedSeconds(watchedSegmentsRef.current, currentSegmentRef.current);
+    const savedWatchedSecs = Number(activeVideo.progress?.watched_seconds) || 0;
+    const effectiveSecs = Math.max(savedWatchedSecs, totalSecs, lastPosition);
     const durVal = duration || activeVideo.duration_seconds || 300;
-    setWatchedTime(totalSecs);
-    setSecondsWatched(totalSecs);
+    setWatchedTime(effectiveSecs);
+    setSecondsWatched(effectiveSecs);
     if (durVal > 0) {
-      // Progress must ALWAYS be calculated from the actual unique watched duration
-      const currentProgress = (totalSecs / durVal) * 100;
+      const currentProgress = (effectiveSecs / durVal) * 100;
       const savedPercentage = Number(activeVideo.progress?.watched_percentage) || 0;
       setProgressPercentage(Math.min(100, Math.max(savedPercentage, currentProgress)));
     }
-  }, [lastPosition, isPlaying, activeVideo?.id]);
+  }, [lastPosition, isPlaying, activeVideo?.id, duration]);
 
   // Handle document visibility change to stop/pause active segments
   React.useEffect(() => {
@@ -1023,6 +1080,38 @@ export default function LessonViewer({
     };
   }, []);
 
+  // Save progress on page unload or navigation
+  React.useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (activeVideoRef.current && lastPositionRef.current > 0) {
+        pushAndMergeCurrentSegment();
+        const current = lastPositionRef.current;
+        const durVal = durationRef.current || activeVideoRef.current.duration_seconds || 300;
+        const merged = mergeSegments(watchedSegmentsRef.current);
+        const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+        const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
+        const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+        const percentage = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
+        
+        saveLessonProgressRef.current({
+          lessonId: Number(id),
+          last_position_seconds: current,
+          watched_seconds: effectiveWatched,
+          progress_percentage: percentage,
+          watched_segments: merged,
+          duration_seconds: durVal,
+          force: true
+        });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, [id]);
+
   // Save progress when paused
   React.useEffect(() => {
     if (!isPlaying && activeVideoRef.current) {
@@ -1033,14 +1122,18 @@ export default function LessonViewer({
       const durVal = durationRef.current || activeVideoRef.current.duration_seconds || 300;
       const merged = mergeSegments(watchedSegmentsRef.current);
       const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-      const percentage = durVal > 0 ? (totalSecs / durVal) * 100 : 0;
+      const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
+      const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+      const percentage = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
       
       saveLessonProgressRef.current({
         lessonId: Number(id),
         last_position_seconds: current,
-        watched_seconds: totalSecs,
+        watched_seconds: effectiveWatched,
         progress_percentage: percentage,
-        watched_segments: merged
+        watched_segments: merged,
+        duration_seconds: durVal,
+        force: true
       });
     }
   }, [isPlaying]);
@@ -1049,7 +1142,7 @@ export default function LessonViewer({
   React.useEffect(() => {
     let interval: any = null;
 
-    if (activeVideo && isPlaying) {
+    if (activeVideo) {
       if (isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
         interval = setInterval(() => {
           const player = ytPlayerRef.current;
@@ -1059,43 +1152,47 @@ export default function LessonViewer({
               const durVal = Math.floor(player.getDuration());
               if (durVal > 0 && current >= 0) {
                 setLastPosition(current);
+                lastPositionRef.current = current;
                 setDuration(durVal);
+                durationRef.current = durVal;
+              }
+              if (typeof player.getPlayerState === 'function') {
+                const state = player.getPlayerState();
+                const playing = (state === 1);
+                setIsPlaying(playing);
+                isPlayingRef.current = playing;
               }
             } catch (e) {}
           }
         }, 1000);
       } else if (isBunnyVideo(activeVideo)) {
         interval = setInterval(() => {
+          postToBunny('getCurrentTime');
+          postToBunny('getDuration');
+          postToBunny('getPaused');
+
           const player = bunnyPlayerRef.current;
           if (player && typeof player.getCurrentTime === 'function') {
             try {
               player.getCurrentTime((t: number) => {
                 if (typeof t === 'number' && t >= 0) {
                   setLastPosition(Math.floor(t));
+                  lastPositionRef.current = Math.floor(t);
                 }
               });
               player.getDuration((d: number) => {
                 if (typeof d === 'number' && d > 0) {
                   setDuration(Math.floor(d));
+                  durationRef.current = Math.floor(d);
+                }
+              });
+              player.getPaused((p: boolean) => {
+                if (typeof p === 'boolean') {
+                  setIsPlaying(!p);
+                  isPlayingRef.current = !p;
                 }
               });
             } catch (e) {}
-          } else {
-            const cw = bunnyIframeRef.current?.contentWindow;
-            if (cw) {
-              try {
-                cw.postMessage(JSON.stringify({
-                  context: 'player.js',
-                  version: '0.0.11',
-                  method: 'getCurrentTime'
-                }), '*');
-                cw.postMessage(JSON.stringify({
-                  context: 'player.js',
-                  version: '0.0.11',
-                  method: 'getDuration'
-                }), '*');
-              } catch (e) {}
-            }
           }
         }, 1000);
       }
@@ -1106,7 +1203,7 @@ export default function LessonViewer({
         clearInterval(interval);
       }
     };
-  }, [activeVideo?.id, isPlaying]);
+  }, [activeVideo?.id, postToBunny]);
 
   // Periodic progress saving to DB (running every 5 seconds while playing)
   React.useEffect(() => {
@@ -1121,14 +1218,18 @@ export default function LessonViewer({
           const active = currentSegmentRef.current;
           const merged = getMergedSegmentsIncludingActive(watchedSegmentsRef.current, active);
           const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-          const percentage = (totalSecs / durVal) * 100;
+          const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
+          const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+          const percentage = (effectiveWatched / durVal) * 100;
           
           saveLessonProgressRef.current({
             lessonId: Number(id),
             last_position_seconds: current,
-            watched_seconds: totalSecs,
+            watched_seconds: effectiveWatched,
             progress_percentage: percentage,
-            watched_segments: merged
+            watched_segments: merged,
+            duration_seconds: durVal,
+            force: false
           });
         }
       }, 5000);
@@ -1245,97 +1346,73 @@ export default function LessonViewer({
   }, [activeVideo?.id, activeTab === 'videos']);
 
   const initBunnyPlayer = React.useCallback(() => {
+    registerBunnyEvents();
+
     const iframe = bunnyIframeRef.current || (document.getElementById('bunny-stream-player') as HTMLIFrameElement | null);
     if (!iframe) {
-      console.log('[Bunny Player] Cannot init: iframe not mounted yet');
       return;
     }
 
-    console.log('[Bunny Player] Initializing Player.js for active video ID:', activeVideoRef.current?.id);
-
-    // Destroy existing instance listeners if any
-    if (bunnyPlayerRef.current) {
-      try {
-        bunnyPlayerRef.current.off('ready');
-        bunnyPlayerRef.current.off('play');
-        bunnyPlayerRef.current.off('pause');
-        bunnyPlayerRef.current.off('ended');
-        bunnyPlayerRef.current.off('timeupdate');
-      } catch (e) {}
-      bunnyPlayerRef.current = null;
-    }
-
-    const sendDirectPostMessage = (method: string, value?: any) => {
-      try {
-        if (iframe && iframe.contentWindow) {
-          iframe.contentWindow.postMessage(JSON.stringify({
-            context: 'player.js',
-            version: '0.0.11',
-            method,
-            value
-          }), '*');
-        }
-      } catch (e) {}
-    };
-
-    const registerDirectEvents = () => {
-      sendDirectPostMessage('addEventListener', 'timeupdate');
-      sendDirectPostMessage('addEventListener', 'play');
-      sendDirectPostMessage('addEventListener', 'pause');
-      sendDirectPostMessage('addEventListener', 'ended');
-      sendDirectPostMessage('addEventListener', 'seeking');
-      sendDirectPostMessage('addEventListener', 'seeked');
-      sendDirectPostMessage('getDuration');
-      sendDirectPostMessage('getCurrentTime');
-    };
-    registerDirectEvents();
-    setTimeout(registerDirectEvents, 500);
-    setTimeout(registerDirectEvents, 1500);
-    setTimeout(registerDirectEvents, 3000);
-
     const attachPlayerJs = () => {
       if (!window.playerjs || !window.playerjs.Player) {
-        console.warn('[Bunny Player] window.playerjs not available yet');
         return;
       }
 
       try {
+        if (bunnyPlayerRef.current) {
+          try {
+            bunnyPlayerRef.current.off('ready');
+            bunnyPlayerRef.current.off('play');
+            bunnyPlayerRef.current.off('pause');
+            bunnyPlayerRef.current.off('ended');
+            bunnyPlayerRef.current.off('timeupdate');
+          } catch (e) {}
+          bunnyPlayerRef.current = null;
+        }
+
         const player = new window.playerjs.Player(iframe);
         bunnyPlayerRef.current = player;
         player.loaded = true;
 
         player.on('ready', () => {
-          console.log('[Bunny Player] playerjs "ready" event received');
+          registerBunnyEvents();
           const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
           if (pos > 0) {
             try { player.setCurrentTime(pos); } catch (e) {}
           }
           try {
             player.getDuration((d: number) => {
-              if (d && d > 0) setDuration(Math.floor(d));
+              if (d && d > 0) {
+                setDuration(Math.floor(d));
+                durationRef.current = Math.floor(d);
+              }
             });
             player.getCurrentTime((t: number) => {
-              if (t !== undefined && t >= 0) setLastPosition(Math.floor(t));
+              if (t !== undefined && t >= 0) {
+                setLastPosition(Math.floor(t));
+                lastPositionRef.current = Math.floor(t);
+              }
             });
           } catch (e) {}
         });
 
         player.on('play', () => {
-          console.log('[Bunny Player] playerjs "play" event received');
           setIsPlaying(true);
+          isPlayingRef.current = true;
         });
 
         player.on('pause', () => {
-          console.log('[Bunny Player] playerjs "pause" event received');
           setIsPlaying(false);
-          syncProgressToDbRef.current();
+          isPlayingRef.current = false;
+          syncProgressToDbRef.current(true);
         });
 
         player.on('ended', () => {
-          console.log('[Bunny Player] playerjs "ended" event received');
           setIsPlaying(false);
+          isPlayingRef.current = false;
           const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
           setLastPosition(durVal);
+          lastPositionRef.current = durVal;
           setWatchedTime(durVal);
           setSecondsWatched(durVal);
           setProgressPercentage(100);
@@ -1347,6 +1424,7 @@ export default function LessonViewer({
             progress_percentage: 100,
             watched_segments: [{ start: 0, end: durVal }],
             duration_seconds: durVal,
+            force: true
           });
         });
 
@@ -1355,21 +1433,31 @@ export default function LessonViewer({
           const durVal = typeof data?.duration === 'number' ? Math.floor(data.duration) : null;
           if (durVal && durVal > 0) {
             setDuration(durVal);
+            durationRef.current = durVal;
           }
           if (current !== null && current >= 0) {
+            const prev = lastPositionRef.current;
             setLastPosition(current);
-            if (!isPlaying && current > (lastPositionRef.current || 0)) {
+            lastPositionRef.current = current;
+            if (!isPlayingRef.current && current > prev) {
               setIsPlaying(true);
+              isPlayingRef.current = true;
             }
           }
         });
 
         try {
           player.getDuration((d: number) => {
-            if (d && d > 0) setDuration(Math.floor(d));
+            if (d && d > 0) {
+              setDuration(Math.floor(d));
+              durationRef.current = Math.floor(d);
+            }
           });
           player.getCurrentTime((t: number) => {
-            if (t !== undefined && t >= 0) setLastPosition(Math.floor(t));
+            if (t !== undefined && t >= 0) {
+              setLastPosition(Math.floor(t));
+              lastPositionRef.current = Math.floor(t);
+            }
           });
         } catch (e) {}
       } catch (err) {
@@ -1382,10 +1470,11 @@ export default function LessonViewer({
     } else {
       loadPlayerjsAPI(() => attachPlayerJs());
     }
-  }, [id, isPlaying]);
+  }, [id, registerBunnyEvents]);
 
   React.useEffect(() => {
     if (activeVideo && isBunnyVideo(activeVideo) && activeTab === 'videos') {
+      registerBunnyEvents();
       loadPlayerjsAPI(() => {
         setTimeout(() => {
           initBunnyPlayer();
@@ -1405,7 +1494,7 @@ export default function LessonViewer({
         bunnyPlayerRef.current = null;
       }
     };
-  }, [activeVideo?.id, activeTab === 'videos', initBunnyPlayer]);
+  }, [activeVideo?.id, activeTab === 'videos', initBunnyPlayer, registerBunnyEvents]);
 
   // Handle active video selection switch - SYNCHRONOUS, IMMEDIATE, NON-BLOCKING
   const selectVideo = React.useCallback((video: VideoItem) => {
@@ -1752,7 +1841,7 @@ export default function LessonViewer({
                 ref={containerRef}
                 className={`bg-black overflow-hidden relative transition-all duration-200 ${
                   isFullscreen 
-                    ? 'fixed inset-0 w-screen h-screen z-[99999999] rounded-none border-none m-0 p-0 flex items-center justify-center' 
+                    ? 'fixed inset-0 w-screen h-screen h-[100dvh] w-[100dvw] z-[99999999] rounded-none border-none m-0 p-0 flex items-center justify-center' 
                     : 'aspect-video rounded-3xl border border-[var(--border-color)]'
                 }`}
               >
@@ -1779,6 +1868,25 @@ export default function LessonViewer({
                 {/* Watermark Overlay */}
                 {user && user.role === 'student' && (
                   <VideoWatermark name={user.name} phone={user.phone} />
+                )}
+
+                {/* Transparent interceptor over player's bottom-right fullscreen button to redirect native click to platform fullscreen */}
+                {activeVideo && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      toggleFullscreen();
+                    }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      toggleFullscreen();
+                    }}
+                    className="absolute bottom-0 right-0 w-16 h-14 z-30 cursor-pointer"
+                    title={isFullscreen ? "خروج من ملء الشاشة" : "ملء الشاشة"}
+                    aria-label="ملء الشاشة"
+                  />
                 )}
                 
                 {(() => {
@@ -1955,10 +2063,14 @@ export default function LessonViewer({
                         className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}
                         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-                        referrerPolicy="origin"
+                        referrerPolicy="no-referrer-when-downgrade"
                         onLoad={() => {
                           console.log('[Bunny Player] Bunny iframe onLoad triggered');
+                          registerBunnyEvents();
                           initBunnyPlayer();
+                          setTimeout(registerBunnyEvents, 400);
+                          setTimeout(registerBunnyEvents, 1200);
+                          setTimeout(registerBunnyEvents, 2500);
                         }}
                       />
                     );
@@ -1975,7 +2087,7 @@ export default function LessonViewer({
                     {/* Live Progress Stats */}
                     <div className="flex justify-between items-center text-xs text-slate-400">
                       <span className="font-medium">
-                        شاهدت: {formatTime(watchedTime)} من {formatTime(duration || activeVideo.duration_seconds)}
+                        شاهدت: {formatTime(Math.max(lastPosition, watchedTime))} من {formatTime(duration || activeVideo.duration_seconds || 0)}
                       </span>
                       <span className="font-black text-brand-primary">
                         {progressPercentage.toFixed(0)}%
@@ -2398,10 +2510,10 @@ interface VideoWatermarkProps {
 // - Bottom control bar, progress seekbar, and volume/fullscreen buttons (~22%)
 const WATERMARK_POSITIONS = [
   { top: '15%', left: '68%' }, // Top-Right (safe for RTL layout)
-  { top: '70%', left: '8%' },  // Bottom-Left
+  { top: '65%', left: '8%' },  // Bottom-Left (safe above control bar)
   { top: '44%', left: '38%' }, // Center
-  { top: '15%', left: '8%' },  // Top-Left
-  { top: '70%', left: '68%' }, // Bottom-Right
+  { top: '15%', left: '8%' },  // Top-Left (below exit button)
+  { top: '65%', left: '68%' }, // Bottom-Right (safe above control bar)
 ];
 
 function VideoWatermark({ name, phone }: VideoWatermarkProps) {
@@ -2428,7 +2540,7 @@ function VideoWatermark({ name, phone }: VideoWatermarkProps) {
         top: currentPos.top,
         left: currentPos.left,
         transition: 'top 1.5s cubic-bezier(0.4, 0, 0.2, 1), left 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
-        opacity: 0.78,
+        opacity: 0.85,
         color: '#ffffff',
         textShadow: '1.5px 1.5px 0px #000000, -1.5px -1.5px 0px #000000, 1.5px -1.5px 0px #000000, -1.5px 1.5px 0px #000000, 0 2px 5px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85)',
         WebkitTextStroke: '0.6px rgba(0,0,0,0.9)',
