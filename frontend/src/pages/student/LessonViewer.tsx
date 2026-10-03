@@ -363,7 +363,9 @@ export default function LessonViewer({
 
     if (isYoutubeUrl(url)) {
       const embedBase = getYoutubeEmbedUrl(url);
-      return `${embedBase}?enablejsapi=1&start=${pos}`;
+      const origin = typeof window !== 'undefined' && window.location.origin ? encodeURIComponent(window.location.origin) : '';
+      const originQuery = origin ? `&origin=${origin}` : '';
+      return `${embedBase}?enablejsapi=1&widgetid=1&playsinline=1${originQuery}${pos > 0 ? `&start=${pos}` : ''}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false&playsinline=true&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
@@ -823,6 +825,31 @@ export default function LessonViewer({
     }
   }, [progressPercentage, activeVideo]);
 
+  // Safe postMessage helpers for YouTube IFrame API protocol
+  const postToYouTube = React.useCallback((func: string, args: any[] = []) => {
+    try {
+      const iframe = (document.getElementById('youtube-player') as HTMLIFrameElement | null) || iframeRef.current;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'command',
+          func,
+          args
+        }), '*');
+      }
+    } catch (e) {}
+  }, []);
+
+  const sendYouTubeListening = React.useCallback(() => {
+    try {
+      const iframe = (document.getElementById('youtube-player') as HTMLIFrameElement | null) || iframeRef.current;
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'listening'
+        }), '*');
+      }
+    } catch (e) {}
+  }, []);
+
   // Safe postMessage helper for Bunny Stream PlayerJS protocol
   const postToBunny = React.useCallback((method: string, value?: any) => {
     try {
@@ -969,24 +996,47 @@ export default function LessonViewer({
           }
 
           // YouTube Embed events (when enablejsapi=1 is passed)
-          if (msg && msg.event === 'infoDelivery' && msg.info) {
-            const state = msg.info.playerState
-            if (state === 1) { // Playing
-              setIsPlaying(true)
-              isPlayingRef.current = true
-            } else if (state === 2) { // Paused
-              setIsPlaying(false)
-              isPlayingRef.current = false
-              syncProgressToDbRef.current(true)
-            } else if (state === 0) { // Ended
-              setIsPlaying(false)
-              isPlayingRef.current = false
-              syncProgressToDbRef.current(true)
+          if (msg && (msg.event === 'infoDelivery' || msg.event === 'initialDelivery')) {
+            if (msg.info) {
+              const state = msg.info.playerState;
+              if (state === 1) { // Playing
+                setIsPlaying(true);
+                isPlayingRef.current = true;
+              } else if (state === 2 || state === 0) { // Paused or Ended
+                setIsPlaying(false);
+                isPlayingRef.current = false;
+                if (state === 0) {
+                  const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+                  setLastPosition(durVal);
+                  lastPositionRef.current = durVal;
+                }
+                syncProgressToDbRef.current(true);
+              }
+              if (typeof msg.info.duration === 'number' && msg.info.duration > 0) {
+                const durVal = Math.floor(msg.info.duration);
+                setDuration(durVal);
+                durationRef.current = durVal;
+              }
+              if (typeof msg.info.currentTime === 'number' && msg.info.currentTime >= 0) {
+                const time = Math.floor(msg.info.currentTime);
+                setLastPosition(time);
+                lastPositionRef.current = time;
+              }
             }
-            if (msg.info.currentTime !== undefined) {
-              const time = Math.floor(msg.info.currentTime)
-              setLastPosition(time)
-              lastPositionRef.current = time
+          } else if (msg && msg.event === 'onStateChange') {
+            const state = typeof msg.info === 'number' ? msg.info : (typeof msg.data === 'number' ? msg.data : undefined);
+            if (state === 1) {
+              setIsPlaying(true);
+              isPlayingRef.current = true;
+            } else if (state === 2 || state === 0) {
+              setIsPlaying(false);
+              isPlayingRef.current = false;
+              if (state === 0) {
+                const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+                setLastPosition(durVal);
+                lastPositionRef.current = durVal;
+              }
+              syncProgressToDbRef.current(true);
             }
           }
         }
@@ -1178,16 +1228,28 @@ export default function LessonViewer({
 
       if (isYt) {
         interval = setInterval(() => {
+          sendYouTubeListening();
+          postToYouTube('getCurrentTime');
+          postToYouTube('getDuration');
+
           const player = ytPlayerRef.current;
-          if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
+          if (player) {
             try {
-              const current = Math.floor(player.getCurrentTime());
-              const durVal = Math.floor(player.getDuration());
-              if (durVal > 0 && current >= 0) {
-                setLastPosition(current);
-                lastPositionRef.current = current;
-                setDuration(durVal);
-                durationRef.current = durVal;
+              if (typeof player.getCurrentTime === 'function') {
+                const current = Number(player.getCurrentTime());
+                if (!isNaN(current) && current >= 0) {
+                  const roundedCurrent = Math.floor(current);
+                  setLastPosition(roundedCurrent);
+                  lastPositionRef.current = roundedCurrent;
+                }
+              }
+              if (typeof player.getDuration === 'function') {
+                const durVal = Number(player.getDuration());
+                if (!isNaN(durVal) && durVal > 0) {
+                  const roundedDur = Math.floor(durVal);
+                  setDuration(roundedDur);
+                  durationRef.current = roundedDur;
+                }
               }
               if (typeof player.getPlayerState === 'function') {
                 const state = player.getPlayerState();
@@ -1236,7 +1298,7 @@ export default function LessonViewer({
         clearInterval(interval);
       }
     };
-  }, [activeVideo?.id, postToBunny]);
+  }, [activeVideo?.id, postToBunny, postToYouTube, sendYouTubeListening]);
 
   // Periodic progress saving to DB (running every 5 seconds while playing)
   React.useEffect(() => {
@@ -1289,102 +1351,152 @@ export default function LessonViewer({
   }, [activeVideo])
 
   const ytPlayerRef = React.useRef<any>(null);
+  const ytPlayerVideoIdRef = React.useRef<number | null>(null);
 
-  React.useEffect(() => {
-    let ytPlayer: any = null;
-    let retryTimeout: any = null;
-    let attempts = 0;
+  const initYoutubePlayer = React.useCallback(() => {
+    const activeVid = activeVideoRef.current;
+    if (!activeVid) return;
+    const url = activeVid.bunny_embed_url || activeVid.video_url || '';
+    if (!isYoutubeUrl(url)) return;
 
-    const initPlayer = () => {
-      const element = document.getElementById('youtube-player');
-      if (!element || !window.YT || !window.YT.Player) {
-        if (attempts < 40) {
-          attempts++;
-          retryTimeout = setTimeout(initPlayer, 100);
-        }
-        return;
+    const element = document.getElementById('youtube-player') as HTMLIFrameElement | null;
+    if (!element || !window.YT || !window.YT.Player) {
+      return;
+    }
+
+    if (ytPlayerRef.current && ytPlayerVideoIdRef.current === activeVid.id) {
+      return;
+    }
+
+    try {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch (e) {}
+        ytPlayerRef.current = null;
       }
 
-      console.log('[YouTube Player Debug] Creating window.YT.Player instance for video ID:', activeVideoRef.current?.id);
+      console.log('[YouTube Player Debug] Creating window.YT.Player instance for video ID:', activeVid.id);
+      ytPlayerVideoIdRef.current = activeVid.id;
 
-      try {
-        if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
-          try {
-            ytPlayerRef.current.destroy();
-          } catch (e) {}
-          ytPlayerRef.current = null;
-        }
-
-        ytPlayer = new window.YT.Player('youtube-player', {
-          events: {
-            onStateChange: (event: any) => {
-              const state = event.data;
-              console.log('[YouTube Player Debug] YT Player onStateChange. State:', state);
-              if (state === 1) { // Playing
-                setIsPlaying(true);
-                isPlayingRef.current = true;
-                const current = Math.floor(event.target.getCurrentTime());
-                const durVal = Math.floor(event.target.getDuration());
-                if (durVal > 0 && current >= 0) {
-                  setLastPosition(current);
-                  lastPositionRef.current = current;
-                  setDuration(durVal);
-                  durationRef.current = durVal;
-                }
-              } else if (state === 2 || state === 0) { // Paused or Ended
-                setIsPlaying(false);
-                isPlayingRef.current = false;
-                const current = Math.floor(event.target.getCurrentTime());
-                const durVal = Math.floor(event.target.getDuration());
-                if (durVal > 0 && current >= 0) {
-                  setLastPosition(current);
-                  lastPositionRef.current = current;
-                  setDuration(durVal);
-                  durationRef.current = durVal;
-                }
-                syncProgressToDbRef.current(true);
-              }
-            },
-            onReady: (event: any) => {
-              console.log('[YouTube Player Debug] YT Player onReady triggered');
-              const pos = activeVideoRef.current?.progress?.last_position_seconds || 0;
-              if (pos > 0) {
-                console.log('[YouTube Player Debug] Seeking to position:', pos);
-                event.target.seekTo(pos, true);
-              }
-              const durVal = Math.floor(event.target.getDuration() || activeVideoRef.current?.duration_seconds || 300);
+      const ytPlayer = new window.YT.Player(element, {
+        events: {
+          onReady: (event: any) => {
+            console.log('[YouTube Player Debug] YT Player onReady triggered for video:', activeVid.id);
+            ytPlayerRef.current = event.target;
+            const targetVideo = activeVideoRef.current;
+            const pos = targetVideo?.progress?.last_position_seconds || 0;
+            if (pos > 0 && typeof event.target.seekTo === 'function') {
+              console.log('[YouTube Player Debug] Seeking to position:', pos);
+              event.target.seekTo(pos, true);
+            }
+            if (typeof event.target.getDuration === 'function') {
+              const durVal = Math.floor(event.target.getDuration() || targetVideo?.duration_seconds || 300);
               if (durVal > 0) {
                 setDuration(durVal);
                 durationRef.current = durVal;
               }
-              const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
+            }
+            const savedPercentage = Number(targetVideo?.progress?.watched_percentage) || 0;
+            if (savedPercentage > 0) {
               setProgressPercentage(savedPercentage);
             }
+          },
+          onStateChange: (event: any) => {
+            ytPlayerRef.current = event.target;
+            const state = event.data;
+            console.log('[YouTube Player Debug] YT Player onStateChange. State:', state);
+            if (state === 1) { // Playing
+              setIsPlaying(true);
+              isPlayingRef.current = true;
+              if (typeof event.target.getCurrentTime === 'function') {
+                const current = Math.floor(event.target.getCurrentTime());
+                if (current >= 0) {
+                  setLastPosition(current);
+                  lastPositionRef.current = current;
+                }
+              }
+              if (typeof event.target.getDuration === 'function') {
+                const durVal = Math.floor(event.target.getDuration());
+                if (durVal > 0) {
+                  setDuration(durVal);
+                  durationRef.current = durVal;
+                }
+              }
+            } else if (state === 2 || state === 0) { // Paused or Ended
+              setIsPlaying(false);
+              isPlayingRef.current = false;
+              if (typeof event.target.getCurrentTime === 'function') {
+                const current = Math.floor(event.target.getCurrentTime());
+                if (current >= 0) {
+                  setLastPosition(current);
+                  lastPositionRef.current = current;
+                }
+              }
+              if (typeof event.target.getDuration === 'function') {
+                const durVal = Math.floor(event.target.getDuration());
+                if (durVal > 0) {
+                  setDuration(durVal);
+                  durationRef.current = durVal;
+                }
+              }
+              if (state === 0) {
+                const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+                setLastPosition(durVal);
+                lastPositionRef.current = durVal;
+              }
+              syncProgressToDbRef.current(true);
+            }
           }
-        });
-        ytPlayerRef.current = ytPlayer;
-      } catch (e) {
-        console.error('[YouTube Player Debug] Failed to initialize YT Player:', e);
+        }
+      });
+      ytPlayerRef.current = ytPlayer;
+    } catch (e) {
+      console.error('[YouTube Player Debug] Failed to initialize YT Player:', e);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    let retryTimeout: any = null;
+    let attempts = 0;
+
+    const tryInit = () => {
+      const activeVid = activeVideoRef.current;
+      if (!activeVid) return;
+      const url = activeVid.bunny_embed_url || activeVid.video_url || '';
+      if (!isYoutubeUrl(url)) return;
+
+      const element = document.getElementById('youtube-player');
+      if (!element || !window.YT || !window.YT.Player) {
+        if (attempts < 40) {
+          attempts++;
+          retryTimeout = setTimeout(tryInit, 100);
+        }
+        return;
       }
+      initYoutubePlayer();
     };
 
     const loadYoutubeAPI = () => {
-      if (!window.YT) {
-        console.log('[YouTube Player Debug] Injecting YouTube IFrame API script tag');
-        const tag = document.createElement('script');
-        tag.src = 'https://www.youtube.com/iframe_api';
-        const firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+      if (!window.YT || !window.YT.Player) {
+        if (!document.getElementById('yt-iframe-api-script')) {
+          console.log('[YouTube Player Debug] Injecting YouTube IFrame API script tag');
+          const tag = document.createElement('script');
+          tag.id = 'yt-iframe-api-script';
+          tag.src = 'https://www.youtube.com/iframe_api';
+          const firstScriptTag = document.getElementsByTagName('script')[0];
+          firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+        }
         
         const prevCallback = window.onYouTubeIframeAPIReady;
         window.onYouTubeIframeAPIReady = () => {
           if (prevCallback) prevCallback();
           console.log('[YouTube Player Debug] onYouTubeIframeAPIReady callback fired');
-          initPlayer();
+          tryInit();
         };
       } else {
         console.log('[YouTube Player Debug] YouTube API already script-injected. Initializing player.');
-        initPlayer();
+        tryInit();
       }
     };
 
@@ -1398,17 +1510,18 @@ export default function LessonViewer({
         clearTimeout(retryTimeout);
       }
       console.log('[YouTube Player Debug] YT Player useEffect cleanup. Active video ID:', activeVideoRef.current?.id);
-      if (ytPlayer && typeof ytPlayer.destroy === 'function') {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
         console.log('[YouTube Player Debug] Destroying YT Player instance for video ID:', activeVideoRef.current?.id);
         try {
-          ytPlayer.destroy();
+          ytPlayerRef.current.destroy();
         } catch (e) {
           console.error('[YouTube Player Debug] Error destroying player:', e);
         }
       }
       ytPlayerRef.current = null;
+      ytPlayerVideoIdRef.current = null;
     };
-  }, [activeVideo?.id, activeTab === 'videos']);
+  }, [activeVideo?.id, activeTab === 'videos', initYoutubePlayer]);
 
   const initBunnyPlayer = React.useCallback(() => {
     registerBunnyEvents();
@@ -1667,6 +1780,7 @@ export default function LessonViewer({
       } catch (e) {}
       ytPlayerRef.current = null;
     }
+    ytPlayerVideoIdRef.current = null;
     if (bunnyPlayerRef.current) {
       try {
         bunnyPlayerRef.current.off('ready');
@@ -2091,7 +2205,25 @@ export default function LessonViewer({
                         style={{ border: 'none' }}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
-                        referrerPolicy="origin"
+                        referrerPolicy="strict-origin-when-cross-origin"
+                        onLoad={() => {
+                          console.log('[YouTube Player Debug] YouTube iframe onLoad triggered');
+                          sendYouTubeListening();
+                          postToYouTube('getCurrentTime');
+                          initYoutubePlayer();
+                          setTimeout(() => {
+                            sendYouTubeListening();
+                            postToYouTube('getCurrentTime');
+                          }, 400);
+                          setTimeout(() => {
+                            sendYouTubeListening();
+                            postToYouTube('getCurrentTime');
+                          }, 1200);
+                          setTimeout(() => {
+                            sendYouTubeListening();
+                            postToYouTube('getCurrentTime');
+                          }, 2500);
+                        }}
                         ref={(el) => {
                           if (el) {
                             if (iframeRef.current !== el) {

@@ -1,9 +1,29 @@
 /**
+ * Extracts YouTube video ID from various YouTube URL formats.
+ */
+export function extractYoutubeId(url: string): string | null {
+  if (!url) return null;
+  // Strictly exclude Bunny Stream or other CDNs containing /embed/
+  if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
+    return null;
+  }
+  const regExp = /(?:youtube(?:-nocookie)?\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+  const match = url.match(regExp);
+  return match ? match[1] : null;
+}
+
+/**
  * Checks whether a URL is a YouTube URL.
  */
 export function isYoutubeUrl(url: string): boolean {
   if (!url) return false;
-  return url.includes('youtube.com') || url.includes('youtu.be') || url.includes('youtube-nocookie.com');
+  if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
+    return false;
+  }
+  return extractYoutubeId(url) !== null || 
+         url.includes('youtube.com') || 
+         url.includes('youtu.be') || 
+         url.includes('youtube-nocookie.com');
 }
 
 /**
@@ -22,13 +42,9 @@ export function isDirectVideoUrl(url: string): boolean {
  * Extracts YouTube video ID and returns a clean base embed URL.
  */
 export function getYoutubeEmbedUrl(url: string): string {
-  const match = url.match(
-    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^?&/]+)/
-  );
-
-  if (!match) return url;
-
-  return `https://www.youtube.com/embed/${match[1]}`;
+  const videoId = extractYoutubeId(url);
+  if (!videoId) return url;
+  return `https://www.youtube.com/embed/${videoId}`;
 }
 
 /**
