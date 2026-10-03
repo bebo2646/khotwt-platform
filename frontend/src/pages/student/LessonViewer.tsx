@@ -486,7 +486,10 @@ export default function LessonViewer({
           const savedPercentage = Number(defaultVideo.progress?.watched_percentage) || 0
           const computedPercentage = videoDuration > 0 ? (totalSecs / videoDuration) * 100 : 0
 
-          setLastPosition(pos)
+          if (!isPlayingRef.current && (lastPositionRef.current === 0 || activeVideoRef.current?.id !== defaultVideo.id)) {
+            setLastPosition(pos)
+            lastPositionRef.current = pos
+          }
           setWatchedTime(totalSecs)
           setSecondsWatched(totalSecs)
           setWatchedSegments(segments)
@@ -1039,11 +1042,8 @@ export default function LessonViewer({
                 setDuration(durVal);
                 durationRef.current = durVal;
               }
-              if (typeof msg.info.currentTime === 'number' && msg.info.currentTime >= 0) {
-                const time = Math.floor(msg.info.currentTime);
-                setLastPosition(time);
-                lastPositionRef.current = time;
-              }
+              // Do NOT update lastPosition from infoDelivery or initialDelivery!
+              // ytPlayerRef.current.getCurrentTime() is the sole authoritative writer for live YouTube playback.
             }
           } else if (msg && msg.event === 'onStateChange') {
             const state = typeof msg.info === 'number' ? msg.info : (typeof msg.data === 'number' ? msg.data : undefined);
@@ -1250,10 +1250,6 @@ export default function LessonViewer({
 
       if (isYt) {
         interval = setInterval(() => {
-          sendYouTubeListening();
-          postToYouTube('getCurrentTime');
-          postToYouTube('getDuration');
-
           const player = ytPlayerRef.current;
           if (player) {
             try {
@@ -1322,7 +1318,7 @@ export default function LessonViewer({
         clearInterval(interval);
       }
     };
-  }, [activeVideo?.id, postToBunny, postToYouTube, sendYouTubeListening]);
+  }, [activeVideo?.id, postToBunny]);
 
   // Periodic progress saving to DB (running every 5 seconds while playing)
   React.useEffect(() => {
@@ -2236,21 +2232,7 @@ export default function LessonViewer({
                         referrerPolicy="strict-origin-when-cross-origin"
                         onLoad={() => {
                           console.log('[YouTube Player Debug] YouTube iframe onLoad triggered');
-                          sendYouTubeListening();
-                          postToYouTube('getCurrentTime');
                           initYoutubePlayer();
-                          setTimeout(() => {
-                            sendYouTubeListening();
-                            postToYouTube('getCurrentTime');
-                          }, 400);
-                          setTimeout(() => {
-                            sendYouTubeListening();
-                            postToYouTube('getCurrentTime');
-                          }, 1200);
-                          setTimeout(() => {
-                            sendYouTubeListening();
-                            postToYouTube('getCurrentTime');
-                          }, 2500);
                         }}
                         ref={(el) => {
                           if (el) {
