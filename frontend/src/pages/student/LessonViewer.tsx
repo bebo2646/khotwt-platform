@@ -871,6 +871,56 @@ export default function LessonViewer({
     } catch (e) {}
   }, []);
 
+  // Player lifecycle token & generation guard to strictly isolate player instances
+  const playerGenerationRef = React.useRef<number>(0);
+  const ytPlayerRef = React.useRef<any>(null);
+  const ytPlayerVideoIdRef = React.useRef<number | null>(null);
+  const ytRetryTimeoutRef = React.useRef<any>(null);
+  const bunnyTimeoutsRef = React.useRef<any[]>([]);
+
+  // Safe YouTube player stop helper - NEVER calls .destroy() because YT.Player.prototype.destroy
+  // physically removes the <iframe> DOM element behind React's back, causing React commit-phase
+  // "DOMException: Failed to execute 'removeChild' on 'Node'" crashes on unmount.
+  const safelyStopYoutubePlayer = React.useCallback(() => {
+    if (ytRetryTimeoutRef.current) {
+      clearTimeout(ytRetryTimeoutRef.current);
+      ytRetryTimeoutRef.current = null;
+    }
+    if (ytPlayerRef.current) {
+      try {
+        if (typeof ytPlayerRef.current.stopVideo === 'function') {
+          ytPlayerRef.current.stopVideo();
+        } else if (typeof ytPlayerRef.current.pauseVideo === 'function') {
+          ytPlayerRef.current.pauseVideo();
+        }
+      } catch (e) {}
+      ytPlayerRef.current = null;
+    }
+    ytPlayerVideoIdRef.current = null;
+  }, []);
+
+  // Safe Bunny player cleanup helper
+  const safelyCleanUpBunnyPlayer = React.useCallback(() => {
+    for (const to of bunnyTimeoutsRef.current) {
+      clearTimeout(to);
+    }
+    bunnyTimeoutsRef.current = [];
+
+    if (bunnyPlayerRef.current) {
+      try {
+        bunnyPlayerRef.current.off('ready');
+        bunnyPlayerRef.current.off('play');
+        bunnyPlayerRef.current.off('pause');
+        bunnyPlayerRef.current.off('ended');
+        bunnyPlayerRef.current.off('timeupdate');
+        bunnyPlayerRef.current.off('seeking');
+        bunnyPlayerRef.current.off('seeked');
+      } catch (e) {}
+      bunnyPlayerRef.current = null;
+    }
+    bunnyIframeRef.current = null;
+  }, []);
+
   // Safe postMessage helper for Bunny Stream PlayerJS protocol
   const postToBunny = React.useCallback((method: string, value?: any) => {
     try {
@@ -889,12 +939,14 @@ export default function LessonViewer({
 
   // Register Bunny PlayerJS event listeners and restore position
   const registerBunnyEvents = React.useCallback(() => {
+    const currentVid = activeVideoRef.current;
+    if (!currentVid || !isBunnyVideo(currentVid)) return;
+
     const events = ['timeupdate', 'play', 'pause', 'ended', 'seeking', 'seeked'];
     for (const ev of events) {
       postToBunny('addEventListener', ev);
     }
-    const currentVid = activeVideoRef.current;
-    if (currentVid && currentVid.id && !hasRestoredPositionRef.current[currentVid.id]) {
+    if (currentVid.id && !hasRestoredPositionRef.current[currentVid.id]) {
       const pos = currentVid.progress?.last_position_seconds || 0;
       if (pos > 0) {
         postToBunny('setCurrentTime', pos);
@@ -918,7 +970,33 @@ export default function LessonViewer({
           }
         }
 
-        if (msg && typeof msg === 'object') {
+        if (!msg || typeof msg !== 'object') return;
+
+        const currentVid = activeVideoRef.current;
+        if (!currentVid) return;
+
+        const currentUrl = currentVid.bunny_embed_url || currentVid.video_url || '';
+        const isCurrentYt = isYoutubeUrl(currentUrl);
+        const isCurrentBunny = isBunnyVideo(currentVid);
+
+        // Identify message origin
+        const isBunnyMsg = msg.context === 'player.js' || 
+          ['ready', 'play', 'pause', 'ended', 'timeupdate', 'seeking', 'seeked', 'getCurrentTime', 'getDuration', 'getPaused'].includes(msg.event) ||
+          ['getCurrentTime', 'getDuration', 'getPaused'].includes(msg.method);
+
+        const isYouTubeMsg = msg.event === 'infoDelivery' || 
+          msg.event === 'initialDelivery' || 
+          msg.event === 'onStateChange';
+
+        // Guard: Never allow cross-player contamination!
+        if (isBunnyMsg && !isCurrentBunny) {
+          return;
+        }
+        if (isYouTubeMsg && !isCurrentYt) {
+          return;
+        }
+
+        if (isCurrentBunny && isBunnyMsg) {
           // Bunny Stream events (PlayerJS specification)
           if (msg.event === 'ready') {
             registerBunnyEvents();
@@ -932,7 +1010,7 @@ export default function LessonViewer({
           } else if (msg.event === 'ended') {
             setIsPlaying(false)
             isPlayingRef.current = false
-            const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+            const durVal = durationRef.current || currentVid.duration_seconds || 300;
             setLastPosition(durVal);
             lastPositionRef.current = durVal;
             setWatchedTime(durVal);
@@ -941,7 +1019,7 @@ export default function LessonViewer({
             watchedSegmentsRef.current = [{ start: 0, end: durVal }];
             saveLessonProgressRef.current({
               lessonId: Number(activeLessonIdRef.current || id),
-              videoId: activeVideoRef.current?.id,
+              videoId: currentVid.id,
               last_position_seconds: durVal,
               watched_seconds: durVal,
               progress_percentage: 100,
@@ -1019,7 +1097,9 @@ export default function LessonViewer({
               isPlayingRef.current = !isPaused;
             }
           }
+        }
 
+        if (isCurrentYt && isYouTubeMsg) {
           // YouTube Embed events (when enablejsapi=1 is passed)
           if (msg && (msg.event === 'infoDelivery' || msg.event === 'initialDelivery')) {
             if (msg.info) {
@@ -1031,7 +1111,7 @@ export default function LessonViewer({
                 setIsPlaying(false);
                 isPlayingRef.current = false;
                 if (state === 0) {
-                  const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+                  const durVal = durationRef.current || currentVid.duration_seconds || 300;
                   setLastPosition(durVal);
                   lastPositionRef.current = durVal;
                 }
@@ -1054,7 +1134,7 @@ export default function LessonViewer({
               setIsPlaying(false);
               isPlayingRef.current = false;
               if (state === 0) {
-                const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+                const durVal = durationRef.current || currentVid.duration_seconds || 300;
                 setLastPosition(durVal);
                 lastPositionRef.current = durVal;
               }
@@ -1244,12 +1324,18 @@ export default function LessonViewer({
     let interval: any = null;
 
     if (activeVideo) {
+      const currentGen = playerGenerationRef.current;
+      const targetVideoId = activeVideo.id;
       const url = activeVideo.bunny_embed_url || activeVideo.video_url || '';
       const isYt = isYoutubeUrl(url);
       const isBunny = isBunnyVideo(activeVideo);
 
       if (isYt) {
         interval = setInterval(() => {
+          if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) {
+            return;
+          }
+
           const player = ytPlayerRef.current;
           if (player) {
             try {
@@ -1280,10 +1366,15 @@ export default function LessonViewer({
         }, 350);
       } else if (isBunny) {
         interval = setInterval(() => {
+          if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) {
+            return;
+          }
+
           const player = bunnyPlayerRef.current;
           if (player && typeof player.getCurrentTime === 'function') {
             try {
               player.getCurrentTime((t: number) => {
+                if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) return;
                 if (typeof t === 'number' && t >= 0) {
                   const current = Math.floor(t);
                   setLastPosition(current);
@@ -1291,6 +1382,7 @@ export default function LessonViewer({
                 }
               });
               player.getDuration((d: number) => {
+                if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) return;
                 if (typeof d === 'number' && d > 0) {
                   const durVal = Math.floor(d);
                   setDuration(durVal);
@@ -1298,6 +1390,7 @@ export default function LessonViewer({
                 }
               });
               player.getPaused((p: boolean) => {
+                if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) return;
                 if (typeof p === 'boolean') {
                   setIsPlaying(!p);
                   isPlayingRef.current = !p;
@@ -1325,8 +1418,13 @@ export default function LessonViewer({
     let interval: any = null;
 
     if (activeVideo && isPlaying) {
+      const currentGen = playerGenerationRef.current;
+      const targetVideoId = activeVideo.id;
       console.log('[Video Progress] Starting periodic progress save interval');
       interval = setInterval(() => {
+        if (playerGenerationRef.current !== currentGen || activeVideoRef.current?.id !== targetVideoId) {
+          return;
+        }
         const current = lastPositionRef.current;
         const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
         if (durVal > 0 && current >= 0) {
@@ -1370,9 +1468,6 @@ export default function LessonViewer({
     }
   }, [activeVideo])
 
-  const ytPlayerRef = React.useRef<any>(null);
-  const ytPlayerVideoIdRef = React.useRef<number | null>(null);
-
   const initYoutubePlayer = React.useCallback(() => {
     const activeVid = activeVideoRef.current;
     if (!activeVid) return;
@@ -1388,21 +1483,22 @@ export default function LessonViewer({
       return;
     }
 
-    try {
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
-        try {
-          ytPlayerRef.current.destroy();
-        } catch (e) {}
-        ytPlayerRef.current = null;
-      }
+    const targetGeneration = playerGenerationRef.current;
+    const targetVideoId = activeVid.id;
 
+    safelyStopYoutubePlayer();
+
+    try {
       console.log('[YouTube Player Debug] Creating window.YT.Player instance for video ID:', activeVid.id);
-      ytPlayerVideoIdRef.current = activeVid.id;
+      ytPlayerVideoIdRef.current = targetVideoId;
 
       const ytPlayer = new window.YT.Player(element, {
         events: {
           onReady: (event: any) => {
-            console.log('[YouTube Player Debug] YT Player onReady triggered for video:', activeVid.id);
+            if (playerGenerationRef.current !== targetGeneration || activeVideoRef.current?.id !== targetVideoId) {
+              return;
+            }
+            console.log('[YouTube Player Debug] YT Player onReady triggered for video:', targetVideoId);
             ytPlayerRef.current = event.target;
             const targetVideo = activeVideoRef.current;
             const pos = targetVideo?.progress?.last_position_seconds || 0;
@@ -1423,6 +1519,9 @@ export default function LessonViewer({
             }
           },
           onStateChange: (event: any) => {
+            if (playerGenerationRef.current !== targetGeneration || activeVideoRef.current?.id !== targetVideoId) {
+              return;
+            }
             ytPlayerRef.current = event.target;
             const state = event.data;
             console.log('[YouTube Player Debug] YT Player onStateChange. State:', state);
@@ -1474,13 +1573,17 @@ export default function LessonViewer({
     } catch (e) {
       console.error('[YouTube Player Debug] Failed to initialize YT Player:', e);
     }
-  }, []);
+  }, [safelyStopYoutubePlayer]);
 
   React.useEffect(() => {
-    let retryTimeout: any = null;
     let attempts = 0;
+    const targetGen = playerGenerationRef.current;
+    const targetVideoId = activeVideoRef.current?.id;
 
     const tryInit = () => {
+      if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVideoId) {
+        return;
+      }
       const activeVid = activeVideoRef.current;
       if (!activeVid) return;
       const url = activeVid.bunny_embed_url || activeVid.video_url || '';
@@ -1490,7 +1593,7 @@ export default function LessonViewer({
       if (!element || !window.YT || !window.YT.Player) {
         if (attempts < 40) {
           attempts++;
-          retryTimeout = setTimeout(tryInit, 100);
+          ytRetryTimeoutRef.current = setTimeout(tryInit, 100);
         }
         return;
       }
@@ -1526,22 +1629,9 @@ export default function LessonViewer({
     }
 
     return () => {
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-      }
-      console.log('[YouTube Player Debug] YT Player useEffect cleanup. Active video ID:', activeVideoRef.current?.id);
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
-        console.log('[YouTube Player Debug] Destroying YT Player instance for video ID:', activeVideoRef.current?.id);
-        try {
-          ytPlayerRef.current.destroy();
-        } catch (e) {
-          console.error('[YouTube Player Debug] Error destroying player:', e);
-        }
-      }
-      ytPlayerRef.current = null;
-      ytPlayerVideoIdRef.current = null;
+      safelyStopYoutubePlayer();
     };
-  }, [activeVideo?.id, activeTab === 'videos', initYoutubePlayer]);
+  }, [activeVideo?.id, activeTab === 'videos', initYoutubePlayer, safelyStopYoutubePlayer]);
 
   const initBunnyPlayer = React.useCallback(() => {
     registerBunnyEvents();
@@ -1551,7 +1641,13 @@ export default function LessonViewer({
       return;
     }
 
+    const targetGen = playerGenerationRef.current;
+    const targetVidId = activeVideoRef.current?.id;
+
     const attachPlayerJs = () => {
+      if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) {
+        return;
+      }
       if (!window.playerjs || !window.playerjs.Player) {
         return;
       }
@@ -1564,6 +1660,8 @@ export default function LessonViewer({
             bunnyPlayerRef.current.off('pause');
             bunnyPlayerRef.current.off('ended');
             bunnyPlayerRef.current.off('timeupdate');
+            bunnyPlayerRef.current.off('seeking');
+            bunnyPlayerRef.current.off('seeked');
           } catch (e) {}
           bunnyPlayerRef.current = null;
         }
@@ -1573,6 +1671,7 @@ export default function LessonViewer({
         player.loaded = true;
 
         player.on('ready', () => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           registerBunnyEvents();
           const targetVid = activeVideoRef.current;
           if (targetVid && targetVid.id && !hasRestoredPositionRef.current[targetVid.id]) {
@@ -1584,12 +1683,14 @@ export default function LessonViewer({
           }
           try {
             player.getDuration((d: number) => {
+              if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
               if (d && d > 0) {
                 setDuration(Math.floor(d));
                 durationRef.current = Math.floor(d);
               }
             });
             player.getCurrentTime((t: number) => {
+              if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
               if (t !== undefined && t >= 0) {
                 setLastPosition(Math.floor(t));
                 lastPositionRef.current = Math.floor(t);
@@ -1599,17 +1700,20 @@ export default function LessonViewer({
         });
 
         player.on('play', () => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           setIsPlaying(true);
           isPlayingRef.current = true;
         });
 
         player.on('pause', () => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           setIsPlaying(false);
           isPlayingRef.current = false;
           syncProgressToDbRef.current(true);
         });
 
         player.on('seeking', (data: any) => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
           if (current !== null && current >= 0) {
             setLastPosition(current);
@@ -1618,6 +1722,7 @@ export default function LessonViewer({
         });
 
         player.on('seeked', (data: any) => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
           if (current !== null && current >= 0) {
             setLastPosition(current);
@@ -1627,6 +1732,7 @@ export default function LessonViewer({
         });
 
         player.on('ended', () => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           setIsPlaying(false);
           isPlayingRef.current = false;
           const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
@@ -1638,7 +1744,7 @@ export default function LessonViewer({
           watchedSegmentsRef.current = [{ start: 0, end: durVal }];
           saveLessonProgressRef.current({
             lessonId: Number(activeLessonIdRef.current || id),
-            videoId: activeVideoRef.current?.id,
+            videoId: targetVidId,
             last_position_seconds: durVal,
             watched_seconds: durVal,
             progress_percentage: 100,
@@ -1649,6 +1755,7 @@ export default function LessonViewer({
         });
 
         player.on('timeupdate', (data: any) => {
+          if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
           const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
           const durVal = typeof data?.duration === 'number' ? Math.floor(data.duration) : null;
           if (durVal && durVal > 0) {
@@ -1668,12 +1775,14 @@ export default function LessonViewer({
 
         try {
           player.getDuration((d: number) => {
+            if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
             if (d && d > 0) {
               setDuration(Math.floor(d));
               durationRef.current = Math.floor(d);
             }
           });
           player.getCurrentTime((t: number) => {
+            if (playerGenerationRef.current !== targetGen || activeVideoRef.current?.id !== targetVidId) return;
             if (t !== undefined && t >= 0) {
               setLastPosition(Math.floor(t));
               lastPositionRef.current = Math.floor(t);
@@ -1694,34 +1803,31 @@ export default function LessonViewer({
 
   React.useEffect(() => {
     if (activeVideo && isBunnyVideo(activeVideo) && activeTab === 'videos') {
+      const targetGen = playerGenerationRef.current;
+      const targetVidId = activeVideo.id;
       registerBunnyEvents();
       loadPlayerjsAPI(() => {
-        setTimeout(() => {
-          initBunnyPlayer();
+        const to = setTimeout(() => {
+          if (playerGenerationRef.current === targetGen && activeVideoRef.current?.id === targetVidId) {
+            initBunnyPlayer();
+          }
         }, 150);
+        bunnyTimeoutsRef.current.push(to);
       });
     }
 
     return () => {
-      if (bunnyPlayerRef.current) {
-        try {
-          bunnyPlayerRef.current.off('ready');
-          bunnyPlayerRef.current.off('play');
-          bunnyPlayerRef.current.off('pause');
-          bunnyPlayerRef.current.off('ended');
-          bunnyPlayerRef.current.off('timeupdate');
-          bunnyPlayerRef.current.off('seeking');
-          bunnyPlayerRef.current.off('seeked');
-        } catch (e) {}
-        bunnyPlayerRef.current = null;
-      }
+      safelyCleanUpBunnyPlayer();
     };
-  }, [activeVideo?.id, activeTab === 'videos', initBunnyPlayer, registerBunnyEvents]);
+  }, [activeVideo?.id, activeTab === 'videos', initBunnyPlayer, registerBunnyEvents, safelyCleanUpBunnyPlayer]);
 
   // Handle active video selection switch - SYNCHRONOUS, IMMEDIATE, NON-BLOCKING
   const selectVideo = React.useCallback((video: VideoItem) => {
     if (!video) return;
     if (activeVideoRef.current && activeVideoRef.current.id === video.id) return;
+
+    // Increment player generation so all existing callbacks/intervals from the previous player become no-ops
+    playerGenerationRef.current += 1;
 
     console.log('[LessonViewer Debug] Switching video:', {
       from: activeVideoRef.current?.id,
@@ -1797,25 +1903,9 @@ export default function LessonViewer({
       isSessionAuthorizedRef.current = true;
     }
 
-    // 5. Cleanup YouTube and Bunny player instances
-    if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
-      try {
-        ytPlayerRef.current.destroy();
-      } catch (e) {}
-      ytPlayerRef.current = null;
-    }
-    ytPlayerVideoIdRef.current = null;
-    if (bunnyPlayerRef.current) {
-      try {
-        bunnyPlayerRef.current.off('ready');
-        bunnyPlayerRef.current.off('play');
-        bunnyPlayerRef.current.off('pause');
-        bunnyPlayerRef.current.off('ended');
-        bunnyPlayerRef.current.off('timeupdate');
-      } catch (e) {}
-      bunnyPlayerRef.current = null;
-    }
-    bunnyIframeRef.current = null;
+    // 5. Cleanup YouTube and Bunny player instances safely (without calling .destroy() to avoid React DOM unmount crash)
+    safelyStopYoutubePlayer();
+    safelyCleanUpBunnyPlayer();
 
     // 6. Set embed URL and active video synchronously
     const newEmbedUrl = getStableEmbedUrl(video);
@@ -1840,7 +1930,7 @@ export default function LessonViewer({
     if (onVideoChange) {
       onVideoChange(video);
     }
-  }, [id, viewLimitDetails, isEmbedded, onVideoChange]);
+  }, [id, viewLimitDetails, isEmbedded, onVideoChange, safelyStopYoutubePlayer, safelyCleanUpBunnyPlayer]);
 
   // React to activeVideoProp from parent
   React.useEffect(() => {
@@ -2289,6 +2379,11 @@ export default function LessonViewer({
                           bunnyIframeRef.current = el;
                           if (el) {
                             iframeRef.current = el;
+                          } else {
+                            bunnyIframeRef.current = null;
+                            if (iframeRef.current?.id === 'bunny-stream-player') {
+                              iframeRef.current = null;
+                            }
                           }
                         }}
                         src={finalSrc}
@@ -2298,11 +2393,26 @@ export default function LessonViewer({
                         referrerPolicy="no-referrer-when-downgrade"
                         onLoad={() => {
                           console.log('[Bunny Player] Bunny iframe onLoad triggered');
+                          const targetGen = playerGenerationRef.current;
+                          const targetVidId = activeVideo.id;
                           registerBunnyEvents();
                           initBunnyPlayer();
-                          setTimeout(registerBunnyEvents, 400);
-                          setTimeout(registerBunnyEvents, 1200);
-                          setTimeout(registerBunnyEvents, 2500);
+                          const t1 = setTimeout(() => {
+                            if (playerGenerationRef.current === targetGen && activeVideoRef.current?.id === targetVidId) {
+                              registerBunnyEvents();
+                            }
+                          }, 400);
+                          const t2 = setTimeout(() => {
+                            if (playerGenerationRef.current === targetGen && activeVideoRef.current?.id === targetVidId) {
+                              registerBunnyEvents();
+                            }
+                          }, 1200);
+                          const t3 = setTimeout(() => {
+                            if (playerGenerationRef.current === targetGen && activeVideoRef.current?.id === targetVidId) {
+                              registerBunnyEvents();
+                            }
+                          }, 2500);
+                          bunnyTimeoutsRef.current.push(t1, t2, t3);
                         }}
                       />
                     );
