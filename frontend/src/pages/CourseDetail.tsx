@@ -1115,7 +1115,7 @@ export default function CourseDetail() {
           <div className="w-full bg-brand-card border border-[var(--border-color)] rounded-3xl overflow-hidden shadow-2xl p-4 sm:p-6">
             {videoId && (
               <LessonViewer
-                key="course-embedded-viewer"
+                key={`course-viewer-${lessonId}`}
                 overrideLessonId={Number(lessonId)}
                 overrideCourseId={course?.id}
                 isEmbedded={true}

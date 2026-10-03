@@ -164,6 +164,8 @@ export default function LessonViewer({
   const sessionWatchTimeRef = React.useRef<number>(0)
   const initialViewsUsedRef = React.useRef<Record<number, number>>({})
   const isSessionAuthorizedRef = React.useRef<boolean>(true)
+  const activeLessonIdRef = React.useRef<string | undefined>(id)
+  React.useEffect(() => { activeLessonIdRef.current = id }, [id])
 
   // Detect iOS (iPhone/iPad/iPod)
   const isIOSDevice = () => {
@@ -401,6 +403,7 @@ export default function LessonViewer({
 
   // Fetch lesson contents
   const fetchLessonData = () => {
+    const requestedLessonId = id
     setLoading(true)
     const params: any = {}
     if (preSelectedVideoId) params.play = preSelectedVideoId
@@ -409,6 +412,9 @@ export default function LessonViewer({
 
     API.get(`/student/lessons/${id}`, { params })
       .then((res) => {
+        if (activeLessonIdRef.current !== requestedLessonId) {
+          return;
+        }
         if (res.data.is_views_exceeded) {
           setViewLimitExceeded(true)
           setViewLimitDetails(res.data.view_limit_details)
@@ -491,6 +497,9 @@ export default function LessonViewer({
         }
       })
       .catch((err) => {
+        if (activeLessonIdRef.current !== requestedLessonId) {
+          return;
+        }
         console.error(err)
         if (err.response?.data?.subscription_expired) {
           setSubscriptionExpired(true)
@@ -505,7 +514,11 @@ export default function LessonViewer({
           }
         }
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (activeLessonIdRef.current === requestedLessonId) {
+          setLoading(false);
+        }
+      })
   }
 
   const handleRedeemRechargeCode = async () => {
@@ -616,6 +629,7 @@ export default function LessonViewer({
   // Save lesson progress API helper
   const saveLessonProgress = async (data: { 
     lessonId: number; 
+    videoId?: number;
     last_position_seconds: number; 
     watched_seconds?: number; 
     progress_percentage: number;
@@ -623,8 +637,13 @@ export default function LessonViewer({
     duration_seconds?: number;
     force?: boolean;
   }) => {
-    const video = activeVideoRef.current
-    if (!video || progressSavingRef.current) return
+    const targetVideoId = data.videoId || activeVideoRef.current?.id
+    if (!targetVideoId || progressSavingRef.current) return
+
+    // Prevent saving to an inactive lesson unless explicitly forced
+    if (!data.force && data.lessonId.toString() !== activeLessonIdRef.current) {
+      return;
+    }
 
     // Throttle non-forced saves to at most once per 2 seconds
     const now = Date.now();
@@ -637,17 +656,18 @@ export default function LessonViewer({
       const currentPos = Math.floor(data.last_position_seconds);
       const watched = data.watched_seconds !== undefined ? Math.floor(data.watched_seconds) : Math.max(secondsWatchedRef.current, currentPos);
       const segments = data.watched_segments || watchedSegmentsRef.current;
-      const durVal = data.duration_seconds || durationRef.current || video.duration_seconds || 300;
+      const durVal = data.duration_seconds || durationRef.current || activeVideoRef.current?.duration_seconds || 300;
 
-      const currentViewsUsed = video.progress?.views_used || 0;
-      if (initialViewsUsedRef.current[video.id] === undefined) {
-        initialViewsUsedRef.current[video.id] = currentViewsUsed;
+      const currentVideo = activeVideoRef.current?.id === targetVideoId ? activeVideoRef.current : videos.find(v => v.id === targetVideoId);
+      const currentViewsUsed = currentVideo?.progress?.views_used || 0;
+      if (initialViewsUsedRef.current[targetVideoId] === undefined) {
+        initialViewsUsedRef.current[targetVideoId] = currentViewsUsed;
       }
-      const initialViewsUsed = initialViewsUsedRef.current[video.id];
+      const initialViewsUsed = initialViewsUsedRef.current[targetVideoId];
       const isAlreadyConsumed = currentViewsUsed > initialViewsUsed;
 
       console.log('[Diagnostic Log] saveLessonProgress values:', {
-        video_id: video.id,
+        video_id: targetVideoId,
         currentViewsUsed,
         initialViewsUsed,
         isAlreadyConsumed,
@@ -669,16 +689,16 @@ export default function LessonViewer({
 
       console.log('Saving progress payload:', payload);
 
-      const res = await API.post(`/videos/${video.id}/progress`, payload)
+      const res = await API.post(`/videos/${targetVideoId}/progress`, payload)
       lastSaveTimeRef.current = Date.now();
       if (res.data) {
         const progressData = res.data;
         console.log('[Diagnostic Log] Progress save response:', progressData);
-        if (progressData.view_limit_details) {
+        if (progressData.view_limit_details && activeVideoRef.current?.id === targetVideoId) {
           setViewLimitDetails(progressData.view_limit_details);
         }
         setVideos(prev => prev.map(v => {
-          if (v.id === video.id) {
+          if (v.id === targetVideoId) {
             return {
               ...v,
               progress: progressData
@@ -687,7 +707,7 @@ export default function LessonViewer({
           return v;
         }));
         setActiveVideo(prev => {
-          if (prev && prev.id === video.id) {
+          if (prev && prev.id === targetVideoId) {
             return {
               ...prev,
               progress: progressData
@@ -704,24 +724,28 @@ export default function LessonViewer({
   }
 
   const syncProgressToDb = async (force: boolean = true) => {
+    const video = activeVideoRef.current;
+    if (!video) return;
+
     const current = lastPositionRef.current;
-    const durVal = durationRef.current || activeVideoRef.current?.duration_seconds || 300;
+    const durVal = durationRef.current || video.duration_seconds || 300;
     
     // Commit active segment
     pushAndMergeCurrentSegment();
     
     const merged = mergeSegments(watchedSegmentsRef.current);
     const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
-    const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
-    const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+    const savedWatched = Number(video.progress?.watched_seconds) || 0;
+    const effectiveWatched = Math.max(savedWatched, totalSecs);
     
     // Progress must ALWAYS be calculated from the actual unique watched duration
     const currentProgress = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
-    const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
+    const savedPercentage = Number(video.progress?.watched_percentage) || 0;
     const percentage = Math.min(100, Math.max(savedPercentage, currentProgress));
     
     await saveLessonProgress({
-      lessonId: Number(id),
+      lessonId: Number(activeLessonIdRef.current || id),
+      videoId: video.id,
       last_position_seconds: current,
       watched_seconds: effectiveWatched,
       progress_percentage: percentage,
@@ -789,7 +813,8 @@ export default function LessonViewer({
       const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
       
       saveLessonProgress({
-        lessonId: Number(id),
+        lessonId: Number(activeLessonIdRef.current || id),
+        videoId: activeVideo.id,
         last_position_seconds: current,
         watched_seconds: totalSecs,
         progress_percentage: progressPercentage,
@@ -863,7 +888,8 @@ export default function LessonViewer({
             setProgressPercentage(100);
             watchedSegmentsRef.current = [{ start: 0, end: durVal }];
             saveLessonProgressRef.current({
-              lessonId: Number(id),
+              lessonId: Number(activeLessonIdRef.current || id),
+              videoId: activeVideoRef.current?.id,
               last_position_seconds: durVal,
               watched_seconds: durVal,
               progress_percentage: 100,
@@ -1017,7 +1043,8 @@ export default function LessonViewer({
 
     // Detect playback rate to pause progress on fast speeds (> 2.0x)
     let playbackRate = 1.0;
-    if (isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+    const currentVideoUrl = activeVideo.bunny_embed_url || activeVideo.video_url || '';
+    if (isYoutubeUrl(currentVideoUrl)) {
       playbackRate = ytPlayerRef.current?.getPlaybackRate() || 1.0;
     } else if (videoRef.current) {
       playbackRate = videoRef.current.playbackRate || 1.0;
@@ -1055,7 +1082,7 @@ export default function LessonViewer({
     // Update real-time progress for display
     const totalSecs = getWatchedSeconds(watchedSegmentsRef.current, currentSegmentRef.current);
     const savedWatchedSecs = Number(activeVideo.progress?.watched_seconds) || 0;
-    const effectiveSecs = Math.max(savedWatchedSecs, totalSecs, lastPosition);
+    const effectiveSecs = Math.max(savedWatchedSecs, totalSecs);
     const durVal = duration || activeVideo.duration_seconds || 300;
     setWatchedTime(effectiveSecs);
     setSecondsWatched(effectiveSecs);
@@ -1090,11 +1117,12 @@ export default function LessonViewer({
         const merged = mergeSegments(watchedSegmentsRef.current);
         const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
         const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
-        const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+        const effectiveWatched = Math.max(savedWatched, totalSecs);
         const percentage = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
         
         saveLessonProgressRef.current({
-          lessonId: Number(id),
+          lessonId: Number(activeLessonIdRef.current || id),
+          videoId: activeVideoRef.current.id,
           last_position_seconds: current,
           watched_seconds: effectiveWatched,
           progress_percentage: percentage,
@@ -1123,11 +1151,12 @@ export default function LessonViewer({
       const merged = mergeSegments(watchedSegmentsRef.current);
       const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
       const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
-      const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+      const effectiveWatched = Math.max(savedWatched, totalSecs);
       const percentage = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
       
       saveLessonProgressRef.current({
-        lessonId: Number(id),
+        lessonId: Number(activeLessonIdRef.current || id),
+        videoId: activeVideoRef.current.id,
         last_position_seconds: current,
         watched_seconds: effectiveWatched,
         progress_percentage: percentage,
@@ -1138,12 +1167,16 @@ export default function LessonViewer({
     }
   }, [isPlaying]);
 
-  // 1-second smooth state updates for YouTube and Bunny videos
+  // Controlled smooth state updates for YouTube and Bunny videos (every 350ms)
   React.useEffect(() => {
     let interval: any = null;
 
     if (activeVideo) {
-      if (isYoutubeUrl(activeVideo.bunny_embed_url || '')) {
+      const url = activeVideo.bunny_embed_url || activeVideo.video_url || '';
+      const isYt = isYoutubeUrl(url);
+      const isBunny = isBunnyVideo(activeVideo);
+
+      if (isYt) {
         interval = setInterval(() => {
           const player = ytPlayerRef.current;
           if (player && typeof player.getCurrentTime === 'function' && typeof player.getDuration === 'function') {
@@ -1164,8 +1197,8 @@ export default function LessonViewer({
               }
             } catch (e) {}
           }
-        }, 1000);
-      } else if (isBunnyVideo(activeVideo)) {
+        }, 350);
+      } else if (isBunny) {
         interval = setInterval(() => {
           postToBunny('getCurrentTime');
           postToBunny('getDuration');
@@ -1194,7 +1227,7 @@ export default function LessonViewer({
               });
             } catch (e) {}
           }
-        }, 1000);
+        }, 350);
       }
     }
 
@@ -1219,11 +1252,12 @@ export default function LessonViewer({
           const merged = getMergedSegmentsIncludingActive(watchedSegmentsRef.current, active);
           const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
           const savedWatched = Number(activeVideoRef.current?.progress?.watched_seconds) || 0;
-          const effectiveWatched = Math.max(savedWatched, totalSecs, current);
+          const effectiveWatched = Math.max(savedWatched, totalSecs);
           const percentage = (effectiveWatched / durVal) * 100;
           
           saveLessonProgressRef.current({
-            lessonId: Number(id),
+            lessonId: Number(activeLessonIdRef.current || id),
+            videoId: activeVideoRef.current?.id,
             last_position_seconds: current,
             watched_seconds: effectiveWatched,
             progress_percentage: percentage,
@@ -1249,7 +1283,7 @@ export default function LessonViewer({
       console.log('--- [LessonViewer Debug] Video Playback Info ---')
       console.log('Video ID:', activeVideo.id)
       console.log('Video Title:', activeVideo.title)
-      console.log('Video Player Source (src):', activeVideo.bunny_embed_url)
+      console.log('Video Player Source (src):', activeVideo.bunny_embed_url || activeVideo.video_url)
       console.log('------------------------------------------------')
     }
   }, [activeVideo])
@@ -1258,33 +1292,57 @@ export default function LessonViewer({
 
   React.useEffect(() => {
     let ytPlayer: any = null;
+    let retryTimeout: any = null;
+    let attempts = 0;
 
     const initPlayer = () => {
       const element = document.getElementById('youtube-player');
       if (!element || !window.YT || !window.YT.Player) {
-        console.log('[YouTube Player Debug] Cannot init player yet. Element found:', !!element, 'window.YT:', !!window.YT);
+        if (attempts < 40) {
+          attempts++;
+          retryTimeout = setTimeout(initPlayer, 100);
+        }
         return;
       }
 
       console.log('[YouTube Player Debug] Creating window.YT.Player instance for video ID:', activeVideoRef.current?.id);
 
       try {
+        if (ytPlayerRef.current && typeof ytPlayerRef.current.destroy === 'function') {
+          try {
+            ytPlayerRef.current.destroy();
+          } catch (e) {}
+          ytPlayerRef.current = null;
+        }
+
         ytPlayer = new window.YT.Player('youtube-player', {
           events: {
             onStateChange: (event: any) => {
               const state = event.data;
               console.log('[YouTube Player Debug] YT Player onStateChange. State:', state);
-              if (state === 1) {
+              if (state === 1) { // Playing
                 setIsPlaying(true);
-              } else if (state === 2 || state === 0) {
-                setIsPlaying(false);
+                isPlayingRef.current = true;
                 const current = Math.floor(event.target.getCurrentTime());
                 const durVal = Math.floor(event.target.getDuration());
-                if (durVal > 0) {
+                if (durVal > 0 && current >= 0) {
                   setLastPosition(current);
+                  lastPositionRef.current = current;
                   setDuration(durVal);
+                  durationRef.current = durVal;
                 }
-                syncProgressToDbRef.current();
+              } else if (state === 2 || state === 0) { // Paused or Ended
+                setIsPlaying(false);
+                isPlayingRef.current = false;
+                const current = Math.floor(event.target.getCurrentTime());
+                const durVal = Math.floor(event.target.getDuration());
+                if (durVal > 0 && current >= 0) {
+                  setLastPosition(current);
+                  lastPositionRef.current = current;
+                  setDuration(durVal);
+                  durationRef.current = durVal;
+                }
+                syncProgressToDbRef.current(true);
               }
             },
             onReady: (event: any) => {
@@ -1295,7 +1353,10 @@ export default function LessonViewer({
                 event.target.seekTo(pos, true);
               }
               const durVal = Math.floor(event.target.getDuration() || activeVideoRef.current?.duration_seconds || 300);
-              setDuration(durVal);
+              if (durVal > 0) {
+                setDuration(durVal);
+                durationRef.current = durVal;
+              }
               const savedPercentage = Number(activeVideoRef.current?.progress?.watched_percentage) || 0;
               setProgressPercentage(savedPercentage);
             }
@@ -1323,15 +1384,19 @@ export default function LessonViewer({
         };
       } else {
         console.log('[YouTube Player Debug] YouTube API already script-injected. Initializing player.');
-        setTimeout(initPlayer, 300);
+        initPlayer();
       }
     };
 
-    if (activeVideo && isYoutubeUrl(activeVideo.bunny_embed_url) && activeTab === 'videos') {
+    const currentUrl = activeVideo ? (activeVideo.bunny_embed_url || activeVideo.video_url || '') : '';
+    if (activeVideo && isYoutubeUrl(currentUrl) && activeTab === 'videos') {
       loadYoutubeAPI();
     }
 
     return () => {
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
       console.log('[YouTube Player Debug] YT Player useEffect cleanup. Active video ID:', activeVideoRef.current?.id);
       if (ytPlayer && typeof ytPlayer.destroy === 'function') {
         console.log('[YouTube Player Debug] Destroying YT Player instance for video ID:', activeVideoRef.current?.id);
@@ -1407,6 +1472,23 @@ export default function LessonViewer({
           syncProgressToDbRef.current(true);
         });
 
+        player.on('seeking', (data: any) => {
+          const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
+          if (current !== null && current >= 0) {
+            setLastPosition(current);
+            lastPositionRef.current = current;
+          }
+        });
+
+        player.on('seeked', (data: any) => {
+          const current = typeof data?.seconds === 'number' ? Math.floor(data.seconds) : (typeof data === 'number' ? Math.floor(data) : null);
+          if (current !== null && current >= 0) {
+            setLastPosition(current);
+            lastPositionRef.current = current;
+            syncProgressToDbRef.current(true);
+          }
+        });
+
         player.on('ended', () => {
           setIsPlaying(false);
           isPlayingRef.current = false;
@@ -1418,7 +1500,8 @@ export default function LessonViewer({
           setProgressPercentage(100);
           watchedSegmentsRef.current = [{ start: 0, end: durVal }];
           saveLessonProgressRef.current({
-            lessonId: Number(id),
+            lessonId: Number(activeLessonIdRef.current || id),
+            videoId: activeVideoRef.current?.id,
             last_position_seconds: durVal,
             watched_seconds: durVal,
             progress_percentage: 100,
@@ -1490,6 +1573,8 @@ export default function LessonViewer({
           bunnyPlayerRef.current.off('pause');
           bunnyPlayerRef.current.off('ended');
           bunnyPlayerRef.current.off('timeupdate');
+          bunnyPlayerRef.current.off('seeking');
+          bunnyPlayerRef.current.off('seeked');
         } catch (e) {}
         bunnyPlayerRef.current = null;
       }
@@ -1515,23 +1600,28 @@ export default function LessonViewer({
       const durVal = durationRef.current || prevVideo.duration_seconds || 300;
       const merged = mergeSegments(watchedSegmentsRef.current);
       const totalSecs = merged.reduce((sum, seg) => sum + (seg.end - seg.start), 0);
+      const savedWatched = Number(prevVideo.progress?.watched_seconds) || 0;
+      const effectiveWatched = Math.max(savedWatched, totalSecs);
       
-      const currentProgress = durVal > 0 ? (current / durVal) * 100 : 0;
+      const currentProgress = durVal > 0 ? (effectiveWatched / durVal) * 100 : 0;
       const savedPercentage = Number(prevVideo.progress?.watched_percentage) || 0;
       const percentage = Math.max(savedPercentage, currentProgress);
 
       saveLessonProgressRef.current({
-        lessonId: Number(id),
+        lessonId: Number(activeLessonIdRef.current || id),
+        videoId: prevVideo.id,
         last_position_seconds: current,
-        watched_seconds: totalSecs,
+        watched_seconds: effectiveWatched,
         progress_percentage: percentage,
         watched_segments: merged,
         duration_seconds: durVal,
+        force: true
       }).catch(() => {});
     }
 
     // 2. Immediately reset playback and session
     setIsPlaying(false);
+    isPlayingRef.current = false;
     currentSegmentRef.current = null;
     watchSessionIdRef.current = Math.random().toString(36).substring(2) + Date.now().toString(36);
     sessionWatchTimeRef.current = 0;
@@ -2085,21 +2175,30 @@ export default function LessonViewer({
                   <h3 className="font-bold text-base">{activeVideo.title}</h3>
                   <div className="flex flex-col gap-2 mt-2 w-full">
                     {/* Live Progress Stats */}
-                    <div className="flex justify-between items-center text-xs text-slate-400">
-                      <span className="font-medium">
-                        شاهدت: {formatTime(Math.max(lastPosition, watchedTime))} من {formatTime(duration || activeVideo.duration_seconds || 0)}
-                      </span>
-                      <span className="font-black text-brand-primary">
-                        {progressPercentage.toFixed(0)}%
-                      </span>
-                    </div>
-                    {/* Progress Bar */}
-                    <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden relative">
-                      <div
-                        className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all duration-300"
-                        style={{ width: `${progressPercentage}%` }}
-                      />
-                    </div>
+                    {(() => {
+                      const totalDur = duration || activeVideo.duration_seconds || 0;
+                      const playbackPercentage = totalDur > 0 ? (lastPosition / totalDur) * 100 : 0;
+                      const clampedPercentage = Math.min(100, Math.max(0, playbackPercentage));
+                      return (
+                        <>
+                          <div className="flex justify-between items-center text-xs text-slate-400">
+                            <span className="font-medium">
+                              شاهدت: {formatTime(lastPosition)} من {formatTime(totalDur)}
+                            </span>
+                            <span className="font-black text-brand-primary">
+                              {clampedPercentage.toFixed(0)}%
+                            </span>
+                          </div>
+                          {/* Progress Bar */}
+                          <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden relative">
+                            <div
+                              className="h-full bg-gradient-to-r from-brand-primary to-brand-secondary rounded-full transition-all duration-300"
+                              style={{ width: `${clampedPercentage}%` }}
+                            />
+                          </div>
+                        </>
+                      );
+                    })()}
                     {/* Completion status indicator */}
                     <div className="text-xs mt-1">
                       {(activeVideo.progress?.completed || progressPercentage >= 90) ? (

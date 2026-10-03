@@ -3,7 +3,7 @@
  */
 export function isYoutubeUrl(url: string): boolean {
   if (!url) return false;
-  return url.includes('youtube.com') || url.includes('youtu.be') || url.includes('embed/');
+  return url.includes('youtube.com') || url.includes('youtu.be') || url.includes('youtube-nocookie.com');
 }
 
 /**
