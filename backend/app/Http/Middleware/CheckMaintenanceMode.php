@@ -24,8 +24,8 @@ class CheckMaintenanceMode
                 return $next($request);
             }
 
-            // If authenticated user is Super Admin: allow request
-            if ($user->is_super_admin || $user->is_super) {
+            // If authenticated user is Admin or Super Admin: allow request
+            if ($user->isAdmin() || $user->role === 'admin' || $user->is_super_admin || $user->is_super) {
                 return $next($request);
             }
 

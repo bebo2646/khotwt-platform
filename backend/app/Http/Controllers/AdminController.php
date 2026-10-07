@@ -2069,7 +2069,7 @@ class AdminController extends Controller
      */
     public function updateMaintenanceSettings(Request $request)
     {
-        if (!$request->user() || !$request->user()->is_super_admin) {
+        if (!$request->user() || (!$request->user()->is_super_admin && !$request->user()->is_super)) {
             return response()->json(['message' => 'عذراً، هذا الإجراء متاح فقط للمشرف العام.'], 403);
         }
 

@@ -1823,14 +1823,24 @@ class StudentController extends Controller
         $incomingSegments = $request->input('watched_segments', []);
         $mergedSegments = $this->mergeTimeSegments($incomingSegments);
         
-        // Calculate watched seconds as sum of unique watched segments
-        $watchedDuration = $this->calculateWatchedDuration($mergedSegments);
+        // Calculate watched seconds strictly as sum of verified unique watched segments
+        if (count($mergedSegments) > 0) {
+            $watchedDuration = $this->calculateWatchedDuration($mergedSegments);
+            $finalWatchedSeconds = (int)round($watchedDuration);
+        } elseif ($progress && !empty($progress->watched_segments)) {
+            // Retain previously verified watched segments if incoming segments were empty
+            $mergedSegments = $this->mergeTimeSegments($progress->watched_segments);
+            $watchedDuration = $this->calculateWatchedDuration($mergedSegments);
+            $finalWatchedSeconds = (int)round($watchedDuration);
+        } else {
+            // Without verified segments, watched seconds cannot be artificially claimed
+            $finalWatchedSeconds = 0;
+            $mergedSegments = [];
+        }
         
-        // Fallback to request's watched_seconds if no segments are provided
-        $finalWatchedSeconds = count($mergedSegments) > 0 ? (int)round($watchedDuration) : $request->watched_seconds;
-        
-        // Calculate percentage strictly from actual unique watched seconds
-        $percentage = min(100.00, round(($finalWatchedSeconds / $duration) * 100, 2));
+        // Calculate percentage strictly from actual unique verified watched duration
+        $actualDuration = isset($watchedDuration) ? $watchedDuration : (float)$finalWatchedSeconds;
+        $percentage = min(100.00, round(($actualDuration / $duration) * 100, 2));
 
         $viewsCount = $progress ? $progress->views_count : 0;
         if (isset($shouldIncrementViewsCount) && $shouldIncrementViewsCount) {
@@ -3961,11 +3971,12 @@ class StudentController extends Controller
         if (!$subscription) {
             // Create Starter subscription dynamically
             $starter = \App\Models\SubscriptionPlan::where('name', 'Starter')->first();
+            $durationDays = $starter ? ($starter->duration_in_days ?: ($starter->duration_days ?: 30)) : 30;
             $subscription = \App\Models\TeacherSubscription::create([
                 'teacher_id' => $teacherId,
                 'plan_id' => $starter ? $starter->id : 1,
                 'start_date' => Carbon::now()->toDateString(),
-                'end_date' => Carbon::now()->addDays(30)->toDateString(),
+                'end_date' => Carbon::now()->addDays($durationDays)->toDateString(),
                 'status' => 'Active',
                 'used_storage_bytes' => 0,
                 'used_codes' => 0,

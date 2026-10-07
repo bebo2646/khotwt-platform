@@ -16,8 +16,7 @@ Allow: /arabic
 Allow: /grade-1-secondary
 Allow: /grade-2-secondary
 Allow: /grade-3-secondary
-Allow: /login
-Allow: /register
+Allow: /assets/*
 
 # Disallow private and dashboard routes
 Disallow: /admin/

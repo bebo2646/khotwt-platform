@@ -445,4 +445,56 @@ class VideoWatchProgressTest extends TestCase
         $this->assertEquals(72.0, (float)$videoItem['progress']['watched_percentage']);
         $this->assertFalse((bool)$videoItem['progress']['completed']);
     }
+
+    public function test_anti_cheat_empty_segments_cannot_forge_completion_or_watched_seconds(): void
+    {
+        // Malicious client sends high watched_seconds without verified segments
+        $res = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 95,
+                'watched_seconds' => 95,
+                'watched_segments' => [],
+                'duration_seconds' => 100,
+            ]);
+
+        $res->assertStatus(200);
+        $data = $res->json();
+
+        // Must be rejected down to 0 because no verified segments were provided
+        $this->assertEquals(0, $data['watched_seconds']);
+        $this->assertEquals(0, (float)$data['watched_percentage']);
+        $this->assertFalse((bool)$data['completed']);
+    }
+
+    public function test_anti_cheat_threshold_boundary_verification(): void
+    {
+        // 89.9% must remain incomplete
+        $res899 = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 90,
+                'watched_seconds' => 90,
+                'watched_segments' => [['start' => 0, 'end' => 89.9]],
+                'duration_seconds' => 100,
+            ]);
+
+        $res899->assertStatus(200);
+        $data899 = $res899->json();
+        $this->assertFalse((bool)$data899['completed']);
+
+        // 90.0% must complete
+        $res90 = $this->actingAs($this->student, 'sanctum')
+            ->postJson("/api/videos/{$this->video->id}/progress", [
+                'course_id' => $this->course->id,
+                'last_position_seconds' => 90,
+                'watched_seconds' => 90,
+                'watched_segments' => [['start' => 0, 'end' => 90.0]],
+                'duration_seconds' => 100,
+            ]);
+
+        $res90->assertStatus(200);
+        $data90 = $res90->json();
+        $this->assertTrue((bool)$data90['completed']);
+    }
 }

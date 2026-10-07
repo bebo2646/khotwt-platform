@@ -213,6 +213,20 @@ class PublicController extends Controller
                     $query->where('is_published', true);
                 }])
                 ->get()
+                ->makeHidden([
+                    'phone',
+                    'parent_phone',
+                    'wallet_balance',
+                    'email',
+                    'password',
+                    'remember_token',
+                    'must_change_password',
+                    'current_session_token',
+                    'permissions',
+                    'rejection_reason',
+                    'bunny_storage_used_gb',
+                    'bunny_storage_limit_gb',
+                ])
                 ->toArray();
         });
 
@@ -220,55 +234,98 @@ class PublicController extends Controller
     }
 
     /**
+     * Helper to normalize Arabic and slug strings for resilient search and SEO matching.
+     */
+    private function normalizeArabicString(?string $text): string
+    {
+        if (!$text) return '';
+        $text = urldecode($text);
+        $text = str_replace(['_', '-'], ' ', $text);
+        // Strip common titles so they don't corrupt identity matching
+        $text = preg_replace('/^(مستر|استاذ|أستاذ|أ\.|دكتور|د\.|د\/|مهندس|باشمهندس)\s+/u', '', trim($text));
+        $text = preg_replace('/[أإآ]/u', 'ا', $text);
+        $text = preg_replace('/ة/u', 'ه', $text);
+        $text = preg_replace('/ى/u', 'ي', $text);
+        $text = preg_replace('/[\x{064B}-\x{065F}]/u', '', $text); // Remove diacritics
+        return trim(mb_strtolower($text, 'UTF-8'));
+    }
+
+    /**
      * Get a specific teacher's profile.
      */
     public function teacherProfile($id)
     {
-        $query = User::where('role', 'teacher')
-            ->where('status', 'active');
+        $teacher = null;
+        $decoded = urldecode($id);
 
         if (is_numeric($id)) {
-            $query->where('id', $id);
-        } else {
-            $slug = strtolower(urldecode($id));
-            $query->where(function($q) use ($slug) {
-                $q->where('slug', $slug)
-                  ->orWhere('name', 'like', '%' . str_replace('-', ' ', $slug) . '%');
-            });
-        }
-
-        $teacher = $query->withCount(['courses as students_count' => function ($query) {
-                $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
-            }])
-            ->withCount(['courses as published_courses_count' => function ($query) {
-                $query->where('is_published', true);
-            }])
-            ->first();
-
-        // Fallback search if not found
-        if (!$teacher && !is_numeric($id)) {
-            $parts = explode('-', str_replace('_', '-', urldecode($id)));
             $teacher = User::where('role', 'teacher')
                 ->where('status', 'active')
-                ->where(function($q) use ($parts) {
-                    foreach ($parts as $part) {
-                        if (strlen($part) > 2) {
-                            $q->orWhere('name', 'like', '%' . $part . '%');
+                ->where('id', (int)$id)
+                ->first();
+        }
+
+        // 1. Direct slug match
+        if (!$teacher) {
+            $teacher = User::where('role', 'teacher')
+                ->where('status', 'active')
+                ->where('slug', $decoded)
+                ->first();
+        }
+
+        // 2. Normalized slug or title match against active teachers
+        if (!$teacher) {
+            $normTarget = $this->normalizeArabicString($decoded);
+            $activeTeachers = User::where('role', 'teacher')
+                ->where('status', 'active')
+                ->get();
+
+            // Match normalized slug or normalized name
+            $teacher = $activeTeachers->first(function ($t) use ($decoded, $normTarget) {
+                if ($t->slug === $decoded) return true;
+                if ($this->normalizeArabicString($t->slug) === $normTarget) return true;
+                if ($this->normalizeArabicString($t->name) === $normTarget) return true;
+                return false;
+            });
+
+            // Match containment if target is descriptive (at least 3 characters)
+            if (!$teacher && mb_strlen($normTarget, 'UTF-8') >= 3) {
+                $teacher = $activeTeachers->first(function ($t) use ($normTarget) {
+                    $normName = $this->normalizeArabicString($t->name);
+                    return str_contains($normName, $normTarget) || str_contains($normTarget, $normName);
+                });
+            }
+
+            // Match transliterated English slug (e.g. jomaa-aleyady -> مستر جمعه العيادي)
+            if (!$teacher) {
+                $cleanEn = strtolower(str_replace(['_', ' '], '-', $decoded));
+                $teacher = $activeTeachers->first(function ($t) use ($cleanEn) {
+                    if (str_contains($cleanEn, 'jomaa') || str_contains($cleanEn, 'gomaa')) {
+                        if (str_contains($cleanEn, 'yady') && str_contains($t->name, 'العيادي')) {
+                            return true;
                         }
                     }
-                })
-                ->withCount(['courses as students_count' => function ($query) {
-                    $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
-                }])
-                ->withCount(['courses as published_courses_count' => function ($query) {
-                    $query->where('is_published', true);
-                }])
-                ->first();
+                    if (str_contains($cleanEn, 'khaled') && str_contains($t->name, 'خالد')) {
+                        return true;
+                    }
+                    return false;
+                });
+            }
         }
 
         if (!$teacher) {
             abort(404, 'Teacher not found');
         }
+
+        // Load relations and counts
+        $teacher->loadCount([
+            'courses as students_count' => function ($query) {
+                $query->join('enrollments', 'courses.id', '=', 'enrollments.course_id');
+            },
+            'courses as published_courses_count' => function ($query) {
+                $query->where('is_published', true);
+            }
+        ]);
 
         $teacherId = $teacher->id;
 
@@ -294,6 +351,21 @@ class PublicController extends Controller
         $packages = \App\Models\Package::whereHas('course', function ($q) use ($teacherId) {
             $q->where('teacher_id', $teacherId);
         })->with(['lessons', 'course'])->withCount('enrollments')->get();
+
+        $teacher->makeHidden([
+            'phone',
+            'parent_phone',
+            'wallet_balance',
+            'email',
+            'password',
+            'remember_token',
+            'must_change_password',
+            'current_session_token',
+            'permissions',
+            'rejection_reason',
+            'bunny_storage_used_gb',
+            'bunny_storage_limit_gb',
+        ]);
 
         return response()->json([
             'teacher' => $teacher,
@@ -491,21 +563,34 @@ class PublicController extends Controller
             ]);
         }
 
-        $query = Course::with('teacher')->where('is_published', true);
+        $course = null;
+        $decoded = urldecode($id);
+
         if (is_numeric($id)) {
-            $query->where('id', $id);
-        } else {
-            $slug = strtolower(urldecode($id));
-            $query->where('slug', $slug);
+            $course = Course::with('teacher')->where('is_published', true)->where('id', (int)$id)->first();
         }
-        $course = $query->first();
 
         if (!$course) {
-            $slug = strtolower(urldecode($id));
-            $course = Course::with('teacher')
-                ->where('is_published', true)
-                ->where('title', 'like', '%' . str_replace('-', ' ', $slug) . '%')
-                ->first();
+            $course = Course::with('teacher')->where('is_published', true)->where('slug', $decoded)->first();
+        }
+
+        if (!$course) {
+            $normTarget = $this->normalizeArabicString($decoded);
+            $publishedCourses = Course::with('teacher')->where('is_published', true)->get();
+
+            $course = $publishedCourses->first(function ($c) use ($decoded, $normTarget) {
+                if ($c->slug === $decoded) return true;
+                if ($this->normalizeArabicString($c->slug) === $normTarget) return true;
+                if ($this->normalizeArabicString($c->title) === $normTarget) return true;
+                return false;
+            });
+
+            if (!$course && mb_strlen($normTarget, 'UTF-8') >= 3) {
+                $course = $publishedCourses->first(function ($c) use ($normTarget) {
+                    $normTitle = $this->normalizeArabicString($c->title);
+                    return str_contains($normTitle, $normTarget) || str_contains($normTarget, $normTitle);
+                });
+            }
         }
 
         if (!$course) {

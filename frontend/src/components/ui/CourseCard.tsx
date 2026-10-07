@@ -15,6 +15,8 @@ interface CourseCardProps {
   subject: string
   teacherName: string
   teacherAvatar?: string
+  teacherSlug?: string
+  teacherId?: number
   isSubscribed?: boolean
   progressPercentage?: number
   lessonsCount?: number
@@ -51,6 +53,8 @@ export default function CourseCard({
   subject,
   teacherName,
   teacherAvatar,
+  teacherSlug,
+  teacherId,
   isSubscribed = false,
   progressPercentage,
   lessonsCount,
@@ -150,16 +154,33 @@ export default function CourseCard({
       <div className="p-5 flex-grow flex flex-col justify-between space-y-4">
         <div className="space-y-3">
           {/* Teacher Details */}
-          <div className="flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0 shadow-sm">
-              {teacherAvatar ? (
-                <img src={ensureHttps(teacherAvatar)} alt={teacherName} className="object-cover w-full h-full" />
-              ) : (
-                teacherName.charAt(0)
-              )}
+          {teacherSlug || teacherId ? (
+            <Link 
+              to={`/teacher/${teacherSlug || teacherId}`}
+              title={`عرض الملف الشخصي للأستاذ ${teacherName}`}
+              className="flex items-center gap-2.5 group/cardteacher w-fit"
+            >
+              <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0 shadow-sm group-hover/cardteacher:border-brand-primary/60 transition-colors">
+                {teacherAvatar ? (
+                  <img src={ensureHttps(teacherAvatar)} alt={`صورة المعلم ${teacherName}`} className="object-cover w-full h-full" />
+                ) : (
+                  teacherName.charAt(0)
+                )}
+              </div>
+              <span className="text-xs text-text-secondary font-bold group-hover/cardteacher:text-brand-primary transition-colors">{teacherName}</span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0 shadow-sm">
+                {teacherAvatar ? (
+                  <img src={ensureHttps(teacherAvatar)} alt={`صورة المعلم ${teacherName}`} className="object-cover w-full h-full" />
+                ) : (
+                  teacherName.charAt(0)
+                )}
+              </div>
+              <span className="text-xs text-text-secondary font-bold hover:text-brand-primary transition-colors">{teacherName}</span>
             </div>
-            <span className="text-xs text-text-secondary font-bold hover:text-brand-primary transition-colors">{teacherName}</span>
-          </div>
+          )}
 
           {/* Title and description */}
           <div className="space-y-1.5">

@@ -1109,21 +1109,22 @@ export default function CourseDetail() {
   return (
     <div className="max-w-7xl mx-auto px-3.5 sm:px-4 py-8 sm:py-12 space-y-8 sm:space-y-12">
       <SEO 
-        title={`${course.title}`}
-        description={`${course.description || `كورس ومحاضرات مادة ${SUBJECTS_TRANSLATION[course.subject] || course.subject} لطلاب ${useTaxonomyStore.getState().getGradeName(course.grade) || course.grade} مع الأستاذ ${course.teacher.name} على منصة خطوتك.`}`}
+        title={`${course.title} - ${SUBJECTS_TRANSLATION[course.subject] || course.subject} مع ${course.teacher.name}`}
+        description={`${course.description || `كورس ومحاضرات مادة ${SUBJECTS_TRANSLATION[course.subject] || course.subject} لطلاب ${useTaxonomyStore.getState().getGradeName(course.grade) || course.grade} مع الأستاذ ${course.teacher.name} على منصة خطوتك التعليمية.`}`}
         keywords={`${course.title}, كورس ${SUBJECTS_TRANSLATION[course.subject] || course.subject}, ${course.teacher.name}, منصة خطوتك`}
         ogImage={course.cover_image}
+        canonicalUrl={typeof window !== 'undefined' ? `${window.location.origin}/course/${encodeURIComponent(String(course.slug || course.id))}` : `https://khotwtak.com/course/${encodeURIComponent(String(course.slug || course.id))}`}
         schema={{
           "@context": "https://schema.org",
           "@graph": [
             {
               "@type": "Course",
               "name": course.title,
-              "description": course.description,
+              "description": course.description || `كورس ${course.title} مع الأستاذ ${course.teacher.name}`,
               "provider": {
                 "@type": "EducationalOrganization",
-                "name": "خطوتك",
-                "url": "https://elm-platform.com"
+                "name": "منصة خطوتك التعليمية",
+                "url": "https://khotwtak.com"
               },
               "hasCourseInstance": {
                 "@type": "CourseInstance",
@@ -1131,12 +1132,13 @@ export default function CourseDetail() {
                 "instructor": {
                   "@type": "Person",
                   "name": course.teacher.name,
-                  "image": course.teacher.avatar ? (course.teacher.avatar.startsWith('http') ? course.teacher.avatar : `https://elm-platform.com${course.teacher.avatar}`) : undefined
+                  "url": `https://khotwtak.com/teacher/${encodeURIComponent(String(course.teacher.slug || course.teacher.id))}`,
+                  "image": course.teacher.avatar ? (course.teacher.avatar.startsWith('http') ? course.teacher.avatar : `https://khotwtak.com${course.teacher.avatar}`) : undefined
                 }
               },
               "offers": {
                 "@type": "Offer",
-                "price": getCourseDisplayPrice(course).finalPrice,
+                "price": String(getCourseDisplayPrice(course).finalPrice || 0),
                 "priceCurrency": "EGP",
                 "category": "Paid"
               }
@@ -1148,19 +1150,19 @@ export default function CourseDetail() {
                   "@type": "ListItem",
                   "position": 1,
                   "name": "الرئيسية",
-                  "item": "https://elm-platform.com"
+                  "item": "https://khotwtak.com"
                 },
                 {
                   "@type": "ListItem",
                   "position": 2,
                   "name": "الكورسات",
-                  "item": "https://elm-platform.com/courses"
+                  "item": "https://khotwtak.com/courses"
                 },
                 {
                   "@type": "ListItem",
                   "position": 3,
                   "name": course.title,
-                  "item": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/courses/${course.slug || course.id}`
+                  "item": `https://khotwtak.com/course/${encodeURIComponent(String(course.slug || course.id))}`
                 }
               ]
             }
@@ -1377,20 +1379,24 @@ export default function CourseDetail() {
 
           {/* Teacher and Features Row */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 pt-4">
-            <div className="flex items-center gap-3 p-3 bg-slate-900/40 border border-[var(--border-color)] rounded-2xl">
-              <div className="h-10 w-10 rounded-full bg-slate-800 border overflow-hidden">
+            <Link 
+              to={`/teacher/${course.teacher.slug || course.teacher.id}`} 
+              title={`عرض الملف الشخصي للأستاذ ${course.teacher.name}`}
+              className="flex items-center gap-3 p-3 bg-slate-900/40 hover:bg-slate-900/70 border border-[var(--border-color)] hover:border-brand-primary/50 rounded-2xl transition-all group/teacher"
+            >
+              <div className="h-10 w-10 rounded-full bg-slate-800 border border-slate-700/60 overflow-hidden shrink-0 group-hover/teacher:border-brand-primary/60 transition-colors">
                 <img 
                   src={course.teacher.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${course.teacher.name}`} 
-                  alt={course.teacher.name} 
+                  alt={`صورة المعلم ${course.teacher.name}`} 
                   decoding="async"
                   className="object-cover w-full h-full" 
                 />
               </div>
               <div>
-                <div className="text-[10px] text-slate-400">مدرس المادة</div>
-                <div className="text-xs font-bold text-slate-200">{course.teacher.name}</div>
+                <div className="text-[10px] text-slate-400">مدرس المادة:</div>
+                <div className="text-xs font-bold text-slate-200 group-hover/teacher:text-brand-primary transition-colors">{course.teacher.name}</div>
               </div>
-            </div>
+            </Link>
 
             <div className="flex flex-wrap gap-2.5 text-[10px] sm:text-xs text-slate-400 font-semibold">
               <span className="flex items-center gap-1">🎥 محاضرات مسجلة</span>
@@ -1626,16 +1632,20 @@ export default function CourseDetail() {
                   <div className="p-6 flex-grow flex flex-col justify-between space-y-4">
                     <div className="space-y-3 text-right">
                       {/* Teacher Details */}
-                      <div className="flex items-center gap-2.5 justify-start">
+                      <Link 
+                        to={`/teacher/${course?.teacher?.slug || course?.teacher?.id}`}
+                        title={`عرض الملف الشخصي للأستاذ ${course?.teacher?.name}`}
+                        className="flex items-center gap-2.5 justify-start group/pkgteacher"
+                      >
                         <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0">
                           {course?.teacher?.avatar ? (
-                            <img src={course.teacher.avatar} alt={course.teacher.name} loading="lazy" decoding="async" className="object-cover w-full h-full" />
+                            <img src={course.teacher.avatar} alt={`صورة المعلم ${course.teacher.name}`} loading="lazy" decoding="async" className="object-cover w-full h-full" />
                           ) : (
                             course?.teacher?.name?.charAt(0) || ''
                           )}
                         </div>
-                        <span className="text-xs text-text-secondary font-bold hover:text-brand-primary transition-colors">{course?.teacher?.name}</span>
-                      </div>
+                        <span className="text-xs text-text-secondary font-bold group-hover/pkgteacher:text-brand-primary transition-colors">{course?.teacher?.name}</span>
+                      </Link>
 
                       {/* Title and description */}
                       <div className="space-y-1">

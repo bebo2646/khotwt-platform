@@ -17,7 +17,7 @@ class BunnyWebhookController extends Controller
         $payload = $request->getContent();
         $secret = config('services.bunny.webhook_secret');
 
-        // Verify the webhook signature if configured
+        // Verify the webhook signature
         if (!empty($secret)) {
             $receivedSignature = strtolower($request->header('x-bunny-signature') ?? '');
             $computedSignature = strtolower(hash_hmac('sha1', $payload, $secret));
@@ -29,6 +29,9 @@ class BunnyWebhookController extends Controller
                 ]);
                 return response()->json(['message' => 'Invalid signature'], 401);
             }
+        } elseif (app()->isProduction()) {
+            Log::error('Bunny Stream Webhook: Webhook secret not configured in production environment.');
+            return response()->json(['message' => 'Webhook secret not configured in production'], 500);
         } else {
             Log::info('Bunny Stream Webhook: Secret not configured, bypassing signature check (development mode).');
         }

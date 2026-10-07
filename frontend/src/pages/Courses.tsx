@@ -12,6 +12,7 @@ import { useTaxonomyStore } from '../store/taxonomyStore'
 interface CourseItem {
   id: number
   title: string
+  slug?: string
   description: string
   cover_image: string
   price: string
@@ -22,9 +23,11 @@ interface CourseItem {
   discount_value?: number | null
   final_price?: number | null
   teacher: {
+    id?: number
     name: string
     avatar?: string
     subject: string
+    slug?: string
   }
   availability?: 'online' | 'center' | 'both'
   lessons_count?: number
@@ -380,6 +383,9 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                       subject={course.subject}
                       teacherName={course.teacher.name}
                       teacherAvatar={course.teacher.avatar}
+                      teacherSlug={(course.teacher as any)?.slug}
+                      teacherId={(course.teacher as any)?.id}
+                      slug={course.slug}
                       isSubscribed={enrolledCourseIds.has(course.id)}
                       enableDiscount={course.enable_discount === true}
                       discountType={course.discount_type ?? undefined}
@@ -430,6 +436,9 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
                     subject={course.subject}
                     teacherName={course.teacher.name}
                     teacherAvatar={course.teacher.avatar}
+                    teacherSlug={(course.teacher as any)?.slug}
+                    teacherId={(course.teacher as any)?.id}
+                    slug={course.slug}
                     isSubscribed={enrolledCourseIds.has(course.id)}
                     enableDiscount={course.enable_discount === true}
                     discountType={course.discount_type ?? undefined}

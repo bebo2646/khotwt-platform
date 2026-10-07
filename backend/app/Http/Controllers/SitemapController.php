@@ -11,56 +11,93 @@ use Illuminate\Http\Response;
 class SitemapController extends Controller
 {
     /**
+     * Resolve the canonical public frontend host.
+     */
+    protected function getFrontendHost(Request $request): string
+    {
+        $configured = env('FRONTEND_URL', env('SITE_URL'));
+        if (!empty($configured)) {
+            return rtrim($configured, '/');
+        }
+        $host = $request->getSchemeAndHttpHost();
+        if (str_contains($host, 'localhost') || str_contains($host, '127.0.0.1') || str_contains($host, 'railway.app')) {
+            return 'https://khotwtak.com';
+        }
+        return rtrim($host, '/');
+    }
+
+    /**
      * Main Sitemap Index or Unified Sitemap
      */
     public function index(Request $request)
     {
-        $host = $request->getSchemeAndHttpHost();
+        $host = $this->getFrontendHost($request);
         
-        $urls = [
-            '',
-            '/teachers',
-            '/courses',
-            '/login',
-            '/register',
-            '/chemistry',
-            '/physics',
-            '/arabic',
-            '/grade-1-secondary',
-            '/grade-2-secondary',
-            '/grade-3-secondary',
+        // Canonical public landing pages (Strictly excluding auth, admin, student, dashboard routes)
+        $staticUrls = [
+            ['loc' => '', 'freq' => 'daily', 'priority' => '1.0'],
+            ['loc' => '/teachers', 'freq' => 'daily', 'priority' => '0.9'],
+            ['loc' => '/courses', 'freq' => 'daily', 'priority' => '0.9'],
+            ['loc' => '/monthly-exams', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/departments', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/chemistry', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/physics', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/arabic', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/grade-1-secondary', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/grade-2-secondary', 'freq' => 'weekly', 'priority' => '0.8'],
+            ['loc' => '/grade-3-secondary', 'freq' => 'weekly', 'priority' => '0.8'],
         ];
 
-        // Add subjects
+        // Subject landing pages
         $subjects = ['chemistry', 'physics', 'integrated_science', 'biology', 'math', 'science', 'arabic', 'english'];
         foreach ($subjects as $subject) {
-            $urls[] = "/subject/{$subject}";
+            $staticUrls[] = ['loc' => "/subject/{$subject}", 'freq' => 'weekly', 'priority' => '0.7'];
         }
 
-        // Add grades
+        // Grade landing pages
         $grades = ['first-preparatory', 'second-preparatory', 'third-preparatory', 'first-secondary', 'second-secondary', 'third-secondary'];
         foreach ($grades as $grade) {
-            $urls[] = "/grade/{$grade}";
+            $staticUrls[] = ['loc' => "/grade/{$grade}", 'freq' => 'weekly', 'priority' => '0.7'];
         }
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>';
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+        $teachers = User::where('role', 'teacher')->where('status', 'active')->get();
+        $courses = Course::where('is_published', true)->get();
+
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
         
         // Static URLs
-        foreach ($urls as $url) {
-            $xml .= '<url>';
-            $xml .= '<loc>' . $host . $url . '</loc>';
-            $xml .= '<changefreq>daily</changefreq>';
-            $xml .= '<priority>' . ($url === '' ? '1.0' : '0.8') . '</priority>';
-            $xml .= '</url>';
+        foreach ($staticUrls as $item) {
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$host}{$item['loc']}</loc>\n";
+            $xml .= "    <changefreq>{$item['freq']}</changefreq>\n";
+            $xml .= "    <priority>{$item['priority']}</priority>\n";
+            $xml .= "  </url>\n";
         }
 
-        // Reference the other sitemaps or dynamically include everything
-        // For fast indexing, we also include the teachers and courses links directly in the main sitemap if it's small,
-        // or let it be a sitemap index. Let's make it a unified urlset but also support separate sitemaps.
+        // Active Teachers
+        foreach ($teachers as $teacher) {
+            $slug = rawurlencode($teacher->slug ?: 'teacher-' . $teacher->id);
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$host}/teacher/{$slug}</loc>\n";
+            $xml .= "    <changefreq>weekly</changefreq>\n";
+            $xml .= "    <priority>0.9</priority>\n";
+            $xml .= "  </url>\n";
+        }
+
+        // Published Courses
+        foreach ($courses as $course) {
+            $slug = rawurlencode($course->slug ?: 'course-' . $course->id);
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$host}/course/{$slug}</loc>\n";
+            $xml .= "    <changefreq>weekly</changefreq>\n";
+            $xml .= "    <priority>0.9</priority>\n";
+            $xml .= "  </url>\n";
+        }
+
         $xml .= '</urlset>';
 
-        return response($xml, 200)->header('Content-Type', 'text/xml');
+        return response($xml, 200)->header('Content-Type', 'text/xml; charset=utf-8');
     }
 
     /**
@@ -68,24 +105,24 @@ class SitemapController extends Controller
      */
     public function teachers(Request $request)
     {
-        $host = $request->getSchemeAndHttpHost();
+        $host = $this->getFrontendHost($request);
         $teachers = User::where('role', 'teacher')->where('status', 'active')->get();
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>';
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
         foreach ($teachers as $teacher) {
-            $slug = $teacher->slug ?: 'teacher-' . $teacher->id;
-            $xml .= '<url>';
-            $xml .= '<loc>' . $host . '/teacher/' . $slug . '</loc>';
-            $xml .= '<changefreq>weekly</changefreq>';
-            $xml .= '<priority>0.9</priority>';
-            $xml .= '</url>';
+            $slug = rawurlencode($teacher->slug ?: 'teacher-' . $teacher->id);
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$host}/teacher/{$slug}</loc>\n";
+            $xml .= "    <changefreq>weekly</changefreq>\n";
+            $xml .= "    <priority>0.9</priority>\n";
+            $xml .= "  </url>\n";
         }
 
         $xml .= '</urlset>';
 
-        return response($xml, 200)->header('Content-Type', 'text/xml');
+        return response($xml, 200)->header('Content-Type', 'text/xml; charset=utf-8');
     }
 
     /**
@@ -93,24 +130,24 @@ class SitemapController extends Controller
      */
     public function courses(Request $request)
     {
-        $host = $request->getSchemeAndHttpHost();
+        $host = $this->getFrontendHost($request);
         $courses = Course::where('is_published', true)->get();
 
-        $xml = '<?xml version="1.0" encoding="UTF-8"?>';
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
         foreach ($courses as $course) {
-            $slug = $course->slug ?: 'course-' . $course->id;
-            $xml .= '<url>';
-            $xml .= '<loc>' . $host . '/course/' . $slug . '</loc>';
-            $xml .= '<changefreq>weekly</changefreq>';
-            $xml .= '<priority>0.9</priority>';
-            $xml .= '</url>';
+            $slug = rawurlencode($course->slug ?: 'course-' . $course->id);
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$host}/course/{$slug}</loc>\n";
+            $xml .= "    <changefreq>weekly</changefreq>\n";
+            $xml .= "    <priority>0.9</priority>\n";
+            $xml .= "  </url>\n";
         }
 
         $xml .= '</urlset>';
 
-        return response($xml, 200)->header('Content-Type', 'text/xml');
+        return response($xml, 200)->header('Content-Type', 'text/xml; charset=utf-8');
     }
 
     /**
@@ -118,7 +155,7 @@ class SitemapController extends Controller
      */
     public function robots(Request $request)
     {
-        $host = $request->getSchemeAndHttpHost();
+        $host = $this->getFrontendHost($request);
         
         $content = "User-agent: *\n";
         $content .= "Allow: /\n";
@@ -128,6 +165,9 @@ class SitemapController extends Controller
         $content .= "Allow: /courses\n";
         $content .= "Allow: /courses/*\n";
         $content .= "Allow: /course/*\n";
+        $content .= "Allow: /monthly-exams\n";
+        $content .= "Allow: /departments\n";
+        $content .= "Allow: /departments/*\n";
         $content .= "Allow: /subject/*\n";
         $content .= "Allow: /grade/*\n";
         $content .= "Allow: /chemistry\n";
@@ -136,20 +176,36 @@ class SitemapController extends Controller
         $content .= "Allow: /grade-1-secondary\n";
         $content .= "Allow: /grade-2-secondary\n";
         $content .= "Allow: /grade-3-secondary\n";
+        $content .= "Allow: /assets/*\n";
         $content .= "\n";
+        $content .= "# Block private, dashboard, and administrative endpoints\n";
         $content .= "Disallow: /admin/\n";
         $content .= "Disallow: /admin/*\n";
-        $content .= "Disallow: /teacher/dashboard/\n";
-        $content .= "Disallow: /teacher/dashboard/*\n";
         $content .= "Disallow: /student/\n";
         $content .= "Disallow: /student/*\n";
+        $content .= "Disallow: /teacher/dashboard/\n";
+        $content .= "Disallow: /teacher/dashboard/*\n";
+        $content .= "Disallow: /teacher/subscription\n";
+        $content .= "Disallow: /teacher/plans\n";
+        $content .= "Disallow: /teacher/courses\n";
+        $content .= "Disallow: /teacher/bundles\n";
+        $content .= "Disallow: /teacher/students\n";
+        $content .= "Disallow: /teacher/exams\n";
+        $content .= "Disallow: /teacher/revenue\n";
+        $content .= "Disallow: /teacher/monthly-exams\n";
+        $content .= "Disallow: /teacher/videos\n";
+        $content .= "Disallow: /monthly-exams/*/player\n";
+        $content .= "Disallow: /monthly-exams/*/results\n";
         $content .= "Disallow: /api/\n";
         $content .= "Disallow: /api/*\n";
+        $content .= "Disallow: /change-password\n";
+        $content .= "Disallow: /rejected-account\n";
+        $content .= "Disallow: /pending-approval\n";
         $content .= "\n";
         $content .= "Sitemap: {$host}/sitemap.xml\n";
         $content .= "Sitemap: {$host}/sitemap-teachers.xml\n";
         $content .= "Sitemap: {$host}/sitemap-courses.xml\n";
 
-        return response($content, 200)->header('Content-Type', 'text/plain');
+        return response($content, 200)->header('Content-Type', 'text/plain; charset=utf-8');
     }
 }

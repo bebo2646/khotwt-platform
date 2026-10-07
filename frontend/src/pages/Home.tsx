@@ -323,23 +323,25 @@ export default function Home() {
         title="الرئيسية | منصة خطوتك التعليمية متعددة المجالات"
         description="خطوتك هي منصتك الشاملة للتعلم في مصر والعالم العربي: مناهج مرحلة التعليم المدرسي، البرمجة والتكنولوجيا، التجارة والأعمال، التصميم، اللغات، والتسويق الرقمي."
         keywords="خطوتك, منصة خطوتك, منصة تعليمية, شرح ثانوية عامة, تعلم البرمجة, كورسات تصميم, كورسات تجارة وأعمال"
+        canonicalUrl="https://khotwtak.com"
         schema={{
           "@context": "https://schema.org",
           "@graph": [
             {
               "@type": "WebSite",
-              "@id": "https://elm-platform.com/#website",
-              "url": "https://elm-platform.com",
+              "@id": "https://khotwtak.com/#website",
+              "url": "https://khotwtak.com",
               "name": "منصة خطوتك التعليمية",
               "description": "منصة تعليمية متعددة المجالات: مناهج دراسية، برمجة، أعمال، تصميم ولغات"
             },
             {
-              "@type": "Organization",
-              "@id": "https://elm-platform.com/#organization",
+              "@type": "EducationalOrganization",
+              "@id": "https://khotwtak.com/#organization",
               "name": "منصة خطوتك التعليمية",
-              "url": "https://elm-platform.com",
-              "logo": "https://elm-platform.com/favicon.ico",
-              "image": "https://elm-platform.com/og-image.jpg",
+              "alternateName": ["منصة خطوتك", "خطوتك", "Khotwtak Platform"],
+              "url": "https://khotwtak.com",
+              "logo": "https://khotwtak.com/favicon.ico",
+              "image": "https://khotwtak.com/og-image.jpg",
               "description": "خطوتك منصة تعليمية متكاملة تتيح الاستكشاف والالتحاق بكورسات التعليم المدرسي والبرمجة والأعمال والتصميم مع النخبة."
             }
           ]
@@ -874,6 +876,8 @@ export default function Home() {
                     subject={course.subject}
                     teacherName={course.teacher?.name || ''}
                     teacherAvatar={course.teacher?.avatar}
+                    teacherSlug={(course.teacher as any)?.slug}
+                    teacherId={(course.teacher as any)?.id}
                     slug={course.slug}
                     enableDiscount={course.enable_discount === true}
                     discountType={course.discount_type ?? undefined}
@@ -1004,6 +1008,8 @@ export default function Home() {
                 subject={course.subject}
                 teacherName={course.teacher.name}
                 teacherAvatar={course.teacher.avatar}
+                teacherSlug={(course.teacher as any)?.slug}
+                teacherId={(course.teacher as any)?.id}
                 slug={course.slug}
                 enableDiscount={course.enable_discount === true}
                 discountType={course.discount_type ?? undefined}

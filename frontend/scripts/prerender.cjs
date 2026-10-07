@@ -37,6 +37,57 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+const SUBJECTS_TRANSLATION = {
+  chemistry: 'الكيمياء',
+  physics: 'الفيزياء',
+  integrated_science: 'العلوم المتكاملة',
+  biology: 'الأحياء',
+  math: 'الرياضيات',
+  science: 'العلوم',
+  arabic: 'اللغة العربية',
+  english: 'اللغة الإنجليزية',
+  french: 'اللغة الفرنسية',
+  german: 'اللغة الألمانية',
+  history: 'التاريخ',
+  geography: 'الجغرافيا',
+  philosophy: 'الفلسفة والمنطق',
+  psychology: 'علم النفس والاجتماع',
+  geology: 'الجيولوجيا',
+};
+
+const GRADES_TRANSLATION = {
+  first_preparatory: 'الصف الأول الإعدادي',
+  second_preparatory: 'الصف الثاني الإعدادي',
+  third_preparatory: 'الصف الثالث الإعدادي',
+  first_secondary: 'الصف الأول الثانوي',
+  second_secondary: 'الصف الثاني الثانوي',
+  third_secondary: 'الصف الثالث الثانوي (الثانوية العامة)',
+  general: 'المرحلة العامة',
+};
+
+function cleanSubjectName(subjectStr) {
+  if (!subjectStr) return 'المواد الدراسية';
+  const parts = String(subjectStr).split(',').map(s => s.trim()).filter(Boolean);
+  const translated = parts.map(s => SUBJECTS_TRANSLATION[s] || s);
+  const unique = [...new Set(translated)];
+  return unique.join(' و ');
+}
+
+function cleanGradeName(gradeStr) {
+  if (!gradeStr) return 'المرحلة الدراسية';
+  return GRADES_TRANSLATION[gradeStr] || gradeStr;
+}
+
+function formatTeacherDisplayName(name) {
+  if (!name) return '';
+  const trimmed = String(name).trim();
+  if (/^(مستر|أستاذ|أ\.|دكتور|د\.|د\/|مهندس|باشمهندس)\s+/u.test(trimmed)) {
+    return trimmed;
+  }
+  return `الأستاذ ${trimmed}`;
+}
+
+
 async function getPlatformData() {
   let teachers = [];
   let courses = [];
@@ -369,13 +420,13 @@ function renderCourseDetailPage(course, units = []) {
           <div class="lg:col-span-8 space-y-8">
             <div class="space-y-4">
               <span class="px-3 py-1 bg-brand-primary/10 text-brand-primary border border-brand-primary/20 rounded-full text-xs font-bold inline-block">
-                ${escapeHtml(course.subject || 'المادة الدراسية')}
+                ${escapeHtml(cleanSubjectName(course.subject))}
               </span>
               <h1 class="text-2xl sm:text-4xl font-black text-white leading-tight">
                 ${escapeHtml(course.title)}
               </h1>
               <p class="text-xs sm:text-sm text-slate-400">
-                المرحلة الدراسية: <span class="text-white font-bold">${escapeHtml(course.grade || 'المرحلة العامة')}</span>
+                المرحلة الدراسية: <span class="text-white font-bold">${escapeHtml(cleanGradeName(course.grade))}</span>
               </p>
             </div>
 
@@ -411,7 +462,7 @@ function renderCourseDetailPage(course, units = []) {
           <!-- Sidebar -->
           <div class="lg:col-span-4 space-y-6">
             <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5">
-              <img src="${course.cover_image || '/og-image.jpg'}" alt="غلاف كورس ${escapeHtml(course.title)}" class="w-full aspect-video rounded-2xl object-cover" />
+              <img src="${course.cover_image || '/og-image.jpg'}" alt="غلاف كورس ${escapeHtml(course.title)} مع ${escapeHtml(teacher.name || 'معلم خطوتك')}" class="w-full aspect-video rounded-2xl object-cover" />
               
               <div class="flex items-baseline justify-between border-b border-slate-800 pb-4">
                 <span class="text-xs text-slate-400">سعر الاشتراك:</span>
@@ -426,7 +477,9 @@ function renderCourseDetailPage(course, units = []) {
 
               ${teacher.name ? `
                 <div class="pt-4 border-t border-slate-800 flex items-center gap-3">
-                  <img src="${teacher.avatar || '/og-image.jpg'}" alt="صورة المعلم ${escapeHtml(teacher.name)}" class="w-12 h-12 rounded-full object-cover border border-slate-700" />
+                  <a href="/teacher/${encodeURIComponent(String(teacher.slug || teacher.id))}" class="block h-12 w-12 rounded-full overflow-hidden border border-slate-700 shrink-0">
+                    <img src="${teacher.avatar || '/og-image.jpg'}" alt="صورة المعلم ${escapeHtml(teacher.name)}" class="w-full h-full object-cover" />
+                  </a>
                   <div>
                     <span class="text-[11px] text-slate-400 block">المعلم:</span>
                     <a href="/teacher/${encodeURIComponent(String(teacher.slug || teacher.id))}" class="text-sm font-bold text-white hover:text-brand-primary transition-colors">
@@ -446,6 +499,9 @@ function renderCourseDetailPage(course, units = []) {
 }
 
 function renderTeacherProfilePage(teacher, teacherCourses = []) {
+  const teacherDisplayName = formatTeacherDisplayName(teacher.name);
+  const teacherSubject = cleanSubjectName(teacher.subject);
+
   return `
     ${renderGlobalNav()}
     <main class="w-full text-right" dir="rtl">
@@ -457,19 +513,19 @@ function renderTeacherProfilePage(teacher, teacherCourses = []) {
           <span>/</span>
           <a href="/teachers" class="hover:text-white">المعلمون</a>
           <span>/</span>
-          <span class="text-brand-primary font-bold">${escapeHtml(teacher.name)}</span>
+          <span class="text-brand-primary font-bold">${escapeHtml(teacherDisplayName)}</span>
         </nav>
 
         <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 mb-12">
           <div class="flex flex-col sm:flex-row items-center gap-6">
-            <img src="${teacher.avatar || '/og-image.jpg'}" alt="صورة المعلم ${escapeHtml(teacher.name)}" class="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-brand-primary/20" />
+            <img src="${teacher.avatar || '/og-image.jpg'}" alt="صورة المعلم ${escapeHtml(teacherDisplayName)}" class="w-28 h-28 sm:w-32 sm:h-32 rounded-full object-cover border-4 border-brand-primary/20" />
             <div class="space-y-2 text-center sm:text-right">
               <span class="px-3 py-1 bg-brand-primary/10 text-brand-primary rounded-full text-xs font-bold inline-block">
-                مدرس ${escapeHtml(teacher.subject || 'المادة')}
+                مدرس ${escapeHtml(teacherSubject)}
               </span>
-              <h1 class="text-2xl sm:text-4xl font-black text-white">الأستاذ ${escapeHtml(teacher.name)}</h1>
+              <h1 class="text-2xl sm:text-4xl font-black text-white">${escapeHtml(teacherDisplayName)}</h1>
               <p class="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-                ${escapeHtml(teacher.bio || teacher.experience || 'أحد أبرز المعلمين والخبراء المعتمدين على منصة خطوتك التعليمية.')}
+                ${escapeHtml(teacher.bio || teacher.experience || `${teacherDisplayName} أحد أبرز المعلمين والخبراء المعتمدين على منصة خطوتك التعليمية.`)}
               </p>
             </div>
           </div>
@@ -482,7 +538,7 @@ function renderTeacherProfilePage(teacher, teacherCourses = []) {
               ${teacherCourses.map(c => `
                 <article class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-brand-primary/40 transition-all">
                   <a href="/course/${c.slug || c.id}" class="block aspect-video bg-slate-800">
-                    <img src="${c.cover_image || '/og-image.jpg'}" alt="غلاف كورس ${escapeHtml(c.title)}" class="w-full h-full object-cover" />
+                    <img src="${c.cover_image || '/og-image.jpg'}" alt="غلاف كورس ${escapeHtml(c.title)} مع ${escapeHtml(teacherDisplayName)}" class="w-full h-full object-cover" />
                   </a>
                   <div class="p-5 space-y-2">
                     <h3 class="font-bold text-base text-white">
@@ -740,32 +796,63 @@ async function runPrerender() {
       } catch (err) {}
     }
 
+    const displaySubject = cleanSubjectName(c.subject);
+    const displayGrade = cleanGradeName(c.grade);
+    const teacherName = c.teacher?.name ? formatTeacherDisplayName(c.teacher.name) : 'نخبة المعلمين';
+    const teacherSlug = c.teacher?.slug || c.teacher_id;
+    const teacherCanonical = teacherSlug ? `${HOST}/teacher/${encodeURIComponent(String(teacherSlug))}` : `${HOST}/teachers`;
+
     const courseCanonical = `${HOST}/course/${encodeURIComponent(String(c.slug || c.id))}`;
+    const courseTitle = `${c.title} - ${displaySubject} ${displayGrade} مع ${teacherName} | منصة خطوتك`;
+    const courseDesc = c.description
+      ? `${c.description} - كورس ${c.title} لمادة ${displaySubject} مع ${teacherName} على منصة خطوتك التعليمية.`
+      : `سجل الآن في كورس ${c.title} لمادة ${displaySubject} (${displayGrade}) مع ${teacherName} على منصة خطوتك التعليمية. شروحات تفاعلية، اختبارات دورية، ومتابعة ذكية.`;
+
     const courseSchema = {
       "@context": "https://schema.org",
-      "@type": "Course",
-      "name": c.title,
-      "description": c.description || `كورس ${c.title} على منصة خطوتك التعليمية`,
-      "provider": {
-        "@type": "Organization",
-        "name": "منصة خطوتك",
-        "sameAs": HOST
-      },
-      "instructor": {
-        "@type": "Person",
-        "name": c.teacher?.name || "معلم منصة خطوتك"
-      },
-      "offers": {
-        "@type": "Offer",
-        "price": c.price || "0",
-        "priceCurrency": "EGP",
-        "availability": "https://schema.org/InStock"
-      }
+      "@graph": [
+        {
+          "@type": "Course",
+          "@id": `${courseCanonical}#course`,
+          "name": c.title,
+          "description": courseDesc,
+          "url": courseCanonical,
+          "about": displaySubject,
+          "educationalLevel": displayGrade,
+          "provider": {
+            "@type": "EducationalOrganization",
+            "@id": `${HOST}/#organization`,
+            "name": "منصة خطوتك التعليمية",
+            "url": HOST,
+            "logo": `${HOST}/favicon.ico`
+          },
+          "instructor": {
+            "@type": "Person",
+            "name": teacherName,
+            "url": teacherCanonical
+          },
+          "offers": {
+            "@type": "Offer",
+            "price": c.price ? String(c.price) : "0",
+            "priceCurrency": "EGP",
+            "availability": "https://schema.org/InStock",
+            "url": courseCanonical
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "الرئيسية", "item": HOST },
+            { "@type": "ListItem", "position": 2, "name": "الكورسات", "item": `${HOST}/courses` },
+            { "@type": "ListItem", "position": 3, "name": c.title, "item": courseCanonical }
+          ]
+        }
+      ]
     };
 
     const courseHtml = injectIntoHtml(baseHtml, {
-      title: `${c.title} | منصة خطوتك`,
-      description: c.description || `سجل الآن في كورس ${c.title} مع ${c.teacher?.name || 'نخبة المعلمين'} على منصة خطوتك. شروحات واختبارات تفاعلية مستمرة.`,
+      title: courseTitle,
+      description: courseDesc,
       canonicalUrl: courseCanonical,
       ogType: 'article',
       ogImage: c.cover_image,
@@ -776,8 +863,14 @@ async function runPrerender() {
     writePage(distDir, `/course/${c.id}`, courseHtml);
     if (c.slug && String(c.slug) !== String(c.id)) {
       writePage(distDir, `/course/${c.slug}`, courseHtml);
+      if (c.slug.includes('ه')) {
+        writePage(distDir, `/course/${c.slug.replace(/ه/g, 'ة')}`, courseHtml);
+      }
+      if (c.slug.includes('ة')) {
+        writePage(distDir, `/course/${c.slug.replace(/ة/g, 'ه')}`, courseHtml);
+      }
     }
-    console.log(`[Prerender] Generated Course Page -> /course/${c.id}`);
+    console.log(`[Prerender] Generated Course Page -> /course/${c.slug || c.id}`);
   }
 
   // 5. Individual Teacher Pages
@@ -786,18 +879,59 @@ async function runPrerender() {
     const teacherCanonical = `${HOST}/teacher/${encodeURIComponent(String(slug))}`;
     const teacherCourses = courses.filter(c => c.teacher?.name === t.name || c.teacher_id === t.id);
 
+    const displaySubject = cleanSubjectName(t.subject);
+    const teacherDisplayName = formatTeacherDisplayName(t.name);
+    const teacherTitle = `${teacherDisplayName} | مدرس ${displaySubject} | منصة خطوتك`;
+    const teacherDesc = `${teacherDisplayName} مدرس ${displaySubject} على منصة خطوتك التعليمية. ${t.bio ? t.bio.trim() + ' ' : ''}تصفح الكورسات والمحاضرات المتاحة وسجل مع معلمك فوراً.`;
+
     const teacherSchema = {
       "@context": "https://schema.org",
-      "@type": "Person",
-      "name": t.name,
-      "jobTitle": `مدرس ${t.subject || 'المادة'}`,
-      "description": t.bio || t.experience || `الأستاذ ${t.name} مدرس ${t.subject || 'المادة'} على منصة خطوتك`,
-      "url": teacherCanonical
+      "@graph": [
+        {
+          "@type": "ProfilePage",
+          "@id": `${teacherCanonical}#webpage`,
+          "url": teacherCanonical,
+          "name": teacherTitle,
+          "description": teacherDesc,
+          "isPartOf": {
+            "@type": "WebSite",
+            "@id": `${HOST}/#website`,
+            "name": "منصة خطوتك التعليمية",
+            "url": HOST
+          },
+          "mainEntity": {
+            "@id": `${teacherCanonical}#person`
+          }
+        },
+        {
+          "@type": "Person",
+          "@id": `${teacherCanonical}#person`,
+          "name": t.name,
+          "jobTitle": `مدرس ${displaySubject}`,
+          "description": t.bio || t.experience || `${teacherDisplayName} مدرس ${displaySubject} على منصة خطوتك التعليمية`,
+          "url": teacherCanonical,
+          "image": t.avatar ? (t.avatar.startsWith('http') ? t.avatar : `${HOST}${t.avatar}`) : `${HOST}/og-image.jpg`,
+          "worksFor": {
+            "@type": "EducationalOrganization",
+            "@id": `${HOST}/#organization`,
+            "name": "منصة خطوتك التعليمية",
+            "url": HOST
+          }
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "الرئيسية", "item": HOST },
+            { "@type": "ListItem", "position": 2, "name": "المعلمون", "item": `${HOST}/teachers` },
+            { "@type": "ListItem", "position": 3, "name": t.name, "item": teacherCanonical }
+          ]
+        }
+      ]
     };
 
     const teacherHtml = injectIntoHtml(baseHtml, {
-      title: `الأستاذ ${t.name} | منصة خطوتك`,
-      description: `تعرف على الأستاذ ${t.name}، مدرس ${t.subject || 'المادة'} على منصة خطوتك. تصفح الكورسات والمحاضرات المتاحة وسجل مع معلمك فوراً.`,
+      title: teacherTitle,
+      description: teacherDesc,
       canonicalUrl: teacherCanonical,
       ogType: 'profile',
       ogImage: t.avatar,
@@ -808,6 +942,17 @@ async function runPrerender() {
     writePage(distDir, `/teacher/${t.id}`, teacherHtml);
     if (t.slug && String(t.slug) !== String(t.id)) {
       writePage(distDir, `/teacher/${t.slug}`, teacherHtml);
+      if (t.slug.includes('ه')) {
+        writePage(distDir, `/teacher/${t.slug.replace(/ه/g, 'ة')}`, teacherHtml);
+      }
+      if (t.slug.includes('ة')) {
+        writePage(distDir, `/teacher/${t.slug.replace(/ة/g, 'ه')}`, teacherHtml);
+      }
+    }
+    // Transliteration aliases for common searched educators
+    if (t.name.includes('العيادي')) {
+      writePage(distDir, `/teacher/jomaa-aleyady`, teacherHtml);
+      writePage(distDir, `/teacher/gomaa-elayady`, teacherHtml);
     }
     console.log(`[Prerender] Generated Teacher Page -> /teacher/${slug}`);
   }

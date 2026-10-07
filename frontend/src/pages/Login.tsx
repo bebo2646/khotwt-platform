@@ -65,7 +65,7 @@ export default function Login() {
       // Check maintenance status after successful authentication
       const configData = await useConfigStore.getState().fetchConfig(true)
       if (configData && configData.maintenance) {
-        if (!freshUser.is_super_admin && !freshUser.is_super) {
+        if (freshUser.role !== 'admin' && !freshUser.is_super_admin && !freshUser.is_super) {
           // Immediately logout the user safely
           try {
             await API.post('/logout')

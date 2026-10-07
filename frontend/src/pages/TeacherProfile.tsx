@@ -157,23 +157,43 @@ export default function TeacherProfile() {
     )
   }
 
+  const teacherDisplayName = teacher.name.startsWith('مستر') || teacher.name.startsWith('أ.') || teacher.name.startsWith('د.') || teacher.name.startsWith('د/') || teacher.name.startsWith('أستاذ')
+    ? teacher.name 
+    : `الأستاذ ${teacher.name}`;
+  const subjectDisplay = getSubjectTranslation(teacher.subject) || 'المواد الدراسية';
+  const teacherCanonical = typeof window !== 'undefined' 
+    ? `${window.location.origin}/teacher/${encodeURIComponent(String(teacher.slug || teacher.id))}` 
+    : `https://khotwtak.com/teacher/${encodeURIComponent(String(teacher.slug || teacher.id))}`;
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <SEO 
-        title={`${teacher.name} | مدرس ${getSubjectTranslation(teacher.subject)}`}
-        description={`تعلم ال${getSubjectTranslation(teacher.subject)} مع ${teacher.name} من خلال محاضرات واختبارات تفاعلية ومتابعة مستمرة على منصة خطوتك.`}
-        keywords={`${teacher.name}, مدرس ${getSubjectTranslation(teacher.subject)}, كورسات ${teacher.name}, منصة خطوتك`}
+        title={`${teacherDisplayName} | مدرس ${subjectDisplay}`}
+        description={`${teacherDisplayName} مدرس ${subjectDisplay} على منصة خطوتك التعليمية. ${teacher.bio ? teacher.bio + ' ' : ''}تصفح الكورسات والمحاضرات المتاحة وسجل الآن مع معلمك.`}
+        keywords={`${teacher.name}, ${teacherDisplayName}, مدرس ${subjectDisplay}, كورسات ${teacher.name}, منصة خطوتك`}
         ogImage={teacher.avatar}
+        canonicalUrl={teacherCanonical}
         schema={{
           "@context": "https://schema.org",
           "@graph": [
             {
-              "@type": "Person",
-              "name": teacher.name,
-              "jobTitle": `مدرس ${getSubjectTranslation(teacher.subject)}`,
-              "image": teacher.avatar ? (teacher.avatar.startsWith('http') ? teacher.avatar : `https://elm-platform.com${teacher.avatar}`) : `https://elm-platform.com/og-image.jpg`,
-              "url": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/teachers/${teacher.slug || teacher.id}`,
-              "description": teacher.bio || `صفحة المدرس الشخصية على منصة خطوتك`
+              "@type": "ProfilePage",
+              "url": teacherCanonical,
+              "name": `${teacherDisplayName} | منصة خطوتك`,
+              "description": `${teacherDisplayName} مدرس ${subjectDisplay} على منصة خطوتك التعليمية`,
+              "mainEntity": {
+                "@type": "Person",
+                "name": teacher.name,
+                "jobTitle": `مدرس ${subjectDisplay}`,
+                "image": teacher.avatar ? (teacher.avatar.startsWith('http') ? teacher.avatar : `https://khotwtak.com${teacher.avatar}`) : `https://khotwtak.com/og-image.jpg`,
+                "url": teacherCanonical,
+                "description": teacher.bio || `${teacherDisplayName} مدرس ${subjectDisplay} على منصة خطوتك التعليمية`,
+                "worksFor": {
+                  "@type": "EducationalOrganization",
+                  "name": "منصة خطوتك التعليمية",
+                  "url": "https://khotwtak.com"
+                }
+              }
             },
             {
               "@type": "BreadcrumbList",
@@ -182,19 +202,19 @@ export default function TeacherProfile() {
                   "@type": "ListItem",
                   "position": 1,
                   "name": "الرئيسية",
-                  "item": "https://elm-platform.com"
+                  "item": "https://khotwtak.com"
                 },
                 {
                   "@type": "ListItem",
                   "position": 2,
                   "name": "المعلمون",
-                  "item": "https://elm-platform.com/teachers"
+                  "item": "https://khotwtak.com/teachers"
                 },
                 {
                   "@type": "ListItem",
                   "position": 3,
                   "name": teacher.name,
-                  "item": typeof window !== 'undefined' ? window.location.href : `https://elm-platform.com/teachers/${teacher.slug || teacher.id}`
+                  "item": teacherCanonical
                 }
               ]
             }

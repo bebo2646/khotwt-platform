@@ -20,14 +20,15 @@ class CheckSubscriptionActive
         if ($user && $user->isTeacher()) {
             $subscription = TeacherSubscription::where('teacher_id', $user->id)->first();
 
-            // If no subscription, create a default Starter subscription (30 days)
+            // If no subscription, create a default Starter subscription
             if (!$subscription) {
                 $starter = \App\Models\SubscriptionPlan::where('name', 'Starter')->first();
+                $durationDays = $starter ? ($starter->duration_in_days ?: ($starter->duration_days ?: 30)) : 30;
                 $subscription = TeacherSubscription::create([
                     'teacher_id' => $user->id,
                     'plan_id' => $starter ? $starter->id : 1,
                     'start_date' => Carbon::now()->toDateString(),
-                    'end_date' => Carbon::now()->addDays(30)->toDateString(),
+                    'end_date' => Carbon::now()->addDays($durationDays)->toDateString(),
                     'status' => 'Active',
                     'used_storage_bytes' => 0,
                     'used_codes' => 0,

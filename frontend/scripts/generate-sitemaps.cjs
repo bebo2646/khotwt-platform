@@ -43,8 +43,6 @@ async function generate() {
     { loc: '/grade-1-secondary', changefreq: 'weekly', priority: '0.8' },
     { loc: '/grade-2-secondary', changefreq: 'weekly', priority: '0.8' },
     { loc: '/grade-3-secondary', changefreq: 'weekly', priority: '0.8' },
-    { loc: '/login', changefreq: 'monthly', priority: '0.5' },
-    { loc: '/register', changefreq: 'monthly', priority: '0.6' },
   ];
 
   const publicDir = path.join(__dirname, '../public');
@@ -52,7 +50,38 @@ async function generate() {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  // 1. Generate main sitemap.xml
+
+  // Fetch teachers
+  let teacherList = [];
+  try {
+    let responseData = null;
+    try {
+      responseData = await fetchJSON('http://127.0.0.1:8000/api/teachers');
+    } catch (e) {
+      responseData = await fetchJSON(`${API_URL}/teachers`);
+    }
+    teacherList = Array.isArray(responseData) ? responseData : (responseData?.teachers || []);
+    console.log(`[Sitemap Generator] Fetched ${teacherList.length} teachers.`);
+  } catch (err) {
+    console.warn('[Sitemap Generator] Failed to fetch teachers from API. Error:', err.message);
+  }
+
+  // Fetch courses
+  let courseList = [];
+  try {
+    let responseData = null;
+    try {
+      responseData = await fetchJSON('http://127.0.0.1:8000/api/courses');
+    } catch (e) {
+      responseData = await fetchJSON(`${API_URL}/courses`);
+    }
+    courseList = Array.isArray(responseData) ? responseData : (responseData?.courses || []);
+    console.log(`[Sitemap Generator] Fetched ${courseList.length} courses.`);
+  } catch (err) {
+    console.warn('[Sitemap Generator] Failed to fetch courses from API. Error:', err.message);
+  }
+
+  // 1. Generate main sitemap.xml (All canonical public URLs: static + teachers + courses)
   let mainXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   mainXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   staticPages.forEach((page) => {
@@ -62,80 +91,53 @@ async function generate() {
     mainXml += `    <priority>${page.priority}</priority>\n`;
     mainXml += '  </url>\n';
   });
-  mainXml += '</urlset>\n';
 
-  fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), mainXml);
-  console.log('[Sitemap Generator] Generated clean static sitemap.xml (no duplicates)');
-
-  // 2. Fetch and generate sitemap-teachers.xml
+  const seenTeacherSlugs = new Set();
   let teachersXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   teachersXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
 
-  try {
-    let responseData = null;
-    try {
-      responseData = await fetchJSON('http://127.0.0.1:8000/api/teachers');
-    } catch (e) {
-      responseData = await fetchJSON(`${API_URL}/teachers`);
-    }
+  teacherList.forEach((t) => {
+    const slug = t.slug || t.id;
+    if (!slug || seenTeacherSlugs.has(String(slug))) return;
+    seenTeacherSlugs.add(String(slug));
 
-    const teacherList = Array.isArray(responseData) ? responseData : (responseData?.teachers || []);
-    console.log(`[Sitemap Generator] Fetched ${teacherList.length} teachers.`);
-    const seenSlugs = new Set();
+    const urlEntry = '  <url>\n' +
+      `    <loc>${HOST}/teacher/${encodeURIComponent(String(slug))}</loc>\n` +
+      '    <changefreq>weekly</changefreq>\n' +
+      '    <priority>0.85</priority>\n' +
+      '  </url>\n';
 
-    teacherList.forEach((t) => {
-      const slug = t.slug || t.id;
-      if (!slug || seenSlugs.has(String(slug))) return;
-      seenSlugs.add(String(slug));
-
-      teachersXml += '  <url>\n';
-      teachersXml += `    <loc>${HOST}/teacher/${encodeURIComponent(String(slug))}</loc>\n`;
-      teachersXml += '    <changefreq>weekly</changefreq>\n';
-      teachersXml += '    <priority>0.85</priority>\n';
-      teachersXml += '  </url>\n';
-    });
-  } catch (err) {
-    console.warn('[Sitemap Generator] Failed to fetch teachers from API, generating empty fallback. Error:', err.message);
-  }
+    teachersXml += urlEntry;
+    mainXml += urlEntry;
+  });
   teachersXml += '</urlset>\n';
-  fs.writeFileSync(path.join(publicDir, 'sitemap-teachers.xml'), teachersXml);
-  console.log('[Sitemap Generator] Generated clean sitemap-teachers.xml');
 
-  // 3. Fetch and generate sitemap-courses.xml
+  const seenCourseSlugs = new Set();
   let coursesXml = '<?xml version="1.0" encoding="UTF-8"?>\n';
   coursesXml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
 
-  try {
-    let responseData = null;
-    try {
-      responseData = await fetchJSON('http://127.0.0.1:8000/api/courses');
-    } catch (e) {
-      responseData = await fetchJSON(`${API_URL}/courses`);
-    }
+  courseList.forEach((c) => {
+    const slug = c.slug || c.id;
+    if (!slug || seenCourseSlugs.has(String(slug))) return;
+    seenCourseSlugs.add(String(slug));
 
-    const courseList = Array.isArray(responseData) ? responseData : (responseData?.courses || []);
-    console.log(`[Sitemap Generator] Fetched ${courseList.length} courses.`);
-    const seenSlugs = new Set();
+    const urlEntry = '  <url>\n' +
+      `    <loc>${HOST}/course/${encodeURIComponent(String(slug))}</loc>\n` +
+      '    <changefreq>weekly</changefreq>\n' +
+      '    <priority>0.85</priority>\n' +
+      '  </url>\n';
 
-    courseList.forEach((c) => {
-      const slug = c.slug || c.id;
-      if (!slug || seenSlugs.has(String(slug))) return;
-      seenSlugs.add(String(slug));
-
-      coursesXml += '  <url>\n';
-      coursesXml += `    <loc>${HOST}/course/${encodeURIComponent(String(slug))}</loc>\n`;
-      coursesXml += '    <changefreq>weekly</changefreq>\n';
-      coursesXml += '    <priority>0.85</priority>\n';
-      coursesXml += '  </url>\n';
-    });
-  } catch (err) {
-    console.warn('[Sitemap Generator] Failed to fetch courses from API, generating empty fallback. Error:', err.message);
-  }
+    coursesXml += urlEntry;
+    mainXml += urlEntry;
+  });
   coursesXml += '</urlset>\n';
-  fs.writeFileSync(path.join(publicDir, 'sitemap-courses.xml'), coursesXml);
-  console.log('[Sitemap Generator] Generated clean sitemap-courses.xml');
+  mainXml += '</urlset>\n';
 
-  console.log('[Sitemap Generator] Sitemap generation completed successfully!');
+  fs.writeFileSync(path.join(publicDir, 'sitemap.xml'), mainXml);
+  fs.writeFileSync(path.join(publicDir, 'sitemap-teachers.xml'), teachersXml);
+  fs.writeFileSync(path.join(publicDir, 'sitemap-courses.xml'), coursesXml);
+
+  console.log('[Sitemap Generator] Generated sitemap.xml, sitemap-teachers.xml, and sitemap-courses.xml successfully!');
 }
 
 generate().catch((err) => {

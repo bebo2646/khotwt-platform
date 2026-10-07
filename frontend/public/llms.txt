@@ -3,8 +3,8 @@
 منصة تعليمية حديثة توفر محاضرات تفاعلية واختبارات ومتابعة مستمرة للطلاب.
 
 ## روابط المنصة العامة
-- [الرئيسية](https://elm-platform.com/)
-- [تصفح الكورسات](https://elm-platform.com/courses)
-- [المعلمون](https://elm-platform.com/teachers)
-- [تسجيل الدخول](https://elm-platform.com/login)
-- [إنشاء حساب طالب](https://elm-platform.com/register)
+- [الرئيسية](https://khotwtak.com/)
+- [تصفح الكورسات](https://khotwtak.com/courses)
+- [المعلمون](https://khotwtak.com/teachers)
+- [تسجيل الدخول](https://khotwtak.com/login)
+- [إنشاء حساب طالب](https://khotwtak.com/register)

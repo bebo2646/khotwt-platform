@@ -18,6 +18,26 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
+        $settings = \App\Models\PlatformSetting::first();
+        if ($settings && $settings->maintenance_mode) {
+            return response()->json([
+                'maintenance' => true,
+                'message' => $settings->maintenance_message ?? 'نعتذر لكم، يتم حالياً إجراء تحديثات لتحسين المنصة.',
+                'eta' => $settings->maintenance_eta,
+            ], 503);
+        }
+
+        $ip = $request->ip();
+        $throttleKey = 'register_attempts:' . $ip;
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = RateLimiter::availableIn($throttleKey);
+            $minutes = ceil($seconds / 60);
+            throw ValidationException::withMessages([
+                'email' => ["تم إرسال عدة طلبات تسجيل في وقت قصير. يرجى المحاولة بعد {$minutes} دقيقة."],
+            ]);
+        }
+        RateLimiter::hit($throttleKey, 300);
+
         $normalizePhone = function ($num) {
             if (!$num || !is_string($num)) return $num;
             $clean = preg_replace('/\D/', '', $num);
@@ -79,6 +99,8 @@ class AuthController extends Controller
             'student_id' => $student->id,
             'balance' => 0.00,
         ]);
+
+        RateLimiter::clear($throttleKey);
 
         if ($student->status === 'pending') {
             return response()->json([
@@ -225,6 +247,16 @@ class AuthController extends Controller
 
         if ($user->status === 'disabled') {
             return response()->json(['message' => 'تم تعطيل هذا الحساب. يرجى التواصل مع الإدارة.'], 403);
+        }
+
+        // Check maintenance mode: students and teachers are blocked during maintenance, admins retain access
+        $settings = \App\Models\PlatformSetting::first();
+        if ($settings && $settings->maintenance_mode && !$user->isAdmin() && !$user->is_super_admin && !$user->is_super) {
+            return response()->json([
+                'maintenance' => true,
+                'message' => $settings->maintenance_message ?? 'نعتذر لكم، يتم حالياً إجراء تحديثات لتحسين المنصة.',
+                'eta' => $settings->maintenance_eta,
+            ], 503);
         }
 
         if ($user->role === 'student') {
