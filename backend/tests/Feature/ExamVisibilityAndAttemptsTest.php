@@ -270,6 +270,67 @@ class ExamVisibilityAndAttemptsTest extends TestCase
         $this->assertTrue($availRes->json('available'));
     }
 
+    public function test_expired_exam_with_remaining_attempts_reports_expired_status_and_blocks_start(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        // Exam with end date 2 days in the past, max attempts = 2
+        $data = $this->setupExam($teacher, [
+            'max_attempts' => 2,
+            'start_date' => Carbon::now()->subDays(10)->toDateString(),
+            'end_date' => Carbon::now()->subDays(2)->toDateString(),
+            'start_time' => '00:00:00',
+            'end_time' => '23:59:59',
+            'enable_schedule' => true,
+        ]);
+        $this->enrollStudent($student, $data['course']);
+
+        // Student consumed 1 of 2 attempts (graded)
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 10,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subDays(3),
+            'submitted_at' => Carbon::now()->subDays(3)->addMinutes(15),
+            'graded_at' => Carbon::now()->subDays(3)->addMinutes(15),
+        ]);
+
+        // 1. Course Detail check
+        $courseRes = $this->actingAs($student)->getJson("/api/courses/{$data['course']->id}");
+        $courseRes->assertStatus(200);
+        $examPayload = $courseRes->json('units.0.lessons.0.exams.0');
+        $this->assertEquals(1, $examPayload['attempts_count']);
+        $this->assertEquals(2, $examPayload['max_attempts']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_used']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_remaining']);
+        // Crucial: status must be 'expired', NOT 'all attempts completed' or 'graded'
+        $this->assertEquals('expired', $examPayload['progress']['status']);
+        $this->assertTrue($examPayload['is_expired']);
+
+        // 2. Lesson Detail check
+        $lessonRes = $this->actingAs($student)->getJson("/api/student/courses/{$data['course']->id}/lessons/{$data['lesson']->id}");
+        $lessonRes->assertStatus(200);
+        $lessonExamPayload = $lessonRes->json('exams.0');
+        $this->assertEquals(1, $lessonExamPayload['attempts_count']);
+        $this->assertEquals(2, $lessonExamPayload['max_attempts']);
+        $this->assertEquals(1, $lessonExamPayload['progress']['attempts_used']);
+        $this->assertEquals(1, $lessonExamPayload['progress']['attempts_remaining']);
+        $this->assertEquals('expired', $lessonExamPayload['progress']['status']);
+
+        // 3. Availability endpoint strictly rejects with SCHEDULE_EXPIRED and 403
+        $availRes = $this->actingAs($student)->getJson("/api/exams/{$data['exam']->id}/check-availability");
+        $availRes->assertStatus(403);
+        $this->assertFalse($availRes->json('available'));
+        $this->assertEquals('SCHEDULE_EXPIRED', $availRes->json('error_code'));
+
+        // 4. Starting attempt strictly rejected with SCHEDULE_EXPIRED and 403
+        $startRes = $this->actingAs($student)->postJson("/api/exams/{$data['exam']->id}/start");
+        $startRes->assertStatus(403);
+        $this->assertEquals('SCHEDULE_EXPIRED', $startRes->json('error_code'));
+    }
+
     // =========================================================================
     // 2. EXAM RESULT VISIBILITY TESTS (SERVER-SIDE LEAK PREVENTION)
     // =========================================================================

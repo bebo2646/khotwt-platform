@@ -94,11 +94,17 @@ interface ExamItem {
   is_paid?: boolean
   price?: string
   is_purchased?: boolean
+  is_expired?: boolean
+  close_date?: string
+  end_date?: string
+  close_time?: string
+  end_time?: string
   progress?: {
     attempts_used?: number
     attempts_remaining?: number
     status?: string
     score?: number | null
+    is_expired?: boolean
   } | null
   last_attempt?: {
     id: number
@@ -2607,7 +2613,14 @@ export default function LessonViewer({
                     const attempt = exam.last_attempt;
                     const maxAttempts = Math.max(1, Number(exam.max_attempts || 1));
                     const attemptsUsed = Number(exam.attempts_count ?? (exam.progress?.attempts_used ?? (attempt && attempt.status !== 'not_started' ? 1 : 0)));
-                    const hasRemainingAttempts = attemptsUsed < maxAttempts;
+                    const isExpired = exam.progress?.status === 'expired' || exam.progress?.is_expired || Boolean(exam.is_expired) || (() => {
+                      const endD = exam.close_date || exam.end_date;
+                      if (!endD) return false;
+                      const endT = exam.close_time || exam.end_time || '23:59:59';
+                      const endDT = new Date(`${endD}T${endT}`);
+                      return !isNaN(endDT.getTime()) && Date.now() > endDT.getTime();
+                    })();
+                    const hasRemainingAttempts = attemptsUsed < maxAttempts && !isExpired;
                     const isSolved = !!attempt && (attempt.status === 'submitted' || attempt.status === 'graded');
                     
                     return (
@@ -2647,7 +2660,14 @@ export default function LessonViewer({
                           )}
 
                           {(!isSolved || hasRemainingAttempts) && (
-                            exam.is_paid && !exam.is_purchased ? (
+                            isExpired ? (
+                              <button
+                                disabled
+                                className="px-4 py-2 bg-slate-800/50 text-slate-400 border border-slate-700/60 rounded-lg text-xs font-bold cursor-not-allowed whitespace-nowrap"
+                              >
+                                انتهى الموعد
+                              </button>
+                            ) : exam.is_paid && !exam.is_purchased ? (
                               <button
                                 onClick={() => handlePurchaseExam(exam)}
                                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 hover:text-slate-900 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"

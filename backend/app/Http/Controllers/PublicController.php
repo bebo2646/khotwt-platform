@@ -804,12 +804,14 @@ class PublicController extends Controller
                                 } else {
                                     if ($lastStatus === 'terminated_for_cheating') {
                                         $status = 'terminated_for_cheating';
+                                    } elseif ($lastStatus === 'started') {
+                                        $status = $deadlinePassed ? 'expired' : 'in_progress';
+                                    } elseif ($deadlinePassed && $attemptsRemaining > 0) {
+                                        $status = 'expired';
                                     } elseif ($lastStatus === 'graded') {
                                         $status = 'graded';
                                     } elseif ($lastStatus === 'submitted') {
                                         $status = 'submitted';
-                                    } elseif ($lastStatus === 'started') {
-                                        $status = $deadlinePassed ? 'expired' : 'in_progress';
                                     } elseif ($lastStatus === 'expired') {
                                         $status = 'expired';
                                     } else {
@@ -831,6 +833,7 @@ class PublicController extends Controller
                                     'passing_score' => $exam->passing_score,
                                     'max_attempts' => $maxAttempts,
                                     'attempts_count' => $attemptsUsed,
+                                    'is_expired' => $deadlinePassed,
                                     'last_attempt' => $lastAttempt ? [
                                         'id' => $lastAttempt->id,
                                         'status' => $lastStatus,
@@ -850,6 +853,7 @@ class PublicController extends Controller
                                         'attempts_used' => $attemptsUsed,
                                         'attempts_remaining' => $attemptsRemaining,
                                         'last_attempt_status' => $lastStatus,
+                                        'is_expired' => $deadlinePassed,
                                     ]
                                 ];
                             });
@@ -1253,16 +1257,18 @@ class PublicController extends Controller
                         } else {
                             if ($lastStatus === 'terminated_for_cheating') {
                                 $status = 'terminated_for_cheating';
-                            } elseif ($lastStatus === 'graded') {
-                                $status = 'graded'; // تم التصحيح / تمت المراجعة
-                            } elseif ($lastStatus === 'submitted') {
-                                $status = 'submitted'; // تم التسليم / قيد التصحيح
                             } elseif ($lastStatus === 'started') {
                                 if ($deadlinePassed) {
                                     $status = 'expired'; // انتهى الموعد
                                 } else {
                                     $status = 'in_progress'; // جاري الحل
                                 }
+                            } elseif ($deadlinePassed && $attemptsRemaining > 0) {
+                                $status = 'expired'; // انتهى الموعد مع بقاء محاولات غير مستخدمة
+                            } elseif ($lastStatus === 'graded') {
+                                $status = 'graded'; // تم التصحيح / تمت المراجعة
+                            } elseif ($lastStatus === 'submitted') {
+                                $status = 'submitted'; // تم التسليم / قيد التصحيح
                             } elseif ($lastStatus === 'expired') {
                                 $status = 'expired';
                             } else {
@@ -1282,6 +1288,7 @@ class PublicController extends Controller
                             'passing_score' => $exam->passing_score,
                             'max_attempts' => $maxAttempts,
                             'attempts_count' => $attemptsUsed,
+                            'is_expired' => $deadlinePassed,
                             'last_attempt' => $lastAttempt ? [
                                 'id' => $lastAttempt->id,
                                 'status' => $lastStatus,
@@ -1295,6 +1302,8 @@ class PublicController extends Controller
                             ] : null,
                             'open_date' => $exam->open_date ? $exam->open_date->toDateString() : ($exam->start_date ? $exam->start_date->toDateString() : null),
                             'close_date' => $exam->close_date ? $exam->close_date->toDateString() : ($exam->end_date ? $exam->end_date->toDateString() : null),
+                            'open_time' => $exam->open_time ?: ($exam->start_time ?: null),
+                            'close_time' => $exam->close_time ?: ($exam->end_time ?: null),
                             'progress' => [
                                 'attempts_count' => $attemptsUsed,
                                 'attempts_used' => $attemptsUsed,
@@ -1302,6 +1311,7 @@ class PublicController extends Controller
                                 'last_attempt_status' => $lastStatus,
                                 'score' => $score,
                                 'status' => $status,
+                                'is_expired' => $deadlinePassed,
                             ]
                         ];
                     });

@@ -424,6 +424,36 @@ export default function CourseDetail() {
     };
   };
 
+  const isExamNotStarted = (ex: any): boolean => {
+    if (ex.progress?.schedule_status === 'not_started' || ex.progress?.not_started) {
+      return true;
+    }
+    if (ex.availability?.status === 'not_started') {
+      return true;
+    }
+    const startD = ex.open_date || ex.start_date;
+    if (!startD) return false;
+    const startT = ex.open_time || ex.start_time || '00:00:00';
+    const startDateTime = new Date(`${startD}T${startT}`);
+    if (isNaN(startDateTime.getTime())) return false;
+    return new Date().getTime() < startDateTime.getTime();
+  };
+
+  const isExamExpired = (ex: any): boolean => {
+    if (ex.progress?.status === 'expired' || ex.progress?.is_expired) {
+      return true;
+    }
+    if (ex.availability?.status === 'expired') {
+      return true;
+    }
+    const endD = ex.close_date || ex.end_date;
+    if (!endD) return false;
+    const endT = ex.close_time || ex.end_time || '23:59:59';
+    const endDateTime = new Date(`${endD}T${endT}`);
+    if (isNaN(endDateTime.getTime())) return false;
+    return new Date().getTime() > endDateTime.getTime();
+  };
+
   const getAttemptOrdinalArabic = (attemptNum: number): string => {
     switch (attemptNum) {
       case 1: return 'الأولى';
@@ -804,9 +834,11 @@ export default function CourseDetail() {
                           {(() => {
                             const quota = getExamAttemptQuota(ex);
                             const isInProgress = ex.progress?.status === 'in_progress';
-                            const canStartNext = !ex.is_locked && (quota.hasRemainingAttempts || isInProgress);
+                            const expired = isExamExpired(ex);
+                            const notStarted = isExamNotStarted(ex);
+                            const canStartNext = !ex.is_locked && !expired && !notStarted && (quota.hasRemainingAttempts || isInProgress);
 
-                            // If no remaining attempts and we already show "عرض النتيجة", don't duplicate
+                            // If cannot start next and we already show "عرض النتيجة", don't duplicate
                             if (!canStartNext && hasValidFinalResult(ex)) {
                               return null;
                             }
@@ -818,8 +850,10 @@ export default function CourseDetail() {
                                   e.stopPropagation();
                                   if (ex.is_locked) {
                                     useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
-                                  } else if (ex.progress?.status === 'expired' && !quota.hasRemainingAttempts) {
+                                  } else if (expired) {
                                     useModalStore.getState().showToast("انتهت فترة إتاحة هذا الامتحان.", "warning");
+                                  } else if (notStarted) {
+                                    useModalStore.getState().showToast("لم يبدأ موعد الامتحان بعد.", "info");
                                   } else {
                                     checkExamAvailability(ex.id).then((allowed) => {
                                       if (allowed) {
@@ -833,6 +867,8 @@ export default function CourseDetail() {
                                     ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
                                     : isInProgress
                                     ? "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                                    : expired || notStarted
+                                    ? "bg-slate-800/50 text-slate-400 border-slate-700/60 cursor-not-allowed"
                                     : quota.hasRemainingAttempts && quota.attemptsUsed > 0
                                     ? "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/25 hover:border-indigo-500/50"
                                     : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border-brand-primary/20 hover:border-brand-primary/45"
@@ -841,10 +877,11 @@ export default function CourseDetail() {
                                 {(() => {
                                   if (ex.is_locked) return "ابدأ الآن 🔒";
                                   if (isInProgress) return "استكمال";
+                                  if (notStarted) return "لم يبدأ بعد";
+                                  if (expired) return "انتهى الموعد";
                                   if (quota.hasRemainingAttempts && quota.attemptsUsed > 0) {
                                     return `بدء المحاولة ${getAttemptOrdinalArabic(quota.attemptsUsed + 1)}`;
                                   }
-                                  if (ex.progress?.status === 'expired') return "انتهى الموعد";
                                   return "ابدأ الآن";
                                 })()}
                               </button>
@@ -958,15 +995,36 @@ export default function CourseDetail() {
                                     if (ex.progress?.status === 'in_progress') {
                                       return <span className="text-amber-400 font-bold">جاري الحل حالياً</span>;
                                     }
+
+                                    // Priority 1: Exam not started
+                                    if (isExamNotStarted(ex)) {
+                                      return <span className="text-blue-400 font-bold">لم يبدأ الامتحان بعد</span>;
+                                    }
+
+                                    // Priority 2: Exam expired
+                                    if (isExamExpired(ex)) {
+                                      if (quota.attemptsUsed >= quota.maxAttempts) {
+                                        return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
+                                      }
+                                      return <span className="text-rose-400 font-bold">انتهى موعد الامتحان</span>;
+                                    }
+
+                                    // Priority 3: Attempts exhausted
+                                    if (quota.attemptsUsed >= quota.maxAttempts) {
+                                      return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
+                                    }
+
+                                    // Priority 4: Attempts available
                                     if (quota.hasRemainingAttempts) {
                                       const rem = quota.attemptsRemaining;
                                       const remainingText = rem === 1 ? 'محاولة واحدة' : rem === 2 ? 'محاولتان' : `${rem} محاولات`;
                                       return (
                                         <span className="text-emerald-400 font-bold">
-                                          متاح للبدء {quota.attemptsUsed > 0 ? `(متبقي ${remainingText})` : ''}
+                                          متاح للبدء — متبقي {remainingText}
                                         </span>
                                       );
                                     }
+
                                     return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
                                   })()}
                                 </span>

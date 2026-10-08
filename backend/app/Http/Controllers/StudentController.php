@@ -1541,10 +1541,21 @@ class StudentController extends Controller
                 ->where('exam_id', $exam->id)
                 ->exists();
 
+            $window = $exam->getAvailabilityWindow();
+            $deadlinePassed = $window['ends_at'] ? $now->gt($window['ends_at']) : false;
+
+            $status = $lastAttempt ? $lastAttempt->status : 'not_started';
+            if ($lastAttempt && $lastAttempt->status === 'started' && $lastAttempt->expires_at && $now->gt($lastAttempt->expires_at)) {
+                $status = 'expired';
+            } elseif ($deadlinePassed && $attemptsRemaining > 0) {
+                $status = 'expired';
+            }
+
             $progressData = [
                 'id' => $lastAttempt?->id,
                 'score' => $lastAttempt?->score,
-                'status' => $lastAttempt ? $lastAttempt->status : 'not_started',
+                'status' => $status,
+                'last_attempt_status' => $lastAttempt?->status,
                 'is_suspicious' => (bool)$lastAttempt?->is_suspicious,
                 'submitted_at' => $lastAttempt?->submitted_at,
                 'graded_at' => $lastAttempt?->graded_at,
@@ -1553,6 +1564,7 @@ class StudentController extends Controller
                 'attempts_count' => $consumedCount,
                 'attempts_used' => $consumedCount,
                 'attempts_remaining' => $attemptsRemaining,
+                'is_expired' => $deadlinePassed,
             ];
 
             return [
@@ -1564,6 +1576,7 @@ class StudentController extends Controller
                 'is_paid' => $exam->is_paid,
                 'price' => $exam->price,
                 'is_purchased' => $isPurchased,
+                'is_expired' => $deadlinePassed,
                 
                 // Scheduling details
                 'enable_schedule' => (bool)$exam->enable_schedule,
