@@ -128,6 +128,22 @@ export default function ExamVisibilityModal({
     }
   }, [isOpen, examId])
 
+  // Support ESC to close the modal
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
   // Save exam defaults
   const handleSaveDefaults = async () => {
     setSavingDefaults(true)
@@ -243,12 +259,20 @@ export default function ExamVisibilityModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 overflow-y-auto" dir="rtl">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-
-      {/* Modal Dialog */}
-      <div className="relative bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-7 max-w-3xl w-full space-y-6 shadow-2xl overflow-y-auto max-h-[92vh] z-10 text-right">
+    <div 
+      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 overflow-y-auto" 
+      dir="rtl"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose()
+        }
+      }}
+    >
+      {/* Modal Dialog (Backdrop removed: underlying page remains fully visible) */}
+      <div 
+        className="relative bg-slate-900 border border-slate-700/80 rounded-3xl p-5 sm:p-7 max-w-3xl w-full space-y-6 shadow-2xl shadow-black/80 overflow-y-auto max-h-[92vh] z-10 text-right"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="flex justify-between items-start border-b border-slate-800 pb-4">
@@ -259,7 +283,13 @@ export default function ExamVisibilityModal({
             </div>
             <p className="text-xs text-slate-400 font-medium">امتحان: <span className="text-indigo-300 font-bold">{examTitle}</span></p>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer">
+          <button 
+            type="button" 
+            onClick={onClose} 
+            title="إغلاق (Esc)"
+            aria-label="إغلاق النافذة"
+            className="p-1.5 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors cursor-pointer"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>

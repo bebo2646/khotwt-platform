@@ -527,7 +527,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                   <div className="flex justify-between items-center text-[10px] text-slate-550 pt-2.5 border-t border-border-color/50">
                     <span>{new Date(attempt.submitted_at).toLocaleDateString('ar-EG')}</span>
                     {graded ? (
-                      <span className="font-black text-brand-primary bg-background/55 px-2 py-0.5 rounded border border-border-color">
+                      <span dir="ltr" className="font-black text-brand-primary bg-background/55 px-2 py-0.5 rounded border border-border-color">
                         {attempt.score} / {attempt?.exam?.max_score ?? 100}
                       </span>
                     ) : (

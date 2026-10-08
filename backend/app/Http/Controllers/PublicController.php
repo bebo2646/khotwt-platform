@@ -651,7 +651,6 @@ class PublicController extends Controller
                     ->keyBy('pdf_id');
 
                 $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
-                    ->where('course_id', $course->id)
                     ->whereIn('exam_id', $examIds)
                     ->get()
                     ->groupBy('exam_id');
@@ -797,10 +796,10 @@ class PublicController extends Controller
                                 $deadlinePassed = $window['ends_at'] ? $now->gt($window['ends_at']) : false;
 
                                 $attemptsUsed = $attempts->count();
-                                $maxAttempts = (int)($exam->max_attempts ?: 1);
+                                $maxAttempts = max(1, (int)($exam->max_attempts ?: 1));
                                 $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
 
-                                if ($attemptsUsed === 0) {
+                                if ($attemptsUsed === 0 && !$lastAttempt) {
                                     $status = $deadlinePassed ? 'expired' : 'not_started';
                                 } else {
                                     if ($lastStatus === 'terminated_for_cheating') {
@@ -1055,17 +1054,10 @@ class PublicController extends Controller
 
             $pdfProgresses = $pdfProgressQuery->get()->keyBy('pdf_id');
 
-            $examAttemptsQuery = \App\Models\StudentExam::where('student_id', $user->id)
-                ->where('course_id', $contextCourseId)
-                ->whereIn('exam_id', $examIds);
-            
-            if ($contextPackageId) {
-                $examAttemptsQuery->where('package_id', $contextPackageId);
-            } else {
-                $examAttemptsQuery->whereNull('package_id');
-            }
-
-            $examAttempts = $examAttemptsQuery->get()->groupBy('exam_id');
+            $examAttempts = \App\Models\StudentExam::where('student_id', $user->id)
+                ->whereIn('exam_id', $examIds)
+                ->get()
+                ->groupBy('exam_id');
 
             if ($isEnrolled) {
                 $contextCourse = \App\Models\Course::find($contextCourseId);
@@ -1248,11 +1240,11 @@ class PublicController extends Controller
                         $deadlinePassed = $window['ends_at'] ? $now->gt($window['ends_at']) : false;
 
                         $attemptsUsed = $attempts->count();
-                        $maxAttempts = (int)($exam->max_attempts ?: 1);
+                        $maxAttempts = max(1, (int)($exam->max_attempts ?: 1));
                         $attemptsRemaining = max(0, $maxAttempts - $attemptsUsed);
 
                         // Determine status
-                        if ($attemptsUsed === 0) {
+                        if ($attemptsUsed === 0 && !$lastAttempt) {
                             if ($deadlinePassed) {
                                 $status = 'expired'; // انتهى الموعد
                             } else {

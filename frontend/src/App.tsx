@@ -233,6 +233,68 @@ function App() {
     };
   }, []);
 
+  // Handle PWA Screen Orientation: Enforce portrait mode on mobile/PWA while dynamically allowing fullscreen landscape video
+  React.useEffect(() => {
+    const isFullscreenActive = () => {
+      const doc = document as any;
+      return !!(
+        doc.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement
+      );
+    };
+
+    const lockPortraitSafely = () => {
+      // Never force portrait lock while actively in fullscreen (allows landscape video)
+      if (isFullscreenActive()) return;
+
+      try {
+        if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.lock) {
+          (screen as any).orientation.lock('portrait').catch(() => {
+            // Screen orientation lock not supported or disallowed in current context
+          });
+        }
+      } catch {
+        // Safe fallback
+      }
+    };
+
+    const unlockOrientationSafely = () => {
+      try {
+        if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.unlock) {
+          (screen as any).orientation.unlock();
+        }
+      } catch {
+        // Safe fallback
+      }
+    };
+
+    // Apply portrait lock on app mount
+    lockPortraitSafely();
+
+    // Dynamically unlock during fullscreen (allows landscape video) and re-lock when exiting fullscreen
+    const handleFullscreenChange = () => {
+      if (isFullscreenActive()) {
+        unlockOrientationSafely();
+      } else {
+        lockPortraitSafely();
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
   // One-time reset / clear of stale packages and subscription plans caches
   React.useEffect(() => {
     localStorage.removeItem('packages');

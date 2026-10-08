@@ -400,6 +400,42 @@ export default function CourseDetail() {
     return false;
   };
 
+  const getExamAttemptQuota = (ex: any) => {
+    const maxAttempts = Math.max(1, Number(ex.max_attempts || 1));
+    const attemptsUsed = Number(ex.progress?.attempts_used ?? ex.attempts_count ?? 0);
+    const calculatedRemaining = Math.max(0, maxAttempts - attemptsUsed);
+    
+    // Authoritative rule: if consumed attempts < max attempts, remaining attempts MUST be at least (maxAttempts - attemptsUsed)
+    const isUnderLimit = attemptsUsed < maxAttempts;
+    const reportedRemaining = ex.progress?.attempts_remaining !== undefined ? Number(ex.progress.attempts_remaining) : undefined;
+    
+    const attemptsRemaining = isUnderLimit
+      ? Math.max(calculatedRemaining, reportedRemaining !== undefined && reportedRemaining > 0 ? reportedRemaining : 1)
+      : 0;
+
+    const hasRemainingAttempts = isUnderLimit || attemptsRemaining > 0;
+
+    return {
+      maxAttempts,
+      attemptsUsed,
+      attemptsRemaining,
+      hasRemainingAttempts,
+      isAllCompleted: !hasRemainingAttempts && attemptsUsed >= maxAttempts,
+    };
+  };
+
+  const getAttemptOrdinalArabic = (attemptNum: number): string => {
+    switch (attemptNum) {
+      case 1: return 'الأولى';
+      case 2: return 'الثانية';
+      case 3: return 'الثالثة';
+      case 4: return 'الرابعة';
+      case 5: return 'الخامسة';
+      case 6: return 'السادسة';
+      default: return `${attemptNum}`;
+    }
+  };
+
   const renderLessonsList = (unitLessons: any[]) => {
     if (!unitLessons || unitLessons.length === 0) {
       return (
@@ -451,14 +487,21 @@ export default function CourseDetail() {
                       }, { replace: true });
                     } else if (lesson.exams && lesson.exams.length > 0) {
                       const ex = lesson.exams[0];
-                      if (hasValidFinalResult(ex)) {
+                      const quota = getExamAttemptQuota(ex);
+                      if (quota.hasRemainingAttempts) {
+                        checkExamAvailability(ex.id).then((allowed) => {
+                          if (allowed) {
+                            navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                          }
+                        });
+                      } else if (hasValidFinalResult(ex)) {
                         navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
                       } else {
                         checkExamAvailability(ex.id).then((allowed) => {
                           if (allowed) {
                             navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
                           }
-                        })
+                        });
                       }
                     }
                   }
@@ -759,11 +802,9 @@ export default function CourseDetail() {
 
                           {/* Primary Start / Resume / Retry Button */}
                           {(() => {
-                            const attemptsUsed = ex.progress?.attempts_used ?? ex.attempts_count ?? 0;
-                            const maxAttempts = ex.max_attempts || 1;
-                            const attemptsRemaining = ex.progress?.attempts_remaining ?? Math.max(0, maxAttempts - attemptsUsed);
+                            const quota = getExamAttemptQuota(ex);
                             const isInProgress = ex.progress?.status === 'in_progress';
-                            const canStartNext = !ex.is_locked && (attemptsRemaining > 0 || isInProgress);
+                            const canStartNext = !ex.is_locked && (quota.hasRemainingAttempts || isInProgress);
 
                             // If no remaining attempts and we already show "عرض النتيجة", don't duplicate
                             if (!canStartNext && hasValidFinalResult(ex)) {
@@ -777,7 +818,7 @@ export default function CourseDetail() {
                                   e.stopPropagation();
                                   if (ex.is_locked) {
                                     useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
-                                  } else if (ex.progress?.status === 'expired' && attemptsRemaining <= 0) {
+                                  } else if (ex.progress?.status === 'expired' && !quota.hasRemainingAttempts) {
                                     useModalStore.getState().showToast("انتهت فترة إتاحة هذا الامتحان.", "warning");
                                   } else {
                                     checkExamAvailability(ex.id).then((allowed) => {
@@ -792,7 +833,7 @@ export default function CourseDetail() {
                                     ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
                                     : isInProgress
                                     ? "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
-                                    : attemptsRemaining > 0 && attemptsUsed > 0
+                                    : quota.hasRemainingAttempts && quota.attemptsUsed > 0
                                     ? "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/25 hover:border-indigo-500/50"
                                     : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border-brand-primary/20 hover:border-brand-primary/45"
                                 }`}
@@ -800,7 +841,9 @@ export default function CourseDetail() {
                                 {(() => {
                                   if (ex.is_locked) return "ابدأ الآن 🔒";
                                   if (isInProgress) return "استكمال";
-                                  if (attemptsRemaining > 0 && attemptsUsed > 0) return `بدء المحاولة ${attemptsUsed + 1}`;
+                                  if (quota.hasRemainingAttempts && quota.attemptsUsed > 0) {
+                                    return `بدء المحاولة ${getAttemptOrdinalArabic(quota.attemptsUsed + 1)}`;
+                                  }
                                   if (ex.progress?.status === 'expired') return "انتهى الموعد";
                                   return "ابدأ الآن";
                                 })()}
@@ -867,94 +910,97 @@ export default function CourseDetail() {
                         </div>
 
                         {/* Section 2: Student Attempt Details */}
-                        {ex.attempts_count > 0 && (
-                          <div className="pt-2.5 sm:pt-3 border-t border-slate-900/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-                            <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
-                              <span className="text-slate-500 shrink-0">🔄 المحاولات المستخدمة:</span>
-                              <span className="font-bold text-slate-100">
-                                {ex.attempts_count} / {ex.max_attempts}
-                              </span>
-                            </div>
+                        {(() => {
+                          const quota = getExamAttemptQuota(ex);
+                          if (quota.attemptsUsed <= 0 && !ex.last_attempt) return null;
 
-                            {ex.last_attempt && (
-                              <div className="flex items-center justify-between sm:justify-start gap-2 col-span-1 sm:col-span-2 lg:col-span-1 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
-                                <span className="text-slate-500 shrink-0">🕒 آخر محاولة:</span>
-                                <span className="font-bold text-slate-100 text-left sm:text-right">
-                                  {new Date(ex.last_attempt.submitted_at || ex.last_attempt.created_at).toLocaleString('ar-EG', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
-                            )}
-
-                            {ex.max_attempts > 1 && ex.best_attempt && ex.best_attempt.score !== null && (
+                          return (
+                            <div className="pt-2.5 sm:pt-3 border-t border-slate-900/60 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                               <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
-                                <span className="text-slate-500 shrink-0">🎯 أفضل درجة:</span>
-                                <span className="font-bold text-slate-100">
-                                  {ex.best_attempt.score} / {ex.max_score}
+                                <span className="text-slate-500 shrink-0">🔄 المحاولات المستخدمة:</span>
+                                <span className="font-bold text-slate-100" dir="ltr">
+                                  {quota.attemptsUsed} / {quota.maxAttempts}
                                 </span>
                               </div>
-                            )}
 
-                            {/* Exam Lifecycle Status */}
-                            <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
-                              <span className="text-slate-500 shrink-0">📊 حالة الامتحان:</span>
-                              <span className="font-bold text-left sm:text-right">
-                                {(() => {
-                                  const attemptsUsed = ex.progress?.attempts_used ?? ex.attempts_count ?? 0;
-                                  const maxAttempts = ex.max_attempts || 1;
-                                  const attemptsRemaining = ex.progress?.attempts_remaining ?? Math.max(0, maxAttempts - attemptsUsed);
+                              {ex.last_attempt && (
+                                <div className="flex items-center justify-between sm:justify-start gap-2 col-span-1 sm:col-span-2 lg:col-span-1 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
+                                  <span className="text-slate-500 shrink-0">🕒 آخر محاولة:</span>
+                                  <span className="font-bold text-slate-100 text-left sm:text-right">
+                                    {new Date(ex.last_attempt.submitted_at || ex.last_attempt.created_at).toLocaleString('ar-EG', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </span>
+                                </div>
+                              )}
 
-                                  if (ex.is_locked) {
-                                    return <span className="text-slate-500">مغلق (يتطلب اشتراك)</span>;
-                                  }
-                                  if (ex.progress?.status === 'in_progress') {
-                                    return <span className="text-amber-400 font-bold">جاري الحل حالياً</span>;
-                                  }
-                                  if (attemptsRemaining > 0) {
-                                    return (
-                                      <span className="text-emerald-400 font-bold">
-                                        متاح للبدء {attemptsUsed > 0 ? `(متبقي ${attemptsRemaining === 1 ? 'محاولة واحدة' : `${attemptsRemaining} محاولات`})` : ''}
-                                      </span>
-                                    );
-                                  }
-                                  return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
-                                })()}
-                              </span>
-                            </div>
+                              {quota.maxAttempts > 1 && ex.best_attempt && ex.best_attempt.score !== null && (
+                                <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
+                                  <span className="text-slate-500 shrink-0">🎯 أفضل درجة:</span>
+                                  <span className="font-bold text-slate-100" dir="ltr">
+                                    {ex.best_attempt.score} / {ex.max_score}
+                                  </span>
+                                </div>
+                              )}
 
-                            {/* Previous Attempt Summary */}
-                            {ex.last_attempt && (
-                              <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0">
-                                <span className="text-slate-500 shrink-0">📋 نتيجة آخر محاولة:</span>
+                              {/* Exam Lifecycle Status */}
+                              <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
+                                <span className="text-slate-500 shrink-0">📊 حالة الامتحان:</span>
                                 <span className="font-bold text-left sm:text-right">
                                   {(() => {
-                                    if (ex.last_attempt.is_suspicious) {
-                                      return <span className="text-rose-400 font-bold">رُصدت مخالفات (مراجعة الإجابات محجوبة مؤقتاً)</span>;
+                                    if (ex.is_locked) {
+                                      return <span className="text-slate-500">مغلق (يتطلب اشتراك)</span>;
                                     }
-                                    
-                                    const status = ex.last_attempt.status;
-                                    if (status === 'graded') {
-                                      const score = ex.last_attempt.score ?? 0;
-                                      const passScore = ex.passing_score ?? (ex.max_score * 0.5);
-                                      return score >= passScore 
-                                        ? <span className="text-emerald-400 font-bold">ناجح ({score} / {ex.max_score})</span>
-                                        : <span className="text-rose-400 font-bold">راسب ({score} / {ex.max_score})</span>;
+                                    if (ex.progress?.status === 'in_progress') {
+                                      return <span className="text-amber-400 font-bold">جاري الحل حالياً</span>;
                                     }
-                                    if (status === 'submitted') {
-                                      return <span className="text-amber-400 font-bold">بانتظار تدقيق المعلم</span>;
+                                    if (quota.hasRemainingAttempts) {
+                                      const rem = quota.attemptsRemaining;
+                                      const remainingText = rem === 1 ? 'محاولة واحدة' : rem === 2 ? 'محاولتان' : `${rem} محاولات`;
+                                      return (
+                                        <span className="text-emerald-400 font-bold">
+                                          متاح للبدء {quota.attemptsUsed > 0 ? `(متبقي ${remainingText})` : ''}
+                                        </span>
+                                      );
                                     }
-                                    return <span className="text-slate-350">{status}</span>;
+                                    return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
                                   })()}
                                 </span>
                               </div>
-                            )}
-                          </div>
-                        )}
+
+                              {/* Previous Attempt Summary */}
+                              {ex.last_attempt && (
+                                <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0">
+                                  <span className="text-slate-500 shrink-0">📋 نتيجة آخر محاولة:</span>
+                                  <span className="font-bold text-left sm:text-right">
+                                    {(() => {
+                                      if (ex.last_attempt.is_suspicious) {
+                                        return <span className="text-rose-400 font-bold">رُصدت مخالفات (مراجعة الإجابات محجوبة مؤقتاً)</span>;
+                                      }
+                                      
+                                      const status = ex.last_attempt.status;
+                                      if (status === 'graded') {
+                                        const score = ex.last_attempt.score ?? 0;
+                                        const passScore = ex.passing_score ?? (ex.max_score * 0.5);
+                                        return score >= passScore 
+                                          ? <span className="text-emerald-400 font-bold">ناجح <span dir="ltr" className="inline-block font-sans">({score} / {ex.max_score})</span></span>
+                                          : <span className="text-rose-400 font-bold">راسب <span dir="ltr" className="inline-block font-sans">({score} / {ex.max_score})</span></span>;
+                                      }
+                                      if (status === 'submitted') {
+                                        return <span className="text-amber-400 font-bold">بانتظار تدقيق المعلم</span>;
+                                      }
+                                      return <span className="text-slate-350">{status}</span>;
+                                    })()}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                         {expandedContentItems[`exam-${ex.id}`] && ex.is_locked && (
                           <div className="p-3 sm:p-4 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl text-xs flex items-start sm:items-center gap-2 animate-slide-down text-right" dir="rtl">
                             <Lock className="h-4 w-4 shrink-0 text-rose-500 mt-0.5 sm:mt-0" />

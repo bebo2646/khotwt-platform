@@ -89,13 +89,21 @@ interface ExamItem {
   title: string
   type: 'quiz' | 'homework' | 'monthly_exam'
   max_score: number
+  max_attempts?: number
+  attempts_count?: number
   is_paid?: boolean
   price?: string
   is_purchased?: boolean
+  progress?: {
+    attempts_used?: number
+    attempts_remaining?: number
+    status?: string
+    score?: number | null
+  } | null
   last_attempt?: {
     id: number
     score: number | null
-    status: 'started' | 'submitted' | 'graded'
+    status: 'started' | 'submitted' | 'graded' | 'not_started' | 'terminated_for_cheating' | 'expired' | string
     submitted_at: string
     graded_at: string | null
     teacher_feedback: string | null
@@ -231,11 +239,26 @@ export default function LessonViewer({
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
       document.body.style.height = '100%';
+
+      // Permit rotation to landscape during fullscreen video
+      try {
+        if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.unlock) {
+          (screen as any).orientation.unlock();
+        }
+      } catch {}
+
       return () => {
         document.body.style.overflow = originalOverflow;
         document.body.style.position = originalPosition;
         document.body.style.width = originalWidth;
         document.body.style.height = originalHeight;
+
+        // Restore portrait orientation lock when leaving fullscreen
+        try {
+          if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.lock) {
+            (screen as any).orientation.lock('portrait').catch(() => {});
+          }
+        } catch {}
       };
     }
   }, [isFullscreen]);
@@ -2581,13 +2604,16 @@ export default function LessonViewer({
               ) : (
                 <div className="space-y-4">
                   {exams.map((exam) => {
-                    const attempt = exam.last_attempt
-                    const isSolved = !!attempt && (attempt.status === 'submitted' || attempt.status === 'graded')
+                    const attempt = exam.last_attempt;
+                    const maxAttempts = Math.max(1, Number(exam.max_attempts || 1));
+                    const attemptsUsed = Number(exam.attempts_count ?? (exam.progress?.attempts_used ?? (attempt && attempt.status !== 'not_started' ? 1 : 0)));
+                    const hasRemainingAttempts = attemptsUsed < maxAttempts;
+                    const isSolved = !!attempt && (attempt.status === 'submitted' || attempt.status === 'graded');
                     
                     return (
-                      <div key={exam.id} className="flex justify-between items-center p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-2xl hover:border-slate-800 transition-colors">
-                        <div className="space-y-1">
-                          <div className="font-bold text-sm flex items-center gap-2">
+                      <div key={exam.id} className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-2xl hover:border-slate-800 transition-colors">
+                        <div className="space-y-1 min-w-0">
+                          <div className="font-bold text-sm flex items-center gap-2 flex-wrap">
                             <span>{exam.title}</span>
                             <span className="px-2 py-0.5 bg-slate-500/15 text-slate-300 text-[9px] font-semibold rounded-full uppercase">
                               {exam.type === 'quiz' ? 'كويز' : exam.type === 'homework' ? 'واجب' : 'امتحان شهري'}
@@ -2598,40 +2624,51 @@ export default function LessonViewer({
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-400">الدرجة النهائية: {exam.max_score} نقطة</div>
+                          <div className="text-[10px] text-slate-400 flex items-center gap-2">
+                            <span>الدرجة النهائية: {exam.max_score} نقطة</span>
+                            {maxAttempts > 1 && (
+                              <span className="text-slate-500" dir="ltr">({attemptsUsed} / {maxAttempts} محاولات)</span>
+                            )}
+                          </div>
                         </div>
 
-                        <div>
-                          {isSolved ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isSolved && (
                             <div className="flex items-center gap-2">
                               {attempt.status === 'graded' ? (
-                                <div className="text-xs font-bold text-brand-success">الدرجة: {attempt.score} / {exam.max_score}</div>
+                                <div className="text-xs font-bold text-brand-success">
+                                  الدرجة: <span dir="ltr" className="inline-block font-sans">{attempt.score} / {exam.max_score}</span>
+                                </div>
                               ) : (
                                 <div className="text-xs font-bold text-amber-500">تم التسليم - قيد التصحيح</div>
                               )}
                               <Link to="/student/results" className="px-3 py-1.5 bg-slate-500/10 border border-slate-500/20 text-slate-300 rounded-lg text-xs font-bold">التفاصيل</Link>
                             </div>
-                          ) : exam.is_paid && !exam.is_purchased ? (
-                            <button
-                              onClick={() => handlePurchaseExam(exam)}
-                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 hover:text-slate-900 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
-                            >
-                              <Wallet className="h-3.5 w-3.5" />
-                              <span>شراء الامتحان</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                checkExamAvailability(exam.id).then((allowed) => {
-                                  if (allowed) {
-                                    navigate(`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`);
-                                  }
-                                })
-                              }}
-                              className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
-                            >
-                              ابدأ الاختبار
-                            </button>
+                          )}
+
+                          {(!isSolved || hasRemainingAttempts) && (
+                            exam.is_paid && !exam.is_purchased ? (
+                              <button
+                                onClick={() => handlePurchaseExam(exam)}
+                                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 hover:text-slate-900 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-all"
+                              >
+                                <Wallet className="h-3.5 w-3.5" />
+                                <span>شراء الامتحان</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  checkExamAvailability(exam.id).then((allowed) => {
+                                    if (allowed) {
+                                      navigate(`/student/exams/${exam.id}${courseId ? `?course_id=${courseId}` : packageId ? `?package_id=${packageId}` : ''}`);
+                                    }
+                                  })
+                                }}
+                                className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+                              >
+                                {attemptsUsed > 0 ? `بدء المحاولة ${attemptsUsed + 1 === 2 ? 'الثانية' : attemptsUsed + 1 === 3 ? 'الثالثة' : attemptsUsed + 1}` : 'ابدأ الاختبار'}
+                              </button>
+                            )
                           )}
                         </div>
                       </div>

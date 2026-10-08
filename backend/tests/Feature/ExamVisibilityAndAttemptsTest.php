@@ -146,6 +146,7 @@ class ExamVisibilityAndAttemptsTest extends TestCase
         $attempt1 = StudentExam::create([
             'student_id' => $student->id,
             'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
             'score' => 10,
             'status' => 'graded',
             'started_at' => Carbon::now()->subMinutes(20),
@@ -161,6 +162,16 @@ class ExamVisibilityAndAttemptsTest extends TestCase
         $this->assertEquals(1, $attemptData['attempts_used']);
         $this->assertEquals(2, $attemptData['max_attempts']);
         $this->assertEquals(1, $attemptData['attempts_remaining']);
+
+        // Student views course detail - verify course exam card payload
+        $courseRes = $this->actingAs($student)->getJson("/api/courses/{$data['course']->id}");
+        $courseRes->assertStatus(200);
+        $examPayload = $courseRes->json('units.0.lessons.0.exams.0');
+        $this->assertNotNull($examPayload);
+        $this->assertEquals(1, $examPayload['attempts_count']);
+        $this->assertEquals(2, $examPayload['max_attempts']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_used']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_remaining']);
 
         // Student starts attempt 2
         $startRes = $this->actingAs($student)->postJson("/api/exams/{$data['exam']->id}/start");
@@ -213,6 +224,50 @@ class ExamVisibilityAndAttemptsTest extends TestCase
         // Starting attempt 3 must be blocked with 403
         $startRes = $this->actingAs($student)->postJson("/api/exams/{$data['exam']->id}/start");
         $startRes->assertStatus(403);
+    }
+
+    public function test_course_detail_and_lesson_detail_share_authoritative_attempt_quota(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupExam($teacher, ['max_attempts' => 2]);
+        $this->enrollStudent($student, $data['course']);
+
+        // Attempt 1 submitted with no course_id (e.g. taken directly)
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => null,
+            'score' => 10,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(20),
+            'submitted_at' => Carbon::now()->subMinutes(5),
+            'graded_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        // 1. Course Detail check
+        $courseRes = $this->actingAs($student)->getJson("/api/courses/{$data['course']->id}");
+        $courseRes->assertStatus(200);
+        $examPayload = $courseRes->json('units.0.lessons.0.exams.0');
+        $this->assertEquals(1, $examPayload['attempts_count']);
+        $this->assertEquals(2, $examPayload['max_attempts']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_used']);
+        $this->assertEquals(1, $examPayload['progress']['attempts_remaining']);
+        $this->assertEquals('graded', $examPayload['progress']['status']);
+
+        // 2. Lesson Detail check
+        $lessonRes = $this->actingAs($student)->getJson("/api/student/courses/{$data['course']->id}/lessons/{$data['lesson']->id}");
+        $lessonRes->assertStatus(200);
+        $lessonExamPayload = $lessonRes->json('exams.0');
+        $this->assertEquals(1, $lessonExamPayload['attempts_count']);
+        $this->assertEquals(2, $lessonExamPayload['max_attempts']);
+        $this->assertEquals(1, $lessonExamPayload['progress']['attempts_used']);
+        $this->assertEquals(1, $lessonExamPayload['progress']['attempts_remaining']);
+
+        // 3. Check availability endpoint allows start
+        $availRes = $this->actingAs($student)->getJson("/api/exams/{$data['exam']->id}/check-availability");
+        $availRes->assertStatus(200);
+        $this->assertTrue($availRes->json('available'));
     }
 
     // =========================================================================

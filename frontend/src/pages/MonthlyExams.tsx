@@ -459,7 +459,7 @@ export default function MonthlyExams() {
                         className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[var(--surface-bg)] hover:bg-[var(--border-color)]/30 text-foreground border border-[var(--border-color)] text-xs font-bold transition-all cursor-pointer"
                       >
                         <Eye className="w-4 h-4 text-brand-primary" />
-                        <span>عرض النتيجة والتقرير ({attempt.score ?? 0} / {exam.max_score})</span>
+                        <span>عرض النتيجة والتقرير <span dir="ltr" className="inline-block font-sans">({attempt.score ?? 0} / {exam.max_score})</span></span>
                       </button>
                     ) : (isPurchased || isFree) && exam.availability && !exam.availability.is_available ? (
                       <button

@@ -294,18 +294,22 @@ class MonthlyExamsController extends Controller
                 ->orderBy('id', 'desc')
                 ->get();
 
+            $terminatedAttempt = $allAttempts->first(function ($att) {
+                return $att->isTerminatedForCheating();
+            });
+
+            if ($terminatedAttempt) {
+                return response()->json([
+                    'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
+                    'terminated' => true,
+                    'error_code' => 'TERMINATED_FOR_CHEATING',
+                    'attempt_id' => $terminatedAttempt->id,
+                ], 403);
+            }
+
             $activeAttempt = $allAttempts->firstWhere('status', 'started');
 
             if ($activeAttempt) {
-                // If active attempt is terminated for cheating, student cannot restart
-                if ($activeAttempt->isTerminatedForCheating()) {
-                    return response()->json([
-                        'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
-                        'terminated' => true,
-                        'error_code' => 'TERMINATED_FOR_CHEATING',
-                        'attempt_id' => $activeAttempt->id,
-                    ], 403);
-                }
 
                 // If still started and not expired, resume active attempt
                 $now = Carbon::now();

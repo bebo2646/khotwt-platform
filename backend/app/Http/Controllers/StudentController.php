@@ -1517,10 +1517,17 @@ class StudentController extends Controller
         $examsWithAttempts = $exams->map(function ($exam) use ($user, $contextCourseId, $contextPackageId, $contextLessonId) {
             $allAttempts = StudentExam::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
-                ->where('course_id', $contextCourseId)
-                ->where('package_id', $contextPackageId)
-                ->where('lesson_id', $contextLessonId)
                 ->get();
+
+            $now = \Carbon\Carbon::now();
+            $consumedCount = $allAttempts->filter(function ($att) use ($now) {
+                return in_array($att->status, ['submitted', 'graded', 'terminated_for_cheating'])
+                    || $att->isTerminatedForCheating()
+                    || ($att->status === 'started' && $att->expires_at && $now->gt($att->expires_at));
+            })->count();
+
+            $maxAttempts = max(1, (int)($exam->max_attempts ?: 1));
+            $attemptsRemaining = max(0, $maxAttempts - $consumedCount);
 
             $lastAttempt = $allAttempts->sortByDesc('created_at')->first();
             $bestAttempt = $allAttempts->where('status', 'graded')->sortByDesc('score')->first();
@@ -1528,24 +1535,25 @@ class StudentController extends Controller
                 $bestAttempt = $allAttempts->sortByDesc('score')->first();
             }
 
-            $attemptsCount = $allAttempts->count();
             $questionsCount = $exam->questions()->count();
 
             $isPurchased = !$exam->is_paid || \App\Models\ExamPurchase::where('student_id', $user->id)
                 ->where('exam_id', $exam->id)
                 ->exists();
 
-            $progressData = $lastAttempt ? [
-                'id' => $lastAttempt->id,
-                'score' => $lastAttempt->score,
-                'status' => $lastAttempt->status,
-                'is_suspicious' => (bool)$lastAttempt->is_suspicious,
-                'submitted_at' => $lastAttempt->submitted_at,
-                'graded_at' => $lastAttempt->graded_at,
-                'created_at' => $lastAttempt->created_at ? $lastAttempt->created_at->toIso8601String() : null,
-                'teacher_feedback' => $lastAttempt->teacher_feedback,
-                'attempts_count' => $attemptsCount,
-            ] : null;
+            $progressData = [
+                'id' => $lastAttempt?->id,
+                'score' => $lastAttempt?->score,
+                'status' => $lastAttempt ? $lastAttempt->status : 'not_started',
+                'is_suspicious' => (bool)$lastAttempt?->is_suspicious,
+                'submitted_at' => $lastAttempt?->submitted_at,
+                'graded_at' => $lastAttempt?->graded_at,
+                'created_at' => $lastAttempt?->created_at ? $lastAttempt->created_at->toIso8601String() : null,
+                'teacher_feedback' => $lastAttempt?->teacher_feedback,
+                'attempts_count' => $consumedCount,
+                'attempts_used' => $consumedCount,
+                'attempts_remaining' => $attemptsRemaining,
+            ];
 
             return [
                 'id' => $exam->id,
@@ -1570,11 +1578,11 @@ class StudentController extends Controller
 
                 // Metadata
                 'questions_count' => $questionsCount,
-                'max_attempts' => $exam->max_attempts ?? 1,
+                'max_attempts' => $maxAttempts,
                 'passing_score' => $exam->passing_score ?? 50,
 
                 // Attempt details
-                'attempts_count' => $attemptsCount,
+                'attempts_count' => $consumedCount,
                 'progress' => $progressData,
                 'last_attempt' => $progressData,
                 'best_attempt' => $bestAttempt ? [
