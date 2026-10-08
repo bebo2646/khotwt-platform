@@ -2949,7 +2949,7 @@ function VideoWatermark({ name, phone }: VideoWatermarkProps) {
         left: currentPos.left,
         transition: 'top 1.5s cubic-bezier(0.4, 0, 0.2, 1), left 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
         opacity: 0.85,
-        color: '#ffffff',
+        color: '#B00000',
         textShadow: '1.5px 1.5px 0px #000000, -1.5px -1.5px 0px #000000, 1.5px -1.5px 0px #000000, -1.5px 1.5px 0px #000000, 0 2px 5px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85)',
         WebkitTextStroke: '0.6px rgba(0,0,0,0.9)',
         fontSize: 'clamp(11px, 1.8vw, 17px)',
