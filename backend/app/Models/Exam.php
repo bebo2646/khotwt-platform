@@ -52,6 +52,10 @@ class Exam extends Model
         'questions_per_attempt',
         'show_result_immediately',
         'show_answers_after_submission',
+        'show_score',
+        'show_student_answers',
+        'show_correct_answers',
+        'show_explanations',
     ];
 
     protected static function booted()
@@ -91,6 +95,10 @@ class Exam extends Model
         'use_question_bank' => 'boolean',
         'show_result_immediately' => 'boolean',
         'show_answers_after_submission' => 'boolean',
+        'show_score' => 'boolean',
+        'show_student_answers' => 'boolean',
+        'show_correct_answers' => 'boolean',
+        'show_explanations' => 'boolean',
     ];
 
     public function lesson()
@@ -126,6 +134,11 @@ class Exam extends Model
     public function violations()
     {
         return $this->hasMany(ExamViolation::class);
+    }
+
+    public function studentVisibilities()
+    {
+        return $this->hasMany(ExamStudentResultVisibility::class);
     }
 
     /**

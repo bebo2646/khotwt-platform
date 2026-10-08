@@ -122,11 +122,16 @@ export default function MonthlyExamResults() {
   if (!attempt) return null
 
   const exam = attempt.exam
+  const isScoreHidden = attempt.score === null || (attempt as any)?.result_visibility?.show_score === false
+  const showStudentAnswers = (attempt as any)?.result_visibility?.show_student_answers !== false
+  const showCorrectAnswers = (attempt as any)?.result_visibility?.show_correct_answers !== false
+  const showExplanations = (attempt as any)?.result_visibility?.show_explanations !== false
+
   const maxScore = exam.max_score || 100
   const score = attempt.score ?? 0
   const passingScore = exam.passing_score || Math.round(maxScore * 0.5)
-  const isPassed = score >= passingScore
-  const percentage = Math.round((score / maxScore) * 100)
+  const isPassed = !isScoreHidden && score >= passingScore
+  const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0
 
   // Map answers by question_id
   const answersMap = new Map<number, StudentAnswerItem>()
@@ -153,6 +158,8 @@ export default function MonthlyExamResults() {
         <div className={`relative overflow-hidden rounded-3xl border p-8 sm:p-10 backdrop-blur-xl shadow-2xl ${
           isTerminated
             ? 'bg-gradient-to-br from-rose-950/60 via-slate-900/90 to-red-950/40 border-rose-500/30'
+            : isScoreHidden
+            ? 'bg-gradient-to-br from-indigo-950/60 via-slate-900/90 to-slate-950/40 border-indigo-500/30'
             : isPassed
             ? 'bg-gradient-to-br from-emerald-950/60 via-slate-900/90 to-teal-950/40 border-emerald-500/30'
             : 'bg-gradient-to-br from-amber-950/60 via-slate-900/90 to-orange-950/40 border-amber-500/30'
@@ -173,6 +180,10 @@ export default function MonthlyExamResults() {
                 <p className="text-xs sm:text-sm text-rose-300 font-semibold max-w-lg leading-relaxed">
                   تم إنهاء محاولتك وتجميدها بواسطة نظام المراقبة الذكي بسبب رصد تجاوز في عدد المخالفات.
                 </p>
+              ) : isScoreHidden ? (
+                <p className="text-xs sm:text-sm text-indigo-300 font-semibold max-w-lg leading-relaxed">
+                  تم تسليم الامتحان وتدقيقه بنجاح، وقام المعلم بحجب درجات هذا التقييم.
+                </p>
               ) : isPassed ? (
                 <p className="text-xs sm:text-sm text-emerald-300 font-semibold max-w-lg leading-relaxed">
                   تهانينا! لقد اجتزت الامتحان الشهري بنجاح وتفوق. يمكنك مراجعة الأسئلة والإجابات النموذجية بالأسفل.
@@ -186,14 +197,23 @@ export default function MonthlyExamResults() {
 
             {/* Big Score Gauge */}
             <div className="shrink-0 flex flex-col items-center justify-center w-36 h-36 rounded-full bg-slate-950/80 border-2 border-slate-800 shadow-2xl p-4">
-              <div className={`text-3xl font-black ${
-                isTerminated ? 'text-rose-400' : isPassed ? 'text-emerald-400' : 'text-amber-400'
-              }`}>
-                {percentage}%
-              </div>
-              <div className="text-[11px] text-slate-400 font-bold mt-1">
-                {score} / {maxScore} درجة
-              </div>
+              {isScoreHidden ? (
+                <div className="text-center">
+                  <div className="text-3xl mb-1">🔒</div>
+                  <div className="text-[10px] font-bold text-indigo-400">الدرجة محجوبة</div>
+                </div>
+              ) : (
+                <>
+                  <div className={`text-3xl font-black ${
+                    isTerminated ? 'text-rose-400' : isPassed ? 'text-emerald-400' : 'text-amber-400'
+                  }`}>
+                    {percentage}%
+                  </div>
+                  <div className="text-[11px] text-slate-400 font-bold mt-1">
+                    {score} / {maxScore} درجة
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
@@ -226,7 +246,7 @@ export default function MonthlyExamResults() {
         </div>
 
         {/* Anti-cheat Locked Answers Notice */}
-        {!canViewAnswers && (
+        {!canViewAnswers ? (
           <div className="p-6 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 space-y-2">
             <div className="flex items-center gap-2 font-bold text-sm text-rose-400">
               <ShieldAlert className="w-5 h-5" />
@@ -236,14 +256,23 @@ export default function MonthlyExamResults() {
               تم حجب عرض الإجابات النموذجية الصحيحة لهذا الامتحان تلقائياً بسبب إنهاء محاولتك لمخالفة قواعد المراقبة. يمكن لمعلم المادة أو إدارة المنصة فقط فتح الإجابات للمراجعة لاحقاً.
             </p>
           </div>
-        )}
+        ) : (!showStudentAnswers && !showCorrectAnswers) ? (
+          <div className="p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 space-y-2">
+            <div className="flex items-center gap-2 font-bold text-sm text-indigo-400">
+              <span>🔒 مراجعة الإجابات محجوبة</span>
+            </div>
+            <p className="text-xs leading-relaxed text-indigo-200">
+              قام معلم المادة بحجب مراجعة الإجابات والحلول النموذجية لهذا الامتحان الشهري.
+            </p>
+          </div>
+        ) : null}
 
         {/* Question by Question Review */}
-        {canViewAnswers && exam.questions && exam.questions.length > 0 && (
+        {canViewAnswers && (showStudentAnswers || showCorrectAnswers) && exam.questions && exam.questions.length > 0 && (
           <div className="space-y-6">
             <h2 className="text-lg font-black text-white flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-indigo-400" />
-              <span>مراجعة الأسئلة والإجابات النموذجية</span>
+              <span>مراجعة الأسئلة والإجابات</span>
             </h2>
 
             <div className="space-y-4">
@@ -256,9 +285,9 @@ export default function MonthlyExamResults() {
                   <div 
                     key={q.id}
                     className={`rounded-2xl border p-6 bg-slate-900/70 backdrop-blur-md shadow-lg space-y-4 ${
-                      isCorrect 
+                      showStudentAnswers && isCorrect 
                         ? 'border-emerald-500/30' 
-                        : studentAns?.answer_text 
+                        : showStudentAnswers && studentAns?.answer_text 
                         ? 'border-rose-500/30' 
                         : 'border-slate-800'
                     }`}
@@ -266,26 +295,30 @@ export default function MonthlyExamResults() {
                     <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-slate-400">سؤال {idx + 1}</span>
-                        {isCorrect ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>إجابة صحيحة</span>
-                          </span>
-                        ) : studentAns?.answer_text ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[11px] font-bold border border-rose-500/20">
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>إجابة خاطئة</span>
-                          </span>
-                        ) : (
-                          <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px] font-bold">
-                            لم تتم الإجابة
-                          </span>
+                        {showStudentAnswers && (
+                          isCorrect ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[11px] font-bold border border-emerald-500/20">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>إجابة صحيحة</span>
+                            </span>
+                          ) : studentAns?.answer_text ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[11px] font-bold border border-rose-500/20">
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>إجابة خاطئة</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px] font-bold">
+                              لم تتم الإجابة
+                            </span>
+                          )
                         )}
                       </div>
 
-                      <span className="text-xs font-bold text-indigo-400">
-                        {scoreAwarded} / {q.score} درجة
-                      </span>
+                      {!isScoreHidden && (
+                        <span className="text-xs font-bold text-indigo-400">
+                          {scoreAwarded} / {q.score} درجة
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-sm font-bold text-slate-100 leading-relaxed">
@@ -300,17 +333,17 @@ export default function MonthlyExamResults() {
                           const isCorrectChoice = q.correct_answer === opt
 
                           let style = 'bg-slate-950/60 border-slate-800 text-slate-300'
-                          if (isCorrectChoice) {
+                          if (showCorrectAnswers && isCorrectChoice) {
                             style = 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200 font-bold'
-                          } else if (isStudentChoice && !isCorrect) {
+                          } else if (showStudentAnswers && isStudentChoice && !isCorrect) {
                             style = 'bg-rose-500/20 border-rose-500/60 text-rose-200 font-bold line-through'
                           }
 
                           return (
                             <div key={oIdx} className={`p-3 rounded-xl border text-xs flex items-center justify-between ${style}`}>
                               <span>{opt}</span>
-                              {isCorrectChoice && <span className="text-[10px] font-bold text-emerald-400">الإجابة الصحيحة</span>}
-                              {isStudentChoice && !isCorrectChoice && <span className="text-[10px] font-bold text-rose-400">إجابتك</span>}
+                              {showCorrectAnswers && isCorrectChoice && <span className="text-[10px] font-bold text-emerald-400">الإجابة الصحيحة</span>}
+                              {showStudentAnswers && isStudentChoice && !isCorrectChoice && <span className="text-[10px] font-bold text-rose-400">إجابتك</span>}
                             </div>
                           )
                         })}
@@ -320,35 +353,35 @@ export default function MonthlyExamResults() {
                     {/* True / False display */}
                     {q.type === 'true_false' && (
                       <div className="flex gap-4 pt-2 text-xs">
-                        <div className="text-slate-400">
-                          إجابتك: <span className={`font-bold ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{studentAns?.answer_text || 'لا يوجد'}</span>
-                        </div>
-                        <div className="text-slate-400">
-                          الإجابة النموذجية: <span className="font-bold text-emerald-400">{q.correct_answer}</span>
-                        </div>
+                        {showStudentAnswers && (
+                          <div className="text-slate-400">
+                            إجابتك: <span className={`font-bold ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{studentAns?.answer_text || 'لا يوجد'}</span>
+                          </div>
+                        )}
+                        {showCorrectAnswers && (
+                          <div className="text-slate-400">
+                            الإجابة النموذجية: <span className="font-bold text-emerald-400">{q.correct_answer}</span>
+                          </div>
+                        )}
                       </div>
                     )}
 
                     {/* Essay answer display */}
                     {q.type === 'essay' && (
                       <div className="space-y-2 pt-2 text-xs">
-                        <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
-                          <div className="text-slate-400 font-semibold mb-1">إجابتك المكتوبة:</div>
-                          <div className="text-slate-200">{studentAns?.answer_text || 'لم تتم كتابة إجابة.'}</div>
-                        </div>
-                        {q.explanation && (
-                          <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-300">
-                            <span className="font-bold">ملاحظات المعلم / التوضيح: </span>
-                            <span>{q.explanation}</span>
+                        {showStudentAnswers && (
+                          <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800">
+                            <div className="text-slate-400 font-semibold mb-1">إجابتك المكتوبة:</div>
+                            <div className="text-slate-200">{studentAns?.answer_text || 'لم تتم كتابة إجابة.'}</div>
                           </div>
                         )}
                       </div>
                     )}
 
-                    {/* Explanation */}
-                    {q.explanation && q.type !== 'essay' && (
-                      <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-300">
-                        <span className="font-bold">شرح الحل: </span>
+                    {/* Explanation display if enabled */}
+                    {showExplanations && q.explanation && (
+                      <div className="p-3 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-300 text-xs mt-2">
+                        <span className="font-bold">ملاحظات المعلم / التوضيح: </span>
                         <span>{q.explanation}</span>
                       </div>
                     )}
@@ -358,6 +391,7 @@ export default function MonthlyExamResults() {
             </div>
           </div>
         )}
+
 
       </div>
     </div>

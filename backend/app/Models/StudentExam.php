@@ -94,7 +94,9 @@ class StudentExam extends Model
 
     public function isTerminatedForCheating(): bool
     {
-        return $this->status === 'terminated_for_cheating' || !empty($this->terminated_for_cheating_at);
+        return $this->status === 'terminated_for_cheating'
+            || !empty($this->terminated_for_cheating_at)
+            || !empty($this->is_terminated_for_cheating);
     }
 
     public function canViewAnswers(): bool

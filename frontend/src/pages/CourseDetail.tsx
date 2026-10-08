@@ -742,42 +742,73 @@ export default function CourseDetail() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (ex.is_locked) {
-                              useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
-                            } else if (hasValidFinalResult(ex)) {
-                              navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
-                            } else {
-                              checkExamAvailability(ex.id).then((allowed) => {
-                                if (allowed) {
-                                  navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
-                                }
-                              });
-                            }
-                          }}
-                          className={`px-2.5 sm:px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border whitespace-nowrap ${
-                            ex.is_locked
-                              ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
-                              : ex.progress?.status === 'in_progress'
-                              ? "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
-                              : hasValidFinalResult(ex)
-                              ? "bg-brand-success/10 hover:bg-brand-success text-brand-success hover:text-white border-brand-success/20 hover:border-brand-success/45"
-                              : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border-brand-primary/20 hover:border-brand-primary/45"
-                          }`}
-                        >
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                          {/* If student already has a finished attempt, show secondary "عرض النتيجة" */}
+                          {!ex.is_locked && hasValidFinalResult(ex) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/student/exams/${ex.id}/result?course_id=${course?.id}`);
+                              }}
+                              className="px-2 sm:px-2.5 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border whitespace-nowrap bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border-emerald-500/25 hover:border-emerald-500/50"
+                            >
+                              عرض النتيجة
+                            </button>
+                          )}
+
+                          {/* Primary Start / Resume / Retry Button */}
                           {(() => {
-                            if (ex.is_locked) return "ابدأ الآن 🔒";
-                            if (ex.progress?.status === 'in_progress') return "استكمال";
-                            if (hasValidFinalResult(ex)) return "عرض النتيجة";
-                            if (ex.progress?.status === 'expired') return "انتهى الموعد";
-                            return "ابدأ الآن";
+                            const attemptsUsed = ex.progress?.attempts_used ?? ex.attempts_count ?? 0;
+                            const maxAttempts = ex.max_attempts || 1;
+                            const attemptsRemaining = ex.progress?.attempts_remaining ?? Math.max(0, maxAttempts - attemptsUsed);
+                            const isInProgress = ex.progress?.status === 'in_progress';
+                            const canStartNext = !ex.is_locked && (attemptsRemaining > 0 || isInProgress);
+
+                            // If no remaining attempts and we already show "عرض النتيجة", don't duplicate
+                            if (!canStartNext && hasValidFinalResult(ex)) {
+                              return null;
+                            }
+
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (ex.is_locked) {
+                                    useModalStore.getState().showToast("هذا الكورس مقيد حالياً. يرجى الشراء أو الاشتراك لفتح المحتوى.", "warning");
+                                  } else if (ex.progress?.status === 'expired' && attemptsRemaining <= 0) {
+                                    useModalStore.getState().showToast("انتهت فترة إتاحة هذا الامتحان.", "warning");
+                                  } else {
+                                    checkExamAvailability(ex.id).then((allowed) => {
+                                      if (allowed) {
+                                        navigate(`/student/exams/${ex.id}?course_id=${course?.id}`);
+                                      }
+                                    });
+                                  }
+                                }}
+                                className={`px-2.5 sm:px-3 py-1 rounded-lg font-bold text-[10px] transition-all cursor-pointer border whitespace-nowrap ${
+                                  ex.is_locked
+                                    ? "bg-slate-800/40 text-slate-500 border-slate-700/50 hover:bg-slate-800/60"
+                                    : isInProgress
+                                    ? "bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-white border-amber-500/20 hover:border-amber-500/45"
+                                    : attemptsRemaining > 0 && attemptsUsed > 0
+                                    ? "bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white border-indigo-500/25 hover:border-indigo-500/50"
+                                    : "bg-brand-primary/10 hover:bg-brand-primary text-brand-primary hover:text-white border-brand-primary/20 hover:border-brand-primary/45"
+                                }`}
+                              >
+                                {(() => {
+                                  if (ex.is_locked) return "ابدأ الآن 🔒";
+                                  if (isInProgress) return "استكمال";
+                                  if (attemptsRemaining > 0 && attemptsUsed > 0) return `بدء المحاولة ${attemptsUsed + 1}`;
+                                  if (ex.progress?.status === 'expired') return "انتهى الموعد";
+                                  return "ابدأ الآن";
+                                })()}
+                              </button>
+                            );
                           })()}
-                        </button>
-                        <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
-                      </div>
+                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
+                        </div>
                     </div>
                   </div>
 
@@ -869,14 +900,41 @@ export default function CourseDetail() {
                               </div>
                             )}
 
-                            {/* Status and Anti-cheat status lock */}
+                            {/* Exam Lifecycle Status */}
+                            <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0 border-b border-slate-900/40 sm:border-b-0">
+                              <span className="text-slate-500 shrink-0">📊 حالة الامتحان:</span>
+                              <span className="font-bold text-left sm:text-right">
+                                {(() => {
+                                  const attemptsUsed = ex.progress?.attempts_used ?? ex.attempts_count ?? 0;
+                                  const maxAttempts = ex.max_attempts || 1;
+                                  const attemptsRemaining = ex.progress?.attempts_remaining ?? Math.max(0, maxAttempts - attemptsUsed);
+
+                                  if (ex.is_locked) {
+                                    return <span className="text-slate-500">مغلق (يتطلب اشتراك)</span>;
+                                  }
+                                  if (ex.progress?.status === 'in_progress') {
+                                    return <span className="text-amber-400 font-bold">جاري الحل حالياً</span>;
+                                  }
+                                  if (attemptsRemaining > 0) {
+                                    return (
+                                      <span className="text-emerald-400 font-bold">
+                                        متاح للبدء {attemptsUsed > 0 ? `(متبقي ${attemptsRemaining === 1 ? 'محاولة واحدة' : `${attemptsRemaining} محاولات`})` : ''}
+                                      </span>
+                                    );
+                                  }
+                                  return <span className="text-slate-400 font-bold">اكتملت جميع المحاولات</span>;
+                                })()}
+                              </span>
+                            </div>
+
+                            {/* Previous Attempt Summary */}
                             {ex.last_attempt && (
                               <div className="flex items-center justify-between sm:justify-start gap-2 py-1 sm:py-0">
-                                <span className="text-slate-500 shrink-0">📊 الحالة الحالية:</span>
+                                <span className="text-slate-500 shrink-0">📋 نتيجة آخر محاولة:</span>
                                 <span className="font-bold text-left sm:text-right">
                                   {(() => {
                                     if (ex.last_attempt.is_suspicious) {
-                                      return <span className="text-rose-400 font-bold">Locked (مغلق ومحجوب تلقائياً)</span>;
+                                      return <span className="text-rose-400 font-bold">رُصدت مخالفات (مراجعة الإجابات محجوبة مؤقتاً)</span>;
                                     }
                                     
                                     const status = ex.last_attempt.status;
@@ -884,11 +942,11 @@ export default function CourseDetail() {
                                       const score = ex.last_attempt.score ?? 0;
                                       const passScore = ex.passing_score ?? (ex.max_score * 0.5);
                                       return score >= passScore 
-                                        ? <span className="text-emerald-400 font-bold">Passed (ناجح)</span>
-                                        : <span className="text-rose-400 font-bold">Failed (راسب)</span>;
+                                        ? <span className="text-emerald-400 font-bold">ناجح ({score} / {ex.max_score})</span>
+                                        : <span className="text-rose-400 font-bold">راسب ({score} / {ex.max_score})</span>;
                                     }
                                     if (status === 'submitted') {
-                                      return <span className="text-amber-400 font-bold">Awaiting Review (بانتظار التصحيح)</span>;
+                                      return <span className="text-amber-400 font-bold">بانتظار تدقيق المعلم</span>;
                                     }
                                     return <span className="text-slate-350">{status}</span>;
                                   })()}

@@ -33,6 +33,7 @@ import { useModalStore } from '../../store/modalStore'
 import { useAuthStore } from '../../store/authStore'
 import SEO from '../../components/SEO'
 import { formatGradeName, formatSubjectName } from '../../utils/formatters'
+import ExamVisibilityModal from '../../components/ExamVisibilityModal'
 
 interface AdminMonthlyExam {
   id: number
@@ -244,6 +245,10 @@ export default function MonthlyExamsManagement() {
   const [attemptsSearch, setAttemptsSearch] = useState('')
   const [attemptsStatusFilter, setAttemptsStatusFilter] = useState('all')
   const [attemptsVisibilityFilter, setAttemptsVisibilityFilter] = useState('all')
+
+  // Visibility Control State
+  const [visibilityModalOpen, setVisibilityModalOpen] = useState(false)
+  const [selectedExamForVisibility, setSelectedExamForVisibility] = useState<AdminMonthlyExam | null>(null)
 
   // Attempt Detailed Review State
   const [reviewModalOpen, setReviewModalOpen] = useState(false)
@@ -672,6 +677,16 @@ export default function MonthlyExamsManagement() {
                     <td className="p-4">
                       <div className="flex items-center justify-center gap-2">
                         <button
+                          onClick={() => {
+                            setSelectedExamForVisibility(exam)
+                            setVisibilityModalOpen(true)
+                          }}
+                          title="التحكم في ظهور النتائج للطلاب"
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600/20 text-indigo-300 transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => openAttemptsModal(exam)}
                           title="عرض نتائج ومحاولات الطلاب"
                           className="p-2 rounded-xl bg-slate-800 hover:bg-indigo-600/20 text-indigo-400 transition-colors cursor-pointer"
@@ -731,12 +746,25 @@ export default function MonthlyExamsManagement() {
                   </h3>
                 </div>
 
-                <button
-                  onClick={() => setAttemptsModalOpen(false)}
-                  className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedExamForVisibility(selectedExamForAttempts)
+                      setVisibilityModalOpen(true)
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-bold transition-all cursor-pointer"
+                    title="التحكم في ظهور النتائج للطلاب"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>ظهور النتائج</span>
+                  </button>
+                  <button
+                    onClick={() => setAttemptsModalOpen(false)}
+                    className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Stats Summary Bar */}
@@ -1380,6 +1408,16 @@ export default function MonthlyExamsManagement() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Exam Result Visibility Modal */}
+      {selectedExamForVisibility && (
+        <ExamVisibilityModal
+          isOpen={visibilityModalOpen}
+          onClose={() => setVisibilityModalOpen(false)}
+          examId={selectedExamForVisibility.id}
+          examTitle={selectedExamForVisibility.title}
+        />
+      )}
 
     </div>
   )

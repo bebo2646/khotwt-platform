@@ -17,9 +17,11 @@ import {
   FileSpreadsheet, 
   Upload, 
   HelpCircle,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
+import ExamVisibilityModal from '../../components/ExamVisibilityModal'
 
 interface CourseItem {
   id: number
@@ -102,6 +104,7 @@ export default function ExamsManager() {
   const [attemptsLoading, setAttemptsLoading] = React.useState(false)
   const [activeAttempt, setActiveAttempt] = React.useState<AttemptItem | null>(null)
   const [unlockingAttempt, setUnlockingAttempt] = React.useState(false)
+  const [isVisibilityModalOpen, setIsVisibilityModalOpen] = React.useState(false)
 
   // Grader Form inputs
   const [gradeScore, setGradeScore] = React.useState('')
@@ -306,7 +309,15 @@ export default function ExamsManager() {
                   <span className="text-[10px] text-slate-400">الاختبار المختار:</span>
                   <h3 className="text-lg font-black text-slate-100">{selectedExam.title}</h3>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsVisibilityModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all text-xs font-bold cursor-pointer"
+                    title="التحكم في ظهور النتائج للطلاب"
+                  >
+                    <Eye className="h-4 w-4" />
+                    <span>ظهور النتائج</span>
+                  </button>
                   <button
                     onClick={() => navigate(`/teacher/exams/edit/${selectedExam.id}`)}
                     className="p-2 bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white rounded-xl transition-all cursor-pointer"
@@ -619,6 +630,16 @@ export default function ExamsManager() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Exam Result Visibility Control Modal */}
+      {selectedExam && (
+        <ExamVisibilityModal
+          isOpen={isVisibilityModalOpen}
+          onClose={() => setIsVisibilityModalOpen(false)}
+          examId={selectedExam.id}
+          examTitle={selectedExam.title}
+        />
       )}
 
     </div>

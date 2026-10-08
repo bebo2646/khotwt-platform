@@ -287,147 +287,154 @@ class MonthlyExamsController extends Controller
             }
         }
 
-        // Check for existing attempt
-        $existingAttempt = StudentExam::where('student_id', $user->id)
-            ->where('exam_id', $exam->id)
-            ->latest()
-            ->first();
+        return DB::transaction(function () use ($user, $exam) {
+            $allAttempts = StudentExam::where('student_id', $user->id)
+                ->where('exam_id', $exam->id)
+                ->lockForUpdate()
+                ->orderBy('id', 'desc')
+                ->get();
 
-        if ($existingAttempt) {
-            // If terminated for cheating, student cannot restart
-            if ($existingAttempt->isTerminatedForCheating()) {
-                return response()->json([
-                    'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
-                    'terminated' => true,
-                    'attempt_id' => $existingAttempt->id,
-                ], 403);
-            }
+            $activeAttempt = $allAttempts->firstWhere('status', 'started');
 
-            // If still started and not expired, resume active attempt
-            if ($existingAttempt->status === 'started') {
+            if ($activeAttempt) {
+                // If active attempt is terminated for cheating, student cannot restart
+                if ($activeAttempt->isTerminatedForCheating()) {
+                    return response()->json([
+                        'message' => 'تم حرمانك من هذا الامتحان بسبب مخالفات نظام المراقبة.',
+                        'terminated' => true,
+                        'error_code' => 'TERMINATED_FOR_CHEATING',
+                        'attempt_id' => $activeAttempt->id,
+                    ], 403);
+                }
+
+                // If still started and not expired, resume active attempt
                 $now = Carbon::now();
                 $window = $exam->getAvailabilityWindow();
                 $endsAt = $window['ends_at'];
 
-                if (!$existingAttempt->expires_at) {
+                if (!$activeAttempt->expires_at) {
                     $timing = $exam->calculateEffectiveTiming(
-                        Carbon::parse($existingAttempt->started_at ?? $now),
-                        $existingAttempt->duration_minutes ?: ($exam->time_limit_minutes ?: 60)
+                        Carbon::parse($activeAttempt->started_at ?? $now),
+                        $activeAttempt->duration_minutes ?: ($exam->time_limit_minutes ?: 60)
                     );
-                    $existingAttempt->expires_at = $timing['expires_at'];
-                    if (!$existingAttempt->duration_minutes && $timing['effective_duration_minutes']) {
-                        $existingAttempt->duration_minutes = $timing['effective_duration_minutes'];
+                    $activeAttempt->expires_at = $timing['expires_at'];
+                    if (!$activeAttempt->duration_minutes && $timing['effective_duration_minutes']) {
+                        $activeAttempt->duration_minutes = $timing['effective_duration_minutes'];
                     }
-                    $existingAttempt->save();
-                } elseif ($existingAttempt->expires_at && $endsAt && $existingAttempt->expires_at->gt($endsAt)) {
+                    $activeAttempt->save();
+                } elseif ($activeAttempt->expires_at && $endsAt && $activeAttempt->expires_at->gt($endsAt)) {
                     // Ensure existing active attempt never exceeds global availability deadline
-                    $existingAttempt->expires_at = $endsAt->copy();
-                    $existingAttempt->save();
+                    $activeAttempt->expires_at = $endsAt->copy();
+                    $activeAttempt->save();
                 }
 
-                if ($now->gt($existingAttempt->expires_at)) {
+                if ($now->gt($activeAttempt->expires_at)) {
                     // Auto-submit expired attempt
-                    $this->finalizeExpiredAttempt($existingAttempt);
+                    $this->finalizeExpiredAttempt($activeAttempt);
+                    $activeAttempt = null;
                 } else {
-                    return $this->buildActiveAttemptResponse($exam, $existingAttempt);
+                    return $this->buildActiveAttemptResponse($exam, $activeAttempt);
                 }
             }
 
-            // Check max attempts
-            $submittedAttemptsCount = StudentExam::where('student_id', $user->id)
-                ->where('exam_id', $exam->id)
-                ->whereIn('status', ['submitted', 'graded', 'terminated_for_cheating'])
-                ->count();
+            // Check how many attempts have been consumed
+            $now = Carbon::now();
+            $consumedCount = $allAttempts->filter(function ($att) use ($now) {
+                return in_array($att->status, ['submitted', 'graded', 'terminated_for_cheating'])
+                    || $att->isTerminatedForCheating()
+                    || ($att->status === 'started' && $att->expires_at && $now->gt($att->expires_at));
+            })->count();
 
-            $maxAttempts = $exam->max_attempts ?: 1;
-            if ($submittedAttemptsCount >= $maxAttempts) {
+            $maxAttempts = (int)($exam->max_attempts ?: 1);
+            if ($consumedCount >= $maxAttempts) {
+                $lastAttempt = $allAttempts->first();
                 return response()->json([
-                    'message' => 'لقد استنفدت الحد الأقصى للمحاولات المسموح بها لهذا الامتحان.',
+                    'message' => 'لقد استنفدت الحد الأقصى للمحاولات المسموح بها لهذا الامتحان (' . $maxAttempts . ').',
                     'error_code' => 'ATTEMPTS_LIMIT_REACHED',
                     'max_attempts' => $maxAttempts,
-                    'attempts_used' => $submittedAttemptsCount,
+                    'attempts_used' => $consumedCount,
                     'attempts_remaining' => 0,
-                    'attempt_id' => $existingAttempt->id,
+                    'attempt_id' => $lastAttempt?->id,
                 ], 403);
             }
-        }
 
-        // Enforce availability window BEFORE creating a new attempt
-        $avail = $exam->getAvailabilityStatus();
-        if (!$avail['is_available']) {
-            return response()->json([
-                'message' => $avail['message'],
-                'status' => $avail['status'],
-                'error_code' => $avail['error_code'],
-                'open_datetime' => $avail['open_datetime'] ?? null,
-                'close_datetime' => $avail['close_datetime'] ?? null,
-                'starts_at' => $avail['starts_at'] ?? null,
-                'ends_at' => $avail['ends_at'] ?? null,
-                'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
-                'formatted_dates' => $avail['formatted_dates'] ?? null,
-            ], 403);
-        }
-
-        // Start new attempt
-        $durationMinutes = $exam->time_limit_minutes ?: 60;
-        $startedAt = Carbon::now();
-        $timing = $exam->calculateEffectiveTiming($startedAt, $durationMinutes);
-
-        // If the deadline is already passed or effective duration is 0, reject start
-        if ($timing['expires_at'] && $startedAt->gte($timing['expires_at'])) {
-            return response()->json([
-                'message' => 'انتهت مدة إتاحة الامتحان.',
-                'status' => 'expired',
-                'error_code' => 'SCHEDULE_EXPIRED',
-                'ends_at' => $timing['availability_end_at']?->toIso8601String(),
-            ], 403);
-        }
-
-        $expiresAt = $timing['expires_at'];
-        $effectiveDurationMinutes = $timing['effective_duration_minutes'];
-
-        // Prepare question order & randomization
-        $questions = $exam->questions;
-        if ($questions->isEmpty()) {
-            return response()->json(['message' => 'لا توجد أسئلة مضافة لهذا الامتحان بعد.'], 422);
-        }
-
-        $questionIds = $questions->pluck('id')->toArray();
-        if ($exam->randomize_questions) {
-            shuffle($questionIds);
-        }
-
-        if ($exam->use_question_bank && $exam->questions_per_attempt && $exam->questions_per_attempt < count($questionIds)) {
-            $questionIds = array_slice($questionIds, 0, $exam->questions_per_attempt);
-        }
-
-        $shuffleMapping = [
-            'question_order' => $questionIds,
-            'options_mapping' => [],
-        ];
-
-        // Option randomization
-        foreach ($questions as $q) {
-            if ($exam->randomize_options && !empty($q->options) && is_array($q->options)) {
-                $shuffled = $q->options;
-                shuffle($shuffled);
-                $shuffleMapping['options_mapping'][$q->id] = $shuffled;
+            // Enforce availability window BEFORE creating a new attempt
+            $avail = $exam->getAvailabilityStatus();
+            if (!$avail['is_available']) {
+                return response()->json([
+                    'message' => $avail['message'],
+                    'status' => $avail['status'],
+                    'error_code' => $avail['error_code'],
+                    'open_datetime' => $avail['open_datetime'] ?? null,
+                    'close_datetime' => $avail['close_datetime'] ?? null,
+                    'starts_at' => $avail['starts_at'] ?? null,
+                    'ends_at' => $avail['ends_at'] ?? null,
+                    'countdown_seconds' => $avail['countdown_seconds'] ?? 0,
+                    'formatted_dates' => $avail['formatted_dates'] ?? null,
+                ], 403);
             }
-        }
 
-        $studentExam = StudentExam::create([
-            'student_id' => $user->id,
-            'exam_id' => $exam->id,
-            'status' => 'started',
-            'started_at' => $startedAt,
-            'expires_at' => $expiresAt,
-            'duration_minutes' => $effectiveDurationMinutes,
-            'shuffle_mapping' => $shuffleMapping,
-            'cheat_violations_count' => 0,
-            'violation_count' => 0,
-        ]);
+            // Start new attempt
+            $durationMinutes = $exam->time_limit_minutes ?: 60;
+            $startedAt = Carbon::now();
+            $timing = $exam->calculateEffectiveTiming($startedAt, $durationMinutes);
 
-        return $this->buildActiveAttemptResponse($exam, $studentExam);
+            // If the deadline is already passed or effective duration is 0, reject start
+            if ($timing['expires_at'] && $startedAt->gte($timing['expires_at'])) {
+                return response()->json([
+                    'message' => 'انتهت مدة إتاحة الامتحان.',
+                    'status' => 'expired',
+                    'error_code' => 'SCHEDULE_EXPIRED',
+                    'ends_at' => $timing['availability_end_at']?->toIso8601String(),
+                ], 403);
+            }
+
+            $expiresAt = $timing['expires_at'];
+            $effectiveDurationMinutes = $timing['effective_duration_minutes'];
+
+            // Prepare question order & randomization
+            $questions = $exam->questions;
+            if ($questions->isEmpty()) {
+                return response()->json(['message' => 'لا توجد أسئلة مضافة لهذا الامتحان بعد.'], 422);
+            }
+
+            $questionIds = $questions->pluck('id')->toArray();
+            if ($exam->randomize_questions) {
+                shuffle($questionIds);
+            }
+
+            if ($exam->use_question_bank && $exam->questions_per_attempt && $exam->questions_per_attempt < count($questionIds)) {
+                $questionIds = array_slice($questionIds, 0, $exam->questions_per_attempt);
+            }
+
+            $shuffleMapping = [
+                'question_order' => $questionIds,
+                'options_mapping' => [],
+            ];
+
+            // Option randomization
+            foreach ($questions as $q) {
+                if ($exam->randomize_options && !empty($q->options) && is_array($q->options)) {
+                    $shuffled = $q->options;
+                    shuffle($shuffled);
+                    $shuffleMapping['options_mapping'][$q->id] = $shuffled;
+                }
+            }
+
+            $studentExam = StudentExam::create([
+                'student_id' => $user->id,
+                'exam_id' => $exam->id,
+                'status' => 'started',
+                'started_at' => $startedAt,
+                'expires_at' => $expiresAt,
+                'duration_minutes' => $effectiveDurationMinutes,
+                'shuffle_mapping' => $shuffleMapping,
+                'cheat_violations_count' => 0,
+                'violation_count' => 0,
+            ]);
+
+            return $this->buildActiveAttemptResponse($exam, $studentExam);
+        });
     }
 
     /**
@@ -800,14 +807,23 @@ class MonthlyExamsController extends Controller
             StudentActivityService::logExamEvent($user, $exam, 'submitted', $studentExam, ['score' => $studentExam->score], $request);
         });
 
+        $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+        $visibility = $visibilityService->resolveEffectiveVisibility($exam, (int)$user->id);
+
         return response()->json([
             'success' => true,
             'message' => 'تم تسليم الامتحان بنجاح.',
             'attempt_id' => $studentExam->id,
-            'score' => $studentExam->score,
+            'score' => $visibility['show_score'] ? $studentExam->score : null,
             'max_score' => $exam->max_score,
             'status' => $studentExam->status,
-            'passed' => $studentExam->score >= ($exam->passing_score ?: ($exam->max_score * 0.5)),
+            'passed' => $visibility['show_score'] ? ($studentExam->score >= ($exam->passing_score ?: ($exam->max_score * 0.5))) : null,
+            'result_visibility' => [
+                'show_score' => $visibility['show_score'],
+                'show_student_answers' => $visibility['show_student_answers'],
+                'show_correct_answers' => $visibility['show_correct_answers'],
+                'show_explanations' => $visibility['show_explanations'],
+            ],
         ]);
     }
 
@@ -892,30 +908,15 @@ class MonthlyExamsController extends Controller
 
         $canView = $attempt->canViewAnswers();
 
-        // If terminated for cheating and not unlocked, hide answers
-        if (!$canView) {
-            if ($attempt->exam && $attempt->exam->questions) {
-                $attempt->exam->questions->makeHidden(['correct_answer', 'explanation']);
-                foreach ($attempt->exam->questions as $q) {
-                    $q->correct_answer = null;
-                    $q->explanation = null;
-                }
-            }
-            if ($attempt->answers) {
-                foreach ($attempt->answers as $a) {
-                    if ($a->question) {
-                        $a->question->makeHidden(['correct_answer', 'explanation']);
-                        $a->question->correct_answer = null;
-                        $a->question->explanation = null;
-                    }
-                }
-            }
-        }
+        $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+        $visibility = $visibilityService->resolveEffectiveVisibility($attempt->exam, (int)$user->id);
+        $attempt = $visibilityService->sanitizeAttempt($attempt, $visibility);
 
         return response()->json([
             'attempt' => $attempt,
-            'can_view_answers' => $canView,
+            'can_view_answers' => $canView && $visibility['show_correct_answers'],
             'is_terminated_for_cheating' => $attempt->isTerminatedForCheating(),
+            'result_visibility' => $attempt->result_visibility,
         ]);
     }
 
@@ -993,6 +994,10 @@ class MonthlyExamsController extends Controller
             'enable_copy_protection' => 'nullable|boolean',
             'randomize_questions' => 'nullable|boolean',
             'randomize_options' => 'nullable|boolean',
+            'show_score' => 'nullable|boolean',
+            'show_student_answers' => 'nullable|boolean',
+            'show_correct_answers' => 'nullable|boolean',
+            'show_explanations' => 'nullable|boolean',
             'questions' => 'nullable|array',
             'questions.*.text' => 'required|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
@@ -1030,6 +1035,10 @@ class MonthlyExamsController extends Controller
                 'enable_copy_protection' => $validated['enable_copy_protection'] ?? true,
                 'randomize_questions' => $validated['randomize_questions'] ?? true,
                 'randomize_options' => $validated['randomize_options'] ?? true,
+                'show_score' => isset($validated['show_score']) ? (bool)$validated['show_score'] : true,
+                'show_student_answers' => isset($validated['show_student_answers']) ? (bool)$validated['show_student_answers'] : true,
+                'show_correct_answers' => isset($validated['show_correct_answers']) ? (bool)$validated['show_correct_answers'] : true,
+                'show_explanations' => isset($validated['show_explanations']) ? (bool)$validated['show_explanations'] : true,
                 'max_attempts' => 1,
             ]);
 
@@ -1092,6 +1101,10 @@ class MonthlyExamsController extends Controller
             'enable_copy_protection' => 'nullable|boolean',
             'randomize_questions' => 'nullable|boolean',
             'randomize_options' => 'nullable|boolean',
+            'show_score' => 'nullable|boolean',
+            'show_student_answers' => 'nullable|boolean',
+            'show_correct_answers' => 'nullable|boolean',
+            'show_explanations' => 'nullable|boolean',
             'questions' => 'nullable|array',
             'questions.*.text' => 'required|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
@@ -1129,6 +1142,10 @@ class MonthlyExamsController extends Controller
             if (isset($validated['enable_copy_protection'])) $exam->enable_copy_protection = $validated['enable_copy_protection'];
             if (isset($validated['randomize_questions'])) $exam->randomize_questions = $validated['randomize_questions'];
             if (isset($validated['randomize_options'])) $exam->randomize_options = $validated['randomize_options'];
+            if (isset($validated['show_score'])) $exam->show_score = $validated['show_score'];
+            if (isset($validated['show_student_answers'])) $exam->show_student_answers = $validated['show_student_answers'];
+            if (isset($validated['show_correct_answers'])) $exam->show_correct_answers = $validated['show_correct_answers'];
+            if (isset($validated['show_explanations'])) $exam->show_explanations = $validated['show_explanations'];
 
             $exam->save();
 
@@ -1229,7 +1246,10 @@ class MonthlyExamsController extends Controller
             ->latest()
             ->get();
 
-        $attempts->transform(function ($attempt) use ($exam) {
+        $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+        $overrides = $visibilityService->getOverridesForExam($exam);
+
+        $attempts->transform(function ($attempt) use ($exam, $visibilityService, $overrides) {
             $attempt->is_terminated_for_cheating = $attempt->isTerminatedForCheating();
             $attempt->can_view_answers = $attempt->canViewAnswers();
             $attempt->max_score = (float)$exam->max_score;
@@ -1237,6 +1257,8 @@ class MonthlyExamsController extends Controller
             $attempt->percentage = ($exam->max_score > 0 && $attempt->score !== null)
                 ? round(($attempt->score / $exam->max_score) * 100, 1)
                 : 0;
+            $attempt->effective_visibility = $visibilityService->resolveEffectiveVisibility($exam, (int)$attempt->student_id);
+            $attempt->override_visibility = $overrides->get($attempt->student_id);
             return $attempt;
         });
 
@@ -1250,6 +1272,10 @@ class MonthlyExamsController extends Controller
                 'max_score' => (float)$exam->max_score,
                 'passing_score' => (float)($exam->passing_score ?: ($exam->max_score * 0.5)),
                 'time_limit_minutes' => $exam->time_limit_minutes,
+                'show_score' => (bool)($exam->show_score ?? true),
+                'show_student_answers' => (bool)($exam->show_student_answers ?? true),
+                'show_correct_answers' => (bool)($exam->show_correct_answers ?? true),
+                'show_explanations' => (bool)($exam->show_explanations ?? true),
             ],
             'attempts' => $attempts,
         ]);

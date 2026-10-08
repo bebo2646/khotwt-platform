@@ -111,6 +111,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
 
   // Statistics calculation for selected attempt
   const isGraded = selectedAttempt?.status === 'graded'
+  const isScoreHidden = selectedAttempt?.score === null || (selectedAttempt as any)?.result_visibility?.show_score === false
   const maxScore = selectedAttempt?.exam?.max_score || 100
   const score = selectedAttempt?.score || 0
   const percent = maxScore > 0 ? (score / maxScore) * 100 : 0
@@ -145,6 +146,9 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
 
   const isCheatingTerminated = selectedAttempt?.status === 'terminated_for_cheating' || !!(selectedAttempt as any)?.is_terminated_for_cheating
   const canViewAnswers = (selectedAttempt as any)?.can_view_answers !== false && (!isCheatingTerminated || !!(selectedAttempt as any)?.answers_unlocked_at)
+  const showStudentAnswers = (selectedAttempt as any)?.result_visibility?.show_student_answers !== false
+  const showCorrectAnswers = (selectedAttempt as any)?.result_visibility?.show_correct_answers !== false
+  const showExplanations = (selectedAttempt as any)?.result_visibility?.show_explanations !== false
 
   if (isCheatingTerminated) {
     gradeText = 'حرمان من الامتحان'
@@ -223,6 +227,19 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                       </span>
                     </div>
 
+                    {/* Next attempt button if attempts remaining */}
+                    {((selectedAttempt as any)?.attempts_remaining > 0) && (
+                      <div className="pt-2">
+                        <Link
+                          to={`/student/exams/${selectedAttempt.exam.id}${courseId ? `?course_id=${courseId}` : ''}`}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+                        >
+                          <Play className="h-4 w-4 fill-white" />
+                          <span>بدء المحاولة التالية (متبقي {(selectedAttempt as any).attempts_remaining === 1 ? 'محاولة واحدة' : `${(selectedAttempt as any).attempts_remaining} محاولات`})</span>
+                        </Link>
+                      </div>
+                    )}
+
                     {/* Teacher Feedback banner */}
                     {selectedAttempt.teacher_feedback && (
                       <div className="p-5 bg-brand-surface border border-border-color rounded-2xl max-w-xl shadow-sm mt-4 text-right">
@@ -235,7 +252,19 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                   {/* Right: Highly Prominent Score Card / Widget */}
                   <div className="flex flex-col items-center shrink-0 relative z-10 bg-brand-surface/95 border border-border-color p-8 rounded-[24px] w-full md:w-64 shadow-lg">
                     
-                    {isGraded ? (
+                    {isScoreHidden ? (
+                      <div className="w-full text-center flex flex-col items-center py-4">
+                        <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest block mb-2">النتيجة النهائية</span>
+                        <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 w-full mb-3">
+                          <span className="text-3xl block mb-1">🔒</span>
+                          <span className="text-xs font-bold block">الدرجة محجوبة</span>
+                          <span className="text-[10px] text-slate-400 block mt-1">حجب المعلم ظهور درجات هذا التقييم</span>
+                        </div>
+                        <div className="text-xs font-bold text-slate-300 px-3.5 py-1.5 bg-brand-card border border-border-color rounded-full">
+                          تم تسليم الامتحان وتدقيقه
+                        </div>
+                      </div>
+                    ) : isGraded ? (
                       <div className="w-full text-center flex flex-col items-center">
                         <span className="text-[10px] font-black text-slate-450 uppercase tracking-widest block mb-1">النتيجة النهائية</span>
                         
@@ -330,15 +359,15 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                   <div className="bg-brand-card border border-border-color p-5 rounded-2xl text-center space-y-1.5 hover:border-brand-primary/20 transition-all shadow-sm">
                     <span className="text-[10px] text-slate-400 font-bold block">الترتيب بالمنصة</span>
                     <div className="text-sm font-black text-amber-500 pt-1">
-                      {selectedAttempt.rank ? `#${selectedAttempt.rank} من ${selectedAttempt.total_participants}` : 'قيد التدقيق'}
+                      {isScoreHidden ? 'محجوب 🔒' : selectedAttempt.rank ? `#${selectedAttempt.rank} من ${selectedAttempt.total_participants}` : 'قيد التدقيق'}
                     </div>
                   </div>
 
                   {/* Stat 6: Pass/Fail Status */}
                   <div className="bg-brand-card border border-border-color p-5 rounded-2xl text-center space-y-1.5 hover:border-brand-primary/20 transition-all shadow-sm">
                     <span className="text-[10px] text-slate-400 font-bold block">النتيجة</span>
-                    <div className={`text-base font-black pt-1 ${passed ? 'text-brand-success' : 'text-rose-500'}`}>
-                      {statusText}
+                    <div className={`text-base font-black pt-1 ${isScoreHidden ? 'text-indigo-400' : passed ? 'text-brand-success' : 'text-rose-500'}`}>
+                      {isScoreHidden ? 'محجوبة 🔒' : statusText}
                     </div>
                   </div>
 
@@ -361,11 +390,22 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                         تم حجب تفاصيل ونموذج الإجابات الصحيحة نظراً لإنهاء هذا الامتحان بقرار من نظام مراقبة الغش والأمان. يحق لمعلم المادة فقط مراجعة تقرير المخالفات وإلغاء القفل.
                       </p>
                     </div>
+                  ) : (!showStudentAnswers && !showCorrectAnswers) ? (
+                    <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-3xl p-6 sm:p-8 text-center space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center mx-auto text-xl">
+                        🔒
+                      </div>
+                      <h4 className="text-base font-black text-white">مراجعة الإجابات محجوبة</h4>
+                      <p className="text-xs text-indigo-200 max-w-md mx-auto leading-relaxed">
+                        قام معلم المادة بحجب مراجعة الإجابات والحلول النموذجية لهذا التقييم.
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       {selectedAttempt.answers && selectedAttempt.answers.length > 0 ? (
                       selectedAttempt.answers.map((ans, aIdx) => {
                         const isMcqOrTf = ans?.question?.type ? ans.question.type !== 'essay' : false
+                        const explanation = (ans?.question as any)?.explanation
                         return (
                           <motion.div 
                             whileHover={{ y: -2, borderRightColor: "var(--primary-color)" }}
@@ -379,37 +419,41 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                                 <span className="text-brand-primary font-black">السؤال {aIdx + 1}: </span>
                                 <span className="font-semibold leading-relaxed block mt-1">{ans?.question?.text || 'سؤال تقييمي'}</span>
                               </div>
-                              <span className={`px-3 py-1 rounded-full text-[9px] font-black shrink-0 border ${
-                                ans.is_correct 
-                                  ? 'bg-emerald-500/10 text-brand-success border-emerald-500/20' 
-                                  : isMcqOrTf 
-                                    ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' 
-                                    : 'bg-slate-500/10 text-slate-455 border-slate-500/20'
-                              }`}>
-                                {ans.is_correct ? 'إجابة صحيحة' : isMcqOrTf ? 'إجابة خاطئة' : 'بانتظار تقييم المعلم'}
-                              </span>
+                              {showStudentAnswers && (
+                                <span className={`px-3 py-1 rounded-full text-[9px] font-black shrink-0 border ${
+                                  ans.is_correct 
+                                    ? 'bg-emerald-500/10 text-brand-success border-emerald-500/20' 
+                                    : isMcqOrTf 
+                                      ? 'bg-rose-500/10 text-rose-500 border-rose-500/20' 
+                                      : 'bg-slate-500/10 text-slate-455 border-slate-500/20'
+                                }`}>
+                                  {ans.is_correct ? 'إجابة صحيحة' : isMcqOrTf ? 'إجابة خاطئة' : 'بانتظار تقييم المعلم'}
+                                </span>
+                              )}
                             </div>
 
                             {/* Student answer choices */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-4 mt-2 border-t border-border-color/40">
                               
                               {/* Selected Student Answer */}
-                              <div className="space-y-1">
-                                <span className="text-slate-400 text-[10px] block">إجابتك المختارة:</span>
-                                <div className={`font-bold flex items-center gap-1.5 ${
-                                  ans.is_correct ? 'text-brand-success' : isMcqOrTf ? 'text-rose-500' : 'text-slate-200'
-                                }`}>
-                                  {ans.is_correct ? (
-                                    <Check className="h-4.5 w-4.5 shrink-0" />
-                                  ) : isMcqOrTf ? (
-                                    <X className="h-4.5 w-4.5 shrink-0" />
-                                  ) : null}
-                                  <span>{ans.answer_text || '(لم تجب)'}</span>
+                              {showStudentAnswers && (
+                                <div className="space-y-1">
+                                  <span className="text-slate-400 text-[10px] block">إجابتك المختارة:</span>
+                                  <div className={`font-bold flex items-center gap-1.5 ${
+                                    ans.is_correct ? 'text-brand-success' : isMcqOrTf ? 'text-rose-500' : 'text-slate-200'
+                                  }`}>
+                                    {ans.is_correct ? (
+                                      <Check className="h-4.5 w-4.5 shrink-0" />
+                                    ) : isMcqOrTf ? (
+                                      <X className="h-4.5 w-4.5 shrink-0" />
+                                    ) : null}
+                                    <span>{ans.answer_text || '(لم تجب)'}</span>
+                                  </div>
                                 </div>
-                              </div>
+                              )}
 
                               {/* Standard Model Answer */}
-                              {isMcqOrTf && !ans.is_correct && ans?.question?.correct_answer && (
+                              {showCorrectAnswers && isMcqOrTf && !ans.is_correct && ans?.question?.correct_answer && (
                                 <div className="space-y-1">
                                   <span className="text-slate-400 text-[10px] block">الإجابة الصحيحة النموذجية:</span>
                                   <div className="font-bold text-brand-success flex items-center gap-1.5">
@@ -420,6 +464,14 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                               )}
 
                             </div>
+
+                            {/* Explanation if enabled */}
+                            {showExplanations && explanation && (
+                              <div className="p-3 bg-brand-surface border border-border-color/50 rounded-xl text-xs space-y-1 mt-2">
+                                <span className="text-brand-primary text-[10px] font-bold block">💡 التفسير والشرح:</span>
+                                <p className="text-slate-300 font-medium leading-relaxed">{explanation}</p>
+                              </div>
+                            )}
 
                           </motion.div>
                         )

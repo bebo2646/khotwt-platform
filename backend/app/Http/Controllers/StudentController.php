@@ -2898,14 +2898,19 @@ class StudentController extends Controller
                 StudentActivityService::logExamEvent($user, $exam, 'submitted', $attempt, ['score' => $attempt->score], $request);
             }
 
+            $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+            $visibility = $visibilityService->resolveEffectiveVisibility($exam, (int)$user->id);
+            $sanitizedAttempt = $visibilityService->sanitizeAttempt($attempt, $visibility);
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم تسليم الإجابات بنجاح.',
-                'attempt' => $attempt,
-                'score' => $attempt->score,
+                'attempt' => $sanitizedAttempt,
+                'score' => $visibility['show_score'] ? $attempt->score : null,
                 'max_score' => $exam->max_score,
                 'status' => $attempt->status,
                 'time_expired' => $isAttemptExpired,
+                'result_visibility' => $sanitizedAttempt->result_visibility,
             ]);
         });
     }
@@ -3026,29 +3031,13 @@ class StudentController extends Controller
         ->latest()
         ->get();
 
+        $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+
         // Calculate dynamic rank for each graded attempt
-        $attempts->transform(function ($attempt) {
+        $attempts->transform(function ($attempt) use ($visibilityService, $user) {
             $canView = $attempt->canViewAnswers();
             $attempt->can_view_answers = $canView;
             $attempt->is_terminated_for_cheating = $attempt->isTerminatedForCheating();
-
-            // If terminated for cheating and answers not unlocked, strip correct answers and explanations
-            if (!$canView && $attempt->exam && $attempt->exam->questions) {
-                $attempt->exam->questions->makeHidden(['correct_answer', 'explanation']);
-                foreach ($attempt->exam->questions as $q) {
-                    $q->correct_answer = null;
-                    $q->explanation = null;
-                }
-                if ($attempt->answers) {
-                    foreach ($attempt->answers as $a) {
-                        if ($a->question) {
-                            $a->question->makeHidden(['correct_answer', 'explanation']);
-                            $a->question->correct_answer = null;
-                            $a->question->explanation = null;
-                        }
-                    }
-                }
-            }
 
             if ($attempt->status === 'graded' && $attempt->score !== null) {
                 $rankedAttempts = StudentExam::where('exam_id', $attempt->exam_id)
@@ -3102,6 +3091,21 @@ class StudentController extends Controller
 
                     $attempt->setRelation('answers', $sortedAnswers);
                 }
+            }
+
+            // Calculate attempt quota metadata
+            if ($attempt->exam) {
+                $studentAttemptCount = StudentExam::where('student_id', $user->id)->where('exam_id', $attempt->exam_id)->count();
+                $maxAttempts = (int)($attempt->exam->max_attempts ?: 1);
+                $attempt->attempts_used = $studentAttemptCount;
+                $attempt->max_attempts = $maxAttempts;
+                $attempt->attempts_remaining = max(0, $maxAttempts - $studentAttemptCount);
+            }
+
+            // Apply authoritative result visibility and security sanitization
+            if ($attempt->exam) {
+                $visibility = $visibilityService->resolveEffectiveVisibility($attempt->exam, (int)$attempt->student_id);
+                $attempt = $visibilityService->sanitizeAttempt($attempt, $visibility);
             }
 
             return $attempt;

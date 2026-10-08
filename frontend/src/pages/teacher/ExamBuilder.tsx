@@ -136,6 +136,12 @@ export default function ExamBuilder() {
   const [openTime, setOpenTime] = React.useState('00:00')
   const [closeTime, setCloseTime] = React.useState('23:59')
 
+  // Result Visibility Settings
+  const [showScore, setShowScore] = React.useState(true)
+  const [showStudentAnswers, setShowStudentAnswers] = React.useState(true)
+  const [showCorrectAnswers, setShowCorrectAnswers] = React.useState(true)
+  const [showExplanations, setShowExplanations] = React.useState(true)
+
   // Questions State
   const [questions, setQuestions] = React.useState<Question[]>([
     { text: 'السؤال الأول؟', type: 'mcq', options: ['خيار أ', 'خيار ب', 'خيار ج', 'خيار د'], correct_answer: 'خيار أ', score: 1 }
@@ -245,6 +251,11 @@ export default function ExamBuilder() {
       setEnableSchedule(!!exam.enable_schedule)
       setOpenTime(exam.open_time || '00:00')
       setCloseTime(exam.close_time || '23:59')
+
+      setShowScore(exam.show_score !== false)
+      setShowStudentAnswers(exam.show_student_answers !== false)
+      setShowCorrectAnswers(exam.show_correct_answers !== false)
+      setShowExplanations(exam.show_explanations !== false)
 
       if (exam.lesson) {
         setLessonId(exam.lesson.id.toString())
@@ -531,6 +542,10 @@ export default function ExamBuilder() {
         enable_copy_protection: enableCopyProtection,
         randomize_questions: randomizeQuestions,
         randomize_options: randomizeOptions,
+        show_score: showScore,
+        show_student_answers: showStudentAnswers,
+        show_correct_answers: showCorrectAnswers,
+        show_explanations: showExplanations,
         questions: questions.map(q => ({
           text: q.text,
           type: q.type,
@@ -600,6 +615,12 @@ export default function ExamBuilder() {
       open_date: openDate || null,
       close_date: closeDate || null,
       submission_deadline: submissionDeadline || null,
+
+      // Result Visibility Settings
+      show_score: showScore,
+      show_student_answers: showStudentAnswers,
+      show_correct_answers: showCorrectAnswers,
+      show_explanations: showExplanations,
     }
 
     try {
@@ -1689,6 +1710,73 @@ export default function ExamBuilder() {
                       </div>
                     </div>
                   )}
+
+                  {/* RESULT VISIBILITY SETTINGS */}
+                  <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+                    <div className="border-b border-[var(--border-color)] pb-3">
+                      <h4 className="text-base font-black text-slate-200 flex items-center gap-2">
+                        <Eye className="h-4.5 w-4.5 text-brand-primary" />
+                        <span>إعدادات ظهور نتيجة الاختبار للطلاب:</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        تحكم فيما يمكن للطالب رؤيته مباشرة بعد الانتهاء من أداء الاختبار أو الواجب.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none hover:border-slate-700 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showScore}
+                          onChange={(e) => setShowScore(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950 cursor-pointer"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">إظهار الدرجة والنسبة المئوية</div>
+                          <div className="text-[10px] text-slate-400">السماح للطالب بمعرفة درجته وترتيبه بعد التسليم</div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none hover:border-slate-700 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showStudentAnswers}
+                          onChange={(e) => setShowStudentAnswers(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950 cursor-pointer"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">إظهار إجابات الطالب المسلمة</div>
+                          <div className="text-[10px] text-slate-400">عرض الإجابات التي قام الطالب باختيارها أثناء الحل</div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none hover:border-slate-700 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showCorrectAnswers}
+                          onChange={(e) => setShowCorrectAnswers(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950 cursor-pointer"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">إظهار نموذج الإجابة الصحيحة</div>
+                          <div className="text-[10px] text-slate-400">توضيح الإجابة الصحيحة والخيارات السليمة لكل سؤال</div>
+                        </div>
+                      </label>
+
+                      <label className="flex items-center gap-3 p-3.5 border border-[var(--border-color)] rounded-2xl bg-slate-950/20 cursor-pointer select-none hover:border-slate-700 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={showExplanations}
+                          onChange={(e) => setShowExplanations(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-950 cursor-pointer"
+                        />
+                        <div>
+                          <div className="text-xs font-bold text-slate-200">إظهار شرح وتفسير الأسئلة</div>
+                          <div className="text-[10px] text-slate-400">عرض التفسير والتعليل النموذجي المرفق بالأسئلة</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               )}
 

@@ -2645,6 +2645,10 @@ class TeacherController extends Controller
             'submission_deadline' => 'nullable|string', // flexible string datetime
             'is_paid' => 'nullable|boolean',
             'price' => 'nullable|numeric|min:0',
+            'show_score' => 'nullable|boolean',
+            'show_student_answers' => 'nullable|boolean',
+            'show_correct_answers' => 'nullable|boolean',
+            'show_explanations' => 'nullable|boolean',
             'questions' => 'required|array|min:1',
             'questions.*.text' => 'required|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
@@ -2677,6 +2681,10 @@ class TeacherController extends Controller
                 'submission_deadline' => $request->submission_deadline,
                 'is_paid' => $request->is_paid ?? false,
                 'price' => $request->price ?? 0.00,
+                'show_score' => $request->has('show_score') ? (bool)$request->show_score : true,
+                'show_student_answers' => $request->has('show_student_answers') ? (bool)$request->show_student_answers : true,
+                'show_correct_answers' => $request->has('show_correct_answers') ? (bool)$request->show_correct_answers : true,
+                'show_explanations' => $request->has('show_explanations') ? (bool)$request->show_explanations : true,
             ]);
 
             foreach ($request->questions as $qData) {
@@ -2755,6 +2763,15 @@ class TeacherController extends Controller
             ->with(['student', 'answers.question', 'unlockedBy:id,name'])
             ->latest()
             ->get();
+
+        $visibilityService = app(\App\Services\ExamResultVisibilityService::class);
+        $overrides = $visibilityService->getOverridesForExam($exam);
+
+        $attempts->transform(function ($att) use ($exam, $overrides, $visibilityService) {
+            $att->effective_visibility = $visibilityService->resolveEffectiveVisibility($exam, (int)$att->student_id);
+            $att->override_visibility = $overrides->get($att->student_id);
+            return $att;
+        });
 
         return response()->json($attempts);
     }
@@ -3405,6 +3422,10 @@ class TeacherController extends Controller
             'submission_deadline' => 'nullable|string',
             'is_paid' => 'nullable|boolean',
             'price' => 'nullable|numeric|min:0',
+            'show_score' => 'nullable|boolean',
+            'show_student_answers' => 'nullable|boolean',
+            'show_correct_answers' => 'nullable|boolean',
+            'show_explanations' => 'nullable|boolean',
             'questions' => 'required|array|min:1',
             'questions.*.text' => 'required|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
@@ -3441,6 +3462,11 @@ class TeacherController extends Controller
                 'is_paid' => $request->is_paid ?? false,
                 'price' => $request->price ?? 0.00,
             ];
+
+            if ($request->has('show_score')) $updateData['show_score'] = (bool)$request->show_score;
+            if ($request->has('show_student_answers')) $updateData['show_student_answers'] = (bool)$request->show_student_answers;
+            if ($request->has('show_correct_answers')) $updateData['show_correct_answers'] = (bool)$request->show_correct_answers;
+            if ($request->has('show_explanations')) $updateData['show_explanations'] = (bool)$request->show_explanations;
 
             if ($isStandalone) {
                 $updateData['lesson_id'] = null;

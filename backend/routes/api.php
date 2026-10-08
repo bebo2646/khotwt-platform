@@ -13,6 +13,7 @@ use App\Http\Controllers\TaxonomyController;
 use App\Http\Controllers\StudentActivityController;
 use App\Http\Controllers\TeacherActivityController;
 use App\Http\Controllers\SecurityMonitoringController;
+use App\Http\Controllers\ExamVisibilityController;
 
 /*
 |--------------------------------------------------------------------------
@@ -140,6 +141,19 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::post('/teacher/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::post('/teacher/monthly-exams/{id}/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::post('/teacher/exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
+
+            // Exam Result Visibility Control (Regular & Monthly Exams)
+            Route::get('/teacher/exams/{exam}/visibility', [ExamVisibilityController::class, 'getVisibility']);
+            Route::put('/teacher/exams/{exam}/visibility', [ExamVisibilityController::class, 'updateExamDefaults']);
+            Route::put('/teacher/exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'setStudentOverride']);
+            Route::delete('/teacher/exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'resetStudentOverride']);
+            Route::post('/teacher/exams/{exam}/bulk-student-visibility', [ExamVisibilityController::class, 'bulkSetStudentOverrides']);
+
+            Route::get('/teacher/monthly-exams/{exam}/visibility', [ExamVisibilityController::class, 'getVisibility']);
+            Route::put('/teacher/monthly-exams/{exam}/visibility', [ExamVisibilityController::class, 'updateExamDefaults']);
+            Route::put('/teacher/monthly-exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'setStudentOverride']);
+            Route::delete('/teacher/monthly-exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'resetStudentOverride']);
+            Route::post('/teacher/monthly-exams/{exam}/bulk-student-visibility', [ExamVisibilityController::class, 'bulkSetStudentOverrides']);
             Route::get('/teacher/students', [TeacherController::class, 'students']);
             Route::get('/teacher/students/{student}/analytics', [TeacherController::class, 'studentAnalytics']);
 
@@ -357,6 +371,21 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/{id}/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
+
+            // Admin Exam Result Visibility Control
+            Route::middleware('permission:monthly_exams.update,exams.manage')->group(function () {
+                Route::get('/admin/exams/{exam}/visibility', [ExamVisibilityController::class, 'getVisibility']);
+                Route::put('/admin/exams/{exam}/visibility', [ExamVisibilityController::class, 'updateExamDefaults']);
+                Route::put('/admin/exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'setStudentOverride']);
+                Route::delete('/admin/exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'resetStudentOverride']);
+                Route::post('/admin/exams/{exam}/bulk-student-visibility', [ExamVisibilityController::class, 'bulkSetStudentOverrides']);
+
+                Route::get('/admin/monthly-exams/{exam}/visibility', [ExamVisibilityController::class, 'getVisibility']);
+                Route::put('/admin/monthly-exams/{exam}/visibility', [ExamVisibilityController::class, 'updateExamDefaults']);
+                Route::put('/admin/monthly-exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'setStudentOverride']);
+                Route::delete('/admin/monthly-exams/{exam}/student-visibility/{studentId}', [ExamVisibilityController::class, 'resetStudentOverride']);
+                Route::post('/admin/monthly-exams/{exam}/bulk-student-visibility', [ExamVisibilityController::class, 'bulkSetStudentOverrides']);
+            });
 
             // Coupons/Codes Management
             Route::middleware('permission:coupons.manage')->group(function () {
