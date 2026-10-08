@@ -103,6 +103,20 @@ class Video extends Model
         return $value;
     }
 
+    public function getThumbnailPathAttribute($value)
+    {
+        if (empty($value) || $value === 'null' || $value === 'undefined') {
+            return null;
+        }
+        if (str_contains($value, '/storage/uploads/')) {
+            return asset('storage/uploads/' . basename($value));
+        }
+        if (str_starts_with($value, 'uploads/')) {
+            return asset('storage/' . $value);
+        }
+        return $value;
+    }
+
     public function lesson()
     {
         return $this->belongsTo(Lesson::class);

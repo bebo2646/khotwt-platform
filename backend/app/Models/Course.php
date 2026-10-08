@@ -139,7 +139,20 @@ class Course extends Model
                 return $firstVideo->thumbnail_path;
             }
         }
-        return $isEmpty ? 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500' : $value;
+        if ($isEmpty) {
+            return 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500';
+        }
+
+        // Normalize legacy Railway or external domain to current environment storage URL if it's an uploaded asset
+        if (str_contains($value, '/storage/uploads/')) {
+            return asset('storage/uploads/' . basename($value));
+        }
+
+        if (str_starts_with($value, 'uploads/')) {
+            return asset('storage/' . $value);
+        }
+
+        return $value;
     }
 
     public function teacher()

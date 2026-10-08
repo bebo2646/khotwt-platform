@@ -49,6 +49,34 @@ class Package extends Model
         return max(0, $original - $price);
     }
 
+    public function getCoverImageAttribute($value)
+    {
+        if (empty($value) || $value === 'null' || $value === 'undefined') {
+            return null;
+        }
+        if (str_contains($value, '/storage/uploads/')) {
+            return asset('storage/uploads/' . basename($value));
+        }
+        if (str_starts_with($value, 'uploads/')) {
+            return asset('storage/' . $value);
+        }
+        return $value;
+    }
+
+    public function getPackageThumbnailAttribute($value)
+    {
+        if (empty($value) || $value === 'null' || $value === 'undefined') {
+            return null;
+        }
+        if (str_contains($value, '/storage/uploads/')) {
+            return asset('storage/uploads/' . basename($value));
+        }
+        if (str_starts_with($value, 'uploads/')) {
+            return asset('storage/' . $value);
+        }
+        return $value;
+    }
+
     public function teacher()
     {
         return $this->belongsTo(User::class, 'teacher_id');

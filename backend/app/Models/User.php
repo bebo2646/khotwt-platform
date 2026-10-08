@@ -97,10 +97,27 @@ class User extends Authenticatable
         ];
     }
 
-    // Role helper methods
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    public function getAvatarAttribute($value)
+    {
+        if (empty($value) || $value === 'null' || $value === 'undefined') {
+            return null;
+        }
+
+        // Normalize legacy Railway or external domain to current environment storage URL if it's an uploaded asset
+        if (str_contains($value, '/storage/uploads/')) {
+            return asset('storage/uploads/' . basename($value));
+        }
+
+        if (str_starts_with($value, 'uploads/')) {
+            return asset('storage/' . $value);
+        }
+
+        return $value;
     }
 
     public function getPermissionsAttribute($value)

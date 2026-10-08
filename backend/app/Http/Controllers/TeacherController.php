@@ -950,11 +950,16 @@ class TeacherController extends Controller
             'is_bundle' => 'nullable|boolean',
         ]);
 
+        $initialCover = $request->cover_image;
+        if ($initialCover === 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500') {
+            $initialCover = null;
+        }
+
         $course = Course::create([
             'teacher_id' => $request->user()->id,
             'title' => $request->title,
             'description' => $request->description,
-            'cover_image' => $request->cover_image,
+            'cover_image' => $initialCover,
             'price' => $request->price,
             'grade' => $request->grade ?? ($isNonSchool ? 'عام' : 'باقة مجمعة'),
             'subject' => $request->subject,
@@ -1013,10 +1018,29 @@ class TeacherController extends Controller
             'is_bundle' => 'nullable|boolean',
         ]);
 
+        $existingRawCover = $course->getRawOriginal('cover_image');
+        $inputCover = $request->input('cover_image');
+
+        if ($inputCover === 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500') {
+            // Fallback placeholder must NEVER overwrite existing DB values or turn null into hardcoded placeholder
+            $finalCover = empty($existingRawCover) || $existingRawCover === 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'
+                ? null
+                : $existingRawCover;
+        } elseif ($request->has('cover_image') && !empty($inputCover)) {
+            // New valid cover image uploaded
+            $finalCover = $inputCover;
+        } elseif ($request->has('cover_image') && ($inputCover === '' || $inputCover === null)) {
+            // Explicitly cleared
+            $finalCover = null;
+        } else {
+            // No new cover uploaded (omitted), preserve existing cover
+            $finalCover = $existingRawCover;
+        }
+
         $course->update([
             'title' => $request->title,
             'description' => $request->description,
-            'cover_image' => $request->cover_image,
+            'cover_image' => $finalCover,
             'price' => $request->price,
             'grade' => $request->grade ?? $course->grade ?? 'عام',
             'subject' => $request->subject,

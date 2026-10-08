@@ -397,7 +397,8 @@ export default function LessonViewer({
       const embedBase = getYoutubeEmbedUrl(url);
       const origin = typeof window !== 'undefined' && window.location.origin ? encodeURIComponent(window.location.origin) : '';
       const originQuery = origin ? `&origin=${origin}` : '';
-      return `${embedBase}?enablejsapi=1&widgetid=1&playsinline=1${originQuery}${pos > 0 ? `&start=${pos}` : ''}`;
+      const widgetReferrer = origin ? `&widget_referrer=${origin}` : '';
+      return `${embedBase}?enablejsapi=1&widgetid=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=0${originQuery}${widgetReferrer}${pos > 0 ? `&start=${pos}` : ''}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false&playsinline=true&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
@@ -2186,6 +2187,7 @@ export default function LessonViewer({
             <div className="space-y-4">
               <div 
                 ref={containerRef}
+                onContextMenu={(e) => e.preventDefault()}
                 className={`bg-black overflow-hidden relative transition-all duration-200 ${
                   isFullscreen 
                     ? 'fixed inset-0 w-screen h-screen h-[100dvh] w-[100dvw] z-[99999999] rounded-none border-none m-0 p-0 flex items-center justify-center' 
@@ -2346,7 +2348,8 @@ export default function LessonViewer({
                         src={finalSrc}
                         className="w-full h-full relative z-[1]"
                         style={{ border: 'none' }}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                         allowFullScreen
                         referrerPolicy="strict-origin-when-cross-origin"
                         onLoad={() => {

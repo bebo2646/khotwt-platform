@@ -44,7 +44,7 @@ export function isDirectVideoUrl(url: string): boolean {
 export function getYoutubeEmbedUrl(url: string): string {
   const videoId = extractYoutubeId(url);
   if (!videoId) return url;
-  return `https://www.youtube.com/embed/${videoId}`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}`;
 }
 
 /**

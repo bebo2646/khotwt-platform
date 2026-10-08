@@ -262,6 +262,11 @@ class AdminController extends Controller
         $teacher = null;
         DB::beginTransaction();
         try {
+            $initialAvatar = $request->avatar;
+            if ($initialAvatar && (str_contains($initialAvatar, 'images.unsplash.com') || str_contains($initialAvatar, 'api.dicebear.com'))) {
+                $initialAvatar = null;
+            }
+
             $teacher = User::create([
                 'name' => $request->name,
                 'email' => $email,
@@ -273,7 +278,7 @@ class AdminController extends Controller
                 'bio' => $request->bio,
                 'experience' => $request->experience,
                 'grades' => $request->grades ?? [],
-                'avatar' => $request->avatar,
+                'avatar' => $initialAvatar,
                 'must_change_password' => $mustChange,
                 'status' => $status,
                 'teaching_mode' => $request->teaching_mode ?? 'both',
@@ -433,9 +438,34 @@ class AdminController extends Controller
             'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
-        $teacher->update($request->only([
-            'name', 'phone', 'subject', 'category', 'bio', 'experience', 'grades', 'status', 'avatar', 'teaching_mode'
-        ]));
+        $existingRawAvatar = $teacher->getRawOriginal('avatar');
+        $inputAvatar = $request->input('avatar');
+
+        $isFallbackAvatar = !empty($inputAvatar) && (
+            str_contains($inputAvatar, 'images.unsplash.com') ||
+            str_contains($inputAvatar, 'api.dicebear.com')
+        );
+
+        if ($isFallbackAvatar) {
+            $finalAvatar = empty($existingRawAvatar) || str_contains($existingRawAvatar, 'images.unsplash.com') || str_contains($existingRawAvatar, 'api.dicebear.com')
+                ? null
+                : $existingRawAvatar;
+        } elseif ($request->has('avatar') && !empty($inputAvatar)) {
+            $finalAvatar = $inputAvatar;
+        } elseif ($request->has('avatar') && ($inputAvatar === '' || $inputAvatar === null)) {
+            // Intentionally cleared
+            $finalAvatar = null;
+        } else {
+            // Omitted, preserve existing avatar
+            $finalAvatar = $existingRawAvatar;
+        }
+
+        $updateData = $request->only([
+            'name', 'phone', 'subject', 'category', 'bio', 'experience', 'grades', 'status', 'teaching_mode'
+        ]);
+        $updateData['avatar'] = $finalAvatar;
+
+        $teacher->update($updateData);
 
         return response()->json([
             'teacher' => $teacher,
