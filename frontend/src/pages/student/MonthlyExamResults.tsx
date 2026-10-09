@@ -20,6 +20,7 @@ import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import SEO from '../../components/SEO'
 import { formatGradeName, formatSubjectName } from '../../utils/formatters'
+import { ExamImagePreview } from '../../components/ui/ExamImagePreview'
 
 interface StudentAnswerItem {
   id: number
@@ -329,17 +330,11 @@ export default function MonthlyExamResults() {
 
                     {/* Question Image if present */}
                     {q.image_url && (
-                      <div className="pt-2">
-                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-2 max-w-md">
-                          <img
-                            src={q.image_url}
-                            alt={`صورة السؤال ${idx + 1}`}
-                            className="max-h-60 w-full object-contain rounded-lg cursor-pointer hover:opacity-95"
-                            onClick={() => window.open(q.image_url!, '_blank')}
-                            title="انقر لفتح الصورة بالحجم الكامل"
-                          />
-                        </div>
-                      </div>
+                      <ExamImagePreview
+                        src={q.image_url}
+                        alt={`صورة السؤال ${idx + 1}`}
+                        title={`صورة السؤال ${idx + 1}`}
+                      />
                     )}
 
                     {/* Options list for MCQ */}
@@ -371,9 +366,12 @@ export default function MonthlyExamResults() {
                                 {showStudentAnswers && isStudentChoice && !isCorrectChoice && <span className="text-[10px] font-bold text-rose-400">إجابتك</span>}
                               </div>
                               {optImageUrl && (
-                                <div className="rounded-lg overflow-hidden border border-slate-800 bg-black/40 p-1 max-w-[180px]">
-                                  <img src={optImageUrl} alt={`خيار ${oIdx + 1}`} className="max-h-24 w-full object-contain rounded" />
-                                </div>
+                                <ExamImagePreview
+                                  src={optImageUrl}
+                                  alt={`خيار ${oIdx + 1}`}
+                                  title={`صورة الخيار ${['أ', 'ب', 'ج', 'د'][oIdx] || oIdx + 1}`}
+                                  isOption={true}
+                                />
                               )}
                             </div>
                           )

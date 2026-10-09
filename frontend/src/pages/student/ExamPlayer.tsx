@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react'
 import { ExamSkeleton } from '../../components/ui/Skeleton'
+import { ExamImagePreview } from '../../components/ui/ExamImagePreview'
 
 interface QuestionItem {
   id: number
@@ -1087,20 +1088,11 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
 
                     {/* Question Image Attachment */}
                     {currentQuestion.image_url && (
-                      <div className="pt-2">
-                        <div className="rounded-2xl overflow-hidden border border-border-color bg-background/60 p-2 max-w-xl group relative">
-                          <img
-                            src={currentQuestion.image_url}
-                            alt={`صورة السؤال ${currentQuestionIndex + 1}`}
-                            className="w-full max-h-80 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
-                            onClick={() => window.open(currentQuestion.image_url!, '_blank')}
-                            title="انقر لفتح الصورة بالحجم الكامل"
-                          />
-                          <div className="text-[10px] text-slate-400 text-center mt-1.5 flex items-center justify-center gap-1">
-                            <span>انقر على الصورة للعرض بالحجم الكامل</span>
-                          </div>
-                        </div>
-                      </div>
+                      <ExamImagePreview
+                        src={currentQuestion.image_url}
+                        alt={`صورة السؤال ${currentQuestionIndex + 1}`}
+                        title={`صورة السؤال ${currentQuestionIndex + 1}`}
+                      />
                     )}
                   </div>
 
@@ -1139,13 +1131,12 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
                               </div>
 
                               {optImageUrl && (
-                                <div className="w-full rounded-xl overflow-hidden border border-border-color/60 bg-black/40 p-1.5 max-w-sm">
-                                  <img
-                                    src={optImageUrl}
-                                    alt={`خيار ${oIdx + 1}`}
-                                    className="max-h-40 w-full object-contain rounded-lg"
-                                  />
-                                </div>
+                                <ExamImagePreview
+                                  src={optImageUrl}
+                                  alt={`صورة الخيار ${['أ', 'ب', 'ج', 'د'][oIdx] || oIdx + 1}`}
+                                  title={`صورة الخيار ${['أ', 'ب', 'ج', 'د'][oIdx] || oIdx + 1}`}
+                                  isOption={true}
+                                />
                               )}
                             </motion.button>
                           )

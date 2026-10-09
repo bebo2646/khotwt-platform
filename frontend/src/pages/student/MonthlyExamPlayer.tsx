@@ -19,6 +19,7 @@ import {
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import SEO from '../../components/SEO'
+import { ExamImagePreview } from '../../components/ui/ExamImagePreview'
 
 interface QuestionItem {
   id: number
@@ -775,20 +776,11 @@ export default function MonthlyExamPlayer() {
 
               {/* Question Image Attachment */}
               {currentQuestion.image_url && (
-                <div className="pt-2">
-                  <div className="rounded-2xl overflow-hidden border border-[var(--border-color)] bg-slate-950/60 p-2 max-w-xl group relative">
-                    <img
-                      src={currentQuestion.image_url}
-                      alt={`صورة السؤال ${currentQuestionIndex + 1}`}
-                      className="w-full max-h-80 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
-                      onClick={() => window.open(currentQuestion.image_url!, '_blank')}
-                      title="انقر لفتح الصورة بالحجم الكامل"
-                    />
-                    <div className="text-[10px] text-slate-400 text-center mt-1.5">
-                      انقر على الصورة للعرض بالحجم الكامل
-                    </div>
-                  </div>
-                </div>
+                <ExamImagePreview
+                  src={currentQuestion.image_url}
+                  alt={`صورة السؤال ${currentQuestionIndex + 1}`}
+                  title={`صورة السؤال ${currentQuestionIndex + 1}`}
+                />
               )}
 
               {/* MCQ Options List */}
@@ -838,13 +830,12 @@ export default function MonthlyExamPlayer() {
                         </div>
 
                         {optImageUrl && (
-                          <div className="rounded-xl overflow-hidden border border-slate-800 bg-black/40 p-1 w-full max-w-xs mt-1">
-                            <img
-                              src={optImageUrl}
-                              alt={`خيار ${idx + 1}`}
-                              className="max-h-36 w-full object-contain rounded-lg"
-                            />
-                          </div>
+                          <ExamImagePreview
+                            src={optImageUrl}
+                            alt={`صورة الخيار ${['أ', 'ب', 'ج', 'د'][idx] || idx + 1}`}
+                            title={`صورة الخيار ${['أ', 'ب', 'ج', 'د'][idx] || idx + 1}`}
+                            isOption={true}
+                          />
                         )}
                       </button>
                     )

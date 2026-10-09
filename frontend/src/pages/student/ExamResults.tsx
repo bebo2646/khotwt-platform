@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import API from '../../services/api'
 import { Calendar, HelpCircle, CheckCircle2, Clock, AlertCircle, ChevronDown, Check, X, Award, Percent, BookOpen, Star, Sparkles, User, Play, Trophy, ArrowLeft } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
+import { ExamImagePreview } from '../../components/ui/ExamImagePreview'
 
 interface AnswerItem {
   id: number
@@ -435,17 +436,11 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
 
                             {/* Question Image if present */}
                             {ans?.question?.image_url && (
-                              <div className="pt-2">
-                                <div className="rounded-xl overflow-hidden border border-border-color bg-slate-950/60 p-2 max-w-md">
-                                  <img
-                                    src={ans.question.image_url}
-                                    alt={`صورة السؤال ${aIdx + 1}`}
-                                    className="max-h-60 w-full object-contain rounded-lg cursor-pointer hover:opacity-95"
-                                    onClick={() => window.open(ans.question.image_url!, '_blank')}
-                                    title="انقر لفتح الصورة بالحجم الكامل"
-                                  />
-                                </div>
-                              </div>
+                              <ExamImagePreview
+                                src={ans.question.image_url}
+                                alt={`صورة السؤال ${aIdx + 1}`}
+                                title={`صورة السؤال ${aIdx + 1}`}
+                              />
                             )}
 
                             {/* Student answer choices */}
