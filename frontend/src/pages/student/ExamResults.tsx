@@ -13,8 +13,9 @@ interface AnswerItem {
   question: {
     id: number
     text: string
+    image_url?: string | null
     type: 'mcq' | 'true_false' | 'essay'
-    options: string[] | null
+    options: any[] | null
     correct_answer: string
     score: number
   }
@@ -417,7 +418,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                             <div className="flex justify-between items-start gap-4">
                               <div className="font-bold text-xs sm:text-sm text-slate-200">
                                 <span className="text-brand-primary font-black">السؤال {aIdx + 1}: </span>
-                                <span className="font-semibold leading-relaxed block mt-1">{ans?.question?.text || 'سؤال تقييمي'}</span>
+                                <span className="font-semibold leading-relaxed block mt-1">{ans?.question?.text || (ans?.question?.image_url ? 'سؤال مصور' : 'سؤال تقييمي')}</span>
                               </div>
                               {showStudentAnswers && (
                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black shrink-0 border ${
@@ -432,6 +433,21 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                               )}
                             </div>
 
+                            {/* Question Image if present */}
+                            {ans?.question?.image_url && (
+                              <div className="pt-2">
+                                <div className="rounded-xl overflow-hidden border border-border-color bg-slate-950/60 p-2 max-w-md">
+                                  <img
+                                    src={ans.question.image_url}
+                                    alt={`صورة السؤال ${aIdx + 1}`}
+                                    className="max-h-60 w-full object-contain rounded-lg cursor-pointer hover:opacity-95"
+                                    onClick={() => window.open(ans.question.image_url!, '_blank')}
+                                    title="انقر لفتح الصورة بالحجم الكامل"
+                                  />
+                                </div>
+                              </div>
+                            )}
+
                             {/* Student answer choices */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-4 mt-2 border-t border-border-color/40">
                               
@@ -439,7 +455,7 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                               {showStudentAnswers && (
                                 <div className="space-y-1">
                                   <span className="text-slate-400 text-[10px] block">إجابتك المختارة:</span>
-                                  <div className={`font-bold flex items-center gap-1.5 ${
+                                  <div className={`font-bold flex items-center gap-1.5 flex-wrap ${
                                     ans.is_correct ? 'text-brand-success' : isMcqOrTf ? 'text-rose-500' : 'text-slate-200'
                                   }`}>
                                     {ans.is_correct ? (
@@ -447,7 +463,13 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                                     ) : isMcqOrTf ? (
                                       <X className="h-4.5 w-4.5 shrink-0" />
                                     ) : null}
-                                    <span>{ans.answer_text || '(لم تجب)'}</span>
+                                    {ans.answer_text && (ans.answer_text.startsWith('http') || ans.answer_text.startsWith('/storage/')) ? (
+                                      <div className="inline-block rounded-lg overflow-hidden border border-border-color/60 bg-black/40 p-1">
+                                        <img src={ans.answer_text} alt="إجابتك" className="max-h-20 max-w-[160px] object-contain rounded" />
+                                      </div>
+                                    ) : (
+                                      <span>{ans.answer_text || '(لم تجب)'}</span>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -456,9 +478,15 @@ export default function ExamResults({ overrideExamId }: ExamResultsProps = {}) {
                               {showCorrectAnswers && isMcqOrTf && !ans.is_correct && ans?.question?.correct_answer && (
                                 <div className="space-y-1">
                                   <span className="text-slate-400 text-[10px] block">الإجابة الصحيحة النموذجية:</span>
-                                  <div className="font-bold text-brand-success flex items-center gap-1.5">
+                                  <div className="font-bold text-brand-success flex items-center gap-1.5 flex-wrap">
                                     <Check className="h-4.5 w-4.5 shrink-0" />
-                                    <span>{ans.question.correct_answer}</span>
+                                    {ans.question.correct_answer.startsWith('http') || ans.question.correct_answer.startsWith('/storage/') ? (
+                                      <div className="inline-block rounded-lg overflow-hidden border border-border-color/60 bg-black/40 p-1">
+                                        <img src={ans.question.correct_answer} alt="الإجابة الصحيحة" className="max-h-20 max-w-[160px] object-contain rounded" />
+                                      </div>
+                                    ) : (
+                                      <span>{ans.question.correct_answer}</span>
+                                    )}
                                   </div>
                                 </div>
                               )}

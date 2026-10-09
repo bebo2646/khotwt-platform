@@ -17,8 +17,9 @@ import { ExamSkeleton } from '../../components/ui/Skeleton'
 interface QuestionItem {
   id: number
   text: string
+  image_url?: string | null
   type: 'mcq' | 'true_false' | 'essay'
-  options?: string[] | null
+  options?: any[] | null
   score: number
 }
 
@@ -905,9 +906,14 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
                         </div>
 
                         <div className="flex items-center gap-2">
-                          {options.map((opt, optIdx) => {
-                            const isBubbleSelected = answeredVal === opt
-                            const label = bubbleLabels[optIdx] || opt
+                          {options.map((rawOpt, optIdx) => {
+                            const optText = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.text || '' : String(rawOpt)
+                            const optImageUrl = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.image_url || null : null
+                            const optValue = optText || optImageUrl || String(optIdx)
+                            const isBubbleSelected = answeredVal === optValue ||
+                              (optText && answeredVal === optText) ||
+                              (optImageUrl && answeredVal === optImageUrl)
+                            const label = bubbleLabels[optIdx] || optText || optIdx + 1
 
                             return (
                               <button
@@ -915,7 +921,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleOptionSelect(q.id, opt)
+                                  handleOptionSelect(q.id, optValue)
                                   setFocusedIndex(idx)
                                 }}
                                 className={`h-9 w-9 rounded-full border flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
@@ -923,7 +929,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
                                     ? 'border-brand-primary bg-brand-primary text-slate-950 shadow-md shadow-brand-primary/20 scale-105 font-black'
                                     : 'border-slate-800 bg-slate-950 text-slate-400 hover:border-slate-600 hover:text-slate-200'
                                 }`}
-                                title={opt}
+                                title={optText || 'خيار'}
                               >
                                 {label}
                               </button>
@@ -1051,35 +1057,69 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
                     <h2 className="text-lg font-black text-slate-100 leading-relaxed pt-2">
                       {currentQuestion.text}
                     </h2>
+
+                    {/* Question Image Attachment */}
+                    {currentQuestion.image_url && (
+                      <div className="pt-2">
+                        <div className="rounded-2xl overflow-hidden border border-border-color bg-background/60 p-2 max-w-xl group relative">
+                          <img
+                            src={currentQuestion.image_url}
+                            alt={`صورة السؤال ${currentQuestionIndex + 1}`}
+                            className="w-full max-h-80 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                            onClick={() => window.open(currentQuestion.image_url!, '_blank')}
+                            title="انقر لفتح الصورة بالحجم الكامل"
+                          />
+                          <div className="text-[10px] text-slate-400 text-center mt-1.5 flex items-center justify-center gap-1">
+                            <span>انقر على الصورة للعرض بالحجم الكامل</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Answer Options */}
                   <div className="pt-6">
                     {/* MCQ Options */}
                     {currentQuestion.type === 'mcq' && currentQuestion.options && (
-                      <div className="grid grid-cols-1 gap-3">
-                        {currentQuestion.options.map((opt, oIdx) => {
-                          const isSelected = answers[currentQuestion.id] === opt
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {currentQuestion.options.map((rawOpt, oIdx) => {
+                          const optText = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.text || '' : String(rawOpt)
+                          const optImageUrl = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.image_url || null : null
+                          const optValue = optText || optImageUrl || String(oIdx)
+                          const isSelected = answers[currentQuestion.id] === optValue ||
+                            (optText && answers[currentQuestion.id] === optText) ||
+                            (optImageUrl && answers[currentQuestion.id] === optImageUrl)
+
                           return (
                             <motion.button
                               type="button"
                               key={oIdx}
-                              onClick={() => handleOptionSelect(currentQuestion.id, opt)}
+                              onClick={() => handleOptionSelect(currentQuestion.id, optValue)}
                               whileTap={{ scale: 0.99 }}
-                              className={`w-full p-4 border rounded-2xl text-right text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+                              className={`w-full p-4 border rounded-2xl text-right text-xs sm:text-sm font-bold transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                                 isSelected
-                                  ? 'border-brand-primary bg-brand-primary/10 text-slate-100 shadow-lg shadow-brand-primary/5'
+                                  ? 'border-brand-primary bg-brand-primary/10 text-slate-100 shadow-lg shadow-brand-primary/5 ring-1 ring-brand-primary/30'
                                   : 'border-border-color bg-background/50 text-slate-355 hover:border-slate-400 hover:bg-background'
                               }`}
                             >
-                              <div className="flex items-center gap-3">
-                                <span className={`h-5.5 w-5.5 rounded-full border flex items-center justify-center shrink-0 text-[10px] font-black ${
+                              <div className="flex items-center gap-3 w-full">
+                                <span className={`h-6 w-6 rounded-full border flex items-center justify-center shrink-0 text-[10px] font-black ${
                                   isSelected ? 'border-brand-primary bg-brand-primary text-slate-950' : 'border-border-color text-slate-500'
                                 }`}>
                                   {['أ', 'ب', 'ج', 'د'][oIdx] || oIdx + 1}
                                 </span>
-                                <span>{opt}</span>
+                                {optText && <span className="leading-relaxed flex-grow">{optText}</span>}
                               </div>
+
+                              {optImageUrl && (
+                                <div className="w-full rounded-xl overflow-hidden border border-border-color/60 bg-black/40 p-1.5 max-w-sm">
+                                  <img
+                                    src={optImageUrl}
+                                    alt={`خيار ${oIdx + 1}`}
+                                    className="max-h-40 w-full object-contain rounded-lg"
+                                  />
+                                </div>
+                              )}
                             </motion.button>
                           )
                         })}

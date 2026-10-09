@@ -84,6 +84,7 @@ interface AttemptItem {
     score: number
     question: {
       text: string
+      image_url?: string | null
       type: string
       score: number
       correct_answer?: string | null
@@ -547,21 +548,39 @@ export default function ExamsManager() {
                   return (
                     <div key={ans.id} className="p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-2xl space-y-3 text-xs sm:text-sm">
                       <div className="flex justify-between font-bold">
-                        <span className="text-slate-200">س {idx + 1}: {ans.question.text}</span>
+                        <span className="text-slate-200">س {idx + 1}: {ans.question.text || (ans.question.image_url ? '[سؤال مصور]' : '')}</span>
                         <span className="text-slate-400">({ans.question.score} درجات)</span>
                       </div>
                       
+                      {ans.question.image_url && (
+                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 p-1.5 max-w-sm">
+                          <img src={ans.question.image_url} alt="صورة السؤال" className="max-h-36 w-full object-contain rounded" />
+                        </div>
+                      )}
+
                       {/* Student's answer */}
                       <div className="p-3 bg-black/30 border border-slate-800 rounded-xl space-y-1">
                         <div className="text-[10px] text-slate-500">إجابة الطالب:</div>
-                        <p className="font-bold text-slate-200">{ans.answer_text || '[لا توجد إجابة]'}</p>
+                        {ans.answer_text && (ans.answer_text.startsWith('http') || ans.answer_text.startsWith('/storage/')) ? (
+                          <div className="inline-block rounded-lg overflow-hidden border border-slate-800 bg-black/40 p-1">
+                            <img src={ans.answer_text} alt="إجابة الطالب" className="max-h-20 max-w-[150px] object-contain rounded" />
+                          </div>
+                        ) : (
+                          <p className="font-bold text-slate-200">{ans.answer_text || '[لا توجد إجابة]'}</p>
+                        )}
                       </div>
 
                       {/* Correct Answer */}
                       {ans.question.correct_answer && (
                         <div className="p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-xl space-y-1">
                           <div className="text-[10px] text-brand-primary">الإجابة النموذجية الصحيحة:</div>
-                          <p className="font-bold text-brand-primary">{ans.question.correct_answer}</p>
+                          {ans.question.correct_answer.startsWith('http') || ans.question.correct_answer.startsWith('/storage/') ? (
+                            <div className="inline-block rounded-lg overflow-hidden border border-brand-primary/30 bg-black/40 p-1">
+                              <img src={ans.question.correct_answer} alt="الإجابة الصحيحة" className="max-h-20 max-w-[150px] object-contain rounded" />
+                            </div>
+                          ) : (
+                            <p className="font-bold text-brand-primary">{ans.question.correct_answer}</p>
+                          )}
                         </div>
                       )}
 

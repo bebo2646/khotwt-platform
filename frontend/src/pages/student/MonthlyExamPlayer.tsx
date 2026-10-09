@@ -23,8 +23,9 @@ import SEO from '../../components/SEO'
 interface QuestionItem {
   id: number
   text: string
+  image_url?: string | null
   type: 'mcq' | 'true_false' | 'essay'
-  options?: string[] | null
+  options?: any[] | null
   score: number
 }
 
@@ -772,39 +773,79 @@ export default function MonthlyExamPlayer() {
                 {currentQuestion.text}
               </div>
 
+              {/* Question Image Attachment */}
+              {currentQuestion.image_url && (
+                <div className="pt-2">
+                  <div className="rounded-2xl overflow-hidden border border-[var(--border-color)] bg-slate-950/60 p-2 max-w-xl group relative">
+                    <img
+                      src={currentQuestion.image_url}
+                      alt={`صورة السؤال ${currentQuestionIndex + 1}`}
+                      className="w-full max-h-80 object-contain rounded-xl cursor-pointer hover:opacity-95 transition-opacity"
+                      onClick={() => window.open(currentQuestion.image_url!, '_blank')}
+                      title="انقر لفتح الصورة بالحجم الكامل"
+                    />
+                    <div className="text-[10px] text-slate-400 text-center mt-1.5">
+                      انقر على الصورة للعرض بالحجم الكامل
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* MCQ Options List */}
               {currentQuestion.type === 'mcq' && currentQuestion.options && (
-                <div className="grid grid-cols-1 gap-3 pt-2">
-                  {currentQuestion.options.map((option, idx) => {
-                    const isSelected = answers[currentQuestion.id] === option
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  {currentQuestion.options.map((rawOpt, idx) => {
+                    const optText = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.text || '' : String(rawOpt)
+                    const optImageUrl = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.image_url || null : null
+                    const optionValue = optText || optImageUrl || String(idx)
+                    const isSelected = answers[currentQuestion.id] === optionValue ||
+                      (optText && answers[currentQuestion.id] === optText) ||
+                      (optImageUrl && answers[currentQuestion.id] === optImageUrl)
                     const isSavingThis = savingQuestionId === currentQuestion.id
 
                     return (
                       <button
                         key={idx}
                         disabled={isSubmitting || isTerminated}
-                        onClick={() => handleAnswerSelect(currentQuestion.id, option)}
-                        className={`w-full text-right p-4 sm:p-4.5 rounded-2xl border text-xs sm:text-sm font-bold transition-all duration-150 flex items-center justify-between gap-3 cursor-pointer select-none ${
+                        onClick={() => handleAnswerSelect(currentQuestion.id, optionValue)}
+                        className={`w-full text-right p-4 rounded-2xl border text-xs sm:text-sm font-bold transition-all duration-150 flex flex-col justify-between gap-3 cursor-pointer select-none ${
                           isSelected
                             ? 'bg-brand-primary/15 border-brand-primary text-white shadow-lg shadow-brand-primary/10 ring-1 ring-brand-primary/40'
                             : 'bg-slate-900/60 border-[var(--border-color)] hover:border-slate-600 text-slate-200 hover:bg-slate-900/90'
                         }`}
                       >
-                        <span className="leading-normal">{option}</span>
-                        
-                        {/* Radio Check Indicator */}
-                        <div
-                          className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors relative ${
-                            isSelected
-                              ? 'border-brand-primary bg-brand-primary text-white'
-                              : 'border-slate-600 bg-slate-900'
-                          }`}
-                        >
-                          {isSelected && !isSavingThis && <Check className="w-3 h-3 stroke-[3]" />}
-                          {isSavingThis && isSelected && (
-                            <Loader2 className="w-3 h-3 animate-spin text-white" />
-                          )}
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-brand-primary font-black">
+                              {['أ', 'ب', 'ج', 'د'][idx] || idx + 1})
+                            </span>
+                            {optText && <span className="leading-normal">{optText}</span>}
+                          </div>
+
+                          {/* Radio Check Indicator */}
+                          <div
+                            className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors relative ${
+                              isSelected
+                                ? 'border-brand-primary bg-brand-primary text-white'
+                                : 'border-slate-600 bg-slate-900'
+                            }`}
+                          >
+                            {isSelected && !isSavingThis && <Check className="w-3 h-3 stroke-[3]" />}
+                            {isSavingThis && isSelected && (
+                              <Loader2 className="w-3 h-3 animate-spin text-white" />
+                            )}
+                          </div>
                         </div>
+
+                        {optImageUrl && (
+                          <div className="rounded-xl overflow-hidden border border-slate-800 bg-black/40 p-1 w-full max-w-xs mt-1">
+                            <img
+                              src={optImageUrl}
+                              alt={`خيار ${idx + 1}`}
+                              className="max-h-36 w-full object-contain rounded-lg"
+                            />
+                          </div>
+                        )}
                       </button>
                     )
                   })}

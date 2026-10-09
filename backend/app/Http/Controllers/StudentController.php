@@ -2183,7 +2183,7 @@ class StudentController extends Controller
             if ($question->type === 'essay') {
                 $hasEssay = true;
             } else {
-                if (trim(strtolower((string)$answerText)) === trim(strtolower((string)$question->correct_answer))) {
+                if ($question->isAnswerCorrect($answerText)) {
                     $isCorrect = true;
                     $questionScore = $question->score;
                     $totalScore += $questionScore;
@@ -2599,6 +2599,7 @@ class StudentController extends Controller
                 $shuffledQuestions->push([
                     'id' => $q->id,
                     'text' => $q->text,
+                    'image_url' => $q->image_url,
                     'type' => $q->type,
                     'options' => $shuffledOptions,
                     'score' => $q->score,
@@ -2612,6 +2613,7 @@ class StudentController extends Controller
                 $shuffledQuestions->push([
                     'id' => $q->id,
                     'text' => $q->text,
+                    'image_url' => $q->image_url,
                     'type' => $q->type,
                     'options' => $q->options,
                     'score' => $q->score,
@@ -2845,7 +2847,7 @@ class StudentController extends Controller
                     $questionScore = 0; // Filled later by teacher
                 } else {
                     // Auto-grade MCQs and True/False questions
-                    if (trim(strtolower($answerText)) === trim(strtolower((string)$question->correct_answer))) {
+                    if ($question->isAnswerCorrect($answerText)) {
                         $isCorrect = true;
                         $questionScore = (int)$question->score;
                         $totalScore += $questionScore;

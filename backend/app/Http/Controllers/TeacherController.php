@@ -2674,7 +2674,8 @@ class TeacherController extends Controller
             'show_correct_answers' => 'nullable|boolean',
             'show_explanations' => 'nullable|boolean',
             'questions' => 'required|array|min:1',
-            'questions.*.text' => 'required|string',
+            'questions.*.text' => 'nullable|string',
+            'questions.*.image_url' => 'nullable|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
             'questions.*.options' => 'nullable|array', // Required if type is mcq
             'questions.*.correct_answer' => 'nullable|string', // Correct option value
@@ -2714,7 +2715,8 @@ class TeacherController extends Controller
             foreach ($request->questions as $qData) {
                 Question::create([
                     'exam_id' => $exam->id,
-                    'text' => $qData['text'],
+                    'text' => $qData['text'] ?? '',
+                    'image_url' => $qData['image_url'] ?? null,
                     'type' => $qData['type'],
                     'options' => $qData['options'] ?? null,
                     'correct_answer' => $qData['correct_answer'] ?? null,
@@ -3096,104 +3098,161 @@ class TeacherController extends Controller
     }
 
     /**
-     * Import questions from docx/doc file.
+     * Import questions from docx file with embedded images and structured options.
      */
     public function importQuestionsFromWord(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|max:5120',
+            'file' => 'required|file|max:20480', // up to 20MB for documents with embedded images
         ]);
 
         $file = $request->file('file');
-        $text = '';
         $extension = strtolower($file->getClientOriginalExtension());
 
-        if ($extension === 'docx') {
-            $zip = new \ZipArchive;
-            if ($zip->open($file->getRealPath()) === true) {
-                if (($index = $zip->locateName('word/document.xml')) !== false) {
-                    $xml = $zip->getFromIndex($index);
-                    // Convert paragraph tags to newline to preserve lines
-                    $xml = str_replace(['<w:p ', '<w:p>', '<w:p/', '<w:br', '<w:br/>'], "\n", $xml);
-                    $text = strip_tags($xml);
-                    $text = html_entity_decode($text);
-                }
-                $zip->close();
-            }
-        } else {
-            // Read printable characters from binary .doc file
-            $fileHandle = fopen($file->getRealPath(), 'r');
-            $rawContent = fread($fileHandle, filesize($file->getRealPath()));
-            fclose($fileHandle);
-            $text = preg_replace('/[^a-zA-Z0-9\s\x{0600}-\x{06FF}\p{P}]/u', '', $rawContent);
+        if ($extension === 'doc') {
+            return response()->json([
+                'message' => 'صيغة ملف .doc القديمة غير مدعومة. يرجى فتح الملف في Microsoft Word وحفظه بصيغة الحديثة (.docx) ثم إعادة المحاولة.'
+            ], 422);
         }
 
-        if (empty(trim($text))) {
-            return response()->json(['message' => 'لم نتمكن من قراءة أي نصوص بالملف. تأكد من جودة الملف أو استخدم صيغة docx.'], 422);
+        if ($extension !== 'docx') {
+            return response()->json([
+                'message' => 'يرجى اختيار ملف Word صالح بصيغة (.docx).'
+            ], 422);
         }
 
-        $text = str_replace(["\r\n", "\r"], "\n", $text);
-        
-        // Split text by س and digit followed by colon
-        $parts = preg_split('/س\d+[\s\)\-\.：:]+/ui', $text);
-        array_shift($parts); // remove introduction
+        try {
+            $service = new \App\Services\WordImportService();
+            $questions = $service->import($file, (int)($request->user()?->id));
 
-        $questions = [];
-        $lettersOrder = ['أ', 'ب', 'ج', 'د'];
-
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if (empty($part)) continue;
-
-            $lines = explode("\n", $part);
-            $lines = array_map('trim', $lines);
-            $lines = array_filter($lines, fn($l) => !empty($l));
-
-            if (empty($lines)) continue;
-
-            $questionText = array_shift($lines);
-            $options = [];
-            $correctLetter = '';
-
-            foreach ($lines as $line) {
-                if (preg_match('/^\s*([أبجد])[\s\)\-\.：:\x{FF09}\x{FF0E}]+(.+)$/ui', $line, $matches)) {
-                    $letter = trim($matches[1]);
-                    $options[$letter] = trim($matches[2]);
-                } elseif (preg_match('/الإجابة\s+الصحيحة\s*[:：]\s*([أبجد])/ui', $line, $matches)) {
-                    $correctLetter = trim($matches[1]);
-                }
+            if (empty($questions)) {
+                return response()->json([
+                    'message' => 'لم نتمكن من استخراج أي أسئلة متطابقة من الملف. يرجى التأكد من كتابة الأسئلة بترقيم واضح مثل (1. أو س1:) والخيارات مثل (أ) أو A).'
+                ], 422);
             }
 
-            $optionsList = [];
-            foreach ($lettersOrder as $let) {
-                if (isset($options[$let])) {
-                    $optionsList[] = $options[$let];
-                }
-            }
+            return response()->json($questions);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('Word import error: ' . $e->getMessage());
+            return response()->json([
+                'message' => $e->getMessage() ?: 'حدث خطأ أثناء معالجة ملف Word.'
+            ], 422);
+        }
+    }
 
-            $correctAnswerText = '';
-            if ($correctLetter && isset($options[$correctLetter])) {
-                $correctAnswerText = $options[$correctLetter];
-            }
-
-            $type = 'essay';
-            if (count($optionsList) > 0) {
-                $type = 'mcq';
-                if (count($optionsList) === 2 && (in_array('صح', $optionsList) || in_array('خطأ', $optionsList))) {
-                    $type = 'true_false';
-                }
-            }
-
-            $questions[] = [
-                'text' => $questionText,
-                'type' => $type,
-                'options' => $type === 'mcq' ? $optionsList : ($type === 'true_false' ? ['صح', 'خطأ'] : null),
-                'correct_answer' => $correctAnswerText ?: ($correctLetter ?: ''),
-                'score' => 5,
-            ];
+    /**
+     * Upload an image for an exam question or choice.
+     */
+    public function uploadExamImage(Request $request)
+    {
+        $teacher = $request->user();
+        if (!$teacher || !in_array($teacher->role, ['teacher', 'admin'])) {
+            return response()->json(['message' => 'غير مصرح لك برفع صور الامتحانات.'], 403);
         }
 
-        return response()->json($questions);
+        $request->validate([
+            'image' => 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ]);
+
+        $file = $request->file('image');
+        $ext = strtolower($file->getClientOriginalExtension());
+        if (!in_array($ext, ['jpeg', 'png', 'jpg', 'webp'])) {
+            return response()->json(['message' => 'صيغة الصورة غير مدعومة. يرجى استخدام JPEG أو PNG أو WebP.'], 422);
+        }
+
+        // Store by teacher directory for isolation and safety
+        $teacherDir = 'exams/teacher_' . $teacher->id;
+        $path = $file->store($teacherDir, 'public');
+        $url = asset('storage/' . $path);
+        $url = str_replace('http://', 'https://', $url);
+
+        return response()->json([
+            'url' => $url,
+            'path' => $path,
+        ]);
+    }
+
+    /**
+     * Delete an exam image from storage.
+     */
+    public function deleteExamImage(Request $request)
+    {
+        $teacher = $request->user();
+        if (!$teacher || !in_array($teacher->role, ['teacher', 'admin'])) {
+            return response()->json(['message' => 'غير مصرح لك بحذف صور الامتحانات.'], 403);
+        }
+
+        $request->validate([
+            'path' => 'nullable|string',
+            'url' => 'nullable|string',
+        ]);
+
+        $path = $request->input('path');
+        if (empty($path) && $request->filled('url')) {
+            $url = $request->input('url');
+            if (preg_match('/storage\/(exams\/[a-zA-Z0-9_\-\.\/]+)/i', $url, $m)) {
+                $path = $m[1];
+            }
+        }
+
+        if (!$path) {
+            return response()->json(['message' => 'لم يتم تحديد مسار صالح للصورة.'], 400);
+        }
+
+        // 1. Strict Path Traversal Prevention
+        if (str_contains($path, '..') || str_contains($path, "\0") || preg_match('/[^a-zA-Z0-9_\-\.\/]/', $path)) {
+            return response()->json(['message' => 'مسار الملف غير صالح أو يحتوي على أحرف غير مسموحة.'], 400);
+        }
+
+        if (!str_starts_with($path, 'exams/')) {
+            return response()->json(['message' => 'مسار الملف يجب أن يكون ضمن مجلد صور الامتحانات.'], 400);
+        }
+
+        $isAdmin = in_array($teacher->role, ['admin', 'super_admin']);
+
+        // 2. Ownership check: If path has teacher subfolder
+        if (preg_match('/^exams\/teacher_(\d+)\//', $path, $tMatches)) {
+            $ownerTeacherId = (int)$tMatches[1];
+            if ($ownerTeacherId !== (int)$teacher->id && !$isAdmin) {
+                return response()->json(['message' => 'غير مصرح لك بحذف صورة تخص معلماً آخر.'], 403);
+            }
+        }
+
+        // 3. Database check: Is this image currently in use by any question in the database?
+        $baseName = basename($path);
+        $referencingQuestions = Question::with(['exam.course', 'exam.lesson.unit.course'])
+            ->where('image_url', 'like', "%{$baseName}%")
+            ->orWhere('options', 'like', "%{$baseName}%")
+            ->get();
+
+        if ($referencingQuestions->isNotEmpty()) {
+            // Check if any referencing question belongs to ANOTHER teacher
+            foreach ($referencingQuestions as $q) {
+                $exam = $q->exam;
+                if ($exam) {
+                    $examTeacherId = $exam->teacher_id ?: ($exam->course?->teacher_id ?: ($exam->lesson?->unit?->course?->teacher_id ?: null));
+                    if ($examTeacherId && $examTeacherId != $teacher->id && !$isAdmin) {
+                        return response()->json(['message' => 'لا يمكن حذف هذه الصورة لأنها مستخدمة في أسئلة تخص معلماً آخر.'], 403);
+                    }
+                }
+            }
+
+            // If it is in use in multiple questions, do not delete from disk to prevent breaking other questions
+            if ($referencingQuestions->count() > 1) {
+                return response()->json([
+                    'message' => 'لا يمكن حذف الصورة من السيرفر لأنها مستخدمة في أسئلة متعددة.',
+                    'in_use_count' => $referencingQuestions->count()
+                ], 409);
+            }
+        }
+
+        // Delete from public disk
+        \Illuminate\Support\Facades\Storage::disk('public')->delete($path);
+
+        return response()->json([
+            'message' => 'تم حذف الصورة بنجاح.',
+            'path' => $path
+        ]);
     }
 
     /**
@@ -3451,7 +3510,8 @@ class TeacherController extends Controller
             'show_correct_answers' => 'nullable|boolean',
             'show_explanations' => 'nullable|boolean',
             'questions' => 'required|array|min:1',
-            'questions.*.text' => 'required|string',
+            'questions.*.text' => 'nullable|string',
+            'questions.*.image_url' => 'nullable|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
             'questions.*.options' => 'nullable|array',
             'questions.*.correct_answer' => 'nullable|string',
@@ -3511,7 +3571,8 @@ class TeacherController extends Controller
             foreach ($request->questions as $qData) {
                 Question::create([
                     'exam_id' => $exam->id,
-                    'text' => $qData['text'],
+                    'text' => $qData['text'] ?? '',
+                    'image_url' => $qData['image_url'] ?? null,
                     'type' => $qData['type'],
                     'options' => $qData['options'] ?? null,
                     'correct_answer' => $qData['correct_answer'] ?? null,

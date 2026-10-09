@@ -30,8 +30,9 @@ interface StudentAnswerItem {
   question?: {
     id: number
     text: string
+    image_url?: string | null
     type: string
-    options?: string[]
+    options?: any[]
     correct_answer?: string
     explanation?: string
     score: number
@@ -67,8 +68,9 @@ interface AttemptDetails {
     questions?: Array<{
       id: number
       text: string
+      image_url?: string | null
       type: string
-      options?: string[]
+      options?: any[]
       correct_answer?: string
       explanation?: string
       score: number
@@ -322,28 +324,57 @@ export default function MonthlyExamResults() {
                     </div>
 
                     <div className="text-sm font-bold text-slate-100 leading-relaxed">
-                      {q.text}
+                      {q.text || (q.image_url ? 'سؤال مصور' : 'سؤال تقييمي')}
                     </div>
+
+                    {/* Question Image if present */}
+                    {q.image_url && (
+                      <div className="pt-2">
+                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 p-2 max-w-md">
+                          <img
+                            src={q.image_url}
+                            alt={`صورة السؤال ${idx + 1}`}
+                            className="max-h-60 w-full object-contain rounded-lg cursor-pointer hover:opacity-95"
+                            onClick={() => window.open(q.image_url!, '_blank')}
+                            title="انقر لفتح الصورة بالحجم الكامل"
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Options list for MCQ */}
                     {q.type === 'mcq' && q.options && (
-                      <div className="grid grid-cols-1 gap-2 pt-2">
-                        {q.options.map((opt, oIdx) => {
-                          const isStudentChoice = studentAns?.answer_text === opt
-                          const isCorrectChoice = q.correct_answer === opt
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                        {q.options.map((rawOpt, oIdx) => {
+                          const optText = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.text || '' : String(rawOpt)
+                          const optImageUrl = typeof rawOpt === 'object' && rawOpt !== null ? rawOpt.image_url || null : null
+                          const optValue = optText || optImageUrl || String(oIdx)
+
+                          const isStudentChoice = studentAns?.answer_text === optValue || (optText && studentAns?.answer_text === optText) || (optImageUrl && studentAns?.answer_text === optImageUrl)
+                          const isCorrectChoice = q.correct_answer === optValue || (optText && q.correct_answer === optText) || (optImageUrl && q.correct_answer === optImageUrl) || (String(oIdx) === q.correct_answer)
 
                           let style = 'bg-slate-950/60 border-slate-800 text-slate-300'
                           if (showCorrectAnswers && isCorrectChoice) {
                             style = 'bg-emerald-500/20 border-emerald-500/60 text-emerald-200 font-bold'
                           } else if (showStudentAnswers && isStudentChoice && !isCorrect) {
-                            style = 'bg-rose-500/20 border-rose-500/60 text-rose-200 font-bold line-through'
+                            style = 'bg-rose-500/20 border-rose-500/60 text-rose-200 font-bold'
                           }
 
                           return (
-                            <div key={oIdx} className={`p-3 rounded-xl border text-xs flex items-center justify-between ${style}`}>
-                              <span>{opt}</span>
-                              {showCorrectAnswers && isCorrectChoice && <span className="text-[10px] font-bold text-emerald-400">الإجابة الصحيحة</span>}
-                              {showStudentAnswers && isStudentChoice && !isCorrectChoice && <span className="text-[10px] font-bold text-rose-400">إجابتك</span>}
+                            <div key={oIdx} className={`p-3 rounded-xl border text-xs flex flex-col justify-between gap-2 ${style}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-brand-primary font-bold">{['أ', 'ب', 'ج', 'د'][oIdx] || oIdx + 1})</span>
+                                  {optText && <span>{optText}</span>}
+                                </div>
+                                {showCorrectAnswers && isCorrectChoice && <span className="text-[10px] font-bold text-emerald-400">الإجابة الصحيحة</span>}
+                                {showStudentAnswers && isStudentChoice && !isCorrectChoice && <span className="text-[10px] font-bold text-rose-400">إجابتك</span>}
+                              </div>
+                              {optImageUrl && (
+                                <div className="rounded-lg overflow-hidden border border-slate-800 bg-black/40 p-1 max-w-[180px]">
+                                  <img src={optImageUrl} alt={`خيار ${oIdx + 1}`} className="max-h-24 w-full object-contain rounded" />
+                                </div>
+                              )}
                             </div>
                           )
                         })}

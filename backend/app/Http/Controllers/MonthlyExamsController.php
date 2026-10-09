@@ -774,7 +774,7 @@ class MonthlyExamsController extends Controller
                 $scoreAwarded = 0;
 
                 if ($question->type === 'mcq' || $question->type === 'true_false') {
-                    if (trim((string)$submittedAnswer) !== '' && trim((string)$submittedAnswer) === trim((string)$question->correct_answer)) {
+                    if ($question->isAnswerCorrect($submittedAnswer)) {
                         $isCorrect = true;
                         $scoreAwarded = (int)$question->score;
                         $totalScore += $scoreAwarded;
@@ -860,7 +860,7 @@ class MonthlyExamsController extends Controller
                 $scoreAwarded = 0;
 
                 if ($question->type === 'mcq' || $question->type === 'true_false') {
-                    if (trim($submittedAnswer) !== '' && trim($submittedAnswer) === trim((string)$question->correct_answer)) {
+                    if ($question->isAnswerCorrect($submittedAnswer)) {
                         $isCorrect = true;
                         $scoreAwarded = (int)$question->score;
                         $totalScore += $scoreAwarded;
@@ -1003,7 +1003,8 @@ class MonthlyExamsController extends Controller
             'show_correct_answers' => 'nullable|boolean',
             'show_explanations' => 'nullable|boolean',
             'questions' => 'nullable|array',
-            'questions.*.text' => 'required|string',
+            'questions.*.text' => 'nullable|string',
+            'questions.*.image_url' => 'nullable|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
             'questions.*.options' => 'nullable|array',
             'questions.*.correct_answer' => 'nullable|string',
@@ -1050,7 +1051,8 @@ class MonthlyExamsController extends Controller
                 foreach ($request->questions as $qData) {
                     Question::create([
                         'exam_id' => $exam->id,
-                        'text' => $qData['text'],
+                        'text' => $qData['text'] ?? '',
+                        'image_url' => $qData['image_url'] ?? null,
                         'type' => $qData['type'],
                         'options' => $qData['options'] ?? null,
                         'correct_answer' => $qData['correct_answer'] ?? null,
@@ -1110,7 +1112,8 @@ class MonthlyExamsController extends Controller
             'show_correct_answers' => 'nullable|boolean',
             'show_explanations' => 'nullable|boolean',
             'questions' => 'nullable|array',
-            'questions.*.text' => 'required|string',
+            'questions.*.text' => 'nullable|string',
+            'questions.*.image_url' => 'nullable|string',
             'questions.*.type' => 'required|string|in:mcq,true_false,essay',
             'questions.*.options' => 'nullable|array',
             'questions.*.correct_answer' => 'nullable|string',
@@ -1158,7 +1161,8 @@ class MonthlyExamsController extends Controller
                 foreach ($request->questions as $qData) {
                     Question::create([
                         'exam_id' => $exam->id,
-                        'text' => $qData['text'],
+                        'text' => $qData['text'] ?? '',
+                        'image_url' => $qData['image_url'] ?? null,
                         'type' => $qData['type'],
                         'options' => $qData['options'] ?? null,
                         'correct_answer' => $qData['correct_answer'] ?? null,
@@ -1358,6 +1362,7 @@ class MonthlyExamsController extends Controller
             $reviewQuestions[] = [
                 'id' => $question->id,
                 'text' => $question->text,
+                'image_url' => $question->image_url,
                 'type' => $question->type,
                 'options' => $options,
                 'correct_answer' => $question->correct_answer,
@@ -1381,6 +1386,7 @@ class MonthlyExamsController extends Controller
             $reviewQuestions[] = [
                 'id' => $question->id,
                 'text' => $question->text,
+                'image_url' => $question->image_url,
                 'type' => $question->type,
                 'options' => $question->options,
                 'correct_answer' => $question->correct_answer,

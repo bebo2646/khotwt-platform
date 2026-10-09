@@ -203,6 +203,8 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::delete('/teacher/packages/{package}', [TeacherController::class, 'deletePackage']);
                 Route::post('/teacher/lessons/{lesson}/exam', [TeacherController::class, 'addExam']);
                 Route::post('/teacher/exams/import-word', [TeacherController::class, 'importQuestionsFromWord']);
+                Route::post('/teacher/exams/upload-image', [TeacherController::class, 'uploadExamImage']);
+                Route::post('/teacher/exams/delete-image', [TeacherController::class, 'deleteExamImage']);
                 Route::put('/teacher/exams/{exam}', [TeacherController::class, 'updateExam']);
                 Route::delete('/teacher/exams/{exam}', [TeacherController::class, 'deleteExam']);
                 Route::post('/teacher/attempts/{attempt}/grade', [TeacherController::class, 'gradeAttempt']);

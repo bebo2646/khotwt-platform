@@ -19,16 +19,34 @@ import {
   Layers,
   ShieldAlert,
   Calendar,
-  DollarSign
+  DollarSign,
+  Image as ImageIcon,
+  X,
+  RefreshCw
 } from 'lucide-react'
 
-interface Question {
+export interface QuestionOption {
+  text: string
+  image_url?: string | null
+}
+
+export interface Question {
   id?: number
   text: string
+  image_url?: string | null
   type: 'mcq' | 'true_false' | 'essay'
-  options: string[]
+  options: (string | QuestionOption)[]
   correct_answer: string
   score: number
+}
+
+export const normalizeOption = (opt: any): QuestionOption => {
+  if (!opt) return { text: '', image_url: null }
+  if (typeof opt === 'string') return { text: opt, image_url: null }
+  return {
+    text: typeof opt.text === 'string' ? opt.text : '',
+    image_url: typeof opt.image_url === 'string' ? opt.image_url : null
+  }
 }
 
 interface CourseItem {
@@ -144,9 +162,18 @@ export default function ExamBuilder() {
 
   // Questions State
   const [questions, setQuestions] = React.useState<Question[]>([
-    { text: 'السؤال الأول؟', type: 'mcq', options: ['خيار أ', 'خيار ب', 'خيار ج', 'خيار د'], correct_answer: 'خيار أ', score: 1 }
+    {
+      text: 'السؤال الأول؟',
+      image_url: null,
+      type: 'mcq',
+      options: ['خيار أ', 'خيار ب', 'خيار ج', 'خيار د'].map(normalizeOption),
+      correct_answer: 'خيار أ',
+      score: 1
+    }
   ])
   const [activeQuestionIdx, setActiveQuestionIdx] = React.useState(0)
+  const [uploadingTarget, setUploadingTarget] = React.useState<string | null>(null)
+  const questionImageInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // Bulk Question Creator State
   const [showBulkCreator, setShowBulkCreator] = React.useState(false)
@@ -278,9 +305,10 @@ export default function ExamBuilder() {
       if (exam.questions && exam.questions.length > 0) {
         const mappedQuestions = exam.questions.map((q: any) => ({
           id: q.id,
-          text: q.text,
+          text: q.text || '',
+          image_url: q.image_url || null,
           type: q.type,
-          options: q.options || ['', '', '', ''],
+          options: (q.options || ['', '', '', '']).map(normalizeOption),
           correct_answer: q.correct_answer || '',
           score: q.score || 1
         }))
@@ -315,8 +343,11 @@ export default function ExamBuilder() {
   const handleAddQuestion = (qType: 'mcq' | 'true_false' | 'essay' = 'mcq') => {
     const newQuestion: Question = {
       text: `سؤال جديد ${questions.length + 1}؟`,
+      image_url: null,
       type: qType,
-      options: qType === 'mcq' ? ['', '', '', ''] : (qType === 'true_false' ? ['صح', 'خطأ'] : []),
+      options: qType === 'mcq'
+        ? ['', '', '', ''].map(normalizeOption)
+        : (qType === 'true_false' ? ['صح', 'خطأ'].map(normalizeOption) : []),
       correct_answer: qType === 'true_false' ? 'صح' : '',
       score: 1
     }
@@ -344,12 +375,115 @@ export default function ExamBuilder() {
   }
 
   const updateQuestionOption = (optIdx: number, value: string) => {
+    updateQuestionOptionText(optIdx, value)
+  }
+
+  const updateQuestionOptionText = (optIdx: number, text: string) => {
     setQuestions(prev => prev.map((q, idx) => {
       if (idx !== activeQuestionIdx) return q
-      const newOptions = [...q.options]
-      newOptions[optIdx] = value
+      const newOptions = [...q.options].map(normalizeOption)
+      while (newOptions.length <= optIdx) {
+        newOptions.push({ text: '', image_url: null })
+      }
+      newOptions[optIdx] = { ...newOptions[optIdx], text }
       return { ...q, options: newOptions }
     }))
+  }
+
+  const updateQuestionOptionImage = (optIdx: number, imageUrl: string | null) => {
+    setQuestions(prev => prev.map((q, idx) => {
+      if (idx !== activeQuestionIdx) return q
+      const newOptions = [...q.options].map(normalizeOption)
+      while (newOptions.length <= optIdx) {
+        newOptions.push({ text: '', image_url: null })
+      }
+      newOptions[optIdx] = { ...newOptions[optIdx], image_url: imageUrl }
+      return { ...q, options: newOptions }
+    }))
+  }
+
+  // Upload an image file for a question or choice
+  const handleUploadImageFile = async (file: File): Promise<string | null> => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      useModalStore.getState().showToast('يرجى اختيار صورة بصيغة JPEG أو PNG أو WebP.', 'warning')
+      return null
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      useModalStore.getState().showToast('حجم الصورة كبير جداً (أكثر من 5 ميجابايت).', 'warning')
+      return null
+    }
+
+    const formData = new FormData()
+    formData.append('image', file)
+
+    try {
+      const res = await API.post('/teacher/exams/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      return res.data.url
+    } catch (err: any) {
+      // Fallback to /upload
+      try {
+        const fallbackForm = new FormData()
+        fallbackForm.append('file', file)
+        const fRes = await API.post('/upload', fallbackForm, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        return fRes.data.url
+      } catch (fErr: any) {
+        console.error('Image upload failed', err, fErr)
+        useModalStore.getState().showToast(err.response?.data?.message || 'فشل رفع الصورة.', 'error')
+        return null
+      }
+    }
+  }
+
+  const handleQuestionImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingTarget('question')
+    try {
+      const url = await handleUploadImageFile(file)
+      if (url) {
+        updateQuestionField('image_url', url)
+        useModalStore.getState().showToast('تم إرفاق صورة السؤال بنجاح!', 'success')
+      }
+    } finally {
+      setUploadingTarget(null)
+    }
+  }
+
+  const handleRemoveQuestionImage = (url?: string | null) => {
+    if (url) {
+      API.post('/teacher/exams/delete-image', { url }).catch(() => {})
+    }
+    updateQuestionField('image_url', null)
+    useModalStore.getState().showToast('تم حذف صورة السؤال.', 'info')
+  }
+
+  const handleChoiceImageSelect = async (optIdx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingTarget(`opt-${optIdx}`)
+    try {
+      const url = await handleUploadImageFile(file)
+      if (url) {
+        updateQuestionOptionImage(optIdx, url)
+        useModalStore.getState().showToast(`تم إرفاق صورة الخيار (${['أ', 'ب', 'ج', 'د'][optIdx] || optIdx + 1}) بنجاح!`, 'success')
+      }
+    } finally {
+      setUploadingTarget(null)
+    }
+  }
+
+  const handleRemoveChoiceImage = (optIdx: number, url?: string | null) => {
+    if (url) {
+      API.post('/teacher/exams/delete-image', { url }).catch(() => {})
+    }
+    updateQuestionOptionImage(optIdx, null)
+    useModalStore.getState().showToast(`تم حذف صورة الخيار (${['أ', 'ب', 'ج', 'د'][optIdx] || optIdx + 1}).`, 'info')
   }
 
   // Rearrange order
@@ -380,6 +514,24 @@ export default function ExamBuilder() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    e.target.value = ''
+
+    const fileName = file.name.toLowerCase()
+    if (fileName.endsWith('.doc')) {
+      useModalStore.getState().showToast('يرجى حفظ ملف Word بصيغة الحديثة (.docx). ملفات .doc القديمة غير مدعومة.', 'warning')
+      return
+    }
+
+    if (!fileName.endsWith('.docx')) {
+      useModalStore.getState().showToast('يرجى اختيار ملف Word بصيغة (.docx) فقط.', 'warning')
+      return
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      useModalStore.getState().showToast('حجم الملف كبير جداً (أكثر من 20 ميجابايت).', 'warning')
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
 
@@ -392,21 +544,23 @@ export default function ExamBuilder() {
       })
 
       if (res.data && res.data.length > 0) {
-        const parsed = res.data.map((q: any) => ({
-          text: q.text,
-          type: q.type,
-          options: q.options || ['', '', '', ''],
-          correct_answer: q.correct_answer,
+        const parsed: Question[] = res.data.map((q: any) => ({
+          text: q.text || '',
+          image_url: q.image_url || null,
+          type: q.type || 'mcq',
+          options: (q.options || ['', '', '', '']).map(normalizeOption),
+          correct_answer: q.correct_answer || '',
           score: q.score || 1
         }))
         setQuestions(prev => [...prev, ...parsed])
-        useModalStore.getState().showToast(`تم استيراد عدد (${parsed.length}) سؤال بنجاح من ملف الوورد!`, 'success')
+        useModalStore.getState().showToast(`تم استيراد عدد (${parsed.length}) سؤال بنجاح مع الصور المضمنة من ملف Word!`, 'success')
       } else {
         useModalStore.getState().showToast('لم نجد أسئلة متطابقة بالصيغة المطلوبة في الملف.', 'warning')
       }
     } catch (err: any) {
       console.error(err)
-      useModalStore.getState().showToast(err.response?.data?.message || 'حدث خطأ أثناء قراءة ملف الوورد.', 'error')
+      const msg = err.response?.data?.message || 'حدث خطأ أثناء قراءة ملف الوورد.'
+      useModalStore.getState().showToast(msg, 'error')
     } finally {
       setImportingWord(false)
     }
@@ -473,13 +627,17 @@ export default function ExamBuilder() {
       let correctAns = q.correct_answer
       const letterMap: Record<string, number> = { 'أ': 0, 'ب': 1, 'ج': 2, 'د': 3 }
       if (correctAns.length === 1 && letterMap[correctAns] !== undefined) {
-        correctAns = q.options[letterMap[correctAns]] || correctAns
+        const targetOpt = q.options[letterMap[correctAns]]
+        if (targetOpt) {
+          correctAns = typeof targetOpt === 'string' ? targetOpt : (targetOpt.text || targetOpt.image_url || correctAns)
+        }
       }
 
       return {
         ...q,
+        image_url: null,
         type,
-        options: finalOptions,
+        options: finalOptions.map(normalizeOption),
         correct_answer: correctAns
       } as Question
     })
@@ -502,10 +660,17 @@ export default function ExamBuilder() {
       return
     }
 
+    // Check if each question has at least text or image
+    const emptyQuestion = questions.find(q => !q.text?.trim() && !q.image_url)
+    if (emptyQuestion) {
+      useModalStore.getState().showToast('يجب أن يحتوي كل سؤال على نص أو صورة توضيحية على الأقل.', 'warning')
+      return
+    }
+
     // Check if MCQ questions have correct answers
     const invalidMcq = questions.find(q => q.type === 'mcq' && !q.correct_answer)
     if (invalidMcq) {
-      useModalStore.getState().showToast(`السؤال "${invalidMcq.text.slice(0, 30)}..." يحتاج إلى تحديد الإجابة الصحيحة.`, 'warning')
+      useModalStore.getState().showToast(`السؤال "${(invalidMcq.text || 'السؤال').slice(0, 30)}..." يحتاج إلى تحديد الإجابة الصحيحة.`, 'warning')
       return
     }
 
@@ -547,9 +712,15 @@ export default function ExamBuilder() {
         show_correct_answers: showCorrectAnswers,
         show_explanations: showExplanations,
         questions: questions.map(q => ({
-          text: q.text,
+          text: q.text || '',
+          image_url: q.image_url || null,
           type: q.type,
-          options: q.options,
+          options: q.type === 'mcq'
+            ? (q.options || []).map(opt => {
+                const norm = normalizeOption(opt)
+                return { text: norm.text, image_url: norm.image_url }
+              })
+            : (q.type === 'true_false' ? ['صح', 'خطأ'] : null),
           correct_answer: q.correct_answer,
           score: Number(q.score) || 1
         }))
@@ -590,9 +761,15 @@ export default function ExamBuilder() {
       is_paid: isPaid,
       price: isPaid ? Number(price) : 0.00,
       questions: questions.map(q => ({
-        text: q.text,
+        text: q.text || '',
+        image_url: q.image_url || null,
         type: q.type,
-        options: q.options,
+        options: q.type === 'mcq'
+          ? (q.options || []).map(opt => {
+              const norm = normalizeOption(opt)
+              return { text: norm.text, image_url: norm.image_url }
+            })
+          : (q.type === 'true_false' ? ['صح', 'خطأ'] : null),
         correct_answer: q.correct_answer,
         score: Number(q.score) || 1
       })),
@@ -762,7 +939,12 @@ export default function ExamBuilder() {
                     }`}>
                       {idx + 1}
                     </span>
-                    <span className="text-xs truncate block">{q.text || '[بدون نص]'}</span>
+                    <span className="text-xs truncate block">{q.text || (q.image_url ? '[سؤال مصور]' : '[بدون نص]')}</span>
+                    {q.image_url && (
+                      <span className="text-brand-primary shrink-0" title="سؤال يحتوي على صورة">
+                        <ImageIcon className="h-3 w-3" />
+                      </span>
+                    )}
                   </div>
 
                   {/* Ordering and Manipulation actions */}
@@ -849,15 +1031,15 @@ export default function ExamBuilder() {
 
             {/* Word Import inside central bar */}
             <div className="relative">
-              <input 
-                type="file" 
-                accept=".docx,.doc" 
+              <input
+                type="file"
+                accept=".docx"
                 onChange={handleWordFileChange}
                 disabled={importingWord}
-                className="hidden" 
+                className="hidden"
                 id="workspace-word-import"
               />
-              <label 
+              <label
                 htmlFor="workspace-word-import"
                 className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold rounded-lg cursor-pointer flex items-center gap-1 border border-slate-700 transition-all"
               >
@@ -883,8 +1065,8 @@ export default function ExamBuilder() {
             {activeTab === 'editor' && activeQuestion && (
               <div className="space-y-6 max-w-4xl animate-fadeIn">
                 
-                {/* Question Text Editor */}
-                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
+                {/* Question Text & Image Editor */}
+                <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-5 shadow-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-brand-primary">تعديل السؤال رقم #{activeQuestionIdx + 1}</span>
                     <span className="text-[10px] bg-slate-800 border border-slate-700 px-3 py-1 rounded-full text-slate-300 font-semibold">
@@ -896,16 +1078,91 @@ export default function ExamBuilder() {
                     <label className="text-xs font-semibold text-slate-300">نص السؤال</label>
                     <textarea
                       rows={3}
-                      required
                       value={activeQuestion.text}
                       onChange={(e) => updateQuestionField('text', e.target.value)}
-                      placeholder="اكتب نص السؤال هنا بالتفصيل..."
+                      placeholder="اكتب نص السؤال هنا بالتفصيل (أو أرفق صورة للسؤال بالأسفل)..."
                       className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl p-4 text-sm text-slate-200 focus:outline-none focus:border-brand-primary transition-all font-medium leading-relaxed"
                     />
                   </div>
 
+                  {/* Question Image Attachment */}
+                  <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                        <ImageIcon className="h-4 w-4 text-brand-primary" />
+                        <span>صورة توضيحية للسؤال (اختياري / يدعم JPEG, PNG, WebP)</span>
+                      </label>
+                      <input
+                        type="file"
+                        ref={questionImageInputRef}
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleQuestionImageSelect}
+                        className="hidden"
+                      />
+                      {!activeQuestion.image_url ? (
+                        <button
+                          type="button"
+                          onClick={() => questionImageInputRef.current?.click()}
+                          disabled={uploadingTarget === 'question'}
+                          className="px-3.5 py-1.5 bg-brand-primary/10 hover:bg-brand-primary/20 text-brand-primary text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                        >
+                          {uploadingTarget === 'question' ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>جاري رفع الصورة...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="h-3.5 w-3.5" />
+                              <span>إرفاق صورة للسؤال</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => questionImageInputRef.current?.click()}
+                            disabled={uploadingTarget === 'question'}
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <RefreshCw className="h-3 w-3" />
+                            <span>استبدال الصورة</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveQuestionImage(activeQuestion.image_url)}
+                            className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            <span>حذف الصورة</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {activeQuestion.image_url && (
+                      <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 p-2 max-w-md group">
+                        <img
+                          src={activeQuestion.image_url}
+                          alt={`صورة السؤال ${activeQuestionIdx + 1}`}
+                          className="w-full max-h-64 object-contain rounded-xl"
+                        />
+                        <a
+                          href={activeQuestion.image_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur text-slate-300 hover:text-white px-2 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Eye className="h-3 w-3" />
+                          <span>عرض بالحجم الكامل</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Question details configurations */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-800/80">
                     <div>
                       <label className="text-xs font-semibold text-slate-300 block mb-1">نوع السؤال</label>
                       <select
@@ -914,10 +1171,10 @@ export default function ExamBuilder() {
                           const val = e.target.value as any
                           updateQuestionField('type', val)
                           if (val === 'true_false') {
-                            updateQuestionField('options', ['صح', 'خطأ'])
+                            updateQuestionField('options', ['صح', 'خطأ'].map(normalizeOption))
                             updateQuestionField('correct_answer', 'صح')
                           } else if (val === 'mcq') {
-                            updateQuestionField('options', ['', '', '', ''])
+                            updateQuestionField('options', ['', '', '', ''].map(normalizeOption))
                             updateQuestionField('correct_answer', '')
                           } else {
                             updateQuestionField('options', [])
@@ -950,9 +1207,12 @@ export default function ExamBuilder() {
                           className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                         >
                           <option value="">اختر الإجابة الصحيحة...</option>
-                          {activeQuestion.options.map((opt, oIdx) => (
-                            <option key={oIdx} value={opt}>{opt || `الخيار ${oIdx + 1}`}</option>
-                          ))}
+                          {activeQuestion.options.map((rawOpt, oIdx) => {
+                            const opt = normalizeOption(rawOpt)
+                            const label = opt.text || (opt.image_url ? `[خيار مصور ${oIdx + 1}]` : `الخيار ${oIdx + 1}`)
+                            const value = opt.text || opt.image_url || String(oIdx)
+                            return <option key={oIdx} value={value}>{`(${['أ', 'ب', 'ج', 'د'][oIdx]}) ${label}`}</option>
+                          })}
                         </select>
                       ) : (
                         <input
@@ -983,48 +1243,123 @@ export default function ExamBuilder() {
                 {/* MCQ Options Config */}
                 {activeQuestion.type === 'mcq' && (
                   <div className="bg-brand-card border border-[var(--border-color)] p-6 rounded-3xl space-y-4 shadow-sm">
-                    <h4 className="text-sm font-black text-slate-200 flex items-center gap-2">
-                      <HelpCircle className="h-4.5 w-4.5 text-brand-primary" />
-                      <span>تحديد خيارات الإجابة الأربعة</span>
-                    </h4>
-                    <p className="text-[10px] text-slate-400">الرجاء إدخال النصوص الخاصة بالخيارات الأربعة، وتأكيد الإجابة النموذجية منها أعلاه.</p>
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-1 border-b border-slate-800 pb-3">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-200 flex items-center gap-2">
+                          <HelpCircle className="h-4.5 w-4.5 text-brand-primary" />
+                          <span>تحديد خيارات الإجابة الأربعة</span>
+                        </h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          يمكن أن يكون الخيار نصاً، صورة فقط، أو نصاً وصورة معاً. انقر على أيقونة الصورة لإرفاق صورة لأي خيار.
+                        </p>
+                      </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                       {[0, 1, 2, 3].map((optIdx) => {
-                        const optValue = activeQuestion.options[optIdx] ?? ''
-                        const isCorrect = optValue !== '' && optValue === activeQuestion.correct_answer
+                        const opt = normalizeOption(activeQuestion.options[optIdx])
+                        const choiceValue = opt.text || opt.image_url || String(optIdx)
+                        const isCorrect = Boolean(
+                          (opt.text && opt.text === activeQuestion.correct_answer) ||
+                          (opt.image_url && opt.image_url === activeQuestion.correct_answer) ||
+                          (String(optIdx) === activeQuestion.correct_answer)
+                        )
+                        const isUploadingThis = uploadingTarget === `opt-${optIdx}`
+
                         return (
                           <div 
                             key={optIdx}
-                            className={`flex items-center gap-3 p-3.5 border rounded-2xl transition-all ${
+                            className={`p-3.5 border rounded-2xl transition-all space-y-2.5 ${
                               isCorrect 
                                 ? 'border-brand-success bg-brand-success/5 shadow-sm shadow-emerald-500/5' 
                                 : 'border-slate-800 bg-slate-950/20'
                             }`}
                           >
-                            <span className={`text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-xl shrink-0 ${
-                              isCorrect ? 'bg-brand-success text-white' : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {['أ', 'ب', 'ج', 'د'][optIdx]}
-                            </span>
-                            <input
-                              type="text"
-                              required
-                              value={optValue}
-                              onChange={(e) => updateQuestionOption(optIdx, e.target.value)}
-                              placeholder={`نص البديل ${optIdx + 1}`}
-                              className="bg-transparent text-xs text-slate-250 placeholder-slate-600 focus:outline-none flex-grow"
-                            />
-                            {optValue && (
-                              <button
-                                type="button"
-                                onClick={() => updateQuestionField('correct_answer', optValue)}
-                                className={`text-[9px] font-bold px-2 py-1 rounded transition-colors ${
-                                  isCorrect ? 'bg-brand-success text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                                }`}
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-xl shrink-0 ${
+                                isCorrect ? 'bg-brand-success text-white' : 'bg-slate-800 text-slate-400'
+                              }`}>
+                                {['أ', 'ب', 'ج', 'د'][optIdx]}
+                              </span>
+                              <input
+                                type="text"
+                                value={opt.text}
+                                onChange={(e) => updateQuestionOptionText(optIdx, e.target.value)}
+                                placeholder={opt.image_url ? `نص البديل ${optIdx + 1} (اختياري مع الصورة)` : `نص البديل ${optIdx + 1}`}
+                                className="bg-transparent text-xs text-slate-200 placeholder-slate-600 focus:outline-none flex-grow"
+                              />
+
+                              {/* Upload Choice Image Trigger */}
+                              <input
+                                type="file"
+                                id={`choice-image-input-${optIdx}`}
+                                accept="image/jpeg,image/png,image/webp"
+                                onChange={(e) => handleChoiceImageSelect(optIdx, e)}
+                                className="hidden"
+                              />
+                              <label
+                                htmlFor={`choice-image-input-${optIdx}`}
+                                className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-brand-primary rounded-lg transition-colors cursor-pointer shrink-0"
+                                title="إرفاق / تغيير صورة لهذا الخيار"
                               >
-                                {isCorrect ? 'إجابة صحيحة' : 'تعيين كصحيحة'}
-                              </button>
+                                {isUploadingThis ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-brand-primary" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4" />
+                                )}
+                              </label>
+
+                              {/* Set Correct Answer Button */}
+                              {(opt.text || opt.image_url) && (
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuestionField('correct_answer', choiceValue)}
+                                  className={`text-[9px] font-bold px-2 py-1 rounded transition-colors shrink-0 ${
+                                    isCorrect ? 'bg-brand-success text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                                  }`}
+                                >
+                                  {isCorrect ? 'إجابة صحيحة' : 'تعيين كصحيحة'}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Attached Choice Image Thumbnail Preview */}
+                            {opt.image_url && (
+                              <div className="flex items-center gap-2.5 bg-slate-900/60 p-2 rounded-xl border border-slate-800">
+                                <img
+                                  src={opt.image_url}
+                                  alt={`صورة الخيار ${optIdx + 1}`}
+                                  className="w-12 h-12 object-contain rounded-lg bg-black/50 border border-slate-800 shrink-0"
+                                />
+                                <div className="flex-grow min-w-0">
+                                  <span className="text-[10px] text-slate-300 block truncate font-medium">صورة الخيار مرفقة</span>
+                                  <a
+                                    href={opt.image_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-[9px] text-brand-primary hover:underline"
+                                  >
+                                    معاينة كاملة
+                                  </a>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <label
+                                    htmlFor={`choice-image-input-${optIdx}`}
+                                    className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded cursor-pointer"
+                                    title="استبدال صورة الخيار"
+                                  >
+                                    <RefreshCw className="h-3 w-3" />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveChoiceImage(optIdx, opt.image_url)}
+                                    className="p-1 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded cursor-pointer"
+                                    title="حذف صورة الخيار"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )
@@ -1045,23 +1380,49 @@ export default function ExamBuilder() {
                       <span className="text-[10px] text-slate-500">[{activeQuestion.score} درجات]</span>
                     </div>
 
-                    <p className="text-sm font-bold text-slate-100">{activeQuestion.text || 'مثال على نص السؤال سيظهر هنا...'}</p>
+                    <p className="text-sm font-bold text-slate-100">{activeQuestion.text || (activeQuestion.image_url ? '' : 'مثال على نص السؤال سيظهر هنا...')}</p>
+
+                    {activeQuestion.image_url && (
+                      <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-900/40 p-2 max-w-md">
+                        <img
+                          src={activeQuestion.image_url}
+                          alt="معاينة صورة السؤال"
+                          className="w-full max-h-56 object-contain rounded-lg"
+                        />
+                      </div>
+                    )}
 
                     {activeQuestion.type === 'mcq' && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                        {activeQuestion.options.map((opt, oIdx) => {
-                          const isCorrect = opt !== '' && opt === activeQuestion.correct_answer
+                        {activeQuestion.options.map((rawOpt, oIdx) => {
+                          const opt = normalizeOption(rawOpt)
+                          const isCorrect = Boolean(
+                            (opt.text && opt.text === activeQuestion.correct_answer) ||
+                            (opt.image_url && opt.image_url === activeQuestion.correct_answer) ||
+                            (String(oIdx) === activeQuestion.correct_answer)
+                          )
                           return (
                             <div 
                               key={oIdx}
-                              className={`p-3.5 border rounded-xl text-xs font-medium transition-all ${
+                              className={`p-3.5 border rounded-xl text-xs font-medium transition-all space-y-2 ${
                                 isCorrect 
                                   ? 'border-brand-primary bg-brand-primary/5 text-slate-100' 
                                   : 'border-slate-800 text-slate-400 bg-slate-900/40'
                               }`}
                             >
-                              <span className="ml-2 font-bold">{['أ', 'ب', 'ج', 'د'][oIdx]})</span>
-                              {opt || `بديل اختياري ${oIdx + 1}`}
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-brand-primary shrink-0">{['أ', 'ب', 'ج', 'د'][oIdx]})</span>
+                                <span className="truncate">{opt.text || (opt.image_url ? '[خيار مصور]' : `بديل اختياري ${oIdx + 1}`)}</span>
+                              </div>
+                              {opt.image_url && (
+                                <div className="rounded-lg overflow-hidden border border-slate-800 bg-black/40 p-1">
+                                  <img
+                                    src={opt.image_url}
+                                    alt={`خيار ${oIdx + 1}`}
+                                    className="max-h-24 w-full object-contain rounded"
+                                  />
+                                </div>
+                              )}
                             </div>
                           )
                         })}
@@ -1078,7 +1439,7 @@ export default function ExamBuilder() {
                               className={`px-6 py-2.5 border rounded-xl text-xs font-bold transition-all ${
                                 isCorrect 
                                   ? 'border-brand-primary bg-brand-primary/5 text-slate-100' 
-                                  : 'border-slate-800 text-slate-450 bg-slate-900/40'
+                                  : 'border-slate-800 text-slate-400 bg-slate-900/40'
                               }`}
                             >
                               {opt}
