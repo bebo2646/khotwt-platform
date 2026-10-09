@@ -3171,24 +3171,43 @@ function VideoWatermark({ name, phone }: VideoWatermarkProps) {
 
   return (
     <div
-      className="absolute pointer-events-none select-none z-[9999999] text-right font-black"
+      className="absolute pointer-events-none select-none z-[9999999] text-right font-black flex flex-col gap-0.5"
       style={{
         top: currentPos.top,
         left: currentPos.left,
         transition: 'top 1.5s cubic-bezier(0.4, 0, 0.2, 1), left 1.5s cubic-bezier(0.4, 0, 0.2, 1)',
-        opacity: 0.85,
+        opacity: 0.9,
         color: '#B00000',
-        textShadow: '1.5px 1.5px 0px #000000, -1.5px -1.5px 0px #000000, 1.5px -1.5px 0px #000000, -1.5px 1.5px 0px #000000, 0 2px 5px rgba(0,0,0,0.95), 0 0 10px rgba(0,0,0,0.85)',
-        WebkitTextStroke: '0.6px rgba(0,0,0,0.9)',
         fontSize: 'clamp(11px, 1.8vw, 17px)',
-        lineHeight: '1.35',
+        lineHeight: '1.3',
         direction: 'rtl',
         whiteSpace: 'nowrap',
       }}
     >
-      <div className="font-extrabold tracking-wide drop-shadow-md">{name}</div>
+      <div
+        className="font-extrabold tracking-wide"
+        style={{
+          color: '#B00000',
+          WebkitTextFillColor: '#B00000',
+          textShadow: '1px 1px 0px #000000, -1px -1px 0px #000000, 1px -1px 0px #000000, -1px 1px 0px #000000, 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)',
+          WebkitTextStroke: '0.4px rgba(0,0,0,0.85)',
+        }}
+      >
+        {name}
+      </div>
       {phone && (
-        <div className="text-[0.9em] font-mono font-bold tracking-wider opacity-95">
+        <div
+          className="font-extrabold tracking-wide"
+          dir="ltr"
+          style={{
+            color: '#B00000',
+            WebkitTextFillColor: '#B00000',
+            textShadow: '1px 1px 0px #000000, -1px -1px 0px #000000, 1px -1px 0px #000000, -1px 1px 0px #000000, 0 2px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8)',
+            WebkitTextStroke: '0.4px rgba(0,0,0,0.85)',
+            unicodeBidi: 'plaintext',
+            textAlign: 'right',
+          }}
+        >
           {phone}
         </div>
       )}
