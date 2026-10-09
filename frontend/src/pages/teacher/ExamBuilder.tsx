@@ -537,11 +537,7 @@ export default function ExamBuilder() {
 
     setImportingWord(true)
     try {
-      const res = await API.post('/teacher/exams/import-word', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      })
+      const res = await API.post('/teacher/exams/import-word', formData)
 
       if (res.data && res.data.length > 0) {
         const parsed: Question[] = res.data.map((q: any) => ({

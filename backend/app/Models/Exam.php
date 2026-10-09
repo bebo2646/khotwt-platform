@@ -191,7 +191,8 @@ class Exam extends Model
         $window = $this->getAvailabilityWindow();
         $endsAt = $window['ends_at'] ? $window['ends_at']->copy() : null;
 
-        $durationMinutes = $configuredDurationMinutes !== null ? $configuredDurationMinutes : ($this->time_limit_minutes ?: null);
+        $rawDuration = $configuredDurationMinutes !== null ? $configuredDurationMinutes : $this->time_limit_minutes;
+        $durationMinutes = ($rawDuration !== null && (int)$rawDuration > 0) ? (int)$rawDuration : null;
         $nominalExpiresAt = $durationMinutes ? $startedAt->copy()->addMinutes($durationMinutes) : null;
 
         $expiresAt = null;

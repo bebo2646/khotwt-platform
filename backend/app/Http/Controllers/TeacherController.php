@@ -2653,7 +2653,7 @@ class TeacherController extends Controller
             'title' => 'required|string|max:255',
             'type' => 'required|string|in:quiz,homework',
             'homework_type' => 'nullable|string|in:normal,bubble_sheet',
-            'time_limit_minutes' => 'nullable|integer',
+            'time_limit_minutes' => 'nullable|integer|min:0',
             'max_score' => 'required|integer|min:1',
             'start_date' => 'nullable|date',
             'start_time' => 'nullable|string',
@@ -2690,7 +2690,7 @@ class TeacherController extends Controller
                 'title' => $request->title,
                 'type' => $request->type,
                 'homework_type' => $request->homework_type ?? 'normal',
-                'time_limit_minutes' => $request->time_limit_minutes,
+                'time_limit_minutes' => ($request->filled('time_limit_minutes') && (int)$request->time_limit_minutes > 0) ? (int)$request->time_limit_minutes : null,
                 'max_score' => $request->max_score,
                 'start_date' => $request->start_date,
                 'start_time' => $request->start_time,
@@ -3102,6 +3102,35 @@ class TeacherController extends Controller
      */
     public function importQuestionsFromWord(Request $request)
     {
+        $user = $request->user();
+        if (!$user || !in_array($user->role, ['teacher', 'admin'])) {
+            return response()->json(['message' => 'غير مصرح لك باستيراد الأسئلة من ملف Word.'], 403);
+        }
+
+        if ($user->role === 'admin' && !$user->is_super_admin && !$user->is_super && !$user->hasPermission('exams.manage')) {
+            return response()->json(['message' => 'غير مصرح لك باستيراد الأسئلة. تتطلب صلاحية إدارة الامتحانات.'], 403);
+        }
+
+        if (!$request->hasFile('file')) {
+            if (empty($_FILES) && empty($_POST) && (int)$request->header('Content-Length') > 0) {
+                return response()->json([
+                    'message' => 'حجم الملف يتجاوز الحد الأقصى المسموح به في إعدادات الخادم (upload_max_filesize / post_max_size). يرجى تقليل حجم الملف أو زيادة الإعدادات على الاستضافة.'
+                ], 422);
+            }
+            return response()->json(['message' => 'يرجى اختيار ملف Word بصيغة (.docx) قبل الضغط على استيراد.'], 422);
+        }
+
+        $file = $request->file('file');
+        if (!$file->isValid()) {
+            $errorMsg = match ($file->getError()) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'حجم الملف يتجاوز الحد الأقصى المسموح به للرفع في إعدادات الخادم (upload_max_filesize).',
+                UPLOAD_ERR_PARTIAL => 'تم رفع جزء من الملف فقط بسبب انقطاع الاتصال. يرجى إعادة المحاولة.',
+                UPLOAD_ERR_NO_FILE => 'لم يتم اختيار أي ملف للرفع.',
+                default => 'حدث خطأ أثناء رفع الملف إلى الخادم.'
+            };
+            return response()->json(['message' => $errorMsg], 422);
+        }
+
         $request->validate([
             'file' => 'required|file|max:20480', // up to 20MB for documents with embedded images
         ]);
@@ -3150,6 +3179,10 @@ class TeacherController extends Controller
             return response()->json(['message' => 'غير مصرح لك برفع صور الامتحانات.'], 403);
         }
 
+        if ($teacher->role === 'admin' && !$teacher->is_super_admin && !$teacher->is_super && !$teacher->hasPermission('exams.manage')) {
+            return response()->json(['message' => 'غير مصرح لك برفع صور الامتحانات. تتطلب صلاحية إدارة الامتحانات.'], 403);
+        }
+
         $request->validate([
             'image' => 'required|file|image|mimes:jpeg,png,jpg,webp|max:5120',
         ]);
@@ -3182,6 +3215,10 @@ class TeacherController extends Controller
             return response()->json(['message' => 'غير مصرح لك بحذف صور الامتحانات.'], 403);
         }
 
+        if ($teacher->role === 'admin' && !$teacher->is_super_admin && !$teacher->is_super && !$teacher->hasPermission('exams.manage')) {
+            return response()->json(['message' => 'غير مصرح لك بحذف صور الامتحانات. تتطلب صلاحية إدارة الامتحانات.'], 403);
+        }
+
         $request->validate([
             'path' => 'nullable|string',
             'url' => 'nullable|string',
@@ -3208,7 +3245,7 @@ class TeacherController extends Controller
             return response()->json(['message' => 'مسار الملف يجب أن يكون ضمن مجلد صور الامتحانات.'], 400);
         }
 
-        $isAdmin = in_array($teacher->role, ['admin', 'super_admin']);
+        $isAdmin = in_array($teacher->role, ['admin', 'super_admin']) && ($teacher->is_super_admin || $teacher->is_super || $teacher->hasPermission('exams.manage'));
 
         // 2. Ownership check: If path has teacher subfolder
         if (preg_match('/^exams\/teacher_(\d+)\//', $path, $tMatches)) {
@@ -3489,7 +3526,7 @@ class TeacherController extends Controller
             'title' => 'required|string|max:255',
             'type' => $isStandalone ? 'required|string|in:monthly_exam' : 'required|string|in:quiz,homework',
             'homework_type' => 'nullable|string|in:normal,bubble_sheet',
-            'time_limit_minutes' => 'nullable|integer',
+            'time_limit_minutes' => 'nullable|integer|min:0',
             'max_score' => 'required|integer|min:1',
             'start_date' => 'nullable|date',
             'start_time' => 'nullable|string',
@@ -3529,7 +3566,7 @@ class TeacherController extends Controller
                 'title' => $request->title,
                 'type' => $request->type,
                 'homework_type' => $request->homework_type ?? 'normal',
-                'time_limit_minutes' => $request->time_limit_minutes,
+                'time_limit_minutes' => ($request->filled('time_limit_minutes') && (int)$request->time_limit_minutes > 0) ? (int)$request->time_limit_minutes : null,
                 'max_score' => $request->max_score,
                 'start_date' => $request->start_date,
                 'start_time' => $request->start_time,

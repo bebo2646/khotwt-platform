@@ -26,6 +26,10 @@ class WordImportService
             throw new \Exception('الملف المحدد ليس ملف وورد بصيغة .docx.');
         }
 
+        if (!class_exists('ZipArchive')) {
+            throw new \Exception('امتداد معالجة ملفات الوورد (PHP ZipArchive) غير متوفر على الخادم. يرجى التأكد من تفعيل مكتبة zip في إعدادات PHP.');
+        }
+
         $zip = new \ZipArchive;
         $openResult = $zip->open($file->getRealPath());
         if ($openResult !== true) {
@@ -37,9 +41,13 @@ class WordImportService
             $rIdToUrl = $this->extractImages($zip, $teacherId);
 
             // 2. Read word/document.xml
-            $docXml = $zip->getFromName('word/document.xml');
-            if ($docXml === false) {
+            $docIndex = $zip->locateName('word/document.xml', \ZipArchive::FL_NOCASE);
+            if ($docIndex === false) {
                 throw new \Exception('الملف لا يحتوي على محتوى Word صالح (word/document.xml مفقود).');
+            }
+            $docXml = $zip->getFromIndex($docIndex);
+            if ($docXml === false) {
+                throw new \Exception('تعذر قراءة محتوى المستند من ملف Word.');
             }
 
             // 3. Parse paragraphs and tables preserving sequence
@@ -65,7 +73,11 @@ class WordImportService
     protected function extractImages(\ZipArchive $zip, ?int $teacherId = null): array
     {
         $rIdToUrl = [];
-        $relsXml = $zip->getFromName('word/_rels/document.xml.rels');
+        $relsIndex = $zip->locateName('word/_rels/document.xml.rels', \ZipArchive::FL_NOCASE);
+        if ($relsIndex === false) {
+            return $rIdToUrl;
+        }
+        $relsXml = $zip->getFromIndex($relsIndex);
         if (!$relsXml) {
             return $rIdToUrl;
         }

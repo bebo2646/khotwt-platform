@@ -202,12 +202,26 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::put('/teacher/packages/{package}', [TeacherController::class, 'updatePackage']);
                 Route::delete('/teacher/packages/{package}', [TeacherController::class, 'deletePackage']);
                 Route::post('/teacher/lessons/{lesson}/exam', [TeacherController::class, 'addExam']);
-                Route::post('/teacher/exams/import-word', [TeacherController::class, 'importQuestionsFromWord']);
-                Route::post('/teacher/exams/upload-image', [TeacherController::class, 'uploadExamImage']);
-                Route::post('/teacher/exams/delete-image', [TeacherController::class, 'deleteExamImage']);
                 Route::put('/teacher/exams/{exam}', [TeacherController::class, 'updateExam']);
                 Route::delete('/teacher/exams/{exam}', [TeacherController::class, 'deleteExam']);
                 Route::post('/teacher/attempts/{attempt}/grade', [TeacherController::class, 'gradeAttempt']);
+            });
+        });
+
+        /*
+         * Exam Authoring Utilities (Shared between Teachers and Administrators)
+         */
+        Route::middleware('role:teacher,admin')->group(function () {
+            Route::middleware('subscription.active')->group(function () {
+                Route::post('/teacher/exams/import-word', [TeacherController::class, 'importQuestionsFromWord']);
+                Route::post('/teacher/exams/upload-image', [TeacherController::class, 'uploadExamImage']);
+                Route::post('/teacher/exams/delete-image', [TeacherController::class, 'deleteExamImage']);
+            });
+
+            Route::middleware('permission:exams.manage')->group(function () {
+                Route::post('/admin/exams/import-word', [TeacherController::class, 'importQuestionsFromWord']);
+                Route::post('/admin/exams/upload-image', [TeacherController::class, 'uploadExamImage']);
+                Route::post('/admin/exams/delete-image', [TeacherController::class, 'deleteExamImage']);
             });
         });
 

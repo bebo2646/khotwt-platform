@@ -35,6 +35,7 @@ interface ExamInfo {
   enable_fullscreen?: boolean
   enable_anti_tab_switching?: boolean
   enable_copy_protection?: boolean
+  questions_count?: number
 }
 
 interface ExamPlayerProps {
@@ -80,6 +81,7 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
 
   // Scheduling Errors and Countdown
   const [scheduleError, setScheduleError] = React.useState<{ code: 'SCHEDULE_NOT_STARTED' | 'SCHEDULE_EXPIRED'; message: string; datetime?: string; countdown_seconds?: number } | null>(null)
+  const [apiError, setApiError] = React.useState<string | null>(null)
   const [countdown, setCountdown] = React.useState<number>(0)
   const [focusedIndex, setFocusedIndex] = React.useState(0)
 
@@ -142,9 +144,9 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
             countdown_seconds: resp.countdown_seconds,
           })
         } else {
-          useModalStore.getState().showToast(err.response?.data?.message || 'فشل تحميل بيانات الامتحان. ربما لست مشتركاً بالكورس أو انتهت الصلاحية.', 'error')
-          if (onClose) onClose()
-          else navigate(-1)
+          const errMsg = err.response?.data?.message || 'فشل تحميل بيانات الامتحان. ربما لست مشتركاً بالكورس أو انتهت الصلاحية.'
+          setApiError(errMsg)
+          useModalStore.getState().showToast(errMsg, 'error')
         }
       })
       .finally(() => setLoading(false))
@@ -741,13 +743,38 @@ export default function ExamPlayer({ overrideExamId, overrideCourseId, onComplet
     return <ExamSkeleton />
   }
 
-  if (!exam || questions.length === 0) {
+  if (apiError) {
     return (
-      <div className="min-h-screen bg-background flex flex-col justify-center items-center p-6 text-center">
-        <h2 className="text-xl font-bold text-slate-200">عذراً، لم نعثر على معلومات الامتحان المطلوب أو لا توجد أسئلة مضافة.</h2>
-        <button onClick={() => onClose ? onClose() : navigate(-1)} className="mt-4 px-6 py-2.5 bg-brand-primary text-white text-xs font-bold rounded-xl cursor-pointer">
-          العودة للخلف
-        </button>
+      <div className="min-h-screen bg-background flex flex-col justify-center items-center p-6 text-center" dir="rtl">
+        <div className="max-w-md w-full bg-brand-card border border-border-color rounded-3xl p-8 space-y-5 shadow-2xl text-center">
+          <div className="p-4 rounded-full bg-rose-500/10 text-rose-500 inline-block mx-auto">
+            <AlertCircle className="h-8 w-8" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-200">{apiError}</h2>
+          <button onClick={() => onClose ? onClose() : navigate(-1)} className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all cursor-pointer">
+            العودة للخلف
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!exam || (isStarted && questions.length === 0) || (!isStarted && exam.questions_count === 0)) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col justify-center items-center p-6 text-center" dir="rtl">
+        <div className="max-w-md w-full bg-brand-card border border-border-color rounded-3xl p-8 space-y-5 shadow-2xl text-center">
+          <div className="p-4 rounded-full bg-amber-500/10 text-amber-500 inline-block mx-auto">
+            <AlertCircle className="h-8 w-8" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-200">
+            {!exam
+              ? 'عذراً، لم نعثر على معلومات الامتحان المطلوب.'
+              : 'عذراً، لا توجد أسئلة مضافة لهذا الامتحان بعد.'}
+          </h2>
+          <button onClick={() => onClose ? onClose() : navigate(-1)} className="w-full py-3 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-black shadow-lg transition-all cursor-pointer">
+            العودة للخلف
+          </button>
+        </div>
       </div>
     )
   }

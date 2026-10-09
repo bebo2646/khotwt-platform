@@ -2636,13 +2636,14 @@ class StudentController extends Controller
 
         $window = $exam->getAvailabilityWindow();
         $endsAt = $window['ends_at'];
-        $configuredDurationMinutes = $exam->time_limit_minutes ?: null;
+        $configuredDurationMinutes = ($exam->time_limit_minutes && (int)$exam->time_limit_minutes > 0) ? (int)$exam->time_limit_minutes : null;
         $configuredDurationSeconds = $configuredDurationMinutes ? $configuredDurationMinutes * 60 : null;
         $effectiveDurationSeconds = ($attempt->expires_at && $attempt->started_at)
             ? (int) max(0, $attempt->started_at->diffInSeconds($attempt->expires_at, false))
             : $configuredDurationSeconds;
-        $effectiveDurationMinutes = $attempt->duration_minutes
-            ?: ($effectiveDurationSeconds ? (int) max(1, (int) ceil($effectiveDurationSeconds / 60)) : $configuredDurationMinutes);
+        $effectiveDurationMinutes = ($attempt->duration_minutes && (int)$attempt->duration_minutes > 0)
+            ? (int)$attempt->duration_minutes
+            : ($effectiveDurationSeconds ? (int) max(1, (int) ceil($effectiveDurationSeconds / 60)) : $configuredDurationMinutes);
 
         return response()->json([
             'has_active_attempt' => true,
