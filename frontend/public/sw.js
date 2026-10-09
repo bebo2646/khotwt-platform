@@ -1,4 +1,4 @@
-const CACHE_NAME = 'khotwatok-cache-v4';
+const CACHE_NAME = 'khotwatok-cache-v5';
 
 // Pre-cache core shell assets
 const PRECACHE_ASSETS = [
@@ -9,6 +9,7 @@ const PRECACHE_ASSETS = [
   '/favicon-16x16.png',
   '/logo.png',
   '/manifest.json',
+  '/site.webmanifest',
   '/icons/icon-72x72.png',
   '/icons/icon-96x96.png',
   '/icons/icon-128x128.png',
@@ -95,7 +96,8 @@ self.addEventListener('fetch', (event) => {
      url.pathname.endsWith('.woff') ||
      url.pathname.endsWith('.woff2') ||
      url.pathname.endsWith('.ttf') ||
-     url.pathname.endsWith('.json'))
+     url.pathname.endsWith('.json') ||
+     url.pathname.endsWith('.webmanifest'))
   ) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {

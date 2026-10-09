@@ -5,6 +5,7 @@ import { Play, FileText, CheckCircle2, AlertCircle, ArrowLeft, ArrowRight, Shiel
 import EmptyState from '../../components/EmptyState'
 import { useModalStore } from '../../store/modalStore'
 import { isYoutubeUrl, isDirectVideoUrl, getYoutubeEmbedUrl, formatDurationArabic } from '../../utils/video'
+import { safeLockPortraitOrientation, safeUnlockOrientation } from '../../utils/orientation'
 import { useAuthStore } from '../../store/authStore'
 import { checkExamAvailability } from '../../utils/exam'
 
@@ -247,11 +248,7 @@ export default function LessonViewer({
       document.body.style.height = '100%';
 
       // Permit rotation to landscape during fullscreen video
-      try {
-        if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.unlock) {
-          (screen as any).orientation.unlock();
-        }
-      } catch {}
+      safeUnlockOrientation();
 
       return () => {
         document.body.style.overflow = originalOverflow;
@@ -260,11 +257,7 @@ export default function LessonViewer({
         document.body.style.height = originalHeight;
 
         // Restore portrait orientation lock when leaving fullscreen
-        try {
-          if (typeof window !== 'undefined' && 'screen' in window && (screen as any)?.orientation?.lock) {
-            (screen as any).orientation.lock('portrait').catch(() => {});
-          }
-        } catch {}
+        safeLockPortraitOrientation();
       };
     }
   }, [isFullscreen]);
@@ -397,8 +390,7 @@ export default function LessonViewer({
       const embedBase = getYoutubeEmbedUrl(url);
       const origin = typeof window !== 'undefined' && window.location.origin ? encodeURIComponent(window.location.origin) : '';
       const originQuery = origin ? `&origin=${origin}` : '';
-      const widgetReferrer = origin ? `&widget_referrer=${origin}` : '';
-      return `${embedBase}?enablejsapi=1&widgetid=1&playsinline=1&rel=0&iv_load_policy=3&disablekb=0${originQuery}${widgetReferrer}${pos > 0 ? `&start=${pos}` : ''}`;
+      return `${embedBase}?enablejsapi=1&playsinline=1&rel=0&iv_load_policy=3${originQuery}${pos > 0 ? `&start=${pos}` : ''}`;
     } else if (url.includes('mediadelivery.net') || url.includes('bunny') || url.includes('b-cdn.net')) {
       const separator = url.includes('?') ? '&' : '?';
       return `${url}${separator}autoplay=false&playsinline=true&playerjs=true${pos > 0 ? `&t=${pos}` : ''}`;
@@ -987,6 +979,239 @@ export default function LessonViewer({
     postToBunny('getCurrentTime');
     postToBunny('getPaused');
   }, [postToBunny]);
+
+  // Global keyboard shortcuts for laptop/desktop video playback (Space, K, J, L, ArrowLeft, ArrowRight, F)
+  React.useEffect(() => {
+    // Accessibility helper: Detect if an element is interactive or user-editable
+    const isInteractiveElement = (element: HTMLElement | null): boolean => {
+      if (!element) return false;
+
+      const tagName = element.tagName.toUpperCase();
+
+      // Form inputs & editable content
+      if (
+        tagName === 'INPUT' ||
+        tagName === 'TEXTAREA' ||
+        tagName === 'SELECT' ||
+        tagName === 'OPTION' ||
+        element.isContentEditable
+      ) {
+        return true;
+      }
+
+      // Native interactive elements (buttons, links, disclosures)
+      if (
+        tagName === 'BUTTON' ||
+        tagName === 'A' ||
+        tagName === 'SUMMARY'
+      ) {
+        return true;
+      }
+
+      // WAI-ARIA interactive roles (sliders, buttons, tabs, menu items, switches, etc.)
+      const role = element.getAttribute('role');
+      if (role && [
+        'button',
+        'link',
+        'slider',
+        'tab',
+        'tablist',
+        'menuitem',
+        'menuitemcheckbox',
+        'menuitemradio',
+        'option',
+        'switch',
+        'checkbox',
+        'radio',
+        'combobox',
+        'searchbox',
+        'spinbutton',
+        'textbox'
+      ].includes(role)) {
+        return true;
+      }
+
+      // Ancestor check for nested icons/spans inside interactive elements
+      if (element.closest && element.closest(
+        'button, a, input, textarea, select, summary, [role="button"], [role="link"], [role="slider"], [role="tab"], [role="menuitem"], [role="option"], [role="switch"], [role="checkbox"], [role="radio"], [role="combobox"], [contenteditable="true"]'
+      )) {
+        return true;
+      }
+
+      return false;
+    };
+
+    // Modal/dialog detector to protect open modals from background shortcut hijacking
+    const isInsideDialogOrModal = (element: HTMLElement | null): boolean => {
+      if (!element) return false;
+      if (element.closest && element.closest('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog, .modal')) {
+        return true;
+      }
+      return false;
+    };
+
+    const handleVideoKeyboardControls = (e: KeyboardEvent) => {
+      // 1. Only active when currently on the videos tab
+      if (activeTab !== 'videos') return;
+
+      // 2. Never hijack shortcuts if any dialog, alert, confirm modal, or PDF viewer is open
+      if (
+        activePdf !== null ||
+        useModalStore.getState().confirmOpen ||
+        useModalStore.getState().alertOpen ||
+        (typeof document !== 'undefined' && Boolean(document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], .modal')))
+      ) {
+        return;
+      }
+
+      // 3. Never intercept browser or operating system shortcuts (Alt, Ctrl, Meta)
+      if (e.altKey || e.ctrlKey || e.metaKey) {
+        return;
+      }
+
+      const code = e.code;
+      const key = e.key;
+
+      const isPlayPauseKey = (code === 'Space' || key === ' ' || key === 'k' || key === 'K');
+      const isSeekForwardKey = (code === 'ArrowRight' || key === 'ArrowRight' || key === 'l' || key === 'L');
+      const isSeekBackwardKey = (code === 'ArrowLeft' || key === 'ArrowLeft' || key === 'j' || key === 'J');
+      const isFullscreenKey = (key === 'f' || key === 'F');
+
+      if (!isPlayPauseKey && !isSeekForwardKey && !isSeekBackwardKey && !isFullscreenKey) {
+        return;
+      }
+
+      // 4. Accessibility safeguard: Check focused element or event target
+      const rawTarget = e.target as Node | null;
+      const target = (rawTarget && rawTarget.nodeType === 1 ? rawTarget as HTMLElement : rawTarget?.parentElement)
+        || (typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null);
+
+      if (isInteractiveElement(target) || isInsideDialogOrModal(target)) {
+        return;
+      }
+
+      const activeVid = activeVideoRef.current;
+      if (!activeVid) return;
+
+      const url = activeVid.bunny_embed_url || activeVid.video_url || '';
+      const isYt = isYoutubeUrl(url);
+      const isBunny = isBunnyVideo(activeVid);
+      const isDirect = !isYt && !isBunny && isDirectVideoUrl(url);
+
+      // Play / Pause toggle: Space or KeyK
+      if (isPlayPauseKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isYt) {
+          const player = ytPlayerRef.current;
+          let handled = false;
+          if (player) {
+            try {
+              const state = typeof player.getPlayerState === 'function' ? player.getPlayerState() : -1;
+              if (state === 1) { // Playing -> Pause
+                player.pauseVideo?.();
+                handled = true;
+              } else if (state === 2 || state === 0 || state === -1 || state === 5) { // Paused / Ended / Unstarted -> Play
+                player.playVideo?.();
+                handled = true;
+              }
+            } catch (err) {}
+          }
+          if (!handled) {
+            // Fallback postMessage to YouTube iframe
+            try {
+              const frame = (document.getElementById('youtube-player') as HTMLIFrameElement | null) || iframeRef.current;
+              if (frame?.contentWindow) {
+                const func = isPlayingRef.current ? 'pauseVideo' : 'playVideo';
+                frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*');
+              }
+            } catch (err) {}
+          }
+        } else if (isBunny) {
+          postToBunny(isPlayingRef.current ? 'pause' : 'play');
+        } else if (isDirect && videoRef.current) {
+          if (videoRef.current.paused) {
+            videoRef.current.play().catch(() => {});
+          } else {
+            videoRef.current.pause();
+          }
+        }
+        return;
+      }
+
+      // Seek Forward 10 seconds: ArrowRight or KeyL
+      if (isSeekForwardKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isYt) {
+          const player = ytPlayerRef.current;
+          const curr = (player && typeof player.getCurrentTime === 'function')
+            ? Number(player.getCurrentTime())
+            : (lastPositionRef.current || 0);
+          const targetPos = Math.max(0, curr + 10);
+          if (player && typeof player.seekTo === 'function') {
+            try { player.seekTo(targetPos, true); } catch (err) {}
+          } else {
+            try {
+              const frame = (document.getElementById('youtube-player') as HTMLIFrameElement | null) || iframeRef.current;
+              if (frame?.contentWindow) {
+                frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [targetPos, true] }), '*');
+              }
+            } catch (err) {}
+          }
+        } else if (isBunny) {
+          const curr = lastPositionRef.current || 0;
+          postToBunny('setCurrentTime', curr + 10);
+        } else if (isDirect && videoRef.current) {
+          videoRef.current.currentTime = Math.min(videoRef.current.duration || 300, videoRef.current.currentTime + 10);
+        }
+        return;
+      }
+
+      // Seek Backward 10 seconds: ArrowLeft or KeyJ
+      if (isSeekBackwardKey) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isYt) {
+          const player = ytPlayerRef.current;
+          const curr = (player && typeof player.getCurrentTime === 'function')
+            ? Number(player.getCurrentTime())
+            : (lastPositionRef.current || 0);
+          const targetPos = Math.max(0, curr - 10);
+          if (player && typeof player.seekTo === 'function') {
+            try { player.seekTo(targetPos, true); } catch (err) {}
+          } else {
+            try {
+              const frame = (document.getElementById('youtube-player') as HTMLIFrameElement | null) || iframeRef.current;
+              if (frame?.contentWindow) {
+                frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'seekTo', args: [targetPos, true] }), '*');
+              }
+            } catch (err) {}
+          }
+        } else if (isBunny) {
+          const curr = lastPositionRef.current || 0;
+          postToBunny('setCurrentTime', Math.max(0, curr - 10));
+        } else if (isDirect && videoRef.current) {
+          videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+        }
+        return;
+      }
+
+      // Fullscreen shortcut: KeyF
+      if (isFullscreenKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFullscreen();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleVideoKeyboardControls, { capture: true });
+    return () => window.removeEventListener('keydown', handleVideoKeyboardControls, { capture: true });
+  }, [activeTab, activePdf, postToBunny, toggleFullscreen]);
 
   React.useEffect(() => {
     const handlePlayerMessage = (e: MessageEvent) => {

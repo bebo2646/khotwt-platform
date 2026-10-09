@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { WifiOff, Download, RefreshCw, X, Bell } from 'lucide-react'
+import { safeLockPortraitOrientation, isFullscreenActive } from '../utils/orientation'
 
 // Restored and verified PWA install prompt logic matching original specifications exactly
 export default function PWAManager() {
@@ -16,6 +17,41 @@ export default function PWAManager() {
   const [isOffline, setIsOffline] = useState(
     !navigator.onLine || window.location.search.includes('simulate-offline=true')
   )
+
+  // Screen orientation lock lifecycle for Android tablets and phones
+  useEffect(() => {
+    safeLockPortraitOrientation();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isFullscreenActive()) {
+        safeLockPortraitOrientation();
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      if (!isFullscreenActive()) {
+        safeLockPortraitOrientation();
+      }
+    };
+
+    const handleOrientationChange = () => {
+      if (!isFullscreenActive()) {
+        safeLockPortraitOrientation();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, []);
 
   // 1. Splash Screen Timer (1.5 seconds)
   useEffect(() => {

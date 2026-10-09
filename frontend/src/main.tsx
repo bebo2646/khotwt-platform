@@ -23,6 +23,10 @@ Date.prototype.toISOString = function (this: Date) {
 
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
+import { safeLockPortraitOrientation } from './utils/orientation'
+
+// Initial screen orientation lock for installed PWA on Android tablets and phones
+safeLockPortraitOrientation();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
