@@ -648,4 +648,255 @@ class ExamVisibilityAndAttemptsTest extends TestCase
             $this->assertTrue(!isset($q['correct_answer']) || $q['correct_answer'] === null);
         }
     }
+
+    // =========================================================================
+    // 6. VISIBILITY PARTICIPANTS & STUDENT COUNT ACCURACY TESTS
+    // =========================================================================
+
+    public function test_visibility_endpoint_returns_participating_students_with_attempts(): void
+    {
+        $teacher = $this->createTeacher();
+        $student1 = $this->createStudent();
+        $student2 = $this->createStudent();
+        $data = $this->setupExam($teacher);
+        $this->enrollStudent($student1, $data['course']);
+        $this->enrollStudent($student2, $data['course']);
+
+        // Student 1 has a graded attempt
+        StudentExam::create([
+            'student_id' => $student1->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 15,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(30),
+            'submitted_at' => Carbon::now()->subMinutes(10),
+            'graded_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        // Student 2 has a started attempt
+        StudentExam::create([
+            'student_id' => $student2->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => null,
+            'status' => 'started',
+            'started_at' => Carbon::now()->subMinutes(10),
+        ]);
+
+        $res = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $res->assertStatus(200);
+
+        $json = $res->json();
+        $this->assertArrayHasKey('students', $json);
+        $this->assertArrayHasKey('stats', $json);
+        $this->assertCount(2, $json['students']);
+        $this->assertEquals(2, $json['stats']['total_students_with_attempts']);
+        $this->assertEquals(2, $json['stats']['total_attempts']);
+
+        $returnedStudentIds = collect($json['students'])->pluck('id')->all();
+        $this->assertContains($student1->id, $returnedStudentIds);
+        $this->assertContains($student2->id, $returnedStudentIds);
+
+        $s1Data = collect($json['students'])->firstWhere('id', $student1->id);
+        $this->assertEquals('graded', $s1Data['status']);
+        $this->assertEquals(15, $s1Data['score']);
+
+        $s2Data = collect($json['students'])->firstWhere('id', $student2->id);
+        $this->assertEquals('started', $s2Data['status']);
+    }
+
+    public function test_visibility_endpoint_does_not_include_enrolled_students_without_attempts(): void
+    {
+        $teacher = $this->createTeacher();
+        $studentWithAttempt = $this->createStudent();
+        $studentEnrolledOnly1 = $this->createStudent();
+        $studentEnrolledOnly2 = $this->createStudent();
+        $data = $this->setupExam($teacher);
+
+        // 3 enrolled students
+        $this->enrollStudent($studentWithAttempt, $data['course']);
+        $this->enrollStudent($studentEnrolledOnly1, $data['course']);
+        $this->enrollStudent($studentEnrolledOnly2, $data['course']);
+
+        // Only 1 student made an attempt
+        StudentExam::create([
+            'student_id' => $studentWithAttempt->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 10,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(20),
+            'submitted_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        $res = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $res->assertStatus(200);
+
+        $json = $res->json();
+        // Counter and students list must only have the student who attempted
+        $this->assertCount(1, $json['students']);
+        $this->assertEquals(1, $json['stats']['total_students_with_attempts']);
+        $this->assertEquals($studentWithAttempt->id, $json['students'][0]['id']);
+    }
+
+    public function test_visibility_endpoint_returns_empty_when_exam_has_no_attempts_or_students(): void
+    {
+        $teacher = $this->createTeacher();
+        $data = $this->setupExam($teacher);
+
+        $res = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $res->assertStatus(200);
+
+        $json = $res->json();
+        $this->assertCount(0, $json['students']);
+        $this->assertEquals(0, $json['stats']['total_students_with_attempts']);
+        $this->assertEquals(0, $json['stats']['total_attempts']);
+    }
+
+    public function test_visibility_endpoint_loads_previously_saved_overrides(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupExam($teacher, ['show_score' => true]);
+        $this->enrollStudent($student, $data['course']);
+
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 20,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(20),
+            'submitted_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        // Pre-saved override hiding score
+        ExamStudentResultVisibility::create([
+            'exam_id' => $data['exam']->id,
+            'student_id' => $student->id,
+            'show_score' => false,
+            'show_student_answers' => true,
+            'show_correct_answers' => false,
+            'show_explanations' => false,
+            'created_by' => $teacher->id,
+        ]);
+
+        $res = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $res->assertStatus(200);
+
+        $json = $res->json();
+        $this->assertCount(1, $json['students']);
+        $st = $json['students'][0];
+        $this->assertTrue($st['has_override']);
+        $this->assertFalse($st['effective_visibility']['show_score']);
+        $this->assertFalse($st['effective_visibility']['show_correct_answers']);
+        $this->assertTrue($st['effective_visibility']['show_student_answers']);
+    }
+
+    public function test_saving_and_resetting_override_updates_and_reloads_properly(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupExam($teacher, ['show_score' => true]);
+        $this->enrollStudent($student, $data['course']);
+
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 18,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(20),
+            'submitted_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        // 1. Save student override
+        $saveRes = $this->actingAs($teacher)->putJson("/api/teacher/exams/{$data['exam']->id}/student-visibility/{$student->id}", [
+            'show_score' => false,
+            'show_student_answers' => false,
+            'show_correct_answers' => false,
+            'show_explanations' => false,
+        ]);
+        $saveRes->assertStatus(200);
+
+        // Verify visibility reloaded
+        $reload1 = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $reload1->assertStatus(200);
+        $st1 = $reload1->json('students.0');
+        $this->assertNotNull($st1);
+        $this->assertTrue($st1['has_override']);
+        $this->assertFalse($st1['effective_visibility']['show_score']);
+
+        // 2. Reset student override back to defaults
+        $resetRes = $this->actingAs($teacher)->deleteJson("/api/teacher/exams/{$data['exam']->id}/student-visibility/{$student->id}");
+        $resetRes->assertStatus(200);
+
+        // Verify visibility reloaded after reset: student is still listed with defaults restored!
+        $reload2 = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $reload2->assertStatus(200);
+        $st2 = $reload2->json('students.0');
+        $this->assertNotNull($st2);
+        $this->assertFalse($st2['has_override']);
+        $this->assertTrue($st2['effective_visibility']['show_score']); // Restored to exam default
+    }
+
+    public function test_multiple_attempts_by_same_student_groups_into_single_entry_with_latest_status_and_score(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupExam($teacher, ['max_attempts' => 2]);
+        $this->enrollStudent($student, $data['course']);
+
+        // Attempt 1 (older, score 5)
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 5,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(60),
+            'submitted_at' => Carbon::now()->subMinutes(40),
+            'graded_at' => Carbon::now()->subMinutes(35),
+        ]);
+
+        // Attempt 2 (newer, score 18)
+        StudentExam::create([
+            'student_id' => $student->id,
+            'exam_id' => $data['exam']->id,
+            'course_id' => $data['course']->id,
+            'score' => 18,
+            'status' => 'graded',
+            'started_at' => Carbon::now()->subMinutes(30),
+            'submitted_at' => Carbon::now()->subMinutes(10),
+            'graded_at' => Carbon::now()->subMinutes(5),
+        ]);
+
+        $res = $this->actingAs($teacher)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $res->assertStatus(200);
+
+        $json = $res->json();
+        $this->assertCount(1, $json['students'], 'Should deduplicate by student_id to exactly 1 entry');
+        $this->assertEquals(1, $json['stats']['total_students_with_attempts']);
+        $this->assertEquals(2, $json['stats']['total_attempts'], 'Should count both attempts in total_attempts');
+
+        $st = $json['students'][0];
+        $this->assertEquals($student->id, $st['id']);
+        $this->assertEquals(2, $st['attempts_count']);
+        $this->assertEquals(18, $st['score'], 'Must reflect latest attempt score');
+        $this->assertEquals('graded', $st['status'], 'Must reflect latest attempt status');
+    }
+
+    public function test_student_cannot_access_visibility_endpoint(): void
+    {
+        $teacher = $this->createTeacher();
+        $student = $this->createStudent();
+        $data = $this->setupExam($teacher);
+
+        $resTeacherRoute = $this->actingAs($student)->getJson("/api/teacher/exams/{$data['exam']->id}/visibility");
+        $resTeacherRoute->assertStatus(403);
+
+        $resAdminRoute = $this->actingAs($student)->getJson("/api/admin/exams/{$data['exam']->id}/visibility");
+        $resAdminRoute->assertStatus(403);
+    }
 }

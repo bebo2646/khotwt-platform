@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import API from '../services/api'
 import { useModalStore } from '../store/modalStore'
+import { useAuthStore } from '../store/authStore'
 
 interface VisibilitySettings {
   show_score: boolean
@@ -43,12 +44,29 @@ interface StudentOverrideItem {
 }
 
 interface AttemptItemMinimal {
-  student_id: number
+  student_id?: number
+  id?: number
   student?: {
-    id: number
+    id?: number
     name: string
     email?: string
   }
+}
+
+interface StudentVisibilityParticipant {
+  id: number
+  student_id: number
+  name: string
+  email?: string
+  phone?: string
+  status?: string
+  latest_status?: string
+  score?: number | null
+  max_score?: number
+  attempts_count?: number
+  last_attempt_at?: string | null
+  has_override?: boolean
+  override?: StudentOverrideItem | null
 }
 
 interface ExamVisibilityModalProps {
@@ -57,6 +75,7 @@ interface ExamVisibilityModalProps {
   examId: number
   examTitle: string
   attempts?: AttemptItemMinimal[]
+  endpointPrefix?: string
   onUpdated?: () => void
 }
 
@@ -66,9 +85,13 @@ export default function ExamVisibilityModal({
   examId,
   examTitle,
   attempts = [],
+  endpointPrefix,
   onUpdated,
 }: ExamVisibilityModalProps) {
   const { showToast } = useModalStore()
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'admin'
+  const basePrefix = endpointPrefix || (isAdmin ? '/admin/exams' : '/teacher/exams')
 
   const [loading, setLoading] = useState(true)
   const [savingDefaults, setSavingDefaults] = useState(false)
@@ -80,6 +103,7 @@ export default function ExamVisibilityModal({
   })
 
   const [overrides, setOverrides] = useState<Record<number, StudentOverrideItem>>({})
+  const [apiStudents, setApiStudents] = useState<StudentVisibilityParticipant[]>([])
   const [selectedStudentIds, setSelectedStudentIds] = useState<number[]>([])
   const [editingStudentId, setEditingStudentId] = useState<number | null>(null)
   const [studentForm, setStudentForm] = useState<{
@@ -101,7 +125,7 @@ export default function ExamVisibilityModal({
     if (!examId) return
     setLoading(true)
     try {
-      const res = await API.get(`/teacher/exams/${examId}/visibility`)
+      const res = await API.get(`${basePrefix}/${examId}/visibility`)
       if (res.data.defaults) {
         setExamDefaults(res.data.defaults)
       }
@@ -112,6 +136,10 @@ export default function ExamVisibilityModal({
         })
       }
       setOverrides(overrideMap)
+
+      if (Array.isArray(res.data.students)) {
+        setApiStudents(res.data.students)
+      }
     } catch (err: any) {
       console.error('Failed to load visibility settings:', err)
       showToast(err.response?.data?.message || 'تعذر تحميل إعدادات ظهور النتيجة.', 'error')
@@ -148,8 +176,9 @@ export default function ExamVisibilityModal({
   const handleSaveDefaults = async () => {
     setSavingDefaults(true)
     try {
-      await API.put(`/teacher/exams/${examId}/visibility`, examDefaults)
+      await API.put(`${basePrefix}/${examId}/visibility`, examDefaults)
       showToast('تم حفظ الإعدادات الافتراضية للامتحان بنجاح.', 'success')
+      fetchData()
       if (onUpdated) onUpdated()
     } catch (err: any) {
       showToast(err.response?.data?.message || 'فشل تحديث الإعدادات الافتراضية.', 'error')
@@ -163,7 +192,7 @@ export default function ExamVisibilityModal({
     if (!editingStudentId) return
     setSavingStudentOverride(true)
     try {
-      await API.put(`/teacher/exams/${examId}/student-visibility/${editingStudentId}`, studentForm)
+      await API.put(`${basePrefix}/${examId}/student-visibility/${editingStudentId}`, studentForm)
       showToast('تم تعيين إعدادات النتيجة المخصصة للطالب بنجاح.', 'success')
       setEditingStudentId(null)
       fetchData()
@@ -178,7 +207,7 @@ export default function ExamVisibilityModal({
   // Reset student override to default
   const handleResetStudentOverride = async (studentId: number) => {
     try {
-      await API.delete(`/teacher/exams/${examId}/student-visibility/${studentId}`)
+      await API.delete(`${basePrefix}/${examId}/student-visibility/${studentId}`)
       showToast('تمت استعادة الإعدادات الافتراضية للطالب.', 'success')
       fetchData()
       if (onUpdated) onUpdated()
@@ -205,7 +234,7 @@ export default function ExamVisibilityModal({
         Object.assign(payload, settings)
       }
 
-      const res = await API.post(`/teacher/exams/${examId}/bulk-student-visibility`, payload)
+      const res = await API.post(`${basePrefix}/${examId}/bulk-student-visibility`, payload)
       showToast(res.data.message || 'تم تحديث الإعدادات للطلاب المحددين بنجاح.', 'success')
       setSelectedStudentIds([])
       fetchData()
@@ -217,18 +246,59 @@ export default function ExamVisibilityModal({
     }
   }
 
-  // Compile list of unique students from attempts or overrides
-  const studentMap = new Map<number, { id: number; name: string }>()
+  // Compile list of unique students from API students, prop attempts, and overrides
+  const studentMap = new Map<number, {
+    id: number
+    name: string
+    email?: string
+    phone?: string
+    status?: string
+    score?: number | null
+    max_score?: number
+    attempts_count?: number
+  }>()
+
+  // 1. From API students (primary source from backend)
+  apiStudents.forEach((st) => {
+    studentMap.set(st.id, {
+      id: st.id,
+      name: st.name,
+      email: st.email,
+      phone: st.phone,
+      status: st.status || st.latest_status,
+      score: st.score,
+      max_score: st.max_score,
+      attempts_count: st.attempts_count,
+    })
+  })
+
+  // 2. From prop attempts (if passed from parent)
   attempts.forEach((a) => {
-    if (a.student_id && a.student) {
-      studentMap.set(a.student_id, { id: a.student_id, name: a.student.name })
+    const sId = a.student_id || a.student?.id
+    if (sId && a.student) {
+      const existing = studentMap.get(sId)
+      if (!existing) {
+        studentMap.set(sId, {
+          id: sId,
+          name: a.student.name,
+          email: a.student.email,
+        })
+      }
     }
   })
+
+  // 3. From overrides (if any student has an override)
   Object.values(overrides).forEach((ov) => {
-    if (ov.student) {
-      studentMap.set(ov.student_id, { id: ov.student_id, name: ov.student.name })
+    if (ov.student && !studentMap.has(ov.student_id)) {
+      studentMap.set(ov.student_id, {
+        id: ov.student_id,
+        name: ov.student.name,
+        email: ov.student.email,
+        phone: ov.student.phone,
+      })
     }
   })
+
   const uniqueStudents = Array.from(studentMap.values())
 
   const toggleSelectStudent = (sId: number) => {
@@ -483,7 +553,36 @@ export default function ExamVisibilityModal({
                                 )}
                               </button>
                             </td>
-                            <td className="p-3 font-bold text-white">{st.name}</td>
+                            <td className="p-3">
+                              <div className="font-bold text-white text-xs">{st.name}</div>
+                              {st.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{st.email}</div>}
+                              {st.status && (
+                                <div className="text-[10px] mt-1 flex items-center gap-1.5 flex-wrap">
+                                  {st.status === 'graded' ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-semibold text-[9px]">
+                                      تم التصحيح {st.score !== null ? `(${st.score}/${st.max_score ?? '—'})` : ''}
+                                    </span>
+                                  ) : st.status === 'submitted' ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/20 text-amber-400 font-semibold text-[9px]">
+                                      تم التسليم (بانتظار الرصد)
+                                    </span>
+                                  ) : st.status === 'started' ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-sky-500/15 border border-sky-500/20 text-sky-400 font-semibold text-[9px]">
+                                      بدأ الاختبار (قيد الحل)
+                                    </span>
+                                  ) : st.status === 'terminated_for_cheating' ? (
+                                    <span className="px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/20 text-rose-400 font-semibold text-[9px]">
+                                      مخالفة غش ⚠️
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-semibold text-[9px]">{st.status}</span>
+                                  )}
+                                  {st.attempts_count && st.attempts_count > 1 ? (
+                                    <span className="text-[9px] text-slate-500">({st.attempts_count} محاولات)</span>
+                                  ) : null}
+                                </div>
+                              )}
+                            </td>
                             <td className="p-3 text-center">
                               {isOverridden ? (
                                 <span className="px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold text-[10px]">

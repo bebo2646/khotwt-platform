@@ -58,12 +58,15 @@ interface ExamItem {
 
 interface AttemptItem {
   id: number
+  student_id?: number
   score: number | null
   status: 'started' | 'submitted' | 'graded'
   teacher_feedback: string | null
   submitted_at: string
   student: {
+    id?: number
     name: string
+    email?: string
   }
   violation_count?: number
   is_suspicious?: boolean
@@ -658,6 +661,8 @@ export default function ExamsManager() {
           onClose={() => setIsVisibilityModalOpen(false)}
           examId={selectedExam.id}
           examTitle={selectedExam.title}
+          attempts={attempts}
+          onUpdated={() => handleViewAttempts(selectedExam)}
         />
       )}
 

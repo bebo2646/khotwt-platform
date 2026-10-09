@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use App\Models\Exam;
+use App\Models\StudentExam;
 use App\Models\User;
 use App\Services\ExamResultVisibilityService;
 use Illuminate\Http\Request;
@@ -26,6 +27,11 @@ class ExamVisibilityController extends Controller
         $user = $request->user();
 
         if ($user->isAdmin() || $user->is_super_admin || $user->is_super) {
+            if ($user->isAdmin() && !$user->is_super_admin && !$user->is_super) {
+                if (!$user->hasPermission('exams.manage') && !$user->hasPermission('monthly_exams.update')) {
+                    abort(403, 'غير مصرح لك بالتحكم في إعدادات هذا الامتحان.');
+                }
+            }
             return;
         }
 
@@ -48,7 +54,7 @@ class ExamVisibilityController extends Controller
     }
 
     /**
-     * Get visibility defaults and all student overrides for an exam.
+     * Get visibility defaults, all student overrides, and participating students for an exam.
      */
     public function getVisibility(Request $request, $examId)
     {
@@ -56,6 +62,76 @@ class ExamVisibilityController extends Controller
         $this->authorizeExamTeacher($request, $exam);
 
         $overrides = $this->visibilityService->getOverridesForExam($exam)->load('student:id,name,email,phone');
+
+        // Fetch all attempts for this exam with student details, ordered by latest
+        $attempts = StudentExam::where('exam_id', $exam->id)
+            ->with('student:id,name,email,phone')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        $studentsMap = [];
+
+        foreach ($attempts as $attempt) {
+            $studentId = (int)$attempt->student_id;
+            if (!$studentId) {
+                continue;
+            }
+
+            if (!isset($studentsMap[$studentId])) {
+                $override = $overrides->get($studentId);
+                $effective = $this->visibilityService->resolveEffectiveVisibility($exam, $studentId);
+
+                $studentsMap[$studentId] = [
+                    'id' => $studentId,
+                    'student_id' => $studentId,
+                    'name' => $attempt->student?->name ?? "طالب #{$studentId}",
+                    'email' => $attempt->student?->email,
+                    'phone' => $attempt->student?->phone,
+                    'latest_status' => $attempt->status,
+                    'status' => $attempt->status,
+                    'score' => $attempt->score,
+                    'max_score' => $exam->max_score,
+                    'attempts_count' => 1,
+                    'last_attempt_at' => $attempt->submitted_at?->toISOString() ?? $attempt->started_at?->toISOString() ?? $attempt->created_at?->toISOString(),
+                    'has_override' => $override !== null && (
+                        $override->show_score !== null ||
+                        $override->show_student_answers !== null ||
+                        $override->show_correct_answers !== null ||
+                        $override->show_explanations !== null
+                    ),
+                    'override' => $override,
+                    'effective_visibility' => $effective,
+                ];
+            } else {
+                $studentsMap[$studentId]['attempts_count']++;
+            }
+        }
+
+        // Include any students with explicit overrides who may not currently have an attempt in student_exams
+        foreach ($overrides as $studentId => $override) {
+            $sId = (int)$studentId;
+            if (!isset($studentsMap[$sId]) && $override->student) {
+                $effective = $this->visibilityService->resolveEffectiveVisibility($exam, $sId);
+                $studentsMap[$sId] = [
+                    'id' => $sId,
+                    'student_id' => $sId,
+                    'name' => $override->student->name,
+                    'email' => $override->student->email,
+                    'phone' => $override->student->phone,
+                    'latest_status' => 'no_attempt',
+                    'status' => 'no_attempt',
+                    'score' => null,
+                    'max_score' => $exam->max_score,
+                    'attempts_count' => 0,
+                    'last_attempt_at' => null,
+                    'has_override' => true,
+                    'override' => $override,
+                    'effective_visibility' => $effective,
+                ];
+            }
+        }
+
+        $studentsList = array_values($studentsMap);
 
         return response()->json([
             'exam_id' => $exam->id,
@@ -67,6 +143,14 @@ class ExamVisibilityController extends Controller
                 'show_explanations' => (bool)($exam->show_explanations ?? true),
             ],
             'overrides' => $overrides->values(),
+            'students' => $studentsList,
+            'stats' => [
+                'total_students_with_attempts' => count($studentsMap),
+                'total_attempts' => $attempts->count(),
+                'total_overrides' => $overrides->filter(function ($ov) {
+                    return $ov->show_score !== null || $ov->show_student_answers !== null || $ov->show_correct_answers !== null || $ov->show_explanations !== null;
+                })->count(),
+            ],
         ]);
     }
 

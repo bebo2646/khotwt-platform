@@ -1416,6 +1416,8 @@ export default function MonthlyExamsManagement() {
           onClose={() => setVisibilityModalOpen(false)}
           examId={selectedExamForVisibility.id}
           examTitle={selectedExamForVisibility.title}
+          endpointPrefix="/admin/exams"
+          onUpdated={() => fetchExams()}
         />
       )}
 
