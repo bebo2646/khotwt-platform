@@ -1399,8 +1399,62 @@ class MonthlyExamsController extends Controller
             ];
         }
 
+        $correctCount = 0;
+        $incorrectCount = 0;
+        $unansweredCount = 0;
+        $needsGradingCount = 0;
+
+        foreach ($reviewQuestions as $rq) {
+            if ($rq['is_answered']) {
+                if ($rq['type'] === 'essay') {
+                    if ($attempt->status !== 'graded' && $rq['score_awarded'] === 0.0) {
+                        $needsGradingCount++;
+                    }
+                } elseif ($rq['is_correct']) {
+                    $correctCount++;
+                } else {
+                    $incorrectCount++;
+                }
+            } else {
+                $unansweredCount++;
+            }
+        }
+
+        // All attempts of this student for this monthly exam
+        $allStudentAttempts = StudentExam::where('exam_id', $exam->id)
+            ->where('student_id', $attempt->student_id)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $latestAttemptId = $allStudentAttempts->last()?->id;
+
+        $attemptsHistory = $allStudentAttempts->values()->map(function ($att, $idx) use ($latestAttemptId, $attempt, $exam) {
+            return [
+                'id' => $att->id,
+                'attempt_number' => $idx + 1,
+                'is_current' => $att->id === $attempt->id,
+                'is_latest' => $att->id === $latestAttemptId,
+                'status' => $att->status,
+                'score' => $att->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $att->score !== null)
+                    ? round(($att->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'started_at' => $att->started_at?->toIso8601String(),
+                'submitted_at' => $att->submitted_at?->toIso8601String(),
+                'graded_at' => $att->graded_at?->toIso8601String(),
+                'violation_count' => $att->violation_count ?: 0,
+                'is_suspicious' => (bool)$att->is_suspicious,
+            ];
+        });
+
         $isTerminated = $attempt->isTerminatedForCheating();
         $canView = $attempt->canViewAnswers();
+
+        $durationSeconds = null;
+        if ($attempt->started_at && $attempt->submitted_at) {
+            $durationSeconds = $attempt->started_at->diffInSeconds($attempt->submitted_at);
+        }
 
         return response()->json([
             'exam' => [
@@ -1432,6 +1486,7 @@ class MonthlyExamsController extends Controller
                 'submitted_at' => $attempt->submitted_at?->toIso8601String(),
                 'graded_at' => $attempt->graded_at?->toIso8601String(),
                 'duration_minutes' => $attempt->duration_minutes,
+                'duration_seconds' => $durationSeconds,
                 'auto_submitted' => (bool)$attempt->auto_submitted,
                 'submission_reason' => $attempt->submission_reason,
                 'violation_count' => $attempt->violation_count ?: $attempt->cheat_violations_count ?: 0,
@@ -1446,7 +1501,21 @@ class MonthlyExamsController extends Controller
                 ] : null,
                 'can_student_view_answers' => $canView,
             ],
+            'summary' => [
+                'total_questions' => count($exam->questions),
+                'correct_count' => $correctCount,
+                'incorrect_count' => $incorrectCount,
+                'unanswered_count' => $unansweredCount,
+                'needs_grading_count' => $needsGradingCount,
+                'score' => $attempt->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $attempt->score !== null)
+                    ? round(($attempt->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'duration_seconds' => $durationSeconds,
+            ],
             'questions' => $reviewQuestions,
+            'all_attempts' => $attemptsHistory,
             'violations' => $attempt->violations->map(function ($v) {
                 return [
                     'id' => $v->id,

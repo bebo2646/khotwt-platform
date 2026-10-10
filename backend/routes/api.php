@@ -130,6 +130,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::get('/teacher/exams', [TeacherController::class, 'listExams']);
             Route::get('/teacher/exams/{exam}', [TeacherController::class, 'getExam']);
             Route::get('/teacher/exams/{exam}/attempts', [TeacherController::class, 'examAttempts']);
+            Route::get('/teacher/exams/{exam}/attempts/{attemptId}', [TeacherController::class, 'examAttemptDetails']);
             Route::get('/teacher/exams/{exam}/report', [TeacherController::class, 'examReport']);
             Route::get('/teacher/monthly-exams', [MonthlyExamsController::class, 'adminList']);
             Route::get('/teacher/monthly-exams/{id}', [MonthlyExamsController::class, 'adminShow']);
@@ -380,6 +381,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::get('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminShow']);
                 Route::get('/admin/monthly-exams/{id}/attempts', [MonthlyExamsController::class, 'attempts']);
                 Route::get('/admin/monthly-exams/{id}/attempts/{attemptId}', [MonthlyExamsController::class, 'attemptDetails']);
+                Route::get('/admin/exams/{exam}/attempts/{attemptId}', [TeacherController::class, 'examAttemptDetails']);
             });
             Route::middleware('permission:monthly_exams.create,exams.manage')->post('/admin/monthly-exams', [MonthlyExamsController::class, 'adminStore']);
             Route::middleware('permission:monthly_exams.update,exams.manage')->put('/admin/monthly-exams/{id}', [MonthlyExamsController::class, 'adminUpdate']);
@@ -387,6 +389,7 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/monthly-exams/{id}/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
             Route::middleware('permission:exam_security.unlock_answers,monthly_exams.manage_security,exams.manage')->post('/admin/exams/attempts/{attemptId}/unlock-answers', [MonthlyExamsController::class, 'unlockAnswers']);
+            Route::middleware('permission:exams.manage')->post('/admin/attempts/{attempt}/grade', [TeacherController::class, 'gradeAttempt']);
 
             // Admin Exam Result Visibility Control
             Route::middleware('permission:monthly_exams.update,exams.manage')->group(function () {

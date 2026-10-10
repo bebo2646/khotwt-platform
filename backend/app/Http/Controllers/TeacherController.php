@@ -2803,6 +2803,247 @@ class TeacherController extends Controller
     }
 
     /**
+     * Get detailed student attempt review with questions, answers, and multiple attempts.
+     */
+    public function examAttemptDetails(Request $request, $examId, $attemptId)
+    {
+        $exam = Exam::with(['lesson.unit', 'questions'])->findOrFail($examId);
+        if ($exam->lesson_id && $exam->lesson && $exam->lesson->unit) {
+            $this->verifyCourseTeacher($request, $exam->lesson->unit->course_id);
+        } else {
+            $user = $request->user();
+            if ($exam->teacher_id !== $user->id && !$user->isAdmin()) {
+                abort(403, 'غير مصرح لك بعرض محاولات هذا الاختبار.');
+            }
+        }
+
+        $attempt = StudentExam::where('id', $attemptId)
+            ->where('exam_id', $examId)
+            ->with(['student:id,name,email,phone', 'answers.question', 'violations', 'unlockedBy:id,name'])
+            ->firstOrFail();
+
+        // Map existing student answers by question_id
+        $answersMap = $attempt->answers->keyBy('question_id');
+
+        // Order questions according to shuffle_mapping if stored, or default exam questions order
+        $shuffleMapping = $attempt->shuffle_mapping ?? [];
+        $questionOrder = $shuffleMapping['question_order'] ?? $exam->questions->pluck('id')->toArray();
+        $optionsMapping = $shuffleMapping['options_mapping'] ?? [];
+
+        $allQuestions = $exam->questions->keyBy('id');
+        $reviewQuestions = [];
+        $processedQuestionIds = [];
+
+        $correctCount = 0;
+        $incorrectCount = 0;
+        $unansweredCount = 0;
+        $needsGradingCount = 0;
+
+        foreach ($questionOrder as $qId) {
+            if (!isset($allQuestions[$qId])) {
+                continue;
+            }
+            $question = $allQuestions[$qId];
+            $processedQuestionIds[] = $qId;
+            $studentAnswer = $answersMap->get($qId);
+            $options = $optionsMapping[$qId] ?? $question->options;
+
+            $isAnswered = ($studentAnswer !== null && $studentAnswer->answer_text !== null && trim((string)$studentAnswer->answer_text) !== '');
+            $isCorrect = false;
+            $scoreAwarded = 0.0;
+
+            if ($isAnswered) {
+                if ($question->type === 'essay') {
+                    $scoreAwarded = (float)($studentAnswer->score ?? 0);
+                    $isCorrect = (bool)$studentAnswer->is_correct;
+                    if ($attempt->status !== 'graded' && $studentAnswer->score === null) {
+                        $needsGradingCount++;
+                    }
+                } else {
+                    $isCorrect = (bool)$studentAnswer->is_correct;
+                    $scoreAwarded = (float)($studentAnswer->score ?? 0);
+                    if ($isCorrect) {
+                        $correctCount++;
+                    } else {
+                        $incorrectCount++;
+                    }
+                }
+            } else {
+                $unansweredCount++;
+                if ($question->type === 'essay' && $attempt->status !== 'graded') {
+                    $needsGradingCount++;
+                }
+            }
+
+            $reviewQuestions[] = [
+                'id' => $question->id,
+                'text' => $question->text,
+                'image_url' => $question->image_url,
+                'type' => $question->type,
+                'options' => $options,
+                'correct_answer' => $question->correct_answer,
+                'explanation' => $question->explanation ?? null,
+                'score' => (float)$question->score,
+                'is_answered' => $isAnswered,
+                'student_answer' => $isAnswered ? $studentAnswer->answer_text : null,
+                'is_correct' => $isCorrect,
+                'score_awarded' => $scoreAwarded,
+            ];
+        }
+
+        // Add any remaining questions not in shuffle order
+        foreach ($allQuestions as $qId => $question) {
+            if (in_array($qId, $processedQuestionIds)) {
+                continue;
+            }
+            $studentAnswer = $answersMap->get($qId);
+            $isAnswered = ($studentAnswer !== null && $studentAnswer->answer_text !== null && trim((string)$studentAnswer->answer_text) !== '');
+            $isCorrect = false;
+            $scoreAwarded = 0.0;
+
+            if ($isAnswered) {
+                if ($question->type === 'essay') {
+                    $scoreAwarded = (float)($studentAnswer->score ?? 0);
+                    $isCorrect = (bool)$studentAnswer->is_correct;
+                    if ($attempt->status !== 'graded' && $studentAnswer->score === null) {
+                        $needsGradingCount++;
+                    }
+                } else {
+                    $isCorrect = (bool)$studentAnswer->is_correct;
+                    $scoreAwarded = (float)($studentAnswer->score ?? 0);
+                    if ($isCorrect) {
+                        $correctCount++;
+                    } else {
+                        $incorrectCount++;
+                    }
+                }
+            } else {
+                $unansweredCount++;
+            }
+
+            $reviewQuestions[] = [
+                'id' => $question->id,
+                'text' => $question->text,
+                'image_url' => $question->image_url,
+                'type' => $question->type,
+                'options' => $question->options,
+                'correct_answer' => $question->correct_answer,
+                'explanation' => $question->explanation ?? null,
+                'score' => (float)$question->score,
+                'is_answered' => $isAnswered,
+                'student_answer' => $isAnswered ? $studentAnswer->answer_text : null,
+                'is_correct' => $isCorrect,
+                'score_awarded' => $scoreAwarded,
+            ];
+        }
+
+        // All attempts of this student for this exam (chronological order)
+        $allStudentAttempts = StudentExam::where('exam_id', $examId)
+            ->where('student_id', $attempt->student_id)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        $latestAttemptId = $allStudentAttempts->last()?->id;
+
+        $attemptsHistory = $allStudentAttempts->values()->map(function ($att, $idx) use ($latestAttemptId, $attempt, $exam) {
+            return [
+                'id' => $att->id,
+                'attempt_number' => $idx + 1,
+                'is_current' => $att->id === $attempt->id,
+                'is_latest' => $att->id === $latestAttemptId,
+                'status' => $att->status,
+                'score' => $att->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $att->score !== null)
+                    ? round(($att->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'started_at' => $att->started_at?->toIso8601String(),
+                'submitted_at' => $att->submitted_at?->toIso8601String(),
+                'graded_at' => $att->graded_at?->toIso8601String(),
+                'violation_count' => $att->violation_count ?: 0,
+                'is_suspicious' => (bool)$att->is_suspicious,
+            ];
+        });
+
+        $isTerminated = $attempt->isTerminatedForCheating();
+        $canView = $attempt->canViewAnswers();
+
+        $durationSeconds = null;
+        if ($attempt->started_at && $attempt->submitted_at) {
+            $durationSeconds = $attempt->started_at->diffInSeconds($attempt->submitted_at);
+        }
+
+        return response()->json([
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+                'type' => $exam->type,
+                'max_score' => (float)$exam->max_score,
+                'passing_score' => (float)($exam->passing_score ?: ($exam->max_score * 0.5)),
+                'time_limit_minutes' => $exam->time_limit_minutes,
+            ],
+            'student' => [
+                'id' => $attempt->student?->id,
+                'name' => $attempt->student?->name ?? 'غير معروف',
+                'email' => $attempt->student?->email,
+                'phone' => $attempt->student?->phone,
+            ],
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status,
+                'score' => $attempt->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $attempt->score !== null)
+                    ? round(($attempt->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'started_at' => $attempt->started_at?->toIso8601String(),
+                'submitted_at' => $attempt->submitted_at?->toIso8601String(),
+                'graded_at' => $attempt->graded_at?->toIso8601String(),
+                'duration_minutes' => $attempt->duration_minutes,
+                'duration_seconds' => $durationSeconds,
+                'teacher_feedback' => $attempt->teacher_feedback,
+                'auto_submitted' => (bool)$attempt->auto_submitted,
+                'submission_reason' => $attempt->submission_reason,
+                'violation_count' => $attempt->violation_count ?: 0,
+                'is_suspicious' => (bool)$attempt->is_suspicious,
+                'is_terminated_for_cheating' => $isTerminated,
+                'terminated_for_cheating_at' => $attempt->terminated_for_cheating_at?->toIso8601String(),
+                'answers_unlocked_at' => $attempt->answers_unlocked_at?->toIso8601String(),
+                'answers_unlocked_by' => $attempt->answers_unlocked_by,
+                'unlocked_by' => $attempt->unlockedBy ? [
+                    'id' => $attempt->unlockedBy->id,
+                    'name' => $attempt->unlockedBy->name,
+                ] : null,
+                'can_student_view_answers' => $canView,
+            ],
+            'summary' => [
+                'total_questions' => count($exam->questions),
+                'correct_count' => $correctCount,
+                'incorrect_count' => $incorrectCount,
+                'unanswered_count' => $unansweredCount,
+                'needs_grading_count' => $needsGradingCount,
+                'score' => $attempt->score,
+                'max_score' => (float)$exam->max_score,
+                'percentage' => ($exam->max_score > 0 && $attempt->score !== null)
+                    ? round(($attempt->score / $exam->max_score) * 100, 1)
+                    : 0,
+                'duration_seconds' => $durationSeconds,
+            ],
+            'questions' => $reviewQuestions,
+            'all_attempts' => $attemptsHistory,
+            'violations' => $attempt->violations->map(function ($v) {
+                return [
+                    'id' => $v->id,
+                    'violation_type' => $v->violation_type,
+                    'time_remaining_seconds' => $v->time_remaining_seconds,
+                    'metadata' => $v->metadata,
+                    'created_at' => $v->created_at?->toIso8601String(),
+                ];
+            }),
+        ]);
+    }
+
+    /**
      * Get a comprehensive report for scheduled Exam / Homework.
      */
     public function examReport(Request $request, $examId)

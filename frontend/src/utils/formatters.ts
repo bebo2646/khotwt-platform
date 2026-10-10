@@ -172,3 +172,118 @@ export function formatExamStatus(status?: string | null): string {
   const normalized = status.trim().toLowerCase()
   return EXAM_STATUS_LABELS[normalized] || status
 }
+
+/**
+ * Safely parses a date input (string, number, Date) ensuring:
+ * - Reject null, undefined, empty, 0, "0", or Unix epoch 1970 artifacts.
+ * - Auto-detect and convert timestamps in seconds (10 digits) to milliseconds.
+ * - Return null for invalid dates or dates in year 1970 or earlier.
+ */
+export function parseValidDate(dateVal: any): Date | null {
+  if (dateVal === null || dateVal === undefined || dateVal === false) return null
+
+  let date: Date
+  if (typeof dateVal === 'number') {
+    if (dateVal <= 0) return null
+    // If timestamp is in seconds (< 10000000000), convert to milliseconds
+    date = new Date(dateVal < 10000000000 ? dateVal * 1000 : dateVal)
+  } else if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim()
+    if (!trimmed || trimmed === '0' || trimmed.startsWith('1970-01-01') || trimmed.startsWith('0000-00-00')) {
+      return null
+    }
+    // Pure numeric string
+    if (/^\d+$/.test(trimmed)) {
+      const num = Number(trimmed)
+      if (num <= 0) return null
+      date = new Date(num < 10000000000 ? num * 1000 : num)
+    } else {
+      date = new Date(trimmed)
+    }
+  } else if (dateVal instanceof Date) {
+    date = dateVal
+  } else {
+    return null
+  }
+
+  if (isNaN(date.getTime()) || date.getFullYear() <= 1970) {
+    return null
+  }
+
+  return date
+}
+
+/**
+ * Formats a submission date in Arabic using the 'Africa/Cairo' timezone.
+ * Returns null if the date is invalid or not yet submitted.
+ * e.g., '١٠ أكتوبر ٢٠٢٦'
+ */
+export function formatSubmissionDate(dateVal: any): string | null {
+  const date = parseValidDate(dateVal)
+  if (!date) return null
+
+  return new Intl.DateTimeFormat('ar-EG', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date)
+}
+
+/**
+ * Formats a submission date and time in Arabic using the 'Africa/Cairo' timezone.
+ * Returns null if the date is invalid or not yet submitted.
+ * e.g., '١٠‏/١٠‏/٢٠٢٦، ٠٤:٢٥ ص'
+ */
+export function formatSubmissionDateTime(dateVal: any): string | null {
+  const date = parseValidDate(dateVal)
+  if (!date) return null
+
+  return new Intl.DateTimeFormat('ar-EG', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date)
+}
+
+/**
+ * Calculates and formats the duration between started_at and submitted_at into Arabic.
+ * Fallback to duration_minutes if available.
+ */
+export function formatExamDuration(
+  startedAt: any,
+  submittedAt: any,
+  durationMinutes?: number | null
+): string | null {
+  const start = parseValidDate(startedAt)
+  const end = parseValidDate(submittedAt)
+
+  if (start && end) {
+    const diffSec = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
+    if (diffSec < 60) {
+      return `${diffSec} ثانية`
+    }
+    const mins = Math.floor(diffSec / 60)
+    const secs = diffSec % 60
+    if (mins < 60) {
+      return secs > 0 ? `${mins} دقيقة و ${secs} ثانية` : `${mins} دقيقة`
+    }
+    const hours = Math.floor(mins / 60)
+    const remMins = mins % 60
+    return remMins > 0 ? `${hours} ساعة و ${remMins} دقيقة` : `${hours} ساعة`
+  }
+
+  if (durationMinutes && durationMinutes > 0) {
+    if (durationMinutes < 60) {
+      return `${durationMinutes} دقيقة`
+    }
+    const hours = Math.floor(durationMinutes / 60)
+    const remMins = durationMinutes % 60
+    return remMins > 0 ? `${hours} ساعة و ${remMins} دقيقة` : `${hours} ساعة`
+  }
+
+  return null
+}

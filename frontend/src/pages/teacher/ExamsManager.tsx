@@ -22,6 +22,8 @@ import {
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import ExamVisibilityModal from '../../components/ExamVisibilityModal'
+import StudentAttemptReviewModal from '../../components/teacher/StudentAttemptReviewModal'
+import { formatSubmissionDateTime } from '../../utils/formatters'
 
 interface CourseItem {
   id: number
@@ -106,29 +108,9 @@ export default function ExamsManager() {
   const [selectedExam, setSelectedExam] = React.useState<ExamItem | null>(null)
   const [attempts, setAttempts] = React.useState<AttemptItem[]>([])
   const [attemptsLoading, setAttemptsLoading] = React.useState(false)
-  const [activeAttempt, setActiveAttempt] = React.useState<AttemptItem | null>(null)
-  const [unlockingAttempt, setUnlockingAttempt] = React.useState(false)
+  const [reviewAttemptId, setReviewAttemptId] = React.useState<number | null>(null)
   const [isVisibilityModalOpen, setIsVisibilityModalOpen] = React.useState(false)
 
-  // Grader Form inputs
-  const [gradeScore, setGradeScore] = React.useState('')
-  const [gradeFeedback, setGradeFeedback] = React.useState('')
-  const [gradedAnswers, setGradedAnswers] = React.useState<Record<number, number>>({}) // question_id => score
-
-  const handleUnlockAnswers = async (attemptId: number) => {
-    setUnlockingAttempt(true)
-    try {
-      const res = await API.post(`/teacher/exams/attempts/${attemptId}/unlock-answers`)
-      useModalStore.getState().showToast(res.data?.message || 'تم فتح عرض نموذج الإجابات للطالب بنجاح.', 'success')
-      setActiveAttempt((prev: any) => prev ? { ...prev, answers_unlocked_at: new Date().toISOString() } : null)
-      setAttempts((prev: any[]) => prev.map(a => a.id === attemptId ? { ...a, answers_unlocked_at: new Date().toISOString() } : a))
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'تعذر إلغاء قفل الإجابات.'
-      useModalStore.getState().showToast(msg, 'error')
-    } finally {
-      setUnlockingAttempt(false)
-    }
-  }
 
   const fetchExams = () => {
     setLoading(true)
@@ -169,7 +151,7 @@ export default function ExamsManager() {
     setSelectedExam(exam)
     setAttemptsLoading(true)
     setAttempts([])
-    setActiveAttempt(null)
+    setReviewAttemptId(null)
 
     API.get(`/teacher/exams/${exam.id}/attempts`)
       .then((res) => {
@@ -180,37 +162,7 @@ export default function ExamsManager() {
   }
 
   const handleOpenGrader = (attempt: AttemptItem) => {
-    setActiveAttempt(attempt)
-    setGradeScore(attempt.score !== null ? attempt.score.toString() : '')
-    setGradeFeedback(attempt.teacher_feedback || '')
-    
-    const initialGrades: Record<number, number> = {}
-    attempt.answers.forEach((ans) => {
-      initialGrades[ans.question_id] = ans.score
-    })
-    setGradedAnswers(initialGrades)
-  }
-
-  const handleSaveGrade = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!activeAttempt || !selectedExam) return
-
-    setAttemptsLoading(true)
-    try {
-      await API.post(`/teacher/attempts/${activeAttempt.id}/grade`, {
-        score: Number(gradeScore),
-        teacher_feedback: gradeFeedback,
-        answers: gradedAnswers,
-      })
-      useModalStore.getState().showToast('تم رصد الدرجة للواجب بنجاح.', 'success')
-      setActiveAttempt(null)
-      handleViewAttempts(selectedExam)
-    } catch (err) {
-      console.error(err)
-      useModalStore.getState().showToast('خطأ أثناء حفظ الدرجة.', 'error')
-    } finally {
-      setAttemptsLoading(false)
-    }
+    setReviewAttemptId(attempt.id)
   }
 
   const handleDeleteExam = (examId: number) => {
@@ -367,8 +319,12 @@ export default function ExamsManager() {
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-slate-450 font-light flex gap-2 pt-0.5">
-                              <span>التسليم: {new Date(att.submitted_at).toLocaleDateString('ar-EG')}</span>
+                            <div className="text-[10px] text-slate-450 font-light flex flex-wrap items-center gap-2 pt-0.5">
+                              <span>
+                                {formatSubmissionDateTime(att.submitted_at)
+                                  ? `التسليم: ${formatSubmissionDateTime(att.submitted_at)}`
+                                  : 'لم يتم التسليم بعد (قيد الحل)'}
+                              </span>
                               <span>•</span>
                               <span className={isGraded ? 'text-brand-success' : 'text-amber-500'}>
                                 {isGraded ? 'تم رصد الدرجة' : 'بانتظار المراجعة والدرجة'}
@@ -376,17 +332,19 @@ export default function ExamsManager() {
                             </div>
                           </div>
 
-                          <div>
-                            {selectedExam.type === 'homework' || !isGraded ? (
-                              <button
-                                onClick={() => handleOpenGrader(att)}
-                                className="px-4 py-2 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
-                              >
-                                {isGraded ? 'تعديل الدرجة' : 'رصد ودرجة'}
-                              </button>
-                            ) : (
-                              <div className="text-sm font-black text-brand-primary">{att.score} / {selectedExam.max_score}</div>
+                          <div className="flex items-center gap-3">
+                            {att.score !== null && att.score !== undefined && (
+                              <div className="text-sm font-black text-brand-primary">
+                                {att.score} / {selectedExam.max_score}
+                              </div>
                             )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenGrader(att)}
+                              className="px-3.5 py-1.5 bg-brand-primary hover:bg-brand-primary-hover text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                            >
+                              <span>{isGraded ? 'مراجعة وتعديل' : 'مراجعة ورصد الدرجة'}</span>
+                            </button>
                           </div>
                         </div>
                       )
@@ -409,249 +367,18 @@ export default function ExamsManager() {
           OVERLAYS & MODALS
           ========================================================================== */}
 
-      {/* 1. Manual Grader Overlay Panel */}
-      {activeAttempt && selectedExam && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="fixed inset-0 bg-transparent" onClick={() => setActiveAttempt(null)} />
-          <div className="relative bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 max-w-lg w-full space-y-6 shadow-2xl overflow-y-auto max-h-[90vh] z-10 text-right">
-            <div className="flex justify-between items-center border-b border-[var(--border-color)] pb-3">
-              <h3 className="font-black text-base text-slate-200">تصحيح إجابات: {activeAttempt.student.name}</h3>
-              <button onClick={() => setActiveAttempt(null)} className="p-1 hover:bg-slate-800 rounded cursor-pointer">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveGrade} className="space-y-6 text-right">
-              
-              {/* Anti-cheat report section */}
-              {(activeAttempt.violation_count ?? 0) > 0 && (
-                <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold text-rose-500">
-                    <span className="flex items-center gap-1">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>تقرير نظام مراقبة الغش والمخالفات</span>
-                    </span>
-                    <span>إجمالي المخالفات: {activeAttempt.violation_count}</span>
-                  </div>
-                  {activeAttempt.violation_timestamps && activeAttempt.violation_timestamps.length > 0 && (
-                    <div className="space-y-2 pt-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">سجل المخالفات التفصيلي:</span>
-                      <div className="space-y-1.5 pr-1 max-h-48 overflow-y-auto" dir="rtl">
-                        {activeAttempt.violation_timestamps.map((t, idx) => {
-                          const isReturn = t.type === 'returned';
-                          const timeStr = new Date(t.time).toLocaleTimeString('ar-EG');
-                          const timeRemainingStr = t.time_remaining !== undefined && t.time_remaining !== null 
-                            ? `${Math.floor(t.time_remaining / 60)} دقيقة و ${t.time_remaining % 60} ثانية`
-                            : null;
-                          
-                          let violationName = t.type;
-                          if (t.type === 'tab_switch') violationName = 'تبديل تبويب المتصفح / مغادرة الصفحة';
-                          else if (t.type === 'window_blur') violationName = 'الخروج عن شاشة الامتحان (فقدان التركيز)';
-                          else if (t.type === 'fullscreen_exit') violationName = 'الخروج من وضع ملء الشاشة';
-                          else if (t.type === 'copy_attempt') violationName = 'محاولة نسخ النص';
-                          else if (t.type === 'paste_attempt') violationName = 'محاولة لصق محتوى خارجي';
-                          else if (t.type === 'right_click_attempt') violationName = 'محاولة استخدام الزر الأيمن';
-                          else if (t.type === 'returned') violationName = 'العودة إلى شاشة الامتحان بعد الخروج';
-
-                          return (
-                            <div key={idx} className={`p-2.5 rounded-xl border text-[10px] space-y-1 ${
-                              isReturn 
-                                ? 'bg-emerald-500/5 border-emerald-500/10 text-emerald-400' 
-                                : 'bg-rose-500/5 border-rose-500/10 text-rose-300'
-                            }`}>
-                              <div className="flex justify-between items-center font-bold">
-                                <span>{isReturn ? '🟢' : '🚨'} {violationName}</span>
-                                <span className="font-light text-slate-450">{timeStr}</span>
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px] text-slate-450 pt-0.5 border-t border-slate-900/60">
-                                {t.question_number && (
-                                  <span>السؤال النشط: {t.question_number}</span>
-                                )}
-                                {timeRemainingStr && (
-                                  <span>الوقت المتبقي: {timeRemainingStr}</span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* Final status summary */}
-                      {activeAttempt.is_suspicious && (
-                        <div className="pt-2.5 border-t border-rose-500/25 text-[10px] text-rose-450 font-bold space-y-1">
-                          <div className="flex items-center gap-1">
-                            <span>⚠️</span>
-                            <span>الحالة النهائية: تم قفل الامتحان بسبب تجاوز المخالفات المسموح بها.</span>
-                          </div>
-                          {(() => {
-                            const lastViol = activeAttempt.violation_timestamps
-                              .filter((t) => t.type !== 'returned')
-                              .pop();
-                            if (lastViol) {
-                              let lastViolName = lastViol.type;
-                              if (lastViol.type === 'tab_switch') lastViolName = 'تبديل تبويب المتصفح';
-                              else if (lastViol.type === 'window_blur') lastViolName = 'مغادرة شاشة الامتحان';
-                              else if (lastViol.type === 'fullscreen_exit') lastViolName = 'الخروج من ملء الشاشة';
-                              else if (lastViol.type === 'copy_attempt') lastViolName = 'محاولة نسخ النص';
-
-                              const remStr = lastViol.time_remaining !== undefined && lastViol.time_remaining !== null 
-                                ? `${Math.floor(lastViol.time_remaining / 60)} دقيقة و ${lastViol.time_remaining % 60} ثانية`
-                                : 'غير متوفر';
-
-                              return (
-                                <div className="text-[9px] text-slate-400 font-medium">
-                                  <span>سبب القفل الأخير: {lastViolName}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>الوقت المتبقي عند القفل: {remStr}</span>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      )}
-
-                      {/* Answer review unlock status & action */}
-                      {activeAttempt.is_suspicious && (
-                        <div className="pt-3 border-t border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                          <div className="flex items-center gap-2 text-[11px]">
-                            <span className="font-bold text-slate-300">عرض الإجابات النموذجية للطالب:</span>
-                            {activeAttempt.answers_unlocked_at ? (
-                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold text-[10px]">
-                                مسموح به (مفتوح) 🟢
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold text-[10px]">
-                                محجوب عن الطالب 🔒
-                              </span>
-                            )}
-                          </div>
-
-                          {!activeAttempt.answers_unlocked_at && (
-                            <button
-                              type="button"
-                              disabled={unlockingAttempt}
-                              onClick={() => handleUnlockAnswers(activeAttempt.id)}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                            >
-                              <span>🔓</span>
-                              <span>{unlockingAttempt ? 'جاري الفتح...' : 'السماح للطالب بعرض الإجابات'}</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Question list student sheet */}
-              <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
-                {activeAttempt.answers.map((ans, idx) => {
-                  return (
-                    <div key={ans.id} className="p-4 bg-[rgba(255,255,255,0.01)] border border-[var(--border-color)] rounded-2xl space-y-3 text-xs sm:text-sm">
-                      <div className="flex justify-between font-bold">
-                        <span className="text-slate-200">س {idx + 1}: {ans.question.text || (ans.question.image_url ? '[سؤال مصور]' : '')}</span>
-                        <span className="text-slate-400">({ans.question.score} درجات)</span>
-                      </div>
-                      
-                      {ans.question.image_url && (
-                        <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 p-1.5 max-w-sm">
-                          <img src={ans.question.image_url} alt="صورة السؤال" className="max-h-36 w-full object-contain rounded" />
-                        </div>
-                      )}
-
-                      {/* Student's answer */}
-                      <div className="p-3 bg-black/30 border border-slate-800 rounded-xl space-y-1">
-                        <div className="text-[10px] text-slate-500">إجابة الطالب:</div>
-                        {ans.answer_text && (ans.answer_text.startsWith('http') || ans.answer_text.startsWith('/storage/')) ? (
-                          <div className="inline-block rounded-lg overflow-hidden border border-slate-800 bg-black/40 p-1">
-                            <img src={ans.answer_text} alt="إجابة الطالب" className="max-h-20 max-w-[150px] object-contain rounded" />
-                          </div>
-                        ) : (
-                          <p className="font-bold text-slate-200">{ans.answer_text || '[لا توجد إجابة]'}</p>
-                        )}
-                      </div>
-
-                      {/* Correct Answer */}
-                      {ans.question.correct_answer && (
-                        <div className="p-3 bg-brand-primary/5 border border-brand-primary/20 rounded-xl space-y-1">
-                          <div className="text-[10px] text-brand-primary">الإجابة النموذجية الصحيحة:</div>
-                          {ans.question.correct_answer.startsWith('http') || ans.question.correct_answer.startsWith('/storage/') ? (
-                            <div className="inline-block rounded-lg overflow-hidden border border-brand-primary/30 bg-black/40 p-1">
-                              <img src={ans.question.correct_answer} alt="الإجابة الصحيحة" className="max-h-20 max-w-[150px] object-contain rounded" />
-                            </div>
-                          ) : (
-                            <p className="font-bold text-brand-primary">{ans.question.correct_answer}</p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Essay score input inline */}
-                      {ans.question.type === 'essay' && (
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs font-semibold text-slate-300">منح الدرجة المحددة:</label>
-                          <input
-                            type="number"
-                            max={ans.question.score}
-                            min={0}
-                            required
-                            value={gradedAnswers[ans.question_id] ?? ''}
-                            onChange={(e) => {
-                              const val = Number(e.target.value)
-                              setGradedAnswers((prev) => ({
-                                ...prev,
-                                [ans.question_id]: val
-                              }))
-                            }}
-                            placeholder="0"
-                            className="w-20 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-lg px-2.5 py-1 text-center text-xs text-slate-200 focus:outline-none"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Total score summary */}
-              <div className="grid grid-cols-2 gap-4 border-t border-[var(--border-color)] pt-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300">الدرجة الكلية المستحقة</label>
-                  <input
-                    type="number"
-                    max={selectedExam.max_score}
-                    min={0}
-                    required
-                    value={gradeScore}
-                    onChange={(e) => setGradeScore(e.target.value)}
-                    placeholder={`الحد الأقصى ${selectedExam.max_score}`}
-                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Feedback */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">ملاحظات وتقييم المدرس</label>
-                <textarea
-                  rows={3}
-                  value={gradeFeedback || ''}
-                  onChange={(e) => setGradeFeedback(e.target.value)}
-                  placeholder="مثال: إجابة ممتازة وخط منظم..."
-                  className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl p-4 text-xs text-slate-200 focus:outline-none"
-                />
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex justify-end gap-3 border-t border-[var(--border-color)] pt-4">
-                <button type="button" onClick={() => setActiveAttempt(null)} className="px-4 py-2.5 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] text-xs rounded-xl cursor-pointer">إلغاء</button>
-                <button type="submit" className="px-6 py-2.5 bg-brand-primary hover:bg-brand-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer">حفظ ورصد الدرجة</button>
-              </div>
-
-            </form>
-          </div>
-        </div>
+      {/* 1. Student Attempt Review & Grading Modal */}
+      {selectedExam && (
+        <StudentAttemptReviewModal
+          isOpen={!!reviewAttemptId}
+          onClose={() => setReviewAttemptId(null)}
+          attemptId={reviewAttemptId}
+          examId={selectedExam.id}
+          isMonthlyExam={false}
+          onGradeSaved={() => {
+            handleViewAttempts(selectedExam)
+          }}
+        />
       )}
 
       {/* Exam Result Visibility Control Modal */}
