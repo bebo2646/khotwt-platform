@@ -2873,9 +2873,9 @@ export default function LessonViewer({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 w-full sm:w-auto justify-between sm:justify-end pt-2 sm:pt-0 border-t border-slate-800/40 sm:border-t-0">
                           {isSolved && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               {attempt.status === 'graded' ? (
                                 <div className="text-xs font-bold text-brand-success">
                                   الدرجة: <span dir="ltr" className="inline-block font-sans">{attempt.score} / {exam.max_score}</span>

@@ -570,7 +570,7 @@ export default function CourseDetail() {
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none font-sans"
                     >
                       {/* Video Title Row */}
-                      <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1 w-full sm:w-auto">
                         <Play className={`h-3.5 w-3.5 shrink-0 mt-0.5 sm:mt-0 ${isCurrentActive ? 'text-brand-success' : 'text-brand-primary'}`} />
                         <span className={`font-semibold min-w-0 break-words leading-snug sm:truncate ${isCurrentActive ? 'text-brand-success font-bold' : 'text-slate-200'}`}>
                           ▶ مشاهدة الفيديو: {vid.title}
@@ -585,9 +585,9 @@ export default function CourseDetail() {
                       </div>
                       
                       {/* Actions & Mobile Meta Row */}
-                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto pt-1 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
+                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-2.5 w-full sm:w-auto pt-1.5 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
                         {/* Mobile Meta (Badge + Duration) */}
-                        <div className="flex sm:hidden items-center gap-1.5 min-w-0 flex-wrap">
+                        <div className="flex sm:hidden items-center gap-1.5 shrink-0 flex-wrap">
                           {(vid.duration_seconds || vid.duration_text) && (
                             <span className="text-[10px] text-slate-500 whitespace-nowrap">({formatDurationArabic(vid.duration_seconds || 0)})</span>
                           )}
@@ -595,7 +595,7 @@ export default function CourseDetail() {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ms-auto sm:ms-0">
                           <button
                             type="button"
                             onClick={(e) => handlePlayVideo(vid, lesson.id, e)}
@@ -681,7 +681,7 @@ export default function CourseDetail() {
                     className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
                   >
                     {/* PDF Title Row */}
-                    <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                    <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1 w-full sm:w-auto">
                       <FileText className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
                       <span className="font-semibold text-slate-200 min-w-0 break-words leading-snug sm:truncate">
                         📄 فتح الملف: {pdf.title}
@@ -693,14 +693,14 @@ export default function CourseDetail() {
                     </div>
                     
                     {/* Actions & Mobile Meta Row */}
-                    <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto pt-1 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
+                    <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-2.5 w-full sm:w-auto pt-1.5 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
                       {/* Mobile Meta (Badge) */}
-                      <div className="flex sm:hidden items-center gap-1.5 min-w-0">
+                      <div className="flex sm:hidden items-center gap-1.5 shrink-0">
                         {!pdf.is_locked && pdf.progress && pdf.progress.status !== 'not_started' && renderStatusBadge(pdf.progress.status, 'pdf')}
                       </div>
 
                       {/* Action Buttons */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ms-auto sm:ms-0">
                         <button
                           type="button"
                           onClick={(e) => {
@@ -792,7 +792,7 @@ export default function CourseDetail() {
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] sm:text-xs text-slate-300 hover:text-slate-100 transition-colors cursor-pointer select-none"
                     >
                       {/* Exam Title Row */}
-                      <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 flex-1 w-full sm:w-auto">
                         {isHomework ? (
                           <ClipboardList className="h-3.5 w-3.5 text-indigo-400 shrink-0 mt-0.5 sm:mt-0" />
                         ) : (
@@ -808,14 +808,14 @@ export default function CourseDetail() {
                       </div>
                       
                       {/* Actions & Mobile Meta Row */}
-                      <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto pt-1 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
+                      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-2.5 w-full sm:w-auto pt-1.5 sm:pt-0 border-t border-slate-900/50 sm:border-t-0">
                         {/* Mobile Meta (Badge) */}
-                        <div className="flex sm:hidden items-center gap-1.5 min-w-0">
+                        <div className="flex sm:hidden items-center gap-1.5 shrink-0">
                           {!ex.is_locked && ex.progress && renderStatusBadge(ex.progress.status, isHomework ? 'homework' : 'exam')}
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ms-auto sm:ms-0">
                           {/* If student already has a finished attempt, show secondary "عرض النتيجة" */}
                           {!ex.is_locked && hasValidFinalResult(ex) && (
                             <button
@@ -887,7 +887,17 @@ export default function CourseDetail() {
                               </button>
                             );
                           })()}
-                          <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleContentItem(`exam-${ex.id}`);
+                            }}
+                            className="p-1 hover:text-slate-300 text-slate-500 transition-colors cursor-pointer shrink-0"
+                            title="تفاصيل إضافية"
+                          >
+                            <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-300 ${expandedContentItems[`exam-${ex.id}`] ? 'rotate-180' : ''}`} />
+                          </button>
                         </div>
                     </div>
                   </div>
