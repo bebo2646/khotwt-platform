@@ -4028,65 +4028,125 @@ class StudentController extends Controller
     }
 
     /**
-     * Get recommended courses for student based on educational stage.
+     * Get recommended courses for student based on educational stage/grade or faculty/band,
+     * latest courses published in the last 7 days, and courses to explore other stages.
      */
     public function recommendedCourses(Request $request)
     {
         $user = $request->user();
-        $studentGrades = $user->grades ?? [];
+        $studentGrades = $user ? ($user->grades ?? []) : [];
         if (!is_array($studentGrades)) {
             $studentGrades = [$studentGrades];
         }
-        
+
         $studentGrade = !empty($studentGrades) ? $studentGrades[0] : null;
-        $cacheKey = 'recommended_courses_' . ($studentGrade ?? 'none');
+        $studentCategory = $user ? $user->category : null;
 
-        $data = \Cache::remember($cacheKey, 300, function() use ($studentGrade) {
-            $eagerRelations = [
-                'teacher',
-                'childCourses' => function ($q) {
-                    $q->withCount(['units', 'lessons']);
-                }
-            ];
+        // Find grade details from database to know if university or school
+        $gradeModel = null;
+        $stageModel = null;
+        if ($studentGrade) {
+            $gradeModel = \App\Models\AcademicGrade::with('stage')->where('slug', $studentGrade)->first();
+            $stageModel = $gradeModel ? $gradeModel->stage : null;
+        }
 
-            $recommended = [];
-            if ($studentGrade) {
-                $recommended = \App\Models\Course::with($eagerRelations)
-                    ->withCount(['units', 'lessons'])
-                    ->where('is_published', true)
-                    ->where(function($q) use ($studentGrade) {
-                        $q->where('grade', $studentGrade)
-                          ->orWhere(function($bq) use ($studentGrade) {
-                              $bq->where('is_bundle', true)
-                                 ->whereHas('childCourses', function($cq) use ($studentGrade) {
-                                     $cq->where('grade', $studentGrade);
-                                 });
-                          });
-                    })
-                    ->latest()
-                    ->get();
+        $isUniversity = ($stageModel && $stageModel->sector === 'university') || ($studentCategory === 'university');
+        $gradeName = $gradeModel ? $gradeModel->name : ($studentGrade ? (new \App\Http\Controllers\PublicController())->translateGrade($studentGrade) : '');
+        $stageName = $stageModel ? $stageModel->name : '';
+
+        $eagerRelations = [
+            'teacher' => function ($q) {
+                $q->select('id', 'name', 'avatar', 'subject', 'slug', 'category');
+            },
+            'childCourses' => function ($q) {
+                $q->withCount(['units', 'lessons']);
+            }
+        ];
+
+        // 1. Recommended courses for student's specific grade or university year/band
+        $recommended = [];
+        if ($studentGrade) {
+            $recommendedQuery = \App\Models\Course::with($eagerRelations)
+                ->withCount(['units', 'lessons'])
+                ->where('is_published', true)
+                ->where(function($q) use ($studentGrade) {
+                    $q->where('grade', $studentGrade)
+                      ->orWhere(function($bq) use ($studentGrade) {
+                          $bq->where('is_bundle', true)
+                             ->whereHas('childCourses', function($cq) use ($studentGrade) {
+                                 $cq->where('grade', $studentGrade);
+                             });
+                      });
+                });
+
+            // If university faculty stage is known, also allow courses matching the category
+            if ($isUniversity && $stageModel) {
+                $recommendedQuery->orWhere(function($uq) use ($stageModel) {
+                    $uq->where('is_published', true)
+                       ->where('category', $stageModel->slug);
+                });
             }
 
-            $latest = \App\Models\Course::with($eagerRelations)
-                ->withCount(['units', 'lessons'])
-                ->where('is_published', true)
-                ->latest()
-                ->take(6)
-                ->get();
+            $recommended = $recommendedQuery
+                ->orderBy('created_at', 'desc')
+                ->take(12)
+                ->get()
+                ->unique('id')
+                ->values();
+        }
 
-            $allCourses = \App\Models\Course::with($eagerRelations)
-                ->withCount(['units', 'lessons'])
-                ->where('is_published', true)
-                ->latest()
-                ->get();
+        // 2. Latest courses: published in the LAST 7 DAYS ONLY, ordered newest to oldest
+        $sevenDaysAgo = now()->subDays(7)->startOfDay();
+        $latest = \App\Models\Course::with($eagerRelations)
+            ->withCount(['units', 'lessons'])
+            ->where('is_published', true)
+            ->where(function ($q) use ($sevenDaysAgo) {
+                $q->where('created_at', '>=', $sevenDaysAgo)
+                  ->orWhere('last_content_updated_at', '>=', $sevenDaysAgo);
+            })
+            ->orderBy('created_at', 'desc')
+            ->take(12)
+            ->get()
+            ->unique('id')
+            ->values();
 
-            return [
-                'recommended' => $recommended,
-                'latest' => $latest,
-                'allCourses' => $allCourses,
-            ];
-        });
+        // 3. Explore other stages / bands
+        $exploreQuery = \App\Models\Course::with($eagerRelations)
+            ->withCount(['units', 'lessons'])
+            ->where('is_published', true);
 
-        return response()->json($data);
+        if ($studentGrade) {
+            $exploreQuery->where('grade', '!=', $studentGrade);
+        }
+
+        $exploreOther = $exploreQuery
+            ->orderBy('created_at', 'desc')
+            ->take(12)
+            ->get()
+            ->unique('id')
+            ->values();
+
+        // 4. All courses for general catalog searching
+        $allCourses = \App\Models\Course::with($eagerRelations)
+            ->withCount(['units', 'lessons'])
+            ->where('is_published', true)
+            ->orderBy('created_at', 'desc')
+            ->take(50)
+            ->get();
+
+        return response()->json([
+            'recommended' => $recommended,
+            'latest' => $latest,
+            'exploreOther' => $exploreOther,
+            'allCourses' => $allCourses,
+            'profile_info' => [
+                'has_grade' => !empty($studentGrade),
+                'grade_key' => $studentGrade,
+                'grade_name' => $gradeName,
+                'stage_name' => $stageName,
+                'is_university' => $isUniversity,
+                'sector' => $isUniversity ? 'university' : 'school',
+            ],
+        ]);
     }
 }

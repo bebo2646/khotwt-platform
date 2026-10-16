@@ -3,12 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import API from '../../services/api'
 import { useModalStore } from '../../store/modalStore'
 import { useConfigStore } from '../../store/configStore'
-import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2, Eye } from 'lucide-react'
+import { Plus, Edit3, Trash2, BookOpen, Video, FileText, Package, FolderPlus, Folder, ChevronDown, Check, Loader2, Eye, FolderTree, Sparkles, GraduationCap, School } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
 import * as tus from 'tus-js-client'
 import { getCourseDisplayPrice } from '../../utils/pricing'
 import { formatDurationArabic } from '../../utils/video'
 import { startBunnyTusUpload, type BunnyUploadHandle } from '../../utils/bunnyUpload'
+import { useAuthStore } from '../../store/authStore'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface CourseItem {
   id: number
@@ -24,6 +26,7 @@ interface CourseItem {
   discount_type?: 'percentage' | 'fixed' | null
   discount_value?: number | null
   final_price?: number | null
+  category?: string
   availability?: 'online' | 'center' | 'both'
 }
 
@@ -61,27 +64,19 @@ interface PackageItem {
   package_thumbnail?: string
 }
 
-const GRADES = [
-  { key: 'first_preparatory', val: 'الصف الأول الإعدادي' },
-  { key: 'second_preparatory', val: 'الصف الثاني الإعدادي' },
-  { key: 'third_preparatory', val: 'الصف الثالث الإعدادي' },
-  { key: 'first_secondary', val: 'الصف الأول الثانوي' },
-  { key: 'second_secondary', val: 'الصف الثاني الثانوي' },
-  { key: 'third_secondary', val: 'الصف الثالث الثانوي' },
-]
-
-const SUBJECTS = [
-  { key: 'chemistry', val: 'الكيمياء' },
-  { key: 'physics', val: 'الفيزياء' },
-  { key: 'integrated_science', val: 'علوم متكاملة' },
-  { key: 'biology', val: 'الأحياء' },
-  { key: 'math', val: 'الرياضيات' },
-  { key: 'science', val: 'العلوم' },
-  { key: 'arabic', val: 'اللغة العربية' },
-  { key: 'english', val: 'اللغة الإنجليزية' },
-]
-
 export default function ManageCourses() {
+  const { user } = useAuthStore()
+  const {
+    grades: taxonomyGrades,
+    subjects: taxonomySubjects,
+    stages,
+    fetchTaxonomy,
+    getSubjectName
+  } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
   // Lists
   const [courses, setCourses] = React.useState<CourseItem[]>([])
   const [selectedCourse, setSelectedCourse] = React.useState<CourseItem | null>(null)
@@ -123,6 +118,158 @@ export default function ManageCourses() {
   const [courseGrade, setCourseGrade] = React.useState('')
   const [courseSubject, setCourseSubject] = React.useState('')
   const [courseAvailability, setCourseAvailability] = React.useState<'online' | 'center' | 'both'>('online')
+  const [courseSector, setCourseSector] = React.useState<'school' | 'university'>(
+    user?.category === 'university' ? 'university' : 'school'
+  )
+  const [courseStageId, setCourseStageId] = React.useState<string>('')
+
+  // Filter active stages for course sector
+  const courseAvailableStages = React.useMemo(() => {
+    return (stages || []).filter(s => {
+      if (!s.is_active) return false
+      if (s.sector) {
+        return s.sector === courseSector
+      }
+      if (courseSector === 'university') {
+        return s.slug === 'faclty' || s.name.includes('جامع') || s.name.includes('كلي')
+      }
+      return s.slug !== 'faclty' && !s.name.includes('جامع')
+    })
+  }, [stages, courseSector])
+
+  // Dynamic grade options (supports both school grades and university bands)
+  const gradeOptions = React.useMemo(() => {
+    let active = (taxonomyGrades || []).filter(g => g.is_active)
+
+    // Filter by sector
+    if (courseSector === 'university') {
+      active = active.filter(g => g.level_type === 'university_year' || (g.stage_id && courseAvailableStages.some(s => s.id === g.stage_id)))
+    } else {
+      active = active.filter(g => g.level_type !== 'university_year')
+    }
+
+    // Filter by stage if selected
+    if (courseStageId) {
+      active = active.filter(g => String(g.stage_id) === String(courseStageId))
+    }
+
+    if (active.length === 0) {
+      if (courseSector === 'university') {
+        return (taxonomyGrades || []).filter(g => g.level_type === 'university_year').map(g => ({
+          key: g.slug,
+          val: g.name
+        }))
+      }
+      return [
+        { key: 'first_preparatory', val: 'الصف الأول الإعدادي' },
+        { key: 'second_preparatory', val: 'الصف الثاني الإعدادي' },
+        { key: 'third_preparatory', val: 'الصف الثالث الإعدادي' },
+        { key: 'first_secondary', val: 'الصف الأول الثانوي' },
+        { key: 'second_secondary', val: 'الصف الثاني الثانوي' },
+        { key: 'third_secondary', val: 'الصف الثالث الثانوي' },
+      ]
+    }
+
+    return active.map(g => {
+      const stage = (stages || []).find(s => s.id === g.stage_id)
+      const stageLabel = stage ? ` (${stage.name})` : ''
+      return {
+        key: g.slug,
+        val: `${g.name}${stageLabel}`
+      }
+    })
+  }, [taxonomyGrades, stages, courseSector, courseStageId, courseAvailableStages])
+
+  // Destination path preview derivation for course modal
+  const destinationPathPreview = React.useMemo(() => {
+    const sectorName = courseSector === 'university' ? 'التعليم الجامعي' : 'التعليم المدرسي'
+    const stageName = courseStageId
+      ? courseAvailableStages.find(s => String(s.id) === String(courseStageId))?.name
+      : (courseSector === 'university' ? 'جميع الكليات' : 'جميع المراحل المدرسية')
+    const gradeObj = (taxonomyGrades || []).find(g => g.slug === courseGrade)
+    const gradeName = gradeObj?.name || (courseGrade || 'اختر الصف أو الفرقة')
+    const subjectName = courseSubject ? (getSubjectName(courseSubject) || courseSubject) : 'اختر المادة العلمية'
+
+    return {
+      sectorName,
+      stageName,
+      gradeName,
+      subjectName,
+      fullPath: `${sectorName} ← ${stageName} ← ${gradeName} ← ${subjectName}`
+    }
+  }, [courseSector, courseStageId, courseGrade, courseSubject, courseAvailableStages, taxonomyGrades, getSubjectName])
+
+  // Automatic Content Hierarchy Breadcrumb for the currently selected course
+  const selectedCoursePath = React.useMemo(() => {
+    if (!selectedCourse) return null
+    const gradeObj = (taxonomyGrades || []).find(g => g.slug === selectedCourse.grade)
+    const stageObj = (stages || []).find(s => s.id === gradeObj?.stage_id)
+    const isUni = gradeObj?.level_type === 'university_year' || stageObj?.sector === 'university' || selectedCourse.category === 'university'
+    const sectorLabel = isUni ? '🎓 التعليم الجامعي' : '🏫 التعليم المدرسي'
+    const stageLabel = stageObj?.name || (isUni ? 'المرحلة الجامعية' : 'المرحلة الثانوية/الإعدادية')
+    const gradeLabel = gradeObj?.name || selectedCourse.grade
+    const subjectLabel = getSubjectName(selectedCourse.subject) || selectedCourse.subject
+
+    return {
+      isUni,
+      sectorLabel,
+      stageLabel,
+      gradeLabel,
+      subjectLabel
+    }
+  }, [selectedCourse, taxonomyGrades, stages, getSubjectName])
+
+  // Dynamic subject options (supports both school and university subjects)
+  const subjectOptions = React.useMemo(() => {
+    const list: Array<{ key: string; val: string }> = []
+    const seen = new Set<string>()
+
+    // 1. Add active subjects from taxonomy store
+    ;(taxonomySubjects || []).filter(s => s.is_active).forEach(s => {
+      if (!seen.has(s.slug)) {
+        seen.add(s.slug)
+        list.push({ key: s.slug, val: s.name })
+      }
+    })
+
+    // 2. Add teacher's own registered subjects (from user.subject)
+    if (user?.subject) {
+      user.subject.split(',').forEach(rawSub => {
+        const trimmed = rawSub.trim()
+        if (trimmed && !seen.has(trimmed)) {
+          seen.add(trimmed)
+          list.push({ key: trimmed, val: getSubjectName(trimmed) || trimmed })
+        }
+      })
+    }
+
+    // 3. Fallback canonical school subjects if empty
+    if (list.length === 0) {
+      const fallbacks = [
+        { key: 'chemistry', val: 'الكيمياء' },
+        { key: 'physics', val: 'الفيزياء' },
+        { key: 'integrated_science', val: 'علوم متكاملة' },
+        { key: 'biology', val: 'الأحياء' },
+        { key: 'math', val: 'الرياضيات' },
+        { key: 'science', val: 'العلوم' },
+        { key: 'arabic', val: 'اللغة العربية' },
+        { key: 'english', val: 'اللغة الإنجليزية' },
+      ]
+      fallbacks.forEach(f => {
+        if (!seen.has(f.key)) {
+          seen.add(f.key)
+          list.push(f)
+        }
+      })
+    }
+
+    // 4. If current course being edited has a subject not yet in list, keep it
+    if (courseSubject && !seen.has(courseSubject)) {
+      list.push({ key: courseSubject, val: getSubjectName(courseSubject) || courseSubject })
+    }
+
+    return list
+  }, [taxonomySubjects, user?.subject, courseSubject, getSubjectName])
 
   const [unitTitle, setUnitTitle] = React.useState('')
   const [lessonTitle, setLessonTitle] = React.useState('')
@@ -395,6 +542,7 @@ export default function ManageCourses() {
       price: coursePrice || '0.00',
       grade: courseGrade,
       subject: courseSubject,
+      category: courseSector,
       enable_discount: courseEnableDiscount,
       discount_type: courseDiscountType,
       discount_value: courseDiscountValue || '0.00',
@@ -433,6 +581,21 @@ export default function ManageCourses() {
     setCourseEnableDiscount(!!course.enable_discount)
     setCourseDiscountType(course.discount_type || 'percentage')
     setCourseDiscountValue(course.discount_value !== null && course.discount_value !== undefined ? course.discount_value.toString() : '')
+
+    // Auto-detect sector and stage
+    const foundGrade = (taxonomyGrades || []).find(g => g.slug === course.grade)
+    const foundStage = (stages || []).find(s => s.id === foundGrade?.stage_id)
+    if (foundStage) {
+      setCourseStageId(foundStage.id.toString())
+      setCourseSector(foundStage.sector || (foundGrade?.level_type === 'university_year' ? 'university' : 'school'))
+    } else if (foundGrade?.level_type === 'university_year') {
+      setCourseSector('university')
+      setCourseStageId('')
+    } else {
+      setCourseSector(course.category === 'university' ? 'university' : 'school')
+      setCourseStageId('')
+    }
+
     setShowCourseForm(true)
   }
 
@@ -472,6 +635,8 @@ export default function ManageCourses() {
     setCourseEnableDiscount(false)
     setCourseDiscountType('percentage')
     setCourseDiscountValue('')
+    setCourseStageId('')
+    setCourseSector(user?.category === 'university' ? 'university' : 'school')
   }
 
   // Unit handlers
@@ -1447,6 +1612,39 @@ export default function ManageCourses() {
                 </div>
               </div>
 
+              {/* Automatic Content Hierarchy Breadcrumb Banner */}
+              {selectedCoursePath && (
+                <div className="bg-gradient-to-r from-brand-primary/10 via-brand-primary/5 to-transparent border border-brand-primary/20 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                      <FolderTree className="h-3.5 w-3.5 text-brand-primary" />
+                      <span>مسار التنظيم التلقائي لمحتوى هذا الكورس:</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap font-bold text-slate-200">
+                      <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-brand-primary">
+                        {selectedCoursePath.sectorLabel}
+                      </span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300">
+                        {selectedCoursePath.stageLabel}
+                      </span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-emerald-400">
+                        {selectedCoursePath.gradeLabel}
+                      </span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-amber-400">
+                        {selectedCoursePath.subjectLabel}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-300 bg-brand-bg/60 border border-white/5 rounded-xl px-3.5 py-2 flex items-center gap-2 shrink-0">
+                    <Sparkles className="h-4 w-4 text-brand-primary shrink-0" />
+                    <span>يتم ربط أي درس أو فيديو أو PDF أو امتحان يضاف هنا تلقائياً بهذا الصف/الفرقة</span>
+                  </div>
+                </div>
+              )}
+
               {/* Units builder list */}
               {selectedCourse.is_bundle ? (
                 /* Bundled course child references manager */
@@ -1941,36 +2139,134 @@ export default function ManageCourses() {
                   )}
                 </div>
 
-                {/* Grade */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold">الصف الدراسي</label>
-                  <select
-                    required
-                    value={courseGrade}
-                    onChange={(e) => setCourseGrade(e.target.value)}
-                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
-                  >
-                    <option value="">اختر الصف الدراسي...</option>
-                    {GRADES.map((g) => (
-                      <option key={g.key} value={g.key}>{g.val}</option>
-                    ))}
-                  </select>
-                </div>
+                {/* Educational Classification Section */}
+                <div className="col-span-2 pt-2 border-t border-[var(--border-color)] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                      <FolderTree className="h-4 w-4 text-brand-primary" />
+                      <span>التصنيف التعليمي والتنظيم التلقائي للكورس:</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">يحدد مسار ظهور الكورس والمحتوى للطلاب</span>
+                  </div>
 
-                {/* Subject */}
-                <div className="space-y-1 col-span-2">
-                  <label className="text-xs font-semibold">المادة العلمية</label>
-                  <select
-                    required
-                    value={courseSubject}
-                    onChange={(e) => setCourseSubject(e.target.value)}
-                    className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
-                  >
-                    <option value="">اختر المادة...</option>
-                    {SUBJECTS.map((s) => (
-                      <option key={s.key} value={s.key}>{s.val}</option>
-                    ))}
-                  </select>
+                  {/* Sector selector buttons */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCourseSector('school')
+                        setCourseStageId('')
+                        setCourseGrade('')
+                      }}
+                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        courseSector === 'school'
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-sm'
+                          : 'border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <School className="h-4 w-4" />
+                      <span>التعليم المدرسي (إعدادي / ثانوي)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCourseSector('university')
+                        setCourseStageId('')
+                        setCourseGrade('')
+                      }}
+                      className={`p-3 rounded-2xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        courseSector === 'university'
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-sm'
+                          : 'border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <GraduationCap className="h-4 w-4" />
+                      <span>التعليم الجامعي (كليات وفرق)</span>
+                    </button>
+                  </div>
+
+                  {/* Stage / Faculty + Grade / Band row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Stage / Faculty */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold">
+                        {courseSector === 'university' ? 'الكلية أو المجال الجامعي' : 'المرحلة التعليمية'}
+                      </label>
+                      <select
+                        value={courseStageId}
+                        onChange={(e) => {
+                          setCourseStageId(e.target.value)
+                          setCourseGrade('')
+                        }}
+                        className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
+                      >
+                        <option value="">{courseSector === 'university' ? 'اختر الكلية...' : 'اختر المرحلة...'}</option>
+                        {courseAvailableStages.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Grade / Band */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold">
+                        {courseSector === 'university' ? 'الفرقة الجامعية' : 'الصف الدراسي'}
+                      </label>
+                      <select
+                        required
+                        value={courseGrade}
+                        onChange={(e) => setCourseGrade(e.target.value)}
+                        className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
+                      >
+                        <option value="">{courseSector === 'university' ? 'اختر الفرقة الجامعية...' : 'اختر الصف الدراسي...'}</option>
+                        {gradeOptions.map((g) => (
+                          <option key={g.key} value={g.key}>{g.val}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Subject */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold">المادة العلمية</label>
+                    <select
+                      required
+                      value={courseSubject}
+                      onChange={(e) => setCourseSubject(e.target.value)}
+                      className="w-full bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-brand-primary"
+                    >
+                      <option value="">اختر المادة...</option>
+                      {subjectOptions.map((s) => (
+                        <option key={s.key} value={s.key}>{s.val}</option>
+                      ))}
+                    </select>
+                    {courseSector === 'university' && subjectOptions.length <= 8 && (
+                      <p className="text-[10px] text-slate-400">
+                        ملاحظة: إذا لم تجد المادة الجامعية المطلوبة، يستطيع مسؤول النظام (Admin) إضافتها فوراً من صفحة إدارة التصنيفات.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Destination Path Preview Box */}
+                  <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+                      <FolderTree className="h-4 w-4" />
+                      <span>مسار التوجيه والتنظيم التلقائي لمحتويات الكورس:</span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-200 flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">{destinationPathPreview.sectorName}</span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10">{destinationPathPreview.stageName}</span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-emerald-400">{destinationPathPreview.gradeName}</span>
+                      <span className="text-slate-500">←</span>
+                      <span className="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-amber-400">{destinationPathPreview.subjectName}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed font-light">
+                      💡 بمجرد حفظ الكورس، أي فيديوهات أو دروس أو ملفات PDF أو امتحانات تضيفها داخل هذا الكورس سيتم ربطها تلقائياً بهذا المسار، وستظهر للطلاب في مجلد فرقتهم الدراسية دون الحاجة لتحديد المجلد يدوياً عند كل رفع.
+                    </p>
+                  </div>
                 </div>
 
               </div>

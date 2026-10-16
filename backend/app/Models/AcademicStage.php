@@ -12,6 +12,7 @@ class AcademicStage extends Model
     protected $fillable = [
         'name',
         'slug',
+        'sector',
         'order',
         'is_active',
     ];
@@ -31,8 +32,28 @@ class AcademicStage extends Model
         return $this->hasMany(AcademicGrade::class, 'stage_id')->where('is_active', true)->orderBy('order', 'asc');
     }
 
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(AcademicSubject::class, 'stage_id')->orderBy('order', 'asc');
+    }
+
+    public function activeSubjects(): HasMany
+    {
+        return $this->hasMany(AcademicSubject::class, 'stage_id')->where('is_active', true)->orderBy('order', 'asc');
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true)->orderBy('order', 'asc');
+    }
+
+    public function scopeSchool($query)
+    {
+        return $query->where('sector', 'school');
+    }
+
+    public function scopeUniversity($query)
+    {
+        return $query->where('sector', 'university');
     }
 }

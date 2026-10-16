@@ -16,19 +16,14 @@ import {
   Shield, 
   Upload, 
   Eye, 
-  EyeOff 
+  EyeOff,
+  School,
+  GraduationCap,
+  AlertTriangle,
+  RefreshCw,
+  ExternalLink,
+  BookOpen
 } from 'lucide-react'
-
-const SUBJECTS = [
-  { key: 'chemistry', val: 'الكيمياء' },
-  { key: 'physics', val: 'الفيزياء' },
-  { key: 'integrated_science', val: 'علوم متكاملة' },
-  { key: 'biology', val: 'الأحياء' },
-  { key: 'math', val: 'الرياضيات' },
-  { key: 'science', val: 'العلوم' },
-  { key: 'arabic', val: 'اللغة العربية' },
-  { key: 'english', val: 'اللغة الإنجليزية' },
-]
 
 const PLANS = [
   { id: 1, name: 'Starter', storage: 10, codes: 50, price: 199 },
@@ -37,13 +32,30 @@ const PLANS = [
   { id: 4, name: 'Academy', storage: 100, codes: 500, price: 1199 },
 ]
 
+const FALLBACK_SCHOOL_SUBJECTS = [
+  { slug: 'chemistry', name: 'الكيمياء' },
+  { slug: 'physics', name: 'الفيزياء' },
+  { slug: 'integrated_science', name: 'علوم متكاملة' },
+  { slug: 'biology', name: 'الأحياء' },
+  { slug: 'math', name: 'الرياضيات' },
+  { slug: 'science', name: 'العلوم' },
+  { slug: 'arabic', name: 'اللغة العربية' },
+  { slug: 'english', name: 'اللغة الإنجليزية' },
+]
+
 export default function CreateTeacher() {
   const navigate = useNavigate()
-  const { departments, stages, grades, fetchTaxonomy } = useTaxonomyStore()
+  const { departments, stages, grades, subjects, fetchTaxonomy } = useTaxonomyStore()
 
   React.useEffect(() => {
     fetchTaxonomy()
   }, [fetchTaxonomy])
+
+  // Sector and category state
+  const [sector, setSector] = React.useState<'school' | 'university'>('school')
+  const [selectedStageId, setSelectedStageId] = React.useState<string>('')
+  const [specialization, setSpecialization] = React.useState('')
+  const [refreshingTaxonomy, setRefreshingTaxonomy] = React.useState(false)
 
   // Form states
   const [name, setName] = React.useState('')
@@ -62,6 +74,81 @@ export default function CreateTeacher() {
   const [avatar, setAvatar] = React.useState('')
   const [uploading, setUploading] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
+
+  // Sector switcher handler
+  const handleSectorChange = (newSector: 'school' | 'university') => {
+    setSector(newSector)
+    setSelectedCategory(newSector)
+    setSelectedStageId('')
+    setSelectedGrades([])
+    setSelectedSubjects([])
+  }
+
+  // Filter active stages for chosen sector
+  const availableStages = React.useMemo(() => {
+    return stages.filter(s => {
+      if (!s.is_active) return false
+      if (s.sector) {
+        return s.sector === sector
+      }
+      if (sector === 'university') {
+        return s.slug === 'faclty' || s.name.includes('جامع') || s.name.includes('كلي')
+      }
+      return s.slug !== 'faclty' && !s.name.includes('جامع')
+    })
+  }, [stages, sector])
+
+  // Filter active grades/bands for chosen sector & stage
+  const availableGrades = React.useMemo(() => {
+    return grades.filter(g => {
+      if (!g.is_active) return false
+      if (sector === 'university') {
+        const isUni = g.level_type === 'university_year' || (g.stage_id && availableStages.some(s => s.id === g.stage_id))
+        if (!isUni) return false
+        if (selectedStageId && g.stage_id && String(g.stage_id) !== String(selectedStageId)) return false
+        return true
+      } else {
+        const isSchool = g.level_type !== 'university_year'
+        if (!isSchool) return false
+        if (selectedStageId && g.stage_id && String(g.stage_id) !== String(selectedStageId)) return false
+        return true
+      }
+    })
+  }, [grades, sector, selectedStageId, availableStages])
+
+  // Filter active subjects for chosen sector & stage
+  const availableSubjects = React.useMemo(() => {
+    const list = (subjects || []).filter(s => {
+      if (!s.is_active) return false
+      if (s.sector && s.sector !== sector) return false
+      if (selectedStageId && s.stage_id && String(s.stage_id) !== String(selectedStageId)) return false
+      return true
+    })
+    if (list.length === 0 && sector === 'school') {
+      return FALLBACK_SCHOOL_SUBJECTS.map(f => ({
+        id: f.slug,
+        name: f.name,
+        slug: f.slug,
+        sector: 'school' as const,
+        stage_id: null,
+        grade_id: null,
+        is_active: true
+      }))
+    }
+    return list
+  }, [subjects, sector, selectedStageId])
+
+  const handleRefreshSubjects = async () => {
+    setRefreshingTaxonomy(true)
+    try {
+      await fetchTaxonomy()
+      useModalStore.getState().showToast('تم تحديث قائمة المواد من قاعدة البيانات.', 'success')
+    } catch {
+      useModalStore.getState().showToast('تعذر تحديث البيانات.', 'error')
+    } finally {
+      setRefreshingTaxonomy(false)
+    }
+  }
 
   // Subscription states
   const [selectedPlanId, setSelectedPlanId] = React.useState<number>(1)
@@ -215,24 +302,33 @@ export default function CreateTeacher() {
     }
 
     if (finalSubjects.length === 0) {
-      useModalStore.getState().showToast('يرجى تحديد مادة علمية أو تخصص واحد على الأقل.', 'warning')
+      useModalStore.getState().showToast(
+        sector === 'university'
+          ? 'يرجى تحديد مادة جامعية واحدة على الأقل للدكتور أو إضافتها من صفحة إدارة التصنيفات.'
+          : 'يرجى تحديد مادة علمية واحدة على الأقل للمعلم.',
+        'warning'
+      )
       return
     }
 
     const finalGrades = selectedGrades.length > 0 ? selectedGrades : ['all']
-    if (selectedCategory === 'school' && selectedGrades.length === 0) {
-      useModalStore.getState().showToast('يرجى تحديد مرحلة دراسية واحدة على الأقل للتعليم المدرسي.', 'warning')
+    if (sector === 'school' && selectedGrades.length === 0) {
+      useModalStore.getState().showToast('يرجى تحديد صف دراسي واحد على الأقل للتعليم المدرسي.', 'warning')
+      return
+    }
+    if (sector === 'university' && selectedGrades.length === 0) {
+      useModalStore.getState().showToast('يرجى تحديد فرقة جامعية واحدة على الأقل للدكتور.', 'warning')
       return
     }
 
     const trimmedName = name.trim()
     if (!trimmedName || trimmedName.length < 2) {
-      useModalStore.getState().showToast('يرجى إدخال اسم المعلم بالكامل.', 'warning')
+      useModalStore.getState().showToast('يرجى إدخال اسم المعلم أو الدكتور بالكامل.', 'warning')
       return
     }
 
     if (/[0-9\u0660-\u0669\u06F0-\u06F9]/.test(trimmedName)) {
-      useModalStore.getState().showToast('اسم المعلم غير صالح: يجب أن يتكون الاسم من أحرف فقط ولا يمكن أن يحتوي على أرقام.', 'error')
+      useModalStore.getState().showToast('الاسم غير صالح: يجب أن يتكون الاسم من أحرف فقط ولا يمكن أن يحتوي على أرقام.', 'error')
       return
     }
 
@@ -249,9 +345,9 @@ export default function CreateTeacher() {
       phone: cleanedPhone,
       password: password || undefined,
       subject: finalSubjects.join(','),
-      category: selectedCategory,
+      category: sector === 'university' ? 'university' : selectedCategory,
       experience,
-      bio,
+      bio: specialization ? `[تخصص: ${specialization}] ${bio}`.trim() : bio,
       grades: finalGrades,
       status,
       teaching_mode: teachingMode,
@@ -374,8 +470,14 @@ export default function CreateTeacher() {
       </div>
 
       <div>
-        <h1 className="text-2xl md:text-3xl font-black text-[var(--text-color)]">إضافة معلم جديد للمنصة</h1>
-        <p className="text-xs text-[var(--text-secondary)] font-light mt-1">تعبئة بيانات المعلم والتحكم بحجم التخزين والطلاب وخطته الشهرية</p>
+        <h1 className="text-2xl md:text-3xl font-black text-[var(--text-color)]">
+          {sector === 'university' ? 'إضافة دكتور جامعي جديد' : 'إضافة معلم جديد للمنصة'}
+        </h1>
+        <p className="text-xs text-[var(--text-secondary)] font-light mt-1">
+          {sector === 'university'
+            ? 'تعبئة بيانات الدكتور وربطه بالكلية والفرق الجامعية والمواد التخصصية وتحديد باقة الاشتراك'
+            : 'تعبئة بيانات المعلم والتحكم بالمراحل والصفوف والمواد العلمية وخطة الاشتراك'}
+        </p>
       </div>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -383,23 +485,57 @@ export default function CreateTeacher() {
         {/* Left Side: Inputs */}
         <div className="lg:col-span-2 space-y-8">
           
-          {/* 1. Teacher Profile Info */}
+          {/* 1. Sector Switcher & Teacher Profile Info */}
           <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl p-6 space-y-6">
-            <h2 className="text-lg font-black text-[var(--text-color)] border-b border-[var(--border-color)] pb-3 flex items-center gap-2">
-              <User className="w-5 h-5 text-indigo-400" />
-              <span>بيانات المعلم الأساسية</span>
-            </h2>
+
+            {/* Sector Switcher Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-color)] pb-4">
+              <h2 className="text-lg font-black text-[var(--text-color)] flex items-center gap-2">
+                <User className="w-5 h-5 text-indigo-400" />
+                <span>{sector === 'university' ? 'بيانات الدكتور والمسار الجامعي' : 'بيانات المعلم والمسار المدرسي'}</span>
+              </h2>
+
+              {/* Segmented Sector Switcher */}
+              <div className="inline-flex p-1 bg-[var(--input-bg)] border border-[var(--border-color)] rounded-2xl gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleSectorChange('school')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    sector === 'school'
+                      ? 'bg-brand-primary text-white shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
+                  }`}
+                >
+                  <School className="w-4 h-4" />
+                  <span>🏫 التعليم المدرسي</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSectorChange('university')}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                    sector === 'university'
+                      ? 'bg-brand-primary text-white shadow-sm'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-color)]'
+                  }`}
+                >
+                  <GraduationCap className="w-4 h-4" />
+                  <span>🎓 التعليم الجامعي</span>
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">اسم المعلم بالكامل <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--text-color)]">
+                  {sector === 'university' ? 'اسم الدكتور بالكامل' : 'اسم المعلم بالكامل'} <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="مثال: أ. أحمد محمد علي"
+                  placeholder={sector === 'university' ? 'مثال: د. أشرف إبراهيم خليل' : 'مثال: أ. أحمد محمد علي'}
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
                 />
               </div>
@@ -418,66 +554,61 @@ export default function CreateTeacher() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">البريد الإلكتروني (اختياري - سيتم توليده تلقائياً إذا تركت الحقل فارغاً)</label>
+                <label className="text-xs font-semibold text-[var(--text-color)]">البريد الإلكتروني (اختياري - يُولّد تلقائياً إن تُرِك فارغاً)</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="teacher@example.com"
+                  placeholder={sector === 'university' ? 'doctor@example.com' : 'teacher@example.com'}
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary text-left"
                   dir="ltr"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">المجال التعليمي / المسار <span className="text-red-500">*</span></label>
+                <label className="text-xs font-semibold text-[var(--text-color)]">
+                  {sector === 'university' ? 'الكلية أو المجال الجامعي' : 'المرحلة التعليمية'} <span className="text-red-500">*</span>
+                </label>
                 <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  value={selectedStageId}
+                  onChange={(e) => {
+                    setSelectedStageId(e.target.value)
+                    setSelectedGrades([])
+                    setSelectedSubjects([])
+                  }}
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary cursor-pointer font-bold"
                 >
-                  {departments.filter(d => d.is_active).map((dept) => (
-                    <option key={dept.id || dept.slug} value={dept.slug}>
-                      {dept.name}
+                  <option value="">{sector === 'university' ? 'اختر الكلية أو التخصص الجامعي...' : 'جميع المراحل المدرسية...'}</option>
+                  {availableStages.map((stg) => (
+                    <option key={stg.id} value={stg.id}>
+                      {stg.name}
                     </option>
                   ))}
                 </select>
               </div>
 
+              {sector === 'university' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-[var(--text-color)]">التخصص الأكاديمي (عند الحاجة)</label>
+                  <input
+                    type="text"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    placeholder="مثال: محاسبة / اقتصاد / نظم معلومات / إدارة أعمال"
+                    className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
+                  />
+                </div>
+              )}
+
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[var(--text-color)]">تخصص أخصائي/معلم إضافي (اختياري نصي)</label>
+                <label className="text-xs font-semibold text-[var(--text-color)]">تخصص أو مادة إضافية مخصصة (اختياري)</label>
                 <input
                   type="text"
                   value={customSubjectInput}
                   onChange={(e) => setCustomSubjectInput(e.target.value)}
-                  placeholder="مثال: Frontend React / UI UX Design / الألمانية"
+                  placeholder="مثال: كيمياء حيوية / لغة فرنسية / مادة تخصصية"
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
                 />
-              </div>
-
-              <div className="md:col-span-2 space-y-3">
-                <label className="text-xs font-semibold block text-[var(--text-color)]/90">
-                  اختر المواد العلمية للمعلم <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {SUBJECTS.map((s) => {
-                    const isChecked = selectedSubjects.includes(s.key)
-                    return (
-                      <button
-                        type="button"
-                        key={s.key}
-                        onClick={() => handleSubjectToggle(s.key)}
-                        className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
-                          isChecked
-                            ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
-                            : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
-                        }`}
-                      >
-                        {s.val}
-                      </button>
-                    )
-                  })}
-                </div>
               </div>
 
               <div className="space-y-1">
@@ -500,7 +631,7 @@ export default function CreateTeacher() {
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
                 >
                   <option value="online">أونلاين فقط</option>
-                  <option value="center">سنتر فقط</option>
+                  <option value="center">سنتر / قاعات فقط</option>
                   <option value="both">أونلاين + سنتر</option>
                 </select>
               </div>
@@ -512,7 +643,7 @@ export default function CreateTeacher() {
                   required
                   value={experience}
                   onChange={(e) => setExperience(e.target.value)}
-                  placeholder="مثال: خبرة 12 سنة بوزارة التربية والتعليم ومؤلف كتاب العبقري"
+                  placeholder={sector === 'university' ? 'مثال: أستاذ جامعي بقسم المحاسبة وخبرة 15 عاماً في التدريس الأكاديمي' : 'مثال: خبرة 12 سنة بوزارة التربية والتعليم ومؤلف كتاب العبقري'}
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
                 />
               </div>
@@ -523,7 +654,7 @@ export default function CreateTeacher() {
                   rows={2}
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  placeholder="نبذة مختصرة تظهر للطلاب في بطاقة المعلم..."
+                  placeholder="نبذة مختصرة تظهر للطلاب في بطاقة المعلم أو الدكتور..."
                   className="w-full bg-[var(--input-bg)] border border-[var(--border-color)] rounded-xl p-4 text-xs text-[var(--text-color)] focus:outline-none focus:border-brand-primary"
                 />
               </div>
@@ -553,30 +684,134 @@ export default function CreateTeacher() {
               </div>
             </div>
 
-            {/* Grades Selection */}
-            <div className="space-y-3">
-              <label className="text-xs font-semibold block text-[var(--text-color)]/90">
-                اختر المراحل الدراسية للمعلم <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {grades.filter(g => g.is_active).map((g) => {
-                  const isChecked = selectedGrades.includes(g.slug)
-                  return (
+            {/* Grades / University Bands Selection */}
+            <div className="space-y-3 pt-4 border-t border-[var(--border-color)]">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold block text-[var(--text-color)]/90">
+                  {sector === 'university'
+                    ? 'اختر الفرقة أو الفرق الجامعية التي يدرس لها الدكتور'
+                    : 'اختر الصف أو الصفوف المدرسية التي يدرس لها المعلم'}{' '}
+                  <span className="text-red-500">*</span>
+                </label>
+                <span className="text-[10px] text-[var(--text-secondary)]">
+                  المحدد: {selectedGrades.length} {sector === 'university' ? 'فرقة' : 'صف'}
+                </span>
+              </div>
+
+              {availableGrades.length === 0 ? (
+                <div className="bg-[var(--card-bg)] border border-[var(--border-color)] p-4 rounded-2xl text-center text-xs text-[var(--text-secondary)]">
+                  {sector === 'university'
+                    ? 'لا توجد فرق جامعية مفعلة لهذا الاختيار. يمكنك إضافة فرق من لوحة التصنيفات.'
+                    : 'لا توجد صفوف مدرسية مفعلة لهذه المرحلة.'}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {availableGrades.map((g) => {
+                    const isChecked = selectedGrades.includes(g.slug)
+                    return (
+                      <button
+                        type="button"
+                        key={g.id || g.slug}
+                        onClick={() => handleGradeToggle(g.slug)}
+                        className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer flex items-center justify-between ${
+                          isChecked
+                            ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
+                            : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
+                        }`}
+                      >
+                        <span className="truncate">{g.name}</span>
+                        {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Subjects Selection */}
+            <div className="space-y-3 pt-4 border-t border-[var(--border-color)]">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-semibold block text-[var(--text-color)]/90">
+                  {sector === 'university'
+                    ? 'اختر المواد الجامعية التي يدرسها الدكتور'
+                    : 'اختر المواد الدراسية للمعلم'}{' '}
+                  <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRefreshSubjects}
+                    disabled={refreshingTaxonomy}
+                    className="inline-flex items-center gap-1 text-[11px] text-brand-primary hover:underline cursor-pointer disabled:opacity-50"
+                    title="تحديث المواد من قاعدة البيانات"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${refreshingTaxonomy ? 'animate-spin' : ''}`} />
+                    <span>تحديث المواد</span>
+                  </button>
+                </div>
+              </div>
+
+              {availableSubjects.length === 0 ? (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-5 space-y-3 text-right">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-amber-200">
+                        {sector === 'university'
+                          ? 'لم تتم إضافة مواد دراسية جامعية لهذه الكلية حتى الآن في قاعدة البيانات'
+                          : 'لم تتم إضافة مواد دراسية لهذه المرحلة حتى الآن'}
+                      </h4>
+                      <p className="text-[11px] text-amber-300/80 leading-relaxed font-light">
+                        {sector === 'university'
+                          ? 'لا يمكنك تسجيل الدكتور دون تحديد مادة دراسية. يُرجى التوجه لصفحة إدارة التصنيفات لإضافة المواد الجامعية المطلوبة، ثم الضغط على زر "تحديث المواد" بالأسفل لإكمال التسجيل بدون فقدان البيانات.'
+                          : 'يرجى إضافة المواد المناسبة من صفحة إدارة التصنيفات.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <a
+                      href="/admin/taxonomy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-black transition-colors shadow-sm"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>إدارة التصنيفات والمواد (نافذة جديدة)</span>
+                    </a>
                     <button
                       type="button"
-                      key={g.id || g.slug}
-                      onClick={() => handleGradeToggle(g.slug)}
-                      className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer ${
-                        isChecked
-                          ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
-                          : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
-                      }`}
+                      onClick={handleRefreshSubjects}
+                      disabled={refreshingTaxonomy}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--card-bg)] border border-[var(--border-color)] hover:bg-[var(--bg-color)] text-[var(--text-color)] rounded-xl text-xs font-bold transition-colors cursor-pointer"
                     >
-                      {g.name}
+                      <RefreshCw className={`w-3.5 h-3.5 ${refreshingTaxonomy ? 'animate-spin' : ''}`} />
+                      <span>تحديث المواد الآن</span>
                     </button>
-                  )
-                })}
-              </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {availableSubjects.map((s) => {
+                    const isChecked = selectedSubjects.includes(s.slug) || selectedSubjects.includes(s.name)
+                    return (
+                      <button
+                        type="button"
+                        key={s.id || s.slug}
+                        onClick={() => handleSubjectToggle(s.slug || s.name)}
+                        className={`px-4 py-2.5 rounded-xl border text-xs font-bold text-center transition-all cursor-pointer flex items-center justify-between ${
+                          isChecked
+                            ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
+                            : 'bg-[var(--input-bg)] border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]/25'
+                        }`}
+                      >
+                        <span className="truncate">{s.name}</span>
+                        {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
           </div>

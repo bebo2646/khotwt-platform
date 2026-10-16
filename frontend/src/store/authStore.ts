@@ -23,6 +23,9 @@ export interface UserProfile {
   }
   teaching_mode?: 'online' | 'center' | 'both'
   student_type?: 'online' | 'center'
+  category?: string
+  academic_stage_id?: number | null
+  academic_grade_id?: number | null
 }
 
 interface AuthState {

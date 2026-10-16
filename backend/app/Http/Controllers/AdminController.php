@@ -233,6 +233,23 @@ class AdminController extends Controller
             'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
 
+        if (!empty($request->grades) && is_array($request->grades)) {
+            $invalidGrades = [];
+            foreach ($request->grades as $gSlug) {
+                if ($gSlug === 'all') continue;
+                $gExists = \App\Models\AcademicGrade::where('slug', $gSlug)->where('is_active', true)->exists();
+                if (!$gExists) {
+                    $invalidGrades[] = $gSlug;
+                }
+            }
+            if (!empty($invalidGrades)) {
+                return response()->json([
+                    'message' => 'عذراً، بعض الصفوف أو الفرق الدراسية المحددة معطلة أو غير متوفرة في النظام.',
+                    'invalid_grades' => $invalidGrades,
+                ], 422);
+            }
+        }
+
         $status = $request->status ?? 'active';
         $email = $request->email;
         
@@ -437,6 +454,23 @@ class AdminController extends Controller
             'name.regex' => 'اسم المعلم يجب أن يتكون من أحرف فقط ولا يمكن أن يحتوي على أرقام.',
             'phone.regex' => 'رقم الهاتف يجب أن يكون رقم هاتف مصري صحيح مكون من 11 رقماً يبدأ بـ 010 أو 011 أو 012 أو 015.',
         ]);
+
+        if (!empty($request->grades) && is_array($request->grades)) {
+            $invalidGrades = [];
+            foreach ($request->grades as $gSlug) {
+                if ($gSlug === 'all') continue;
+                $gExists = \App\Models\AcademicGrade::where('slug', $gSlug)->where('is_active', true)->exists();
+                if (!$gExists) {
+                    $invalidGrades[] = $gSlug;
+                }
+            }
+            if (!empty($invalidGrades)) {
+                return response()->json([
+                    'message' => 'عذراً، بعض الصفوف أو الفرق الدراسية المحددة معطلة أو غير متوفرة في النظام.',
+                    'invalid_grades' => $invalidGrades,
+                ], 422);
+            }
+        }
 
         $existingRawAvatar = $teacher->getRawOriginal('avatar');
         $inputAvatar = $request->input('avatar');

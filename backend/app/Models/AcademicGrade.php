@@ -15,6 +15,8 @@ class AcademicGrade extends Model
         'name',
         'slug',
         'short_code',
+        'level_type',
+        'specialization',
         'order',
         'is_active',
     ];
@@ -33,6 +35,16 @@ class AcademicGrade extends Model
     public function courses(): HasMany
     {
         return $this->hasMany(Course::class, 'grade', 'slug');
+    }
+
+    public function subjects(): HasMany
+    {
+        return $this->hasMany(AcademicSubject::class, 'grade_id')->orderBy('order', 'asc');
+    }
+
+    public function activeSubjects(): HasMany
+    {
+        return $this->hasMany(AcademicSubject::class, 'grade_id')->where('is_active', true)->orderBy('order', 'asc');
     }
 
     public function scopeActive($query)

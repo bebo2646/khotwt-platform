@@ -224,9 +224,33 @@ export default function CourseDetail() {
   const [purchaseError, setPurchaseError] = React.useState<string | null>(null)
   const [purchaseSuccess, setPurchaseSuccess] = React.useState<string | null>(null)
   
-  // Purchase Modal States
   const [purchaseModalOpen, setPurchaseModalOpen] = React.useState(false)
   const [purchaseTarget, setPurchaseTarget] = React.useState<{ type: 'course' | 'package', itemId: number | string, title: string, price: string | number } | null>(null)
+
+  const { getSubjectName, getGradeName, stages, grades, fetchTaxonomy } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
+
+  const coursePath = React.useMemo(() => {
+    if (!course) return null
+    const gradeName = getGradeName(course.grade) || GRADES_TRANSLATION[course.grade] || course.grade
+    const subjectName = getSubjectName(course.subject) || SUBJECTS_TRANSLATION[course.subject] || course.subject
+    const gradeObj = (grades || []).find(g => g.slug === course.grade)
+    const stageObj = (stages || []).find(s => s.id === gradeObj?.stage_id)
+    const isUni = gradeObj?.level_type === 'university_year' || stageObj?.sector === 'university'
+    const sectorName = isUni ? '🎓 التعليم الجامعي' : '🏫 التعليم المدرسي'
+    const stageName = stageObj?.name || (isUni ? 'المرحلة الجامعية' : 'المرحلة الدراسية')
+
+    return {
+      sectorName,
+      stageName,
+      gradeName,
+      subjectName,
+      isUni
+    }
+  }, [course, getSubjectName, getGradeName, stages, grades])
   
   // Accordion state (maps unit_id to boolean)
   const [expandedUnits, setExpandedUnits] = React.useState<Record<number, boolean>>({})
@@ -1469,11 +1493,18 @@ export default function CourseDetail() {
         <div className="lg:col-span-2 space-y-6 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-semibold rounded-full">
-                {SUBJECTS_TRANSLATION[course.subject] || course.subject}
-              </span>
+              {coursePath && (
+                <span className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-semibold rounded-full flex items-center gap-1.5">
+                  <span>{coursePath.sectorName}</span>
+                  <span className="text-slate-500">←</span>
+                  <span>{coursePath.stageName}</span>
+                </span>
+              )}
               <span className="px-3 py-1 bg-slate-500/10 border border-slate-500/20 text-slate-300 text-xs font-semibold rounded-full">
-                {GRADES_TRANSLATION[course.grade] || course.grade}
+                {coursePath?.gradeName || GRADES_TRANSLATION[course.grade] || course.grade}
+              </span>
+              <span className="px-3 py-1 bg-brand-primary/10 border border-brand-primary/20 text-brand-primary text-xs font-semibold rounded-full">
+                {coursePath?.subjectName || SUBJECTS_TRANSLATION[course.subject] || course.subject}
               </span>
               <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
                 isEnrolled 

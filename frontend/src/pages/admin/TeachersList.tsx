@@ -31,6 +31,7 @@ import {
   User
 } from 'lucide-react'
 import EmptyState from '../../components/EmptyState'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 interface TeacherItem {
   id: number
@@ -47,6 +48,7 @@ interface TeacherItem {
   students_count: number
   discounted_courses_count: number
   teaching_mode?: string
+  category?: string
   teacher_subscription?: {
     id: number
     plan?: {
@@ -210,15 +212,21 @@ export default function TeachersList() {
   const [teacherProfileData, setTeacherProfileData] = React.useState<any>(null)
   const [loadingProfile, setLoadingProfile] = React.useState(false)
 
+  const { fetchTaxonomy, grades: taxonomyGrades, subjects: taxonomySubjects, getGradeName, getSubjectName } = useTaxonomyStore()
+
   // Add/Edit Form Inputs
   const [name, setName] = React.useState('')
   const [phone, setPhone] = React.useState('')
   const [subject, setSubject] = React.useState('')
+  const [selectedSector, setSelectedSector] = React.useState<'school' | 'university'>('school')
   const [selectedSubjects, setSelectedSubjects] = React.useState<string[]>([])
 
   const getSubjectTranslation = (subjectStr: string) => {
     if (!subjectStr) return '';
-    return subjectStr.split(',').map(s => SUBJECTS_TRANSLATION[s.trim()] || s.trim()).join(' و ');
+    return subjectStr.split(',').map(s => {
+      const trimmed = s.trim();
+      return getSubjectName(trimmed) || SUBJECTS_TRANSLATION[trimmed] || trimmed;
+    }).join(' و ');
   };
   const [experience, setExperience] = React.useState('')
   const [bio, setBio] = React.useState('')
@@ -242,7 +250,8 @@ export default function TeachersList() {
 
   React.useEffect(() => {
     fetchTeachers()
-  }, [])
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -324,6 +333,7 @@ export default function TeachersList() {
       name: trimmedName,
       phone: cleanedPhone,
       subject: selectedSubjects.join(','),
+      category: editTeacher?.category || selectedSector || 'school',
       experience,
       bio,
       grades: selectedGrades,
@@ -382,6 +392,7 @@ export default function TeachersList() {
     setPhone(t.phone)
     setSubject(t.subject)
     setSelectedSubjects(t.subject ? t.subject.split(',').map(s => s.trim()) : [])
+    setSelectedSector(t.category === 'university' ? 'university' : 'school')
     setExperience(t.experience)
     setBio(t.bio)
     setSelectedGrades(t.grades || [])
@@ -502,6 +513,7 @@ export default function TeachersList() {
     setPhone('')
     setSubject('')
     setSelectedSubjects([])
+    setSelectedSector('school')
     setExperience('')
     setBio('')
     setSelectedGrades([])
@@ -509,6 +521,72 @@ export default function TeachersList() {
     setTeachingMode('online')
     setAvatar('')
   }
+
+  const availableModalSubjects = React.useMemo(() => {
+    const list: Array<{ key: string; val: string }> = []
+    const seen = new Set<string>()
+
+    const filtered = (taxonomySubjects || []).filter(s => {
+      if (!s.is_active) return false
+      if (s.sector && s.sector !== selectedSector) return false
+      return true
+    })
+
+    filtered.forEach(s => {
+      seen.add(s.slug)
+      list.push({ key: s.slug, val: s.name })
+    })
+
+    if (list.length === 0 && selectedSector === 'school') {
+      SUBJECTS.forEach(s => {
+        seen.add(s.key)
+        list.push(s)
+      })
+    }
+
+    selectedSubjects.forEach(sub => {
+      if (sub && !seen.has(sub)) {
+        seen.add(sub)
+        list.push({ key: sub, val: getSubjectName(sub) || SUBJECTS_TRANSLATION[sub] || sub })
+      }
+    })
+
+    return list
+  }, [taxonomySubjects, selectedSector, selectedSubjects, getSubjectName])
+
+  const availableModalGrades = React.useMemo(() => {
+    const list: Array<{ key: string; val: string }> = []
+    const seen = new Set<string>()
+
+    const filtered = (taxonomyGrades || []).filter(g => {
+      if (!g.is_active) return false
+      if (selectedSector === 'university') {
+        return g.level_type === 'university_year' || g.stage?.sector === 'university'
+      }
+      return g.level_type !== 'university_year'
+    })
+
+    filtered.forEach(g => {
+      seen.add(g.slug)
+      list.push({ key: g.slug, val: g.name })
+    })
+
+    if (list.length === 0 && selectedSector === 'school') {
+      GRADES.forEach(g => {
+        seen.add(g.key)
+        list.push(g)
+      })
+    }
+
+    selectedGrades.forEach(gKey => {
+      if (gKey && !seen.has(gKey)) {
+        seen.add(gKey)
+        list.push({ key: gKey, val: getGradeName(gKey) || gKey })
+      }
+    })
+
+    return list
+  }, [taxonomyGrades, selectedSector, selectedGrades, getGradeName])
 
   const filteredTeachers = React.useMemo(() => {
     return teachers.filter((t) => {
@@ -1201,19 +1279,48 @@ export default function TeachersList() {
                 </div>
               </div>
 
+              {/* Sector selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--text-color)]">القطاع التعليمي</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSector('school')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      selectedSector === 'school'
+                        ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-xs'
+                        : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]'
+                    }`}
+                  >
+                    🏫 التعليم المدرسي
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSector('university')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                      selectedSector === 'university'
+                        ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-xs'
+                        : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:bg-[var(--bg-color)]'
+                    }`}
+                  >
+                    🎓 التعليم الجامعي
+                  </button>
+                </div>
+              </div>
+
               {/* Subjects */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
-                    <span>المواد العلمية للمعلم</span>
+                    <span>{selectedSector === 'university' ? 'المواد الجامعية التي يدرسها الدكتور' : 'المواد العلمية للمعلم'}</span>
                     <span className="text-rose-500">*</span>
                   </label>
                   <span className="text-[11px] text-[var(--text-secondary)] font-medium">
                     تم اختيار {selectedSubjects.length} مادة
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40">
-                  {SUBJECTS.map((s) => {
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40 max-h-48 overflow-y-auto">
+                  {availableModalSubjects.map((s) => {
                     const isChecked = selectedSubjects.includes(s.key)
                     return (
                       <button
@@ -1233,7 +1340,7 @@ export default function TeachersList() {
                         }`}
                       >
                         {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
-                        <span>{s.val}</span>
+                        <span className="truncate">{s.val}</span>
                       </button>
                     )
                   })}
@@ -1244,15 +1351,15 @@ export default function TeachersList() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-[var(--text-color)] flex items-center gap-1">
-                    <span>المراحل الدراسية التي يدرسها المعلم</span>
+                    <span>{selectedSector === 'university' ? 'الفرق الجامعية التي يدرس لها الدكتور' : 'المراحل الدراسية التي يدرسها المعلم'}</span>
                     <span className="text-rose-500">*</span>
                   </label>
                   <span className="text-[11px] text-[var(--text-secondary)] font-medium">
-                    تم اختيار {selectedGrades.length} مرحلة
+                    تم اختيار {selectedGrades.length} {selectedSector === 'university' ? 'فرقة' : 'مرحلة'}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40">
-                  {GRADES.map((g) => {
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border border-[var(--border-color)] p-3 rounded-2xl bg-[var(--bg-color)]/40 max-h-48 overflow-y-auto">
+                  {availableModalGrades.map((g) => {
                     const isChecked = selectedGrades.includes(g.key)
                     return (
                       <button
@@ -1266,7 +1373,7 @@ export default function TeachersList() {
                         }`}
                       >
                         {isChecked && <Check className="w-3.5 h-3.5 shrink-0" />}
-                        <span>{g.val}</span>
+                        <span className="truncate">{g.val}</span>
                       </button>
                     )
                   })}

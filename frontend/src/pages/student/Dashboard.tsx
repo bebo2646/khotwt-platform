@@ -219,7 +219,15 @@ export default function StudentDashboard() {
   const [recommendedData, setRecommendedData] = React.useState<{
     recommended: AvailableCourse[]
     latest: AvailableCourse[]
+    exploreOther?: AvailableCourse[]
     allCourses: AvailableCourse[]
+    profile_info?: {
+      has_grade: boolean
+      grade_key?: string
+      grade_name?: string
+      sector?: 'school' | 'university'
+      stage_name?: string
+    }
   }>({ recommended: [], latest: [], allCourses: [] })
   
   const [activeTab, setActiveTab] = React.useState<'courses' | 'recent_watched' | 'upcoming_exams' | 'exam_history' | 'homework_history'>('courses')
@@ -306,6 +314,19 @@ export default function StudentDashboard() {
 
   const safeRecommended = Array.isArray(recommendedData?.recommended) ? recommendedData.recommended : []
   const safeLatest = Array.isArray(recommendedData?.latest) ? recommendedData.latest : []
+  const safeExploreOther = Array.isArray(recommendedData?.exploreOther) ? recommendedData.exploreOther : []
+
+  const profileInfo = recommendedData?.profile_info
+  const effectiveGradeName = profileInfo?.grade_name || studentGradeVal || ''
+  const isUniversity = profileInfo?.sector === 'university' || (effectiveGradeName && (effectiveGradeName.includes('الفرقة') || effectiveGradeName.includes('كلية')))
+
+  const recommendationTitle = isUniversity
+    ? `✨ مقترح لفرقتك الجامعية (${effectiveGradeName})`
+    : `✨ مقترح لصفك الدراسي (${effectiveGradeName})`
+  const recommendationSubtitle = isUniversity
+    ? `تم جمع هذه الكورسات من كبار الدكاترة والأساتذة لتناسب ${profileInfo?.stage_name ? `طلاب ${profileInfo.stage_name}` : 'فرقتك الأكاديمية'}`
+    : `تم اختيار هذه الكورسات بعناية من كبار المعلمين لتناسب صفك الدراسي وتساعدك على التفوق`
+  const recommendationBadge = isUniversity ? '🎓 مخصص لفرقتك الجامعية' : '⭐ مخصص لمرحلتك الدراسية'
 
   // Filter logic using safe arrays
   const filteredCourses = safeAvailableCourses.filter(c => {
@@ -626,12 +647,15 @@ export default function StudentDashboard() {
         {/* ====================================
             6. STUDENT COURSE RECOMMENDATIONS
             ==================================== */}
+        {/* ====================================
+            6. STUDENT COURSE RECOMMENDATIONS
+            ==================================== */}
         {!hasGrade ? (
           <div className="bg-brand-card border border-[var(--border-color)] p-8 rounded-3xl text-center space-y-4 shadow-md flex flex-col items-center justify-center">
             <GraduationCap className="h-12 w-12 text-indigo-400 animate-bounce" />
-            <h3 className="text-lg font-bold text-slate-200">أكمل ملفك الشخصي لاختيار الكورسات المناسبة لك</h3>
+            <h3 className="text-lg font-bold text-slate-200">أكمل ملفك الشخصي لاختيار الكورسات المناسبة لفرقتك أو صفك الدراسي</h3>
             <p className="text-xs text-slate-400 font-light max-w-sm">
-              قم باختيار مرحلتك الدراسية لنتمكن من تقديم توصيات مخصصة لك ووضع خطط تناسبك.
+              قم باختيار مرحلتك الدراسية أو كليتك والفرقة الجامعية لنتمكن من تقديم توصيات مخصصة لك من جميع الدكاترة والمعلمين.
             </p>
             <Link 
               to="/student/profile" 
@@ -652,22 +676,22 @@ export default function StudentDashboard() {
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.15),transparent_45%)] pointer-events-none"></div>
               <div className="relative z-10 space-y-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-[10px] font-black tracking-wider uppercase">
-                  ⭐ مخصص لمرحلتك الدراسية
+                  {recommendationBadge}
                 </span>
                 <h2 className="text-2xl font-black">
-                  ✨ كورسات مقترحة لطلاب {studentGradeVal}
+                  {recommendationTitle}
                 </h2>
                 <p className="text-xs text-indigo-100 font-light">
-                  تم اختيار هذه الكورسات بعناية لتناسب صفك الدراسي وتساعدك على التفوق.
+                  {recommendationSubtitle}
                 </p>
               </div>
             </div>
 
             {/* Recommended grid */}
-            {/* Recommended grid */}
             {safeRecommended.length === 0 ? (
-              <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
-                لا توجد كورسات مقترحة متوفرة حالياً لهذه المرحلة الدراسية.
+              <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs space-y-2">
+                <p className="font-bold text-slate-300">لا توجد كورسات مقترحة متوفرة حالياً لهذا الصف أو الفرقة الدراسية.</p>
+                <p className="text-[11px] text-slate-500">يمكنك استكشاف باقي الكورسات والمراحل المتاحة بالأسفل.</p>
               </div>
             ) : (
               <div className="bastahalak-grid">
@@ -698,20 +722,40 @@ export default function StudentDashboard() {
         )}
 
         {/* ====================================
-            7. LATEST COURSES
+            7. LATEST COURSES (LAST 7 DAYS)
             ==================================== */}
         <div className="space-y-6">
-          <h2 className="text-xl font-black text-foreground flex items-center gap-2 border-r-4 border-brand-primary pr-3 leading-none">
-            <span> أحدث الكورسات</span>
-          </h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-r-4 border-brand-primary pr-3">
+            <div>
+              <h2 className="text-xl font-black text-foreground flex items-center gap-2 leading-none">
+                <span>أحدث الكورسات المنشورة</span>
+                <span className="text-[10px] text-brand-primary font-bold px-2 py-0.5 rounded-full bg-brand-primary/10 border border-brand-primary/20">
+                  خلال آخر 7 أيام ⏱️
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400 font-light mt-1">
+                الكورسات والمحاضرات التي تم نشرها وتفعيلها للطلاب خلال الأسبوع الأخير
+              </p>
+            </div>
+            {safeLatest.length > 0 && (
+              <Link
+                to="/courses?sort=newest"
+                className="text-xs font-bold text-brand-primary hover:underline flex items-center gap-1 self-start sm:self-auto"
+              >
+                <span>تصفح الكورسات الحديثة</span>
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
           
           {safeLatest.length === 0 ? (
-            <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs">
-              لا توجد كورسات مضافة حديثاً.
+            <div className="bg-brand-card border border-border-color rounded-3xl p-8 text-center text-slate-400 font-light text-xs space-y-2">
+              <p className="text-sm font-bold text-slate-300">لا توجد كورسات جديدة منشورة خلال الـ 7 أيام الماضية</p>
+              <p className="text-xs text-slate-400">يمكنك متابعة الكورسات المميزة والمسارات التعليمية المتاحة بالأسفل.</p>
             </div>
           ) : (
             <div className="bastahalak-grid">
-              {safeLatest.map((course) => (
+              {safeLatest.slice(0, 8).map((course) => (
                 <CourseCard
                   key={course.id}
                   id={course.id}
@@ -735,6 +779,58 @@ export default function StudentDashboard() {
             </div>
           )}
         </div>
+
+        {/* ====================================
+            8. EXPLORE OTHER STAGES & BANDS
+            ==================================== */}
+        {safeExploreOther.length > 0 && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-r-4 border-indigo-500 pr-3">
+              <div>
+                <h2 className="text-xl font-black text-foreground flex items-center gap-2 leading-none">
+                  <span>استكشف مراحل وفرق أخرى</span>
+                  <span className="text-[10px] text-indigo-400 font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
+                    استكشاف عام 🌐
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400 font-light mt-1">
+                  تصفح كورسات الصفوف والفرق الجامعية الأخرى دون خلطها بتوصيات صفك الأساسي
+                </p>
+              </div>
+              <Link
+                to="/courses"
+                className="text-xs font-bold text-indigo-400 hover:underline flex items-center gap-1 self-start sm:self-auto"
+              >
+                <span>تصفح كافة الكورسات</span>
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            <div className="bastahalak-grid">
+              {safeExploreOther.slice(0, 8).map((course) => (
+                <CourseCard
+                  key={course.id}
+                  id={course.id}
+                  title={course.title}
+                  coverImage={course.cover_image}
+                  price={course.price}
+                  subject={course.subject}
+                  teacherName={course.teacher.name}
+                  teacherAvatar={course.teacher.avatar}
+                  isSubscribed={enrolledCourseIds.has(course.id)}
+                  lessonsCount={course.lessons_count}
+                  enableDiscount={course.enable_discount === true}
+                  discountType={course.discount_type ?? undefined}
+                  discountValue={course.discount_value ?? undefined}
+                  finalPrice={course.final_price ?? undefined}
+                  grade={course.grade}
+                  availability={course.availability}
+                  isBundle={course.is_bundle === true || course.is_bundle === 1 || course.is_bundle === '1'}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ====================================
             8. ALL COURSES (Filtered/Searched catalog)

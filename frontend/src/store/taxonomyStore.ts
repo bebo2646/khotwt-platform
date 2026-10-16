@@ -18,10 +18,13 @@ export interface AcademicStage {
   id: number
   name: string
   slug: string
+  sector?: 'school' | 'university'
   order: number
   is_active: boolean
   grades?: AcademicGrade[]
   active_grades?: AcademicGrade[]
+  subjects?: AcademicSubject[]
+  active_subjects?: AcademicSubject[]
 }
 
 export interface AcademicGrade {
@@ -30,15 +33,34 @@ export interface AcademicGrade {
   name: string
   slug: string
   short_code?: string
+  level_type?: 'grade' | 'university_year'
+  specialization?: string
   order: number
   is_active: boolean
   stage?: AcademicStage
+  subjects?: AcademicSubject[]
+  active_subjects?: AcademicSubject[]
+}
+
+export interface AcademicSubject {
+  id: number
+  name: string
+  slug: string
+  sector?: 'school' | 'university'
+  stage_id?: number | null
+  grade_id?: number | null
+  order: number
+  is_active: boolean
+  stage?: AcademicStage
+  grade?: AcademicGrade
+  courses_count?: number
 }
 
 interface TaxonomyState {
   departments: Department[]
   stages: AcademicStage[]
   grades: AcademicGrade[]
+  subjects: AcademicSubject[]
   isLoading: boolean
   isLoaded: boolean
   fetchTaxonomy: (force?: boolean) => Promise<void>
@@ -48,7 +70,13 @@ interface TaxonomyState {
   getGradeName: (slug?: string) => string
   getStage: (slug?: string) => AcademicStage | undefined
   getStageName: (slug?: string) => string
+  getSubject: (slug?: string) => AcademicSubject | undefined
+  getSubjectName: (slug?: string) => string
   getGradesForStage: (stageSlugOrId: string | number) => AcademicGrade[]
+  getStagesForSector: (sector: 'school' | 'university') => AcademicStage[]
+  getSubjectsForSector: (sector: 'school' | 'university') => AcademicSubject[]
+  getSubjectsForStage: (stageIdOrSlug: number | string) => AcademicSubject[]
+  getSubjectsForGrade: (gradeIdOrSlug: number | string) => AcademicSubject[]
 }
 
 const FALLBACK_DEPARTMENTS: Department[] = [
@@ -63,13 +91,23 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     is_active: true
   },
   {
+    id: 10,
+    name: 'التعليم الجامعي',
+    slug: 'university',
+    description: 'محاضرات وكورسات تخصصية لمختلف الكليات والمعاهد والفرق الجامعية',
+    icon: 'GraduationCap',
+    badge: 'التعليم الجامعي',
+    order: 2,
+    is_active: true
+  },
+  {
     id: 2,
     name: 'البرمجة والتكنولوجيا',
     slug: 'programming',
     description: 'تعلم تطوير المواقع، التطبيقات، الذكاء الاصطناعي، قواعد البيانات والأمن السيبراني',
     icon: 'Code',
     badge: 'تقنية وتطوير',
-    order: 2,
+    order: 3,
     is_active: true
   },
   {
@@ -79,7 +117,7 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     description: 'إدارة المشاريع، التجارة الإلكترونية، التسويق، المحاسبة وريادة الأعمال',
     icon: 'TrendingUp',
     badge: 'أعمال واستثمار',
-    order: 3,
+    order: 4,
     is_active: true
   },
   {
@@ -89,7 +127,7 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     description: 'تصميم الواجهات وتجربة المستخدم UI/UX، الجرافيك، المونتاج والموشن جرافيك',
     icon: 'Palette',
     badge: 'فنون وتصميم',
-    order: 4,
+    order: 5,
     is_active: true
   },
   {
@@ -99,7 +137,7 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     description: 'تطوير مهارات المحادثة واللغات الإنجليزية، الألمانية، الفرنسية واختبارات الآيلتس والتوفل',
     icon: 'Globe',
     badge: 'لغات عالمية',
-    order: 5,
+    order: 6,
     is_active: true
   },
   {
@@ -109,7 +147,7 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     description: 'إعلانات السوشيال ميديا، تحسين محركات البحث SEO، وصناعة وإدارة المحتوى الرقمي',
     icon: 'Share2',
     badge: 'تسويق ونمو',
-    order: 6,
+    order: 7,
     is_active: true
   },
   {
@@ -119,36 +157,53 @@ const FALLBACK_DEPARTMENTS: Department[] = [
     description: 'مهارات التواصل، العمل الحر، القيادة، الإلقاء وإدارة الوقت وبناء السيرة الذاتية',
     icon: 'Briefcase',
     badge: 'تطوير ذاتي',
-    order: 7,
+    order: 8,
     is_active: true
   }
 ]
 
 const FALLBACK_STAGES: AcademicStage[] = [
-  { id: 1, name: 'المرحلة الابتدائية', slug: 'primary', order: 1, is_active: true },
-  { id: 2, name: 'المرحلة الإعدادية', slug: 'preparatory', order: 2, is_active: true },
-  { id: 3, name: 'المرحلة الثانوية', slug: 'secondary', order: 3, is_active: true }
+  { id: 1, name: 'المرحلة الابتدائية', slug: 'primary', sector: 'school', order: 1, is_active: true },
+  { id: 2, name: 'المرحلة الإعدادية', slug: 'preparatory', sector: 'school', order: 2, is_active: true },
+  { id: 3, name: 'المرحلة الثانوية', slug: 'secondary', sector: 'school', order: 3, is_active: true },
+  { id: 16, name: 'المرحلة الجامعية', slug: 'faclty', sector: 'university', order: 4, is_active: true }
 ]
 
 const FALLBACK_GRADES: AcademicGrade[] = [
-  { id: 1, stage_id: 1, name: 'الصف الأول الابتدائي', slug: 'first_primary', short_code: '١ب', order: 1, is_active: true },
-  { id: 2, stage_id: 1, name: 'الصف الثاني الابتدائي', slug: 'second_primary', short_code: '٢ب', order: 2, is_active: true },
-  { id: 3, stage_id: 1, name: 'الصف الثالث الابتدائي', slug: 'third_primary', short_code: '٣ب', order: 3, is_active: true },
-  { id: 4, stage_id: 1, name: 'الصف الرابع الابتدائي', slug: 'fourth_primary', short_code: '٤ب', order: 4, is_active: true },
-  { id: 5, stage_id: 1, name: 'الصف الخامس الابتدائي', slug: 'fifth_primary', short_code: '٥ب', order: 5, is_active: true },
-  { id: 6, stage_id: 1, name: 'الصف السادس الابتدائي', slug: 'sixth_primary', short_code: '٦ب', order: 6, is_active: true },
-  { id: 7, stage_id: 2, name: 'الصف الأول الإعدادي', slug: 'first_preparatory', short_code: '١إ', order: 1, is_active: true },
-  { id: 8, stage_id: 2, name: 'الصف الثاني الإعدادي', slug: 'second_preparatory', short_code: '٢إ', order: 2, is_active: true },
-  { id: 9, stage_id: 2, name: 'الصف الثالث الإعدادي', slug: 'third_preparatory', short_code: '٣إ', order: 3, is_active: true },
-  { id: 10, stage_id: 3, name: 'الصف الأول الثانوي', slug: 'first_secondary', short_code: '١ث', order: 1, is_active: true },
-  { id: 11, stage_id: 3, name: 'الصف الثاني الثانوي', slug: 'second_secondary', short_code: '٢ث', order: 2, is_active: true },
-  { id: 12, stage_id: 3, name: 'الصف الثالث الثانوي', slug: 'third_secondary', short_code: '٣ث', order: 3, is_active: true },
+  { id: 1, stage_id: 1, name: 'الصف الأول الابتدائي', slug: 'first_primary', short_code: '١ب', level_type: 'grade', order: 1, is_active: true },
+  { id: 2, stage_id: 1, name: 'الصف الثاني الابتدائي', slug: 'second_primary', short_code: '٢ب', level_type: 'grade', order: 2, is_active: true },
+  { id: 3, stage_id: 1, name: 'الصف الثالث الابتدائي', slug: 'third_primary', short_code: '٣ب', level_type: 'grade', order: 3, is_active: true },
+  { id: 4, stage_id: 1, name: 'الصف الرابع الابتدائي', slug: 'fourth_primary', short_code: '٤ب', level_type: 'grade', order: 4, is_active: true },
+  { id: 5, stage_id: 1, name: 'الصف الخامس الابتدائي', slug: 'fifth_primary', short_code: '٥ب', level_type: 'grade', order: 5, is_active: true },
+  { id: 6, stage_id: 1, name: 'الصف السادس الابتدائي', slug: 'sixth_primary', short_code: '٦ب', level_type: 'grade', order: 6, is_active: true },
+  { id: 7, stage_id: 2, name: 'الصف الأول الإعدادي', slug: 'first_preparatory', short_code: '١إ', level_type: 'grade', order: 1, is_active: true },
+  { id: 8, stage_id: 2, name: 'الصف الثاني الإعدادي', slug: 'second_preparatory', short_code: '٢إ', level_type: 'grade', order: 2, is_active: true },
+  { id: 9, stage_id: 2, name: 'الصف الثالث الإعدادي', slug: 'third_preparatory', short_code: '٣إ', level_type: 'grade', order: 3, is_active: true },
+  { id: 10, stage_id: 3, name: 'الصف الأول الثانوي', slug: 'first_secondary', short_code: '١ث', level_type: 'grade', order: 1, is_active: true },
+  { id: 11, stage_id: 3, name: 'الصف الثاني الثانوي', slug: 'second_secondary', short_code: '٢ث', level_type: 'grade', order: 2, is_active: true },
+  { id: 12, stage_id: 3, name: 'الصف الثالث الثانوي', slug: 'third_secondary', short_code: '٣ث', level_type: 'grade', order: 3, is_active: true },
+  { id: 25, stage_id: 16, name: 'الفرقة الأولى', slug: 'alfrkh-alaoly', short_code: '١ج', level_type: 'university_year', order: 1, is_active: true },
+  { id: 26, stage_id: 16, name: 'الفرقة الثانية', slug: 'alfrkh-altany', short_code: '٢ج', level_type: 'university_year', order: 2, is_active: true },
+  { id: 27, stage_id: 16, name: 'الفرقة الثالثة', slug: 'alfrkh-altalh', short_code: '٣ج', level_type: 'university_year', order: 3, is_active: true },
+  { id: 28, stage_id: 16, name: 'الفرقة الرابعة', slug: 'alfrkh-alrabaah', short_code: '٤ج', level_type: 'university_year', order: 4, is_active: true },
+]
+
+const FALLBACK_SUBJECTS: AcademicSubject[] = [
+  { id: 1, name: 'الكيمياء', slug: 'chemistry', sector: 'school', order: 1, is_active: true },
+  { id: 2, name: 'الفيزياء', slug: 'physics', sector: 'school', order: 2, is_active: true },
+  { id: 3, name: 'علوم متكاملة', slug: 'integrated_science', sector: 'school', order: 3, is_active: true },
+  { id: 4, name: 'الأحياء', slug: 'biology', sector: 'school', order: 4, is_active: true },
+  { id: 5, name: 'الرياضيات', slug: 'math', sector: 'school', order: 5, is_active: true },
+  { id: 6, name: 'العلوم', slug: 'science', sector: 'school', order: 6, is_active: true },
+  { id: 7, name: 'اللغة العربية', slug: 'arabic', sector: 'school', order: 7, is_active: true },
+  { id: 8, name: 'اللغة الإنجليزية', slug: 'english', sector: 'school', order: 8, is_active: true },
 ]
 
 export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
   departments: FALLBACK_DEPARTMENTS,
   stages: FALLBACK_STAGES,
   grades: FALLBACK_GRADES,
+  subjects: FALLBACK_SUBJECTS,
   isLoading: false,
   isLoaded: false,
 
@@ -164,6 +219,7 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
         departments: Array.isArray(data.departments) && data.departments.length > 0 ? data.departments : FALLBACK_DEPARTMENTS,
         stages: Array.isArray(data.stages) && data.stages.length > 0 ? data.stages : FALLBACK_STAGES,
         grades: Array.isArray(data.grades) && data.grades.length > 0 ? data.grades : FALLBACK_GRADES,
+        subjects: Array.isArray(data.subjects) && data.subjects.length > 0 ? data.subjects : FALLBACK_SUBJECTS,
         isLoading: false,
         isLoaded: true
       })
@@ -182,6 +238,7 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
 
   getDepartmentName: (slug?: string) => {
     if (!slug || slug === 'school' || slug === 'general_education') return 'التعليم المدرسي'
+    if (slug === 'university') return 'التعليم الجامعي'
     const { departments } = get()
     const found = departments.find(d => d.slug === slug)
     return found ? found.name : slug
@@ -219,6 +276,10 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
       second_sec: 'الصف الثاني الثانوي',
       third_secondary: 'الصف الثالث الثانوي',
       third_sec: 'الصف الثالث الثانوي',
+      'alfrkh-alaoly': 'الفرقة الأولى',
+      'alfrkh-altany': 'الفرقة الثانية',
+      'alfrkh-altalh': 'الفرقة الثالثة',
+      'alfrkh-alrabaah': 'الفرقة الرابعة',
     }
     return fallbacks[slug] || slug
   },
@@ -238,6 +299,33 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
       primary: 'المرحلة الابتدائية',
       preparatory: 'المرحلة الإعدادية',
       secondary: 'المرحلة الثانوية',
+      faclty: 'المرحلة الجامعية',
+      university: 'المرحلة الجامعية',
+    }
+    return fallbacks[slug] || slug
+  },
+
+  getSubject: (slug?: string) => {
+    if (!slug) return undefined
+    const { subjects } = get()
+    return subjects.find(s => s.slug === slug || s.name === slug)
+  },
+
+  getSubjectName: (slug?: string) => {
+    if (!slug) return ''
+    const { subjects } = get()
+    const found = subjects.find(s => s.slug === slug || s.name === slug)
+    if (found) return found.name
+
+    const fallbacks: Record<string, string> = {
+      chemistry: 'الكيمياء',
+      physics: 'الفيزياء',
+      integrated_science: 'علوم متكاملة',
+      biology: 'الأحياء',
+      math: 'الرياضيات',
+      science: 'العلوم',
+      arabic: 'اللغة العربية',
+      english: 'اللغة الإنجليزية',
     }
     return fallbacks[slug] || slug
   },
@@ -258,5 +346,50 @@ export const useTaxonomyStore = create<TaxonomyState>((set, get) => ({
     }
 
     return grades.filter(g => g.is_active)
+  },
+
+  getStagesForSector: (sector: 'school' | 'university') => {
+    const { stages } = get()
+    return stages.filter(s => {
+      if (sector === 'university') {
+        return s.sector === 'university' || s.slug === 'faclty' || s.name.includes('جامع') || s.name.includes('كلية')
+      }
+      return s.sector !== 'university' && s.slug !== 'faclty' && !s.name.includes('جامع') && !s.name.includes('كلية')
+    }).filter(s => s.is_active)
+  },
+
+  getSubjectsForSector: (sector: 'school' | 'university') => {
+    const { subjects } = get()
+    return subjects.filter(s => s.is_active && (s.sector === sector || !s.sector))
+  },
+
+  getSubjectsForStage: (stageIdOrSlug: number | string) => {
+    const { stages, subjects } = get()
+    let stageId: number | undefined
+    if (typeof stageIdOrSlug === 'number') {
+      stageId = stageIdOrSlug
+    } else {
+      const stage = stages.find(s => s.slug === stageIdOrSlug)
+      stageId = stage?.id
+    }
+
+    if (!stageId) return subjects.filter(s => s.is_active)
+    return subjects.filter(s => s.is_active && (s.stage_id === stageId || !s.stage_id))
+  },
+
+  getSubjectsForGrade: (gradeIdOrSlug: number | string) => {
+    const { grades, subjects } = get()
+    let grade: AcademicGrade | undefined
+    if (typeof gradeIdOrSlug === 'number') {
+      grade = grades.find(g => g.id === gradeIdOrSlug)
+    } else {
+      grade = grades.find(g => g.slug === gradeIdOrSlug)
+    }
+
+    if (!grade) return subjects.filter(s => s.is_active)
+    return subjects.filter(s => s.is_active && (
+      s.grade_id === grade?.id ||
+      (!s.grade_id && (!s.stage_id || s.stage_id === grade?.stage_id))
+    ))
   }
 }))

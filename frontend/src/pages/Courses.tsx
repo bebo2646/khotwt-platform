@@ -84,7 +84,7 @@ interface CoursesProps {
 
 export default function Courses({ subjectDefault, gradeDefault }: CoursesProps = {}) {
   const { user } = useAuthStore()
-  const { departments, stages, grades, fetchTaxonomy, getGradeName, getDepartmentName } = useTaxonomyStore()
+  const { departments, stages, grades, subjects, fetchTaxonomy, getGradeName, getDepartmentName } = useTaxonomyStore()
   const { subjectId, gradeId } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -98,6 +98,29 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
   React.useEffect(() => {
     fetchTaxonomy()
   }, [fetchTaxonomy])
+
+  const displaySubjects = React.useMemo(() => {
+    const list: Array<{ key: string; val: string }> = []
+    const seen = new Set<string>()
+
+    ;(subjects || []).filter(s => s.is_active).forEach(s => {
+      if (!seen.has(s.slug)) {
+        seen.add(s.slug)
+        list.push({ key: s.slug, val: s.name })
+      }
+    })
+
+    if (list.length === 0) {
+      SUBJECTS.forEach(s => {
+        if (!seen.has(s.key)) {
+          seen.add(s.key)
+          list.push(s)
+        }
+      })
+    }
+
+    return list
+  }, [subjects])
   
   const studentGradeKey = user?.grades?.[0] || ''
   const studentGradeVal = getGradeName(studentGradeKey)
@@ -310,7 +333,7 @@ export default function Courses({ subjectDefault, gradeDefault }: CoursesProps =
               className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 appearance-none focus:outline-none focus:border-brand-primary text-xs font-bold text-slate-200 cursor-pointer"
             >
               <option value="">جميع المواد والتخصصات</option>
-              {SUBJECTS.map((s) => (
+              {displaySubjects.map((s) => (
                 <option key={s.key} value={s.key}>{s.val}</option>
               ))}
             </select>

@@ -22,8 +22,12 @@ import {
   DollarSign,
   Image as ImageIcon,
   X,
-  RefreshCw
+  RefreshCw,
+  FolderTree,
+  GraduationCap,
+  School
 } from 'lucide-react'
+import { useTaxonomyStore } from '../../store/taxonomyStore'
 
 export interface QuestionOption {
   text: string
@@ -52,6 +56,8 @@ export const normalizeOption = (opt: any): QuestionOption => {
 interface CourseItem {
   id: number
   title: string
+  grade?: string
+  subject?: string
 }
 
 interface LessonItem {
@@ -124,10 +130,58 @@ export default function ExamBuilder() {
   const [price, setPrice] = React.useState('50')
 
   // Standalone Monthly Exam fields
+  const { stages, grades, subjects: taxonomySubjects, fetchTaxonomy, getGradeName, getSubjectName } = useTaxonomyStore()
+
+  React.useEffect(() => {
+    fetchTaxonomy()
+  }, [fetchTaxonomy])
+
+  const [standaloneSector, setStandaloneSector] = React.useState<'school' | 'university'>('school')
   const [month, setMonth] = React.useState('شهر أكتوبر')
   const [stage, setStage] = React.useState('المرحلة الثانوية')
   const [grade, setGrade] = React.useState('third_secondary')
   const [subject, setSubject] = React.useState('الكيمياء')
+
+  // Filter stages according to sector
+  const availableStages = React.useMemo(() => {
+    const list = (stages || []).filter(s => {
+      if (!s.is_active) return false
+      if (s.sector) return s.sector === standaloneSector
+      if (standaloneSector === 'university') return s.slug === 'faclty' || s.name.includes('جامع') || s.name.includes('كلي')
+      return s.slug !== 'faclty' && !s.name.includes('جامع')
+    })
+    return list
+  }, [stages, standaloneSector])
+
+  // Filter grades according to selected stage or sector
+  const availableGrades = React.useMemo(() => {
+    const active = (grades || []).filter(g => g.is_active)
+    if (stage) {
+      const stageObj = (stages || []).find(s => s.name === stage || String(s.id) === stage || s.slug === stage)
+      if (stageObj) {
+        const filtered = active.filter(g => g.stage_id === stageObj.id)
+        if (filtered.length > 0) return filtered
+      }
+    }
+    if (standaloneSector === 'university') {
+      return active.filter(g => g.level_type === 'university_year')
+    }
+    return active.filter(g => g.level_type !== 'university_year')
+  }, [grades, stages, stage, standaloneSector])
+
+  // Selected course details for course assessment
+  const selectedCourseDetails = React.useMemo(() => {
+    if (!courseId) return null
+    const crs = courses.find(c => String(c.id) === String(courseId))
+    if (!crs) return null
+    const gName = (crs.grade ? getGradeName(crs.grade) : '') || crs.grade || ''
+    const sName = (crs.subject ? getSubjectName(crs.subject) : '') || crs.subject || ''
+    return {
+      title: crs.title,
+      gradeName: gName,
+      subjectName: sName
+    }
+  }, [courseId, courses, getGradeName, getSubjectName])
   const [description, setDescription] = React.useState('')
   const [allowedViolations, setAllowedViolations] = React.useState(3)
   const [enableFullscreen, setEnableFullscreen] = React.useState(true)
@@ -1513,6 +1567,46 @@ export default function ExamBuilder() {
                         <span>بيانات الامتحان الشهري المستقل:</span>
                       </h4>
 
+                      {/* Sector Switcher for Standalone Exam */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-200 block">القطاع التعليمي للامتحان المستقل:</label>
+                        <div className="grid grid-cols-2 gap-3 max-w-md">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStandaloneSector('school')
+                              setStage('المرحلة الثانوية')
+                              setGrade('third_secondary')
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              standaloneSector === 'school'
+                                ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-sm'
+                                : 'border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <School className="h-4 w-4" />
+                            <span>التعليم المدرسي</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStandaloneSector('university')
+                              const firstUniStage = availableStages.find(s => s.sector === 'university' || s.slug === 'faclty')
+                              if (firstUniStage) setStage(firstUniStage.name)
+                              setGrade('first_year')
+                            }}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                              standaloneSector === 'university'
+                                ? 'border-brand-primary bg-brand-primary/10 text-brand-primary shadow-sm'
+                                : 'border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            <GraduationCap className="h-4 w-4" />
+                            <span>التعليم الجامعي</span>
+                          </button>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
                           <label className="text-xs font-semibold text-slate-300 block mb-1.5">الشهر الدراسي</label>
@@ -1528,28 +1622,44 @@ export default function ExamBuilder() {
                         </div>
 
                         <div>
-                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">المرحلة الدراسية</label>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                            {standaloneSector === 'university' ? 'الكلية / المعهد الجامعي' : 'المرحلة الدراسية'}
+                          </label>
                           <select
                             value={stage}
                             onChange={(e) => setStage(e.target.value)}
                             className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                           >
-                            {STAGES_LIST.map((s) => (
-                              <option key={s} value={s}>{s}</option>
-                            ))}
+                            {availableStages.length > 0 ? (
+                              availableStages.map((s) => (
+                                <option key={s.id} value={s.name}>{s.name}</option>
+                              ))
+                            ) : (
+                              STAGES_LIST.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))
+                            )}
                           </select>
                         </div>
 
                         <div>
-                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">الصف الدراسي</label>
+                          <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                            {standaloneSector === 'university' ? 'الفرقة الجامعية' : 'الصف الدراسي'}
+                          </label>
                           <select
                             value={grade}
                             onChange={(e) => setGrade(e.target.value)}
                             className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                           >
-                            {GRADES_LIST.map((g) => (
-                              <option key={g.value} value={g.value}>{g.label}</option>
-                            ))}
+                            {availableGrades.length > 0 ? (
+                              availableGrades.map((g) => (
+                                <option key={g.slug} value={g.slug}>{g.name}</option>
+                              ))
+                            ) : (
+                              GRADES_LIST.map((g) => (
+                                <option key={g.value} value={g.value}>{g.label}</option>
+                              ))
+                            )}
                           </select>
                         </div>
 
@@ -1558,11 +1668,17 @@ export default function ExamBuilder() {
                           <input
                             type="text"
                             required
+                            list="exam-subjects-list"
                             value={subject}
                             onChange={(e) => setSubject(e.target.value)}
-                            placeholder="مثال: الكيمياء أو الفيزياء"
+                            placeholder="مثال: الكيمياء أو المحاسبة المالية"
                             className="w-full bg-[rgba(0,0,0,0.2)] border border-[var(--border-color)] rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none"
                           />
+                          <datalist id="exam-subjects-list">
+                            {(taxonomySubjects || []).map(s => (
+                              <option key={s.id} value={s.name} />
+                            ))}
+                          </datalist>
                         </div>
 
                         <div>
@@ -1834,6 +1950,22 @@ export default function ExamBuilder() {
                             ))}
                           </select>
                         </div>
+
+                        {selectedCourseDetails && (
+                          <div className="md:col-span-2 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl p-4 flex items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-2.5">
+                              <FolderTree className="h-4 w-4 text-brand-primary shrink-0" />
+                              <div>
+                                <div className="font-bold text-slate-200">
+                                  تنظيم تلقائي لمحتوى الاختبار:
+                                </div>
+                                <div className="text-[11px] text-slate-400 mt-0.5">
+                                  يرتبط هذا الاختبار تلقائياً بكورس <span className="text-brand-primary font-bold">{selectedCourseDetails.title}</span> ({selectedCourseDetails.gradeName} - {selectedCourseDetails.subjectName}) ويظهر للطالب داخل مجلد هذا الصف/الفرقة دون الحاجة لاختيار مجلد يدوي.
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 

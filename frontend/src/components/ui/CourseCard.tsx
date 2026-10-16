@@ -101,6 +101,12 @@ export default function CourseCard({
           alt={`غلاف كورس ${title}`} 
           loading="lazy"
           decoding="async"
+          onError={(e) => {
+            const target = e.currentTarget
+            if (!target.src.includes('unsplash')) {
+              target.src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500'
+            }
+          }}
           className="object-cover w-full h-full group-hover/img:scale-105 transition-transform duration-500 ease-out" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-80 group-hover:opacity-60 transition-opacity"></div>
@@ -113,7 +119,7 @@ export default function CourseCard({
             </div>
           )}
           <div className="px-3 py-1 bg-black/75 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-white/15 shadow-sm">
-            {SUBJECTS_TRANSLATION[subject] || subject}
+            {useTaxonomyStore.getState().getSubjectName(subject) || SUBJECTS_TRANSLATION[subject] || subject}
           </div>
           {grade && (
             <div className="px-3 py-1 bg-indigo-600/90 backdrop-blur-md text-white rounded-full text-[10px] font-black tracking-wide border border-indigo-400/30 shadow-sm">
@@ -162,7 +168,14 @@ export default function CourseCard({
             >
               <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0 shadow-sm group-hover/cardteacher:border-brand-primary/60 transition-colors">
                 {teacherAvatar ? (
-                  <img src={ensureHttps(teacherAvatar)} alt={`صورة المعلم ${teacherName}`} className="object-cover w-full h-full" />
+                  <img
+                    src={ensureHttps(teacherAvatar)}
+                    alt={`صورة المعلم ${teacherName}`}
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
                 ) : (
                   teacherName.charAt(0)
                 )}
@@ -173,7 +186,14 @@ export default function CourseCard({
             <div className="flex items-center gap-2.5">
               <div className="h-7 w-7 rounded-full bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-xs font-black text-brand-primary overflow-hidden shrink-0 shadow-sm">
                 {teacherAvatar ? (
-                  <img src={ensureHttps(teacherAvatar)} alt={`صورة المعلم ${teacherName}`} className="object-cover w-full h-full" />
+                  <img
+                    src={ensureHttps(teacherAvatar)}
+                    alt={`صورة المعلم ${teacherName}`}
+                    className="object-cover w-full h-full"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
                 ) : (
                   teacherName.charAt(0)
                 )}

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\AcademicStage;
 use App\Models\AcademicGrade;
+use App\Models\AcademicSubject;
 use App\Models\Course;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -14,19 +15,49 @@ use Illuminate\Support\Facades\DB;
 class TaxonomyController extends Controller
 {
     /**
-     * Get entire public taxonomy (Active Departments, Stages with Grades, and flat Grades).
+     * Get entire public taxonomy (Active Departments, Stages with Grades and Subjects, and flat Grades and Subjects).
      */
     public function getTaxonomy()
     {
         $departments = Department::active()->get();
-        $stages = AcademicStage::active()->with(['activeGrades'])->get();
-        $grades = AcademicGrade::active()->with('stage')->get();
+        $stages = AcademicStage::active()->with(['activeGrades', 'activeSubjects'])->get();
+        $grades = AcademicGrade::active()->with(['stage', 'activeSubjects'])->get();
+        $subjects = AcademicSubject::active()->with(['stage', 'grade'])->get();
 
         return response()->json([
             'departments' => $departments,
             'stages' => $stages,
             'grades' => $grades,
+            'subjects' => $subjects,
         ]);
+    }
+
+    /**
+     * Get active academic subjects filtered optionally by sector, stage_id, or grade_id.
+     */
+    public function getAcademicSubjects(Request $request)
+    {
+        $query = AcademicSubject::active()->with(['stage', 'grade']);
+
+        if ($request->has('sector') && !empty($request->sector)) {
+            $query->where('sector', $request->sector);
+        }
+
+        if ($request->has('stage_id') && !empty($request->stage_id)) {
+            $query->where(function($q) use ($request) {
+                $q->where('stage_id', $request->stage_id)
+                  ->orWhereNull('stage_id');
+            });
+        }
+
+        if ($request->has('grade_id') && !empty($request->grade_id)) {
+            $query->where(function($q) use ($request) {
+                $q->where('grade_id', $request->grade_id)
+                  ->orWhereNull('grade_id');
+            });
+        }
+
+        return response()->json($query->orderBy('order', 'asc')->get());
     }
 
     /**
@@ -321,27 +352,35 @@ class TaxonomyController extends Controller
     }
 
     /**
-     * Admin: List all academic stages with grades.
+     * Admin: List all academic stages with grades and subjects.
      */
-    public function listAcademicStagesAdmin()
+    public function listAcademicStagesAdmin(Request $request)
     {
-        $stages = AcademicStage::orderBy('order', 'asc')
+        $query = AcademicStage::orderBy('order', 'asc')
             ->with(['grades' => function($q) {
                 $q->orderBy('order', 'asc');
-            }])
-            ->get();
+            }, 'subjects' => function($q) {
+                $q->orderBy('order', 'asc');
+            }]);
+
+        if ($request->has('sector') && !empty($request->sector)) {
+            $query->where('sector', $request->sector);
+        }
+
+        $stages = $query->get();
 
         return response()->json($stages);
     }
 
     /**
-     * Admin: Create academic stage.
+     * Admin: Create academic stage / faculty.
      */
     public function createAcademicStage(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255|unique:academic_stages,slug',
+            'sector' => 'nullable|string|in:school,university',
             'order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
         ]);
@@ -355,20 +394,21 @@ class TaxonomyController extends Controller
             }
         }
 
-        $validated['order'] = $validated['order'] ?? (AcademicStage::max('order') + 1);
+        $validated['sector'] = $validated['sector'] ?? 'school';
+        $validated['order'] = $validated['order'] ?? (AcademicStage::where('sector', $validated['sector'])->max('order') + 1);
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $stage = AcademicStage::create($validated);
-        $stage->load('grades');
+        $stage->load(['grades', 'subjects']);
 
         return response()->json([
-            'message' => 'تم إنشاء المرحلة الدراسية بنجاح',
+            'message' => 'تم إنشاء المرحلة / الكلية بنجاح',
             'stage' => $stage,
         ], 201);
     }
 
     /**
-     * Admin: Update academic stage.
+     * Admin: Update academic stage / faculty.
      */
     public function updateAcademicStage(Request $request, $id)
     {
@@ -377,25 +417,43 @@ class TaxonomyController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:academic_stages,slug,' . $id,
+            'sector' => 'nullable|string|in:school,university',
             'order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
         ]);
 
         $stage->update($validated);
-        $stage->load('grades');
+        $stage->load(['grades', 'subjects']);
 
         return response()->json([
-            'message' => 'تم تحديث المرحلة الدراسية بنجاح',
+            'message' => 'تم تحديث المرحلة / الكلية بنجاح',
             'stage' => $stage,
         ]);
     }
 
     /**
-     * Admin: Delete academic stage.
+     * Admin: Delete academic stage / faculty.
      */
     public function deleteAcademicStage($id)
     {
-        $stage = AcademicStage::findOrFail($id);
+        $stage = AcademicStage::with(['grades', 'subjects'])->findOrFail($id);
+        $gradeSlugs = $stage->grades->pluck('slug')->toArray();
+
+        // Check if courses are linked to any grade of this stage
+        $coursesCount = Course::whereIn('grade', $gradeSlugs)->count();
+
+        // Check if teachers are linked
+        $teachersCount = 0;
+        foreach ($gradeSlugs as $slug) {
+            $teachersCount += User::where('role', 'teacher')->whereJsonContains('grades', $slug)->count();
+        }
+
+        if ($coursesCount > 0 || $teachersCount > 0) {
+            return response()->json([
+                'message' => "لا يمكن حذف هذه المرحلة/الكلية لوجود {$coursesCount} كورس و {$teachersCount} معلم/دكتور مرتبط بها. يرجى نقل أو تعديل البيانات أولاً.",
+            ], 422);
+        }
+
         $stage->delete();
 
         return response()->json([
@@ -420,14 +478,21 @@ class TaxonomyController extends Controller
     }
 
     /**
-     * Admin: List all academic grades.
+     * Admin: List all academic grades / university years.
      */
     public function listAcademicGradesAdmin(Request $request)
     {
-        $query = AcademicGrade::with('stage')->orderBy('order', 'asc');
+        $query = AcademicGrade::with(['stage', 'subjects'])->orderBy('order', 'asc');
 
         if ($request->has('stage_id') && !empty($request->stage_id)) {
             $query->where('stage_id', $request->stage_id);
+        }
+
+        if ($request->has('sector') && !empty($request->sector)) {
+            $sector = $request->sector;
+            $query->whereHas('stage', function($q) use ($sector) {
+                $q->where('sector', $sector);
+            });
         }
 
         $grades = $query->get();
@@ -436,7 +501,7 @@ class TaxonomyController extends Controller
     }
 
     /**
-     * Admin: Create academic grade.
+     * Admin: Create academic grade / university year.
      */
     public function createAcademicGrade(Request $request)
     {
@@ -445,6 +510,8 @@ class TaxonomyController extends Controller
             'name' => 'required|string|max:255',
             'slug' => 'nullable|string|max:255|unique:academic_grades,slug',
             'short_code' => 'nullable|string|max:50',
+            'level_type' => 'nullable|string|in:grade,university_year',
+            'specialization' => 'nullable|string|max:255',
             'order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
         ]);
@@ -458,20 +525,25 @@ class TaxonomyController extends Controller
             }
         }
 
+        $stage = AcademicStage::find($validated['stage_id']);
+        if (empty($validated['level_type'])) {
+            $validated['level_type'] = ($stage && $stage->sector === 'university') ? 'university_year' : 'grade';
+        }
+
         $validated['order'] = $validated['order'] ?? (AcademicGrade::where('stage_id', $validated['stage_id'])->max('order') + 1);
         $validated['is_active'] = $validated['is_active'] ?? true;
 
         $grade = AcademicGrade::create($validated);
-        $grade->load('stage');
+        $grade->load(['stage', 'subjects']);
 
         return response()->json([
-            'message' => 'تم إضافة الصف الدراسي بنجاح',
+            'message' => 'تم إضافة الصف الدراسي / الفرقة بنجاح',
             'grade' => $grade,
         ], 201);
     }
 
     /**
-     * Admin: Update academic grade.
+     * Admin: Update academic grade / university year.
      */
     public function updateAcademicGrade(Request $request, $id)
     {
@@ -482,29 +554,44 @@ class TaxonomyController extends Controller
             'name' => 'required|string|max:255',
             'slug' => 'required|string|max:255|unique:academic_grades,slug,' . $id,
             'short_code' => 'nullable|string|max:50',
+            'level_type' => 'nullable|string|in:grade,university_year',
+            'specialization' => 'nullable|string|max:255',
             'order' => 'nullable|integer',
             'is_active' => 'nullable|boolean',
         ]);
 
         $grade->update($validated);
-        $grade->load('stage');
+        $grade->load(['stage', 'subjects']);
 
         return response()->json([
-            'message' => 'تم تحديث الصف الدراسي بنجاح',
+            'message' => 'تم تحديث الصف الدراسي / الفرقة بنجاح',
             'grade' => $grade,
         ]);
     }
 
     /**
-     * Admin: Delete academic grade.
+     * Admin: Delete academic grade / university year.
      */
     public function deleteAcademicGrade($id)
     {
         $grade = AcademicGrade::findOrFail($id);
+
+        // Check if courses are linked to this grade
+        $coursesCount = Course::where('grade', $grade->slug)->count();
+
+        // Check if teachers are linked
+        $teachersCount = User::where('role', 'teacher')->whereJsonContains('grades', $grade->slug)->count();
+
+        if ($coursesCount > 0 || $teachersCount > 0) {
+            return response()->json([
+                'message' => "لا يمكن حذف هذا الصف/الفرقة لوجود {$coursesCount} كورس و {$teachersCount} معلم/دكتور مرتبط به. يرجى تعديل أو نقل البيانات أولاً.",
+            ], 422);
+        }
+
         $grade->delete();
 
         return response()->json([
-            'message' => 'تم حذف الصف الدراسي بنجاح',
+            'message' => 'تم حذف الصف الدراسي / الفرقة بنجاح',
         ]);
     }
 
@@ -518,9 +605,149 @@ class TaxonomyController extends Controller
         $grade->save();
 
         return response()->json([
-            'message' => 'تم تغيير حالة الصف الدراسي بنجاح',
+            'message' => 'تم تغيير حالة الصف الدراسي / الفرقة بنجاح',
             'is_active' => $grade->is_active,
             'grade' => $grade,
+        ]);
+    }
+
+    /* =========================================================================
+     * ACADEMIC SUBJECTS CRUD
+     * ========================================================================= */
+
+    /**
+     * Admin: List all academic subjects.
+     */
+    public function listAcademicSubjectsAdmin(Request $request)
+    {
+        $query = AcademicSubject::with(['stage', 'grade'])->orderBy('order', 'asc');
+
+        if ($request->has('sector') && !empty($request->sector)) {
+            $query->where('sector', $request->sector);
+        }
+
+        if ($request->has('stage_id') && !empty($request->stage_id)) {
+            $query->where('stage_id', $request->stage_id);
+        }
+
+        if ($request->has('grade_id') && !empty($request->grade_id)) {
+            $query->where('grade_id', $request->grade_id);
+        }
+
+        $subjects = $query->get()->map(function ($subj) {
+            $subj->courses_count = Course::where('subject', $subj->slug)->orWhere('subject', $subj->name)->count();
+            return $subj;
+        });
+
+        return response()->json($subjects);
+    }
+
+    /**
+     * Admin: Create academic subject.
+     */
+    public function createAcademicSubject(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:academic_subjects,slug',
+            'sector' => 'nullable|string|in:school,university',
+            'stage_id' => 'nullable|exists:academic_stages,id',
+            'grade_id' => 'nullable|exists:academic_grades,id',
+            'order' => 'nullable|integer',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['name']) ?: 'subj_' . time();
+            $originalSlug = $validated['slug'];
+            $count = 1;
+            while (AcademicSubject::where('slug', $validated['slug'])->exists()) {
+                $validated['slug'] = $originalSlug . '_' . $count++;
+            }
+        }
+
+        $validated['sector'] = $validated['sector'] ?? 'school';
+        $validated['order'] = $validated['order'] ?? (AcademicSubject::where('sector', $validated['sector'])->max('order') + 1);
+        $validated['is_active'] = $validated['is_active'] ?? true;
+
+        $subject = AcademicSubject::create($validated);
+        $subject->load(['stage', 'grade']);
+
+        return response()->json([
+            'message' => 'تم إنشاء المادة الدراسية بنجاح',
+            'subject' => $subject,
+        ], 201);
+    }
+
+    /**
+     * Admin: Update academic subject.
+     */
+    public function updateAcademicSubject(Request $request, $id)
+    {
+        $subject = AcademicSubject::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:academic_subjects,slug,' . $id,
+            'sector' => 'nullable|string|in:school,university',
+            'stage_id' => 'nullable|exists:academic_stages,id',
+            'grade_id' => 'nullable|exists:academic_grades,id',
+            'order' => 'nullable|integer',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $subject->update($validated);
+        $subject->load(['stage', 'grade']);
+
+        return response()->json([
+            'message' => 'تم تحديث المادة الدراسية بنجاح',
+            'subject' => $subject,
+        ]);
+    }
+
+    /**
+     * Admin: Delete academic subject.
+     */
+    public function deleteAcademicSubject($id)
+    {
+        $subject = AcademicSubject::findOrFail($id);
+
+        // Check if courses are linked to this subject
+        $coursesCount = Course::where('subject', $subject->slug)->orWhere('subject', $subject->name)->count();
+
+        // Check if teachers teach this subject
+        $teachersCount = User::where('role', 'teacher')
+            ->where(function ($q) use ($subject) {
+                $q->where('subject', 'like', "%{$subject->slug}%")
+                  ->orWhere('subject', 'like', "%{$subject->name}%");
+            })->count();
+
+        if ($coursesCount > 0 || $teachersCount > 0) {
+            return response()->json([
+                'message' => "لا يمكن حذف هذه المادة لوجود {$coursesCount} كورس و {$teachersCount} معلم/دكتور مرتبط بها. يرجى نقل أو تعديل الكورسات والمعلمين أولاً.",
+            ], 422);
+        }
+
+        $subject->delete();
+
+        return response()->json([
+            'message' => 'تم حذف المادة الدراسية بنجاح',
+        ]);
+    }
+
+    /**
+     * Admin: Toggle academic subject active status.
+     */
+    public function toggleAcademicSubjectStatus($id)
+    {
+        $subject = AcademicSubject::findOrFail($id);
+        $subject->is_active = !$subject->is_active;
+        $subject->save();
+
+        return response()->json([
+            'message' => 'تم تغيير حالة المادة الدراسية بنجاح',
+            'is_active' => $subject->is_active,
+            'subject' => $subject,
         ]);
     }
 }

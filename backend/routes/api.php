@@ -36,6 +36,7 @@ Route::get('/departments', [TaxonomyController::class, 'getDepartments']);
 Route::get('/departments/{slug}', [TaxonomyController::class, 'getDepartmentBySlug']);
 Route::get('/academic-stages', [TaxonomyController::class, 'getAcademicStages']);
 Route::get('/academic-grades', [TaxonomyController::class, 'getAcademicGrades']);
+Route::get('/academic-subjects', [TaxonomyController::class, 'getAcademicSubjects']);
 
 // Cascading Filter
 Route::get('/filter/subjects', [PublicController::class, 'filterSubjects']);
@@ -483,6 +484,13 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
                 Route::put('/admin/academic-grades/{id}', [TaxonomyController::class, 'updateAcademicGrade']);
                 Route::delete('/admin/academic-grades/{id}', [TaxonomyController::class, 'deleteAcademicGrade']);
                 Route::post('/admin/academic-grades/{id}/toggle', [TaxonomyController::class, 'toggleAcademicGradeStatus']);
+
+                // Academic Subjects
+                Route::get('/admin/academic-subjects', [TaxonomyController::class, 'listAcademicSubjectsAdmin']);
+                Route::post('/admin/academic-subjects', [TaxonomyController::class, 'createAcademicSubject']);
+                Route::put('/admin/academic-subjects/{id}', [TaxonomyController::class, 'updateAcademicSubject']);
+                Route::delete('/admin/academic-subjects/{id}', [TaxonomyController::class, 'deleteAcademicSubject']);
+                Route::post('/admin/academic-subjects/{id}/toggle', [TaxonomyController::class, 'toggleAcademicSubjectStatus']);
             });
 
             // Watch limits (Course view limits per student, Course view limits config)
