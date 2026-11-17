@@ -16,7 +16,8 @@ class TelegramUser extends Model
     protected $fillable = [
         'user_id',
         'telegram_user_id', // External Telegram User ID (e.g. 5839201948)
-        'telegram_chat_id', // External Telegram Private Chat ID
+        'telegram_chat_id', // External Telegram Private Chat ID (User Bot)
+        'admin_chat_id',    // External Telegram Private Chat ID (Admin Bot)
         'telegram_username',
         'first_name',
         'last_name',
@@ -29,17 +30,23 @@ class TelegramUser extends Model
         'notifications_enabled',
         'current_conversation_state',
         'state_payload',
+        'admin_conversation_state',
+        'admin_state_payload',
+        'admin_last_interaction_at',
     ];
 
     protected $casts = [
         'telegram_user_id' => 'integer',
         'telegram_chat_id' => 'integer',
+        'admin_chat_id' => 'integer',
         'is_linked' => 'boolean',
         'linked_at' => 'datetime',
         'last_interaction_at' => 'datetime',
+        'admin_last_interaction_at' => 'datetime',
         'marketing_opt_in' => 'boolean',
         'notifications_enabled' => 'boolean',
         'state_payload' => 'array',
+        'admin_state_payload' => 'array',
     ];
 
     public function user(): BelongsTo

@@ -54,6 +54,7 @@ Route::get('/public/videos/{video}/status', [\App\Http\Controllers\TeacherContro
 
 // Telegram Webhook and Public Recovery
 Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handleWebhook']);
+Route::post('/telegram/admin-webhook', [\App\Http\Controllers\TelegramAdminWebhookController::class, 'handleWebhook']);
 Route::post('/telegram/reset-password', [\App\Http\Controllers\TelegramAccountController::class, 'resetPassword']);
 Route::post('/telegram/verify-reset-token', [\App\Http\Controllers\TelegramAccountController::class, 'verifyResetToken']);
 

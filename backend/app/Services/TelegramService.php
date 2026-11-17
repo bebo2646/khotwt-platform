@@ -17,6 +17,16 @@ class TelegramService
         $this->apiUrl = 'https://api.telegram.org/bot' . ($this->botToken ?: 'MISSING_TOKEN');
     }
 
+    public static function forUserBot(): self
+    {
+        return new self(config('services.telegram.bot_token'));
+    }
+
+    public static function forAdminBot(): TelegramAdminService
+    {
+        return app(TelegramAdminService::class);
+    }
+
     /**
      * Check if bot token is configured.
      */

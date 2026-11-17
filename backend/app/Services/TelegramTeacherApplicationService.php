@@ -214,13 +214,23 @@ class TelegramTeacherApplicationService
     }
 
     /**
-     * Dispatch alert to Telegram Admin Chat with Action Buttons.
+     * Dispatch alert to Telegram Admin Chat with Action Buttons via Admin Bot.
      */
     public function notifyAdminNewTeacherApplication(TeacherApplication $app, TelegramUser $telegramUser): void
     {
-        $adminChatId = config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID');
-        if (!$adminChatId) {
-            Log::warning('TelegramTeacherApplicationService: TELEGRAM_ADMIN_CHAT_ID missing, skipped admin alert.');
+        $adminDashboard = app(TelegramAdminDashboardService::class);
+        $adminIds = $adminDashboard->getAuthorizedAdminIds();
+
+        if (empty($adminIds)) {
+            $fallbackChat = config('services.admin_telegram.admin_ids') 
+                ?: (config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID'));
+            if ($fallbackChat) {
+                $adminIds = [$fallbackChat];
+            }
+        }
+
+        if (empty($adminIds)) {
+            Log::warning('TelegramTeacherApplicationService: No admin IDs configured, skipped admin alert.');
             return;
         }
 
@@ -247,10 +257,13 @@ class TelegramTeacherApplicationService
             ]
         ];
 
-        try {
-            $this->telegramService->sendMessage($adminChatId, $adminText, ['inline_keyboard' => $inlineKeyboard]);
-        } catch (\Throwable $e) {
-            Log::error('TelegramTeacherApplicationService: Admin alert failed: ' . $e->getMessage());
+        $adminBot = TelegramService::forAdminBot();
+        foreach ($adminIds as $admId) {
+            try {
+                $adminBot->sendMessage($admId, $adminText, ['inline_keyboard' => $inlineKeyboard]);
+            } catch (\Throwable $e) {
+                Log::warning("TelegramTeacherApplicationService: Failed to notify admin [{$admId}]: " . $e->getMessage());
+            }
         }
     }
 
@@ -338,7 +351,11 @@ class TelegramTeacherApplicationService
             $baseUrl = TelegramService::getFrontendUrl('reset-password');
             $setupUrl = "{$baseUrl}#token={$plainToken}";
 
-            // 5. Send celebratory message to teacher
+            $userBot = TelegramService::forUserBot();
+            $adminBot = TelegramService::forAdminBot();
+            $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+
+            // 5. Send celebratory message to teacher via USER BOT
             $teacherMsg = "🎉 <b>ألف مبروك! تمت الموافقة على انضمامك كمعلم في منصة خطوتك 🌟</b>\n\n" .
                 "أهلاً بك يا أستاذ <b>{$user->name}</b> في منصة خطوتك التعليمية.\n" .
                 "تم تفعيل حساب المعلم الخاص بك بنجاح.\n\n" .
@@ -347,15 +364,15 @@ class TelegramTeacherApplicationService
                 "⚠️ <i>الرابط مخصص لك وصالح لمدة 48 ساعة.</i>";
 
             try {
-                $this->telegramService->sendMessage($app->telegram_user_id, $teacherMsg);
+                $userBot->sendMessage($app->telegram_user_id, $teacherMsg);
             } catch (\Throwable $e) {
-                Log::warning('Failed to notify approved teacher via telegram: ' . $e->getMessage());
+                Log::warning('Failed to notify approved teacher via telegram user bot: ' . $e->getMessage());
             }
 
-            // 6. Confirm to admin
-            $this->telegramService->sendMessage(
-                $adminUser->telegram_chat_id,
-                "✅ <b>تم قبول المعلم بنجاح!</b>\n\nتم إنشاء الحساب للمدرس <b>{$user->name}</b> برقم ID: #{$user->id} وتم إرسال رابط التفعيل وتعيين كلمة المرور له عبر تيليجرام."
+            // 6. Confirm to admin via ADMIN BOT
+            $adminBot->sendMessage(
+                $adminChat,
+                "✅ <b>تم قبول المعلم بنجاح!</b>\n\nتم إنشاء الحساب للمدرس <b>{$user->name}</b> برقم ID: #{$user->id} وتم إرسال رابط التفعيل وتعيين كلمة المرور له عبر بوت الطلاب."
             );
 
             return ['success' => true, 'user' => $user];
@@ -363,7 +380,7 @@ class TelegramTeacherApplicationService
     }
 
     /**
-     * Start rejection flow: prompt admin for reason.
+     * Start rejection flow: prompt admin for reason (scoped to admin state).
      */
     public function startRejectApplication(TelegramUser $adminUser, mixed $appId): void
     {
@@ -375,8 +392,11 @@ class TelegramTeacherApplicationService
             $app = TeacherApplication::where('status', TeacherApplication::STATUS_PENDING)->latest()->first() ?: TeacherApplication::latest()->first();
         }
 
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         if (!$app) {
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ الطلب غير موجود.");
+            $adminBot->sendMessage($adminChat, "❌ الطلب غير موجود.");
             return;
         }
 
@@ -384,13 +404,13 @@ class TelegramTeacherApplicationService
             'app_id' => $app->id,
             'applicant_telegram_id' => $app->telegram_user_id,
             'applicant_name' => $app->name,
-        ]);
+        ], 'admin');
 
         $text = "❌ <b>رفض طلب المعلم: {$app->name}</b>\n\n" .
-            "اكتب سبب الرفض بالأسفل (سيتم إرساله للمتقدم بأدب واحترام):\n" .
+            "اكتب سبب الرفض بالأسفل (سيتم إرساله للمتقدم بأدب واحترام عبر بوت الطلاب):\n" .
             "<i>(أو أرسل /cancel لإلغاء الرفض)</i>";
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text);
+        $adminBot->sendMessage($adminChat, $text);
     }
 
     /**
@@ -398,13 +418,17 @@ class TelegramTeacherApplicationService
      */
     public function submitRejection(TelegramUser $adminUser, string $reason): void
     {
-        $payload = $this->stateEngine->getPayload($adminUser);
+        $payload = $this->stateEngine->getPayload($adminUser, 'admin');
         $appId = $payload['app_id'] ?? null;
         $app = TeacherApplication::find($appId);
 
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+        $userBot = TelegramService::forUserBot();
+
         if (!$app) {
-            $this->stateEngine->clearState($adminUser);
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ الطلب غير موجود.");
+            $this->stateEngine->clearState($adminUser, 'admin');
+            $adminBot->sendMessage($adminChat, "❌ الطلب غير موجود.");
             return;
         }
 
@@ -415,23 +439,23 @@ class TelegramTeacherApplicationService
             'reviewed_at' => Carbon::now(),
         ]);
 
-        $this->stateEngine->clearState($adminUser);
+        $this->stateEngine->clearState($adminUser, 'admin');
 
-        // Notify applicant
+        // Notify applicant via USER BOT
         $rejectMsg = "عزيزي الأستاذ <b>{$app->name}</b>،\n\n" .
             "نشكر اهتمامك بالانضمام لمنصة خطوتك التعليمية. نعتذر منك، لم تتم الموافقة على طلبك في الوقت الحالي.\n\n" .
             "• <b>سبب الاعتذار:</b>\n" . htmlspecialchars($reason) . "\n\n" .
             "نتمنى لك كل التوفيق والنجاح، ويمكنك التواصل مع إدارة المنصة للاستفسار.";
 
         try {
-            $this->telegramService->sendMessage($app->telegram_user_id, $rejectMsg);
+            $userBot->sendMessage($app->telegram_user_id, $rejectMsg);
         } catch (\Throwable $e) {
             // silent catch
         }
 
-        $this->telegramService->sendMessage(
-            $adminUser->telegram_chat_id,
-            "✅ تم تسجيل رفض الطلب رقم <code>#APP-{$app->id}</code> وإرسال السبب للمتقدم."
+        $adminBot->sendMessage(
+            $adminChat,
+            "✅ تم تسجيل رفض الطلب رقم <code>#APP-{$app->id}</code> وإرسال السبب للمتقدم عبر بوت الطلاب."
         );
     }
 }

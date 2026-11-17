@@ -12,12 +12,16 @@ class TelegramProcessedUpdate extends Model
 
     protected $table = 'telegram_processed_updates';
 
+    public const BOT_USER = 'user';
+    public const BOT_ADMIN = 'admin';
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_PROCESSING = 'processing';
     public const STATUS_PROCESSED = 'processed';
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
+        'bot_type',
         'update_id',
         'chat_id',
         'telegram_user_id',

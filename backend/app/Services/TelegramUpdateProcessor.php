@@ -121,7 +121,10 @@ class TelegramUpdateProcessor
 
         // 1. Handle Commands
         if ($text === '/admin') {
-            $this->adminDashboardService->showAdminDashboard($telegramUser);
+            $this->telegramService->sendMessage(
+                $telegramUser->telegram_chat_id,
+                "⛔️ <b>تنبيه:</b> هذا البوت مخصص لخدمات الطلاب والمعلمين وأولياء الأمور فقط.\n\n👑 لوحة الإدارة والتحكم متاحة حصراً للمسؤولين عبر بوت الإدارة المعتمد."
+            );
             return;
         }
 
@@ -190,42 +193,11 @@ class TelegramUpdateProcessor
             return;
         }
 
-        if ($currentState === ConversationStateEngine::STATE_ADMIN_REPLYING_TICKET) {
-            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
-                $this->stateEngine->clearState($telegramUser);
-                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
-                return;
-            }
-            $this->supportService->deliverAdminReply($telegramUser, $text);
-            return;
-        }
-
         // Teacher Application Wizard States
         if (str_starts_with($currentState, 'TEACHER_APP_')) {
             if ($this->teacherAppService->handleWizardInput($telegramUser, $currentState, $text)) {
                 return;
             }
-        }
-
-        if ($currentState === ConversationStateEngine::STATE_ADMIN_REJECTING_TEACHER) {
-            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
-                $this->stateEngine->clearState($telegramUser);
-                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
-                return;
-            }
-            $this->teacherAppService->submitRejection($telegramUser, $text);
-            return;
-        }
-
-        // Admin User Search State
-        if ($currentState === ConversationStateEngine::STATE_ADMIN_SEARCHING_USER) {
-            $this->stateEngine->clearState($telegramUser);
-            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
-                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
-                return;
-            }
-            $this->adminDashboardService->searchUser($telegramUser, $text);
-            return;
         }
 
         // 4. Check if text looks like a gift code submission
@@ -764,19 +736,6 @@ class TelegramUpdateProcessor
             'last_interaction_at' => Carbon::now(),
         ]);
 
-        // Auto-link/sync admin role if verified
-        if ($this->adminDashboardService->isAdmin($telegramUser)) {
-            if ($telegramUser->role !== 'admin' || !$telegramUser->is_linked) {
-                $platformAdmin = User::where('id', 1)->orWhere('role', 'admin')->first();
-                $telegramUser->update([
-                    'role' => 'admin',
-                    'user_id' => $telegramUser->user_id ?: ($platformAdmin?->id ?? 1),
-                    'is_linked' => true,
-                    'linked_at' => $telegramUser->linked_at ?: Carbon::now(),
-                ]);
-            }
-        }
-
         \App\Models\TelegramUserActivity::recordActivity($fromId, 'callback_query');
 
         // 1. Support Ticket User Callbacks
@@ -810,102 +769,18 @@ class TelegramUpdateProcessor
             return;
         }
 
-        // 3. Admin Protected Actions (Unified Authorization)
+        // 3. Strict Isolation: Reject any Admin Callback Query on User Bot
         if (str_starts_with($data, 'adm_')) {
-            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
-                Log::warning('TelegramUpdateProcessor: Unauthorized admin action attempted on callback query', [
-                    'performer_telegram_id' => $fromId,
-                    'callback_data' => $data,
-                    'chat_id' => $telegramUser->telegram_chat_id,
-                ]);
-                $this->telegramService->sendMessage(
-                    $telegramUser->telegram_chat_id,
-                    "⛔️ <b>غير مصرح:</b> ليس لديك صلاحيات لتنفيذ هذا الإجراء الإداري."
-                );
-                return;
-            }
-
-            // Admin Support Tickets Callbacks
-            if (str_starts_with($data, 'adm_rep_tkt_')) {
-                $ticketId = substr($data, 12);
-                $this->supportService->startAdminReply($telegramUser, $ticketId);
-                return;
-            }
-
-            if (str_starts_with($data, 'adm_prog_tkt_')) {
-                $ticketId = substr($data, 13);
-                $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_IN_PROGRESS);
-                return;
-            }
-
-            if (str_starts_with($data, 'adm_cls_tkt_')) {
-                $ticketId = substr($data, 12);
-                $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_CLOSED);
-                return;
-            }
-
-            // Admin Teacher Applications Callbacks
-            if (str_starts_with($data, 'adm_app_teach_')) {
-                $appId = substr($data, 14);
-                $this->teacherAppService->approveApplication($telegramUser, $appId);
-                return;
-            }
-
-            if (str_starts_with($data, 'adm_rej_teach_')) {
-                $appId = substr($data, 14);
-                $this->teacherAppService->startRejectApplication($telegramUser, $appId);
-                return;
-            }
-
-            // Admin Navigation Callbacks
-            if ($data === 'adm_nav_stats') {
-                $text = $this->adminDashboardService->getAnalyticsText();
-                $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
-                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
-                return;
-            }
-
-            if ($data === 'adm_nav_teachers') {
-                $this->adminDashboardService->showTeacherApplications($telegramUser);
-                return;
-            }
-
-            if ($data === 'adm_nav_tickets') {
-                $this->adminDashboardService->showSupportTickets($telegramUser);
-                return;
-            }
-
-            if ($data === 'adm_nav_search') {
-                $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_ADMIN_SEARCHING_USER);
-                $this->telegramService->sendMessage(
-                    $telegramUser->telegram_chat_id,
-                    "🔍 <b>البحث عن مستخدم:</b>\n\nأرسل رقم الهاتف، البريد الإلكتروني، أو معرف Telegram للبحث:\n<i>(أو أرسل /cancel للإلغاء)</i>"
-                );
-                return;
-            }
-
-            if ($data === 'adm_nav_broadcast') {
-                $this->telegramService->sendMessage(
-                    $telegramUser->telegram_chat_id,
-                    "📢 <b>الإشعارات والحملات الجماعية:</b>\n\nلإرسال حملة موجهة للطلاب أو المعلمين مع احترام خيارات الاشتراك التسويقي، يمكنك استخدام لوحة إدارة الحملات أو إرسال الأمر المخصص."
-                );
-                return;
-            }
-
-            if ($data === 'adm_nav_settings') {
-                $this->adminDashboardService->showBotSettings($telegramUser);
-                return;
-            }
-
-            if ($data === 'adm_nav_main') {
-                $this->adminDashboardService->showAdminDashboard($telegramUser);
-                return;
-            }
-
-            if ($data === 'adm_nav_close') {
-                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "تم إغلاق لوحة الإدارة. يمكنك إعادة فتحها بأمر /admin في أي وقت.");
-                return;
-            }
+            Log::warning('TelegramUpdateProcessor: Admin callback attempted on User Bot blocked', [
+                'performer_telegram_id' => $fromId,
+                'callback_data' => $data,
+                'chat_id' => $telegramUser->telegram_chat_id,
+            ]);
+            $this->telegramService->sendMessage(
+                $telegramUser->telegram_chat_id,
+                "⛔️ <b>غير مصرح:</b> هذا البوت مخصص لخدمات الطلاب والمستخدمين فقط. الإجراءات الإدارية تنفذ حصراً عبر بوت الإدارة المعتمد."
+            );
+            return;
         }
     }
 

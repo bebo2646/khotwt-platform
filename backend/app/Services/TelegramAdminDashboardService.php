@@ -106,14 +106,19 @@ class TelegramAdminDashboardService
     public function getAuthorizedAdminIds(): array
     {
         $rawSources = [
+            config('services.admin_telegram.admin_ids'),
             config('services.telegram.admin_ids'),
             config('services.telegram.admin_chat_id'),
+            $_ENV['ADMIN_TELEGRAM_IDS'] ?? null,
             $_ENV['TELEGRAM_ADMIN_IDS'] ?? null,
             $_ENV['TELEGRAM_ADMIN_CHAT_ID'] ?? null,
+            $_SERVER['ADMIN_TELEGRAM_IDS'] ?? null,
             $_SERVER['TELEGRAM_ADMIN_IDS'] ?? null,
             $_SERVER['TELEGRAM_ADMIN_CHAT_ID'] ?? null,
+            getenv('ADMIN_TELEGRAM_IDS') ?: null,
             getenv('TELEGRAM_ADMIN_IDS') ?: null,
             getenv('TELEGRAM_ADMIN_CHAT_ID') ?: null,
+            env('ADMIN_TELEGRAM_IDS'),
             env('TELEGRAM_ADMIN_IDS'),
             env('TELEGRAM_ADMIN_CHAT_ID'),
             // Known platform owner Telegram Admin ID
@@ -152,38 +157,46 @@ class TelegramAdminDashboardService
      */
     public function showAdminDashboard(TelegramUser $telegramUser): void
     {
+        $adminChat = $telegramUser->admin_chat_id ?: $telegramUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         if (!$this->isAdmin($telegramUser)) {
-            $this->telegramService->sendMessage(
-                $telegramUser->telegram_chat_id,
+            $adminBot->sendMessage(
+                $adminChat,
                 "⛔️ <b>غير مصرح:</b> هذا القسم مخصص لمديري النظام المعتمدين فقط."
             );
             return;
         }
 
-        $text = "👑 <b>لوحة الإدارة والتحكم — مساعد خطوتك التعليمي</b>\n\n" .
-            "مرحباً بك في المركز الإداري الموحد للبوت. يمكنك متابعة الإحصائيات، إدارة طلبات المعلمين، تذاكر الدعم الفني، والبحث عن المستخدمين.\n\n" .
+        $text = "👑 <b>لوحة الإدارة والتحكم — بوت إدارة خطوتك التعليمي</b>\n\n" .
+            "مرحباً بك في مركز الإدارة الموحد. يمكنك إدارة الشكاوى، طلبات المعلمين، المستخدمين، الإحصائيات، والاشتراكات عبر القائمة بالأسفل:\n\n" .
             "اختر القسم المطلوب بالأسفل:";
 
         $buttons = [
             [
-                ['text' => '📊 الإحصائيات الشاملة', 'callback_data' => 'adm_nav_stats'],
-                ['text' => '👨‍🏫 طلبات المدرسين', 'callback_data' => 'adm_nav_teachers'],
+                ['text' => '📩 الشكاوى الجديدة', 'callback_data' => 'adm_nav_new_tickets'],
+                ['text' => '🎫 جميع التذاكر', 'callback_data' => 'adm_nav_tickets'],
             ],
             [
-                ['text' => '🎫 تذاكر الدعم الفني', 'callback_data' => 'adm_nav_tickets'],
-                ['text' => '🔍 البحث عن مستخدم', 'callback_data' => 'adm_nav_search'],
+                ['text' => '👨‍🏫 طلبات المعلمين', 'callback_data' => 'adm_nav_teachers'],
+                ['text' => '👥 إدارة المستخدمين', 'callback_data' => 'adm_nav_users'],
             ],
             [
-                ['text' => '📢 إشعار جماعي', 'callback_data' => 'adm_nav_broadcast'],
-                ['text' => '⚙️ إعدادات البوت', 'callback_data' => 'adm_nav_settings'],
+                ['text' => '📊 إحصائيات المنصة', 'callback_data' => 'adm_nav_stats'],
+                ['text' => '💳 الاشتراكات والمدفوعات', 'callback_data' => 'adm_nav_finance'],
             ],
             [
+                ['text' => '🎁 أكواد الهدايا', 'callback_data' => 'adm_nav_gifts'],
+                ['text' => '📢 الحملات والإشعارات', 'callback_data' => 'adm_nav_broadcast'],
+            ],
+            [
+                ['text' => '⚙️ إعدادات الإدارة', 'callback_data' => 'adm_nav_settings'],
                 ['text' => '❌ إغلاق اللوحة', 'callback_data' => 'adm_nav_close'],
             ]
         ];
 
-        $this->telegramService->sendMessage(
-            $telegramUser->telegram_chat_id,
+        $adminBot->sendMessage(
+            $adminChat,
             $text,
             ['inline_keyboard' => $buttons]
         );
@@ -268,12 +281,15 @@ class TelegramAdminDashboardService
      */
     public function showTeacherApplications(TelegramUser $adminUser, string $status = 'pending'): void
     {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         $apps = TeacherApplication::where('status', $status)->latest()->limit(5)->get();
 
         if ($apps->isEmpty()) {
             $msg = $status === 'pending' ? "ℹ️ لا توجد طلبات مدرسين معلقة حالياً." : "ℹ️ لا توجد طلبات في هذه الحالة.";
             $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, $msg, ['inline_keyboard' => $buttons]);
+            $adminBot->sendMessage($adminChat, $msg, ['inline_keyboard' => $buttons]);
             return;
         }
 
@@ -295,7 +311,58 @@ class TelegramAdminDashboardService
 
         $buttons[] = [['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']];
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
+    }
+
+    /**
+     * Show list of newly received open tickets.
+     */
+    public function showNewTickets(TelegramUser $adminUser): void
+    {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
+        $tickets = TelegramSupportTicket::where('status', TelegramSupportTicket::STATUS_OPEN)
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        if ($tickets->isEmpty()) {
+            $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
+            $adminBot->sendMessage(
+                $adminChat,
+                "ℹ️ لا توجد شكاوى جديدة مفتوحة حالياً. كافة التذاكر تمت معالجتها! 🎉",
+                ['inline_keyboard' => $buttons]
+            );
+            return;
+        }
+
+        $text = "📩 <b>الشكاوى الجديدة الواردة ({$tickets->count()} شكوى):</b>\n\n";
+        $buttons = [];
+
+        foreach ($tickets as $idx => $t) {
+            $num = $idx + 1;
+            $text .= "<b>{$num}. <code>{$t->ticket_code}</code></b> | 🟡 جديدة\n";
+            $text .= "• التصنيف: <b>{$t->category_name}</b>\n";
+            $text .= "• التاريخ: {$t->created_at->format('Y-m-d H:i')}\n";
+            if ($t->subject) {
+                $text .= "• نص: <i>" . htmlspecialchars(mb_substr($t->subject, 0, 50)) . "...</i>\n";
+            }
+            $text .= "────────────────\n";
+
+            $buttons[] = [
+                ['text' => "💬 رد", 'callback_data' => "adm_rep_tkt_{$t->id}"],
+                ['text' => "👤 صاحب الشكوى", 'callback_data' => "adm_usr_tkt_{$t->id}"],
+            ];
+            $buttons[] = [
+                ['text' => "⏳ معالجة", 'callback_data' => "adm_prog_tkt_{$t->id}"],
+                ['text' => "✅ إغلاق", 'callback_data' => "adm_cls_tkt_{$t->id}"],
+            ];
+        }
+
+        $buttons[] = [['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']];
+
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
     }
 
     /**
@@ -303,6 +370,9 @@ class TelegramAdminDashboardService
      */
     public function showSupportTickets(TelegramUser $adminUser, string $status = 'open'): void
     {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         $tickets = TelegramSupportTicket::whereIn('status', [$status, TelegramSupportTicket::STATUS_IN_PROGRESS])
             ->latest()
             ->limit(5)
@@ -310,15 +380,15 @@ class TelegramAdminDashboardService
 
         if ($tickets->isEmpty()) {
             $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
-            $this->telegramService->sendMessage(
-                $adminUser->telegram_chat_id,
+            $adminBot->sendMessage(
+                $adminChat,
                 "ℹ️ لا توجد تذاكر دعم فني مفتوحة حالياً. عمل رائع! 🎉",
                 ['inline_keyboard' => $buttons]
             );
             return;
         }
 
-        $text = "🎫 <b>تذاكر الدعم الفني المفتوحة ({$tickets->count()} تذكرة):</b>\n\n";
+        $text = "🎫 <b>تذاكر الدعم الفني النشطة ({$tickets->count()} تذكرة):</b>\n\n";
         $buttons = [];
 
         foreach ($tickets as $idx => $t) {
@@ -333,14 +403,98 @@ class TelegramAdminDashboardService
             $text .= "────────────────\n";
 
             $buttons[] = [
-                ['text' => "💬 رد على {$t->ticket_code}", 'callback_data' => "adm_rep_tkt_{$t->id}"],
+                ['text' => "💬 رد", 'callback_data' => "adm_rep_tkt_{$t->id}"],
+                ['text' => "👤 بيانات صاحبها", 'callback_data' => "adm_usr_tkt_{$t->id}"],
                 ['text' => "🔒 إغلاق", 'callback_data' => "adm_cls_tkt_{$t->id}"],
             ];
         }
 
         $buttons[] = [['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']];
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
+    }
+
+    /**
+     * Users Management Overview.
+     */
+    public function showUsersManagement(TelegramUser $adminUser): void
+    {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
+        $totalUsers = User::count();
+        $totalStudents = User::where('role', 'student')->count();
+        $totalTeachers = User::where('role', 'teacher')->count();
+        $totalAdmins = User::where('role', 'admin')->count();
+
+        $text = "👥 <b>إدارة مستخدمي المنصة:</b>\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "• إجمالي الحسابات: <b>{$totalUsers}</b> مستخدم\n" .
+            "• الطلاب: <b>{$totalStudents}</b> طالب\n" .
+            "• المعلمون: <b>{$totalTeachers}</b> معلم\n" .
+            "• الإداريون: <b>{$totalAdmins}</b> مسؤول\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "يمكنك البحث المباشر برقم الهاتف أو المعرف أو الإيميل عبر الزر بالأسفل:";
+
+        $buttons = [
+            [
+                ['text' => '🔍 البحث عن مستخدم', 'callback_data' => 'adm_nav_search'],
+            ],
+            [
+                ['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main'],
+            ]
+        ];
+
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
+    }
+
+    /**
+     * Financial Overview (Wallets, Subscriptions, Payments).
+     */
+    public function showFinanceOverview(TelegramUser $adminUser): void
+    {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
+        $totalWallets = Wallet::count();
+        $totalBalances = Wallet::sum('balance');
+        $enrollmentsCount = Enrollment::count();
+
+        $text = "💳 <b>الاشتراكات والمدفوعات — ملخص مالي:</b>\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "• إجمالي محافظ الطلاب: <b>{$totalWallets}</b> محفظة\n" .
+            "• مجموع أرصدة المحافظ: <b>" . number_format($totalBalances, 2) . " ج.م</b>\n" .
+            "• إجمالي الاشتراكات بالكورسات: <b>{$enrollmentsCount}</b> اشتراك\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "<i>(يتم تسجيل جميع العمليات المالية والمحفظة بنظام التدقيق الآلي)</i>";
+
+        $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
+
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
+    }
+
+    /**
+     * Gift Codes Overview.
+     */
+    public function showGiftCodesOverview(TelegramUser $adminUser): void
+    {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
+        $totalCodes = \App\Models\GiftCode::count();
+        $usedCodes = \App\Models\GiftCode::where('is_used', true)->count();
+        $activeCodes = \App\Models\GiftCode::where('is_used', false)->count();
+
+        $text = "🎁 <b>أكواد الهدايا والعروض الترويجية:</b>\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "• إجمالي الأكواد: <b>{$totalCodes}</b> كود\n" .
+            "• الأكواد المتاحة للتفعيل: <b>{$activeCodes}</b> كود\n" .
+            "• الأكواد المستخدمة: <b>{$usedCodes}</b> كود\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n";
+
+        $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
+
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
     }
 
     /**
@@ -348,6 +502,9 @@ class TelegramAdminDashboardService
      */
     public function searchUser(TelegramUser $adminUser, string $query): void
     {
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         $query = trim($query);
 
         // Try to find in users table
@@ -373,8 +530,8 @@ class TelegramAdminDashboardService
         }
 
         if (!$user && !$tgUser) {
-            $this->telegramService->sendMessage(
-                $adminUser->telegram_chat_id,
+            $adminBot->sendMessage(
+                $adminChat,
                 "❌ لم يتم العثور على أي مستخدم يطابق: <code>{$query}</code>"
             );
             return;
@@ -412,7 +569,7 @@ class TelegramAdminDashboardService
 
         $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
     }
 
     /**
@@ -420,22 +577,36 @@ class TelegramAdminDashboardService
      */
     public function showBotSettings(TelegramUser $adminUser): void
     {
-        $botUsername = config('services.telegram.bot_username');
-        $webhookSecret = config('services.telegram.webhook_secret') ? 'مضبوط ومحمي 🔒' : 'غير مضبوط ❌';
-        $adminChatId = config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID');
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
 
-        $text = "⚙️ <b>إعدادات وبيانات البوت الفنية:</b>\n" .
+        $userBotUsername = config('services.telegram.bot_username');
+        $userWebhookSecret = config('services.telegram.webhook_secret') ? 'مضبوط ومحمي 🔒' : 'غير مضبوط ❌';
+
+        $adminBotUsername = config('services.admin_telegram.bot_username') ?: 'جاري التجهيز';
+        $adminWebhookSecret = config('services.admin_telegram.webhook_secret') ? 'مضبوط ومحمي 🔒' : 'غير مضبوط ❌';
+        $hasDedicatedToken = $adminBot->hasDedicatedToken() ? 'مفعل ومستقل 🤖' : 'جاهز للربط عبر المتغيرات ⏳';
+
+        $text = "⚙️ <b>إعدادات وحالة البوتين (نظام الإدارة المعزول):</b>\n" .
             "━━━━━━━━━━━━━━━━━━━━\n" .
-            "• معرف البوت: @{$botUsername}\n" .
-            "• حالة Webhook Secret: <b>{$webhookSecret}</b>\n" .
-            "• Admin Chat ID: <code>{$adminChatId}</code>\n" .
-            "• خادم الويب: <b>Railway Production</b>\n" .
-            "• قاعدة البيانات: <b>Neon PostgreSQL 18.7</b>\n" .
-            "• توقيت الخادم: <b>" . Carbon::now()->format('Y-m-d H:i:s T') . "</b>\n" .
+            "🎓 <b>1. بوت الطلاب والمستخدمين (User Bot):</b>\n" .
+            "• المعرف: @{$userBotUsername}\n" .
+            "• Webhook Secret: <b>{$userWebhookSecret}</b>\n" .
+            "• المسار: <code>/api/telegram/webhook</code>\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "👑 <b>2. بوت الإدارة والدعم (Admin Bot):</b>\n" .
+            "• المعرف: @{$adminBotUsername}\n" .
+            "• حالة التوكن المستقل: <b>{$hasDedicatedToken}</b>\n" .
+            "• Webhook Secret: <b>{$adminWebhookSecret}</b>\n" .
+            "• المسار: <code>/api/telegram/admin-webhook</code>\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            " خادم الإنتاج: <b>Railway Production</b>\n" .
+            " قاعدة البيانات: <b>Neon PostgreSQL 18.7</b>\n" .
+            " توقيت الخادم: <b>" . Carbon::now()->format('Y-m-d H:i:s T') . "</b>\n" .
             "━━━━━━━━━━━━━━━━━━━━\n";
 
         $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
     }
 }

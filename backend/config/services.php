@@ -47,11 +47,19 @@ return [
 
     'telegram' => [
         'bot_token' => env('TELEGRAM_BOT_TOKEN'),
-        'bot_username' => env('TELEGRAM_BOT_USERNAME', 'KhotwtkBot'),
+        'bot_username' => env('TELEGRAM_BOT_USERNAME', 'khatwtk_edu_bot'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
-        'official_frontend_domain' => env('OFFICIAL_FRONTEND_DOMAIN', 'khotwtk.com'),
+        'official_frontend_domain' => env('OFFICIAL_FRONTEND_DOMAIN', 'https://manst-khatwtak.vercel.app'),
+        // Backward compatibility
         'admin_chat_id' => env('TELEGRAM_ADMIN_CHAT_ID'),
         'admin_ids' => env('TELEGRAM_ADMIN_IDS'),
+    ],
+
+    'admin_telegram' => [
+        'bot_token' => env('ADMIN_TELEGRAM_BOT_TOKEN'),
+        'bot_username' => env('ADMIN_TELEGRAM_BOT_USERNAME'),
+        'webhook_secret' => env('ADMIN_TELEGRAM_WEBHOOK_SECRET'),
+        'admin_ids' => env('ADMIN_TELEGRAM_IDS', env('TELEGRAM_ADMIN_IDS')),
     ],
 
 ];

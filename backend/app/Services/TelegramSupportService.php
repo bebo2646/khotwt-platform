@@ -121,13 +121,23 @@ class TelegramSupportService
     }
 
     /**
-     * Send new ticket notification to Admin Chat ID.
+     * Send new ticket notification to Admin Chat ID via Admin Bot.
      */
     public function notifyAdminNewTicket(TelegramSupportTicket $ticket, TelegramUser $telegramUser, string $messageText): void
     {
-        $adminChatId = config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID');
-        if (!$adminChatId) {
-            Log::warning('TelegramSupportService: TELEGRAM_ADMIN_CHAT_ID not configured, admin alert skipped.');
+        $adminDashboard = app(TelegramAdminDashboardService::class);
+        $adminIds = $adminDashboard->getAuthorizedAdminIds();
+
+        if (empty($adminIds)) {
+            $fallbackChat = config('services.admin_telegram.admin_ids') 
+                ?: (config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID'));
+            if ($fallbackChat) {
+                $adminIds = [$fallbackChat];
+            }
+        }
+
+        if (empty($adminIds)) {
+            Log::warning('TelegramSupportService: No Admin IDs configured, admin alert skipped.');
             return;
         }
 
@@ -148,40 +158,44 @@ class TelegramSupportService
         $platformUser = $telegramUser->user ? "#{$telegramUser->user->id} ({$telegramUser->user->name})" : "غير مرتبط بالمنصة";
         $phone = $telegramUser->user?->phone ?: ($telegramUser->phone ?: 'غير مسجل');
 
-        $adminText = "🎫 <b>تذكرة دعم فني جديدة!</b>\n" .
+        $adminText = "📩 <b>تنبيه: شكوى / تذكرة دعم فني جديدة!</b>\n" .
             "━━━━━━━━━━━━━━━━━━━━\n" .
             "• رقم التذكرة: <code>{$ticket->ticket_code}</code>\n" .
-            "• المستخدم: <b>{$userName}</b>\n" .
-            "• Telegram ID: <code>{$telegramUser->telegram_user_id}</code>\n" .
+            "• اسم صاحب الشكوى: <b>{$userName}</b>\n" .
+            "• نوع الحساب: <b>{$roleArabic}</b>\n" .
             "• حساب المنصة: <b>{$platformUser}</b>\n" .
-            "• الدور: <b>{$roleArabic}</b> | الهاتف: <code>{$phone}</code>\n" .
-            "• التصنيف: <b>{$ticket->category_name}</b>\n" .
-            "• التاريخ: <b>" . Carbon::now()->format('Y-m-d H:i') . "</b>\n" .
+            "• عنوان الشكوى / التصنيف: <b>{$ticket->category_name}</b>\n" .
+            "• الهاتف: <code>{$phone}</code> | Telegram ID: <code>{$telegramUser->telegram_user_id}</code>\n" .
+            "• تاريخ الاستلام: <b>" . Carbon::now()->format('Y-m-d H:i') . "</b>\n" .
             "━━━━━━━━━━━━━━━━━━━━\n" .
-            "📝 <b>نص الرسالة:</b>\n" .
+            "📝 <b>تفاصيل المشكلة:</b>\n" .
             htmlspecialchars($messageText) . "\n" .
             "━━━━━━━━━━━━━━━━━━━━\n" .
             "اختر الإجراء المطلوب:";
 
         $inlineKeyboard = [
             [
-                ['text' => '💬 الرد على المستخدم', 'callback_data' => "adm_rep_tkt_{$ticket->id}"],
-                ['text' => '⏳ قيد المعالجة', 'callback_data' => "adm_prog_tkt_{$ticket->id}"],
+                ['text' => '💬 الرد على الشكوى', 'callback_data' => "adm_rep_tkt_{$ticket->id}"],
+                ['text' => '✅ إغلاق التذكرة', 'callback_data' => "adm_cls_tkt_{$ticket->id}"],
             ],
             [
-                ['text' => '🔒 إغلاق التذكرة', 'callback_data' => "adm_cls_tkt_{$ticket->id}"],
+                ['text' => '🔄 قيد المعالجة', 'callback_data' => "adm_prog_tkt_{$ticket->id}"],
+                ['text' => '👤 عرض بيانات صاحب الشكوى', 'callback_data' => "adm_usr_tkt_{$ticket->id}"],
             ]
         ];
 
-        try {
-            $this->telegramService->sendMessage($adminChatId, $adminText, ['inline_keyboard' => $inlineKeyboard]);
-        } catch (\Throwable $e) {
-            Log::error('TelegramSupportService: Failed to notify admin: ' . $e->getMessage());
+        $adminBot = TelegramService::forAdminBot();
+        foreach ($adminIds as $admId) {
+            try {
+                $adminBot->sendMessage($admId, $adminText, ['inline_keyboard' => $inlineKeyboard]);
+            } catch (\Throwable $e) {
+                Log::warning("TelegramSupportService: Failed to notify admin [{$admId}]: " . $e->getMessage());
+            }
         }
     }
 
     /**
-     * Start admin reply flow.
+     * Start admin reply flow (scoped to admin conversation state).
      */
     public function startAdminReply(TelegramUser $adminUser, mixed $ticketId): void
     {
@@ -196,8 +210,11 @@ class TelegramSupportService
             $ticket = TelegramSupportTicket::latest()->first();
         }
 
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
         if (!$ticket) {
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ التذكرة غير موجودة.");
+            $adminBot->sendMessage($adminChat, "❌ التذكرة غير موجودة.");
             return;
         }
 
@@ -205,31 +222,36 @@ class TelegramSupportService
             'ticket_id' => $ticket->id,
             'ticket_code' => $ticket->ticket_code,
             'client_telegram_id' => $ticket->telegram_user_id,
-        ]);
+        ], 'admin');
 
-        $text = "💬 <b>الرد على التذكرة <code>{$ticket->ticket_code}</code></b>\n\n" .
+        $text = "💬 <b>الرد على الشكوى رقم <code>{$ticket->ticket_code}</code></b>\n\n" .
             "اكتب نص الرد الذي ترغب في إرساله للمستخدم الآن:\n" .
-            "<i>(سيتم تسليم ردك للمستخدم فوراً عبر البوت، أو أرسل /cancel للإلغاء)</i>";
+            "<i>(سيتم تسليم ردك للمستخدم فوراً عبر بوت الطلاب الرسمي، أو أرسل /cancel للإلغاء)</i>";
 
-        $this->telegramService->sendMessage($adminUser->telegram_chat_id, $text);
+        $adminBot->sendMessage($adminChat, $text);
     }
 
     /**
      * Deliver admin reply to ticket owner.
+     * Saved in DB -> Dispatched to user via User Bot -> Confirmed to admin via Admin Bot.
      */
     public function deliverAdminReply(TelegramUser $adminUser, string $replyText): void
     {
-        $payload = $this->stateEngine->getPayload($adminUser);
+        $payload = $this->stateEngine->getPayload($adminUser, 'admin');
         $ticketId = $payload['ticket_id'] ?? null;
         $ticket = TelegramSupportTicket::find($ticketId);
 
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+        $userBot = TelegramService::forUserBot();
+
         if (!$ticket) {
-            $this->stateEngine->clearState($adminUser);
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ التذكرة غير موجودة.");
+            $this->stateEngine->clearState($adminUser, 'admin');
+            $adminBot->sendMessage($adminChat, "❌ التذكرة غير موجودة.");
             return;
         }
 
-        // Save admin message
+        // 1. Save admin reply in database
         TelegramSupportMessage::create([
             'ticket_id' => $ticket->id,
             'sender_type' => 'admin',
@@ -243,9 +265,9 @@ class TelegramSupportService
             'last_reply_by' => 'admin',
         ]);
 
-        $this->stateEngine->clearState($adminUser);
+        $this->stateEngine->clearState($adminUser, 'admin');
 
-        // Notify client
+        // 2. Dispatch message to student via USER BOT
         $clientMessage = "💬 <b>رد من فريق الدعم الفني — منصة خطوتك</b>\n" .
             "━━━━━━━━━━━━━━━━━━━━\n" .
             "• بخصوص التذكرة: <code>{$ticket->ticket_code}</code>\n" .
@@ -256,18 +278,83 @@ class TelegramSupportService
             "💡 <i>إذا كانت لديك أي استفسارات إضافية، يمكنك الرد على هذه الرسالة مباشرة.</i>";
 
         try {
-            $this->telegramService->sendMessage($ticket->telegram_user_id, $clientMessage);
-            $this->telegramService->sendMessage(
-                $adminUser->telegram_chat_id,
-                "✅ <b>تم إرسال ردك بنجاح</b> إلى صاحب التذكرة <code>{$ticket->ticket_code}</code>."
+            $userBot->sendMessage($ticket->telegram_user_id, $clientMessage);
+            $adminBot->sendMessage(
+                $adminChat,
+                "✅ <b>تم إرسال ردك بنجاح</b> إلى صاحب التذكرة <code>{$ticket->ticket_code}</code> عبر بوت الطلاب."
             );
         } catch (\Throwable $e) {
-            Log::error('TelegramSupportService: Failed to deliver reply to user: ' . $e->getMessage());
-            $this->telegramService->sendMessage(
-                $adminUser->telegram_chat_id,
+            Log::error('TelegramSupportService: Failed to deliver reply to user via user bot: ' . $e->getMessage());
+            $adminBot->sendMessage(
+                $adminChat,
                 "⚠️ تم حفظ الرد، لكن تعذر إرساله للمستخدم عبر Telegram: " . $e->getMessage()
             );
         }
+    }
+
+    /**
+     * Show complainant full details to authorized admin.
+     */
+    public function showComplainantProfile(TelegramUser $adminUser, mixed $ticketId): void
+    {
+        $ticket = null;
+        if (is_numeric($ticketId)) {
+            $ticket = TelegramSupportTicket::find((int)$ticketId);
+        }
+        if (!$ticket) {
+            $ticket = TelegramSupportTicket::where('ticket_code', (string)$ticketId)->first();
+        }
+
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+
+        if (!$ticket) {
+            $adminBot->sendMessage($adminChat, "❌ التذكرة غير موجودة.");
+            return;
+        }
+
+        $complainant = TelegramUser::where('telegram_user_id', $ticket->telegram_user_id)->first();
+        $platformUser = $complainant?->user ?: ($ticket->user_id ? \App\Models\User::find($ticket->user_id) : null);
+
+        $name = $platformUser?->name ?: trim(($complainant?->first_name ?: '') . ' ' . ($complainant?->last_name ?: ''));
+        if (empty($name)) {
+            $name = 'غير محدد';
+        }
+
+        $phone = $platformUser?->phone ?: ($complainant?->phone ?: 'غير مسجل');
+        $email = $platformUser?->email ?: 'غير مسجل';
+        $enrollmentsCount = $platformUser ? \App\Models\Enrollment::where('user_id', $platformUser->id)->count() : 0;
+        $wallet = $platformUser ? \App\Models\Wallet::where('user_id', $platformUser->id)->first() : null;
+        $balance = $wallet ? $wallet->balance : 0;
+        $activeTicketsCount = TelegramSupportTicket::where('telegram_user_id', $ticket->telegram_user_id)
+            ->whereIn('status', ['open', 'in_progress'])
+            ->count();
+
+        $text = "👤 <b>بيانات صاحب الشكوى</b> (تذكرة: <code>{$ticket->ticket_code}</code>)\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n" .
+            "• الاسم: <b>{$name}</b>\n" .
+            "• معرف المنصة: <code>" . ($platformUser ? "#{$platformUser->id}" : "غير مرتبط") . "</code>\n" .
+            "• Telegram ID: <code>{$ticket->telegram_user_id}</code>\n" .
+            "• الهاتف: <code>{$phone}</code>\n" .
+            "• البريد: <code>{$email}</code>\n" .
+            "• نوع الحساب: <b>" . ($platformUser?->role ?: ($complainant?->role ?: 'زائر')) . "</b>\n" .
+            "• المقررات المشترك بها: <b>{$enrollmentsCount}</b> مقرر\n" .
+            "• رصيد المحفظة: <b>{$balance} ج.م</b>\n" .
+            "• التذاكر النشطة: <b>{$activeTicketsCount}</b> تذكرة\n" .
+            "━━━━━━━━━━━━━━━━━━━━\n";
+
+        $buttons = [
+            [
+                ['text' => '💬 الرد على الشكوى', 'callback_data' => "adm_rep_tkt_{$ticket->id}"],
+                ['text' => '✅ إغلاق التذكرة', 'callback_data' => "adm_cls_tkt_{$ticket->id}"],
+            ],
+            [
+                ['text' => '🔙 العودة للتذاكر', 'callback_data' => 'adm_nav_tickets'],
+                ['text' => '🏠 القائمة الرئيسية', 'callback_data' => 'adm_nav_main'],
+            ]
+        ];
+
+        $adminBot->sendMessage($adminChat, $text, ['inline_keyboard' => $buttons]);
     }
 
     /**
@@ -286,8 +373,12 @@ class TelegramSupportService
             $ticket = TelegramSupportTicket::latest()->first();
         }
 
+        $adminChat = $adminUser->admin_chat_id ?: $adminUser->telegram_chat_id;
+        $adminBot = TelegramService::forAdminBot();
+        $userBot = TelegramService::forUserBot();
+
         if (!$ticket) {
-            $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ التذكرة غير موجودة.");
+            $adminBot->sendMessage($adminChat, "❌ التذكرة غير موجودة.");
             return;
         }
 
@@ -302,18 +393,18 @@ class TelegramSupportService
             TelegramSupportTicket::STATUS_CLOSED => 'مغلقة 🔒',
         ][$status] ?? $status;
 
-        $this->telegramService->sendMessage(
-            $adminUser->telegram_chat_id,
+        $adminBot->sendMessage(
+            $adminChat,
             "✅ تم تحديث حالة التذكرة <code>{$ticket->ticket_code}</code> إلى: <b>{$statusArabic}</b>"
         );
 
-        // Notify client of status change
+        // Notify client of status change via USER BOT
         if ($status === TelegramSupportTicket::STATUS_CLOSED) {
             $clientNote = "🔒 <b>إغلاق تذكرة الدعم الفني</b>\n\n" .
                 "تم إغلاق تذكرتك رقم <code>{$ticket->ticket_code}</code> بنجاح.\n" .
                 "نشكر تواصلك معنا ونتمنى أن نكون قد قدمنا لك الدعم المطلوب! يمكنك فتح تذكرة جديدة في أي وقت.";
             try {
-                $this->telegramService->sendMessage($ticket->telegram_user_id, $clientNote);
+                $userBot->sendMessage($ticket->telegram_user_id, $clientNote);
             } catch (\Throwable $e) {
                 // silent catch
             }

@@ -54,7 +54,10 @@ class TelegramWebhookController extends Controller
         // 3. Transactional Outbox Pattern & Atomic Deduplication
         try {
             $updateRecord = DB::transaction(function () use ($updateId, $payload) {
-                $existing = TelegramProcessedUpdate::where('update_id', $updateId)->lockForUpdate()->first();
+                $existing = TelegramProcessedUpdate::where('bot_type', TelegramProcessedUpdate::BOT_USER)
+                    ->where('update_id', $updateId)
+                    ->lockForUpdate()
+                    ->first();
                 if ($existing) {
                     return $existing;
                 }
@@ -65,6 +68,7 @@ class TelegramWebhookController extends Controller
                     ?? ($payload['callback_query']['from']['id'] ?? null);
 
                 return TelegramProcessedUpdate::create([
+                    'bot_type' => TelegramProcessedUpdate::BOT_USER,
                     'update_id' => $updateId,
                     'chat_id' => $chatId,
                     'telegram_user_id' => $telegramUserId,
