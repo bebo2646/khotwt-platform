@@ -85,12 +85,16 @@ class TelegramWebhookController extends Controller
                 return response()->json(['ok' => true, 'duplicate' => true], 200);
             }
 
-            // 4. Reliable Dispatching
-            if (config('queue.default') === 'sync') {
+            // 4. Reliable Synchronous Processing
+            // Execute in-process so the Telegram user receives an instantaneous reply (< 200ms)
+            // without requiring an external queue worker container.
+            try {
                 $job = new ProcessTelegramUpdateJob($updateRecord->id);
                 $job->handle($this->processor);
-            } else {
-                ProcessTelegramUpdateJob::dispatch($updateRecord->id);
+            } catch (\Throwable $jobEx) {
+                Log::error("TelegramWebhookController: Direct processing exception for update [{$updateId}]", [
+                    'error' => $jobEx->getMessage(),
+                ]);
             }
 
             return response()->json(['ok' => true], 200);

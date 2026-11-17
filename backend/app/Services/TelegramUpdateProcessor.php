@@ -128,6 +128,26 @@ class TelegramUpdateProcessor
             return;
         }
 
+        if (str_starts_with($text, '/recover') || $text === '🔐 استعادة كلمة المرور') {
+            $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_AWAITING_RECOVERY_CONTACT);
+            $msg = "🔐 <b>استعادة كلمة المرور — منصة خطوتك</b>\n\n" .
+                "للتحقق من هويتك بأمان، يرجى الضغط على الزر بالأسفل لمشاركة رقم هاتفك المسجل في المنصة.\n\n" .
+                "⚠️ <i>ملاحظة: يجب استخدام الزر الرسمي لمشاركة جهة الاتصال، ولن يُقبل إدخال الرقم كنص.</i>";
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $msg, $this->keyboardService->requestContactKeyboard());
+            return;
+        }
+
+        if (str_starts_with($text, '/link') || $text === '🔗 ربط حساب خطوتك') {
+            $frontendUrl = TelegramService::getFrontendUrl('connect-telegram');
+            $msg = "🔗 <b>كيفية ربط حسابك بمنصة خطوتك:</b>\n\n" .
+                "1. افتح رابط الربط السريع في المنصة:\n" .
+                "👉 <a href=\"{$frontendUrl}\">اضغط هنا لفتح صفحة ربط Telegram</a>\n\n" .
+                "2. اضغط على زر «<b>ربط حساب Telegram</b>» داخل حسابك.\n" .
+                "3. سيتم فتح البوت وتأكيد ربط حسابك تلقائياً خلال ثوانٍ.";
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $msg, $this->keyboardService->unlinkedGuestKeyboard());
+            return;
+        }
+
         // 2. Handle Contact Sharing
         if (isset($message['contact'])) {
             $this->handleContactReceived($telegramUser, $message['contact']);
