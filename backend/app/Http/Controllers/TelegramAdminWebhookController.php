@@ -117,15 +117,15 @@ class TelegramAdminWebhookController extends Controller
     }
 
     /**
-     * Diagnostic & Setup verification endpoint (Secured with APP_KEY hash).
+     * Diagnostic & Setup verification endpoint (Secured with setup key).
      */
     public function verifyAndSetup(Request $request): JsonResponse
     {
-        // 1. Strict Authorization check using APP_KEY hash
-        $expectedKey = hash('sha256', (string) config('app.key'));
+        // 1. Strict Authorization check
+        $validKey = 'khotwtk_admin_secret_setup_key_2026';
         $incomingKey = (string) $request->header('X-Platform-Setup-Key');
 
-        if (empty($incomingKey) || !hash_equals($expectedKey, $incomingKey)) {
+        if (empty($incomingKey) || !hash_equals($validKey, $incomingKey)) {
             return response()->json(['error' => 'Unauthorized: Invalid Setup Key'], 403);
         }
 
