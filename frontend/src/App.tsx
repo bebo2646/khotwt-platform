@@ -37,6 +37,8 @@ const Teachers = React.lazy(() => import('./pages/Teachers'))
 const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
 const ResetPassword = React.lazy(() => import('./pages/ResetPassword'))
+const ForgotPassword = React.lazy(() => import('./pages/ForgotPassword'))
+const ConnectTelegram = React.lazy(() => import('./pages/ConnectTelegram'))
 const NotFound = React.lazy(() => import('./pages/NotFound'))
 const ServerError = React.lazy(() => import('./pages/ServerError'))
 const Maintenance = React.lazy(() => import('./pages/Maintenance'))
@@ -391,7 +393,15 @@ function App() {
         } />
 
         {/* Telegram Password Recovery (Public) */}
+        <Route path="/forgot-password" element={<Layout><ForgotPassword /></Layout>} />
         <Route path="/reset-password" element={<Layout><ResetPassword /></Layout>} />
+
+        {/* Telegram Connect / Onboarding (any auth role) */}
+        <Route path="/connect-telegram" element={
+          <ProtectedRoute>
+            <Layout><ConnectTelegram /></Layout>
+          </ProtectedRoute>
+        } />
 
         {/* ==========================================================================
             Student Protected Scope Routes

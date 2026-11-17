@@ -171,6 +171,16 @@ class TelegramUpdateProcessor
             return;
         }
 
+        // Direct Password Recovery: /start recover or /start recovery
+        if ($payload === 'recover' || $payload === 'recovery') {
+            $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_AWAITING_RECOVERY_CONTACT);
+            $msg = "🔐 <b>استعادة كلمة المرور — منصة خطوتك</b>\n\n" .
+                "للتحقق من هويتك بأمان، يرجى الضغط على الزر بالأسفل لمشاركة رقم هاتفك المسجل في المنصة.\n\n" .
+                "⚠️ <i>ملاحظة: يجب استخدام الزر الرسمي لمشاركة جهة الاتصال، ولن يُقبل إدخال الرقم كنص.</i>";
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $msg, $this->keyboardService->requestContactKeyboard());
+            return;
+        }
+
         // Standard /start welcome
         $this->sendRoleBasedWelcome($telegramUser);
     }

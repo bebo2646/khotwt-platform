@@ -64,10 +64,12 @@ class TelegramAccountController extends Controller
         $botUsername = config('services.telegram.bot_username', 'khatwtk_edu_bot');
         $botUsername = ltrim($botUsername, '@');
         $deepLink = "https://t.me/{$botUsername}?start=link_{$plainToken}";
+        $webLink = "https://web.telegram.org/a/#?tgaddr=" . urlencode("resolve?domain={$botUsername}&start=link_{$plainToken}");
 
         return response()->json([
             'success' => true,
             'deep_link' => $deepLink,
+            'web_link' => $webLink,
             'expires_at' => $expiresAt->toIso8601String(),
             'expires_in_seconds' => 900,
         ]);

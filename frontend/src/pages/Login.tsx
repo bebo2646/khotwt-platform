@@ -233,7 +233,7 @@ export default function Login() {
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label className="text-xs font-semibold text-slate-100">كلمة المرور</label>
-                <Link to="#" onClick={() => useModalStore.getState().showAlert({ title: 'إعادة تعيين كلمة المرور', description: 'يرجى التواصل مع إدارة المنصة أو المدرس الخاص بك لإعادة تعيين كلمة مرورك.', type: 'info' })} className="text-[11px] text-brand-primary hover:text-brand-primary-hover hover:underline font-bold">
+                <Link to="/forgot-password" className="text-[11px] text-brand-primary hover:text-brand-primary-hover hover:underline font-bold">
                   نسيت كلمة المرور؟
                 </Link>
               </div>

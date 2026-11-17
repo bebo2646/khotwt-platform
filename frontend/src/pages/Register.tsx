@@ -137,7 +137,7 @@ export default function Register() {
       }
 
       loginUser(registeredUser, token, session_token)
-      navigate('/student/dashboard', { replace: true })
+      navigate('/connect-telegram?new_account=true', { replace: true })
     } catch (err: any) {
       console.error(err)
       if (err.response && err.response.data && err.response.data.message) {

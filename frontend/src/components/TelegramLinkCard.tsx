@@ -156,18 +156,20 @@ export default function TelegramLinkCard() {
           <p className="text-xs text-slate-400 leading-relaxed max-w-md">
             حسابك غير مرتبط حالياً. اربط حسابك للوصول الفوري إلى نتائج الامتحانات، واستعادة حسابك برقم الهاتف في أي وقت.
           </p>
-          <button
-            onClick={handleGenerateLink}
-            disabled={actionLoading}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50 shrink-0"
-          >
-            {actionLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ExternalLink className="w-3.5 h-3.5" />
-            )}
-            <span>ربط حساب Telegram</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleGenerateLink}
+              disabled={actionLoading}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50"
+            >
+              {actionLoading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="w-3.5 h-3.5" />
+              )}
+              <span>ربط حساب Telegram</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
