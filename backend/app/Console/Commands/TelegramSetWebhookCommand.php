@@ -4,36 +4,46 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Services\TelegramService;
+use App\Services\TelegramAdminService;
 
 class TelegramSetWebhookCommand extends Command
 {
     protected $signature = 'telegram:set-webhook 
-                            {--url= : Full public HTTPS webhook URL (defaults to APP_URL/api/telegram/webhook)} 
+                            {--bot=user : Target bot: user or admin}
+                            {--url= : Full public HTTPS webhook URL} 
                             {--drop-pending : Drop all pending updates}';
 
     protected $description = 'Register the official Telegram Webhook URL with Secret Token';
 
-    public function handle(TelegramService $telegram): int
+    public function handle(): int
     {
+        $botType = strtolower((string) $this->option('bot'));
+        $isAdmin = ($botType === 'admin');
+
+        $telegram = $isAdmin ? TelegramService::forAdminBot() : TelegramService::forUserBot();
+
         if (!$telegram->isConfigured()) {
-            $this->error('TELEGRAM_BOT_TOKEN is not configured in .env');
+            $tokenVar = $isAdmin ? 'ADMIN_TELEGRAM_BOT_TOKEN' : 'TELEGRAM_BOT_TOKEN';
+            $this->error("{$tokenVar} is not configured in .env");
             return Command::FAILURE;
         }
 
-        $url = $this->option('url');
-        if (!$url) {
-            $appUrl = rtrim(config('app.url'), '/');
-            $url = "{$appUrl}/api/telegram/webhook";
-        }
+        $appUrl = rtrim(config('app.url'), '/');
+        $defaultPath = $isAdmin ? '/api/telegram/admin-webhook' : '/api/telegram/webhook';
+        $url = $this->option('url') ?: "{$appUrl}{$defaultPath}";
 
         if (!str_starts_with($url, 'https://')) {
             $this->warn("Warning: Telegram Webhook requires HTTPS in production. Provided URL: {$url}");
         }
 
-        $secretToken = config('services.telegram.webhook_secret');
+        $secretToken = $isAdmin 
+            ? (config('services.admin_telegram.webhook_secret') ?: env('ADMIN_TELEGRAM_WEBHOOK_SECRET'))
+            : (config('services.telegram.webhook_secret') ?: env('TELEGRAM_WEBHOOK_SECRET'));
+
         $dropPending = (bool) $this->option('drop-pending');
 
-        $this->info("Registering webhook: {$url}");
+        $botLabel = $isAdmin ? 'Admin Bot' : 'User Bot';
+        $this->info("Registering webhook for {$botLabel}: {$url}");
         if ($secretToken) {
             $this->info("X-Telegram-Bot-Api-Secret-Token is configured.");
         }

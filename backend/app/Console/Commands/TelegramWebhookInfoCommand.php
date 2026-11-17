@@ -4,17 +4,24 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Services\TelegramService;
+use App\Services\TelegramAdminService;
 
 class TelegramWebhookInfoCommand extends Command
 {
-    protected $signature = 'telegram:webhook-info';
+    protected $signature = 'telegram:webhook-info {--bot=user : Target bot: user or admin}';
 
     protected $description = 'Get current Telegram Webhook status and diagnostic info';
 
-    public function handle(TelegramService $telegram): int
+    public function handle(): int
     {
+        $botType = strtolower((string) $this->option('bot'));
+        $isAdmin = ($botType === 'admin');
+
+        $telegram = $isAdmin ? TelegramService::forAdminBot() : TelegramService::forUserBot();
+
         if (!$telegram->isConfigured()) {
-            $this->error('TELEGRAM_BOT_TOKEN is not configured in .env');
+            $tokenVar = $isAdmin ? 'ADMIN_TELEGRAM_BOT_TOKEN' : 'TELEGRAM_BOT_TOKEN';
+            $this->error("{$tokenVar} is not configured in .env");
             return Command::FAILURE;
         }
 
@@ -26,7 +33,9 @@ class TelegramWebhookInfoCommand extends Command
         }
 
         $result = $info['result'] ?? [];
+        $botLabel = $isAdmin ? 'Admin Bot' : 'User Bot';
 
+        $this->info("Telegram Webhook Info for {$botLabel}:");
         $this->table(
             ['Key', 'Value'],
             [
