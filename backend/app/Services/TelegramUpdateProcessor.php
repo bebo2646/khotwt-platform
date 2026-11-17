@@ -20,6 +20,9 @@ class TelegramUpdateProcessor
     protected TelegramGuardianService $guardianService;
     protected TelegramUserService $userService;
     protected TelegramGiftCodeService $giftCodeService;
+    protected TelegramSupportService $supportService;
+    protected TelegramTeacherApplicationService $teacherAppService;
+    protected TelegramAdminDashboardService $adminDashboardService;
 
     public function __construct(
         TelegramService $telegramService,
@@ -28,7 +31,10 @@ class TelegramUpdateProcessor
         ?TelegramPasswordRecoveryService $recoveryService = null,
         ?TelegramGuardianService $guardianService = null,
         ?TelegramUserService $userService = null,
-        ?TelegramGiftCodeService $giftCodeService = null
+        ?TelegramGiftCodeService $giftCodeService = null,
+        ?TelegramSupportService $supportService = null,
+        ?TelegramTeacherApplicationService $teacherAppService = null,
+        ?TelegramAdminDashboardService $adminDashboardService = null
     ) {
         $this->telegramService = $telegramService;
         $this->keyboardService = $keyboardService;
@@ -37,6 +43,9 @@ class TelegramUpdateProcessor
         $this->guardianService = $guardianService ?: app(TelegramGuardianService::class);
         $this->userService = $userService ?: app(TelegramUserService::class);
         $this->giftCodeService = $giftCodeService ?: app(TelegramGiftCodeService::class);
+        $this->supportService = $supportService ?: app(TelegramSupportService::class);
+        $this->teacherAppService = $teacherAppService ?: app(TelegramTeacherApplicationService::class);
+        $this->adminDashboardService = $adminDashboardService ?: app(TelegramAdminDashboardService::class);
     }
 
     /**
@@ -107,7 +116,15 @@ class TelegramUpdateProcessor
             'last_interaction_at' => Carbon::now(),
         ]);
 
+        // Record User Activity for DAU / MAU analytics
+        \App\Models\TelegramUserActivity::recordActivity($fromId, 'message');
+
         // 1. Handle Commands
+        if ($text === '/admin') {
+            $this->adminDashboardService->showAdminDashboard($telegramUser);
+            return;
+        }
+
         if (str_starts_with($text, '/start')) {
             $this->handleStartCommand($telegramUser, $text);
             return;
@@ -164,6 +181,36 @@ class TelegramUpdateProcessor
                 "⚠️ يرجى الضغط على زر مشاركة جهة الاتصال بالأسفل للتحقق الأمني من رقم هاتفك، ولا تقم بكتابة الرقم يدوياً لضمان الأمان ومكافحة التلاعب.",
                 $this->keyboardService->requestContactKeyboard()
             );
+            return;
+        }
+
+        // Support Ticket States
+        if ($currentState === ConversationStateEngine::STATE_AWAITING_SUPPORT_MESSAGE) {
+            $this->supportService->createTicket($telegramUser, $text);
+            return;
+        }
+
+        if ($currentState === ConversationStateEngine::STATE_ADMIN_REPLYING_TICKET) {
+            $this->supportService->deliverAdminReply($telegramUser, $text);
+            return;
+        }
+
+        // Teacher Application Wizard States
+        if (str_starts_with($currentState, 'TEACHER_APP_')) {
+            if ($this->teacherAppService->handleWizardInput($telegramUser, $currentState, $text)) {
+                return;
+            }
+        }
+
+        if ($currentState === ConversationStateEngine::STATE_ADMIN_REJECTING_TEACHER) {
+            $this->teacherAppService->submitRejection($telegramUser, $text);
+            return;
+        }
+
+        // Admin User Search State
+        if ($currentState === ConversationStateEngine::STATE_ADMIN_SEARCHING_USER) {
+            $this->stateEngine->clearState($telegramUser);
+            $this->adminDashboardService->searchUser($telegramUser, $text);
             return;
         }
 
@@ -558,11 +605,15 @@ class TelegramUpdateProcessor
                 break;
 
             case '🛠 الدعم الفني':
-                $msg = "🛠 <b>فريق الدعم الفني — منصة خطوتك</b>\n\n" .
-                    "نسعد دائماً بمساعدتك في حال واجهت أي استفسار أو مشكلة فنية.\n\n" .
-                    "• البريد الرسمي: support@khotwtk.com\n" .
-                    "• أوقات العمل: يومياً من 9 صباحاً حتى 10 مساءً.";
-                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                $this->supportService->promptCategorySelection($telegramUser);
+                break;
+
+            case '🎫 متابعة تذاكري':
+                $this->supportService->showUserTickets($telegramUser);
+                break;
+
+            case '👨‍🏫 أنا مدرس':
+                $this->teacherAppService->startApplication($telegramUser);
                 break;
 
             default:
@@ -659,10 +710,143 @@ class TelegramUpdateProcessor
      */
     protected function processCallbackQuery(array $callbackQuery): void
     {
-        Log::info('TelegramUpdateProcessor: Callback query received', [
-            'id' => $callbackQuery['id'] ?? null,
-            'data' => $callbackQuery['data'] ?? null,
-        ]);
+        $id = $callbackQuery['id'] ?? '';
+        $from = $callbackQuery['from'] ?? [];
+        $data = $callbackQuery['data'] ?? '';
+        $fromId = $from['id'] ?? null;
+
+        if (!$fromId) {
+            return;
+        }
+
+        // Acknowledge callback immediately to dismiss Telegram spinner
+        $this->telegramService->answerCallbackQuery($id);
+
+        $telegramUser = TelegramUser::where('telegram_user_id', $fromId)->first();
+        if (!$telegramUser) {
+            return;
+        }
+
+        \App\Models\TelegramUserActivity::recordActivity($fromId, 'callback_query');
+
+        // 1. Support Ticket User Callbacks
+        if (str_starts_with($data, 'tkt_cat_')) {
+            $catKey = substr($data, 8);
+            $this->supportService->handleCategorySelected($telegramUser, $catKey);
+            return;
+        }
+
+        if ($data === 'tkt_my_list') {
+            $this->supportService->showUserTickets($telegramUser);
+            return;
+        }
+
+        if ($data === 'tkt_cancel') {
+            $this->stateEngine->clearState($telegramUser);
+            $this->sendRoleBasedWelcome($telegramUser);
+            return;
+        }
+
+        // 2. Teacher Application Applicant Callbacks
+        if ($data === 'teach_app_confirm') {
+            $this->teacherAppService->submitApplication($telegramUser);
+            return;
+        }
+
+        if ($data === 'teach_app_cancel') {
+            $this->stateEngine->clearState($telegramUser);
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "❌ تم إلغاء طلب المعلم.");
+            $this->sendRoleBasedWelcome($telegramUser);
+            return;
+        }
+
+        // 3. Admin Protected Actions
+        if (!$this->adminDashboardService->isAdmin($telegramUser)) {
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء الإداري.");
+            return;
+        }
+
+        // Admin Support Tickets Callbacks
+        if (str_starts_with($data, 'adm_rep_tkt_')) {
+            $ticketId = (int)substr($data, 12);
+            $this->supportService->startAdminReply($telegramUser, $ticketId);
+            return;
+        }
+
+        if (str_starts_with($data, 'adm_prog_tkt_')) {
+            $ticketId = (int)substr($data, 13);
+            $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_IN_PROGRESS);
+            return;
+        }
+
+        if (str_starts_with($data, 'adm_cls_tkt_')) {
+            $ticketId = (int)substr($data, 12);
+            $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_CLOSED);
+            return;
+        }
+
+        // Admin Teacher Applications Callbacks
+        if (str_starts_with($data, 'adm_app_teach_')) {
+            $appId = (int)substr($data, 14);
+            $this->teacherAppService->approveApplication($telegramUser, $appId);
+            return;
+        }
+
+        if (str_starts_with($data, 'adm_rej_teach_')) {
+            $appId = (int)substr($data, 14);
+            $this->teacherAppService->startRejectApplication($telegramUser, $appId);
+            return;
+        }
+
+        // Admin Navigation Callbacks
+        if ($data === 'adm_nav_stats') {
+            $text = $this->adminDashboardService->getAnalyticsText();
+            $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+            return;
+        }
+
+        if ($data === 'adm_nav_teachers') {
+            $this->adminDashboardService->showTeacherApplications($telegramUser);
+            return;
+        }
+
+        if ($data === 'adm_nav_tickets') {
+            $this->adminDashboardService->showSupportTickets($telegramUser);
+            return;
+        }
+
+        if ($data === 'adm_nav_search') {
+            $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_ADMIN_SEARCHING_USER);
+            $this->telegramService->sendMessage(
+                $telegramUser->telegram_chat_id,
+                "🔍 <b>البحث عن مستخدم:</b>\n\nأرسل رقم الهاتف، البريد الإلكتروني، أو معرف Telegram للبحث:\n<i>(أو أرسل /cancel للإلغاء)</i>"
+            );
+            return;
+        }
+
+        if ($data === 'adm_nav_broadcast') {
+            $this->telegramService->sendMessage(
+                $telegramUser->telegram_chat_id,
+                "📢 <b>الإشعارات والحملات الجماعية:</b>\n\nلإرسال حملة موجهة للطلاب أو المعلمين مع احترام خيارات الاشتراك التسويقي، يمكنك استخدام لوحة إدارة الحملات أو إرسال الأمر المخصص."
+            );
+            return;
+        }
+
+        if ($data === 'adm_nav_settings') {
+            $this->adminDashboardService->showBotSettings($telegramUser);
+            return;
+        }
+
+        if ($data === 'adm_nav_main') {
+            $this->adminDashboardService->showAdminDashboard($telegramUser);
+            return;
+        }
+
+        if ($data === 'adm_nav_close') {
+            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "تم إغلاق لوحة الإدارة. يمكنك إعادة فتحها بأمر /admin في أي وقت.");
+            return;
+        }
     }
 
     /**

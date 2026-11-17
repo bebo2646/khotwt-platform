@@ -98,6 +98,23 @@ class TelegramService
     }
 
     /**
+     * Answer callback query to stop loading spinner on client side.
+     */
+    public function answerCallbackQuery(string $callbackQueryId, ?string $text = null, bool $showAlert = false): array
+    {
+        $payload = [
+            'callback_query_id' => $callbackQueryId,
+            'show_alert' => $showAlert,
+        ];
+
+        if ($text !== null) {
+            $payload['text'] = $text;
+        }
+
+        return $this->callApi('answerCallbackQuery', $payload);
+    }
+
+    /**
      * Register official Telegram webhook.
      */
     public function setWebhook(string $url, ?string $secretToken = null, bool $dropPendingUpdates = false): array

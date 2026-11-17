@@ -12,6 +12,25 @@ class ConversationStateEngine
     public const STATE_AWAITING_GUARDIAN_CONTACT = 'AWAITING_GUARDIAN_CONTACT';
     public const STATE_AWAITING_GIFT_CODE = 'AWAITING_GIFT_CODE';
 
+    // Support Ticket states
+    public const STATE_AWAITING_SUPPORT_MESSAGE = 'AWAITING_SUPPORT_MESSAGE';
+    public const STATE_ADMIN_REPLYING_TICKET = 'ADMIN_REPLYING_TICKET';
+
+    // Teacher Application states
+    public const STATE_TEACHER_APP_NAME = 'TEACHER_APP_NAME';
+    public const STATE_TEACHER_APP_PHONE = 'TEACHER_APP_PHONE';
+    public const STATE_TEACHER_APP_EMAIL = 'TEACHER_APP_EMAIL';
+    public const STATE_TEACHER_APP_SUBJECT = 'TEACHER_APP_SUBJECT';
+    public const STATE_TEACHER_APP_GRADES = 'TEACHER_APP_GRADES';
+    public const STATE_TEACHER_APP_CENTER = 'TEACHER_APP_CENTER';
+    public const STATE_TEACHER_APP_CONFIRM = 'TEACHER_APP_CONFIRM';
+    public const STATE_ADMIN_REJECTING_TEACHER = 'ADMIN_REJECTING_TEACHER';
+
+    // Admin states
+    public const STATE_ADMIN_SEARCHING_USER = 'ADMIN_SEARCHING_USER';
+    public const STATE_ADMIN_BROADCAST_ROLE = 'ADMIN_BROADCAST_ROLE';
+    public const STATE_ADMIN_BROADCAST_MESSAGE = 'ADMIN_BROADCAST_MESSAGE';
+
     /**
      * Default timeout for an active state in minutes.
      */

@@ -50,6 +50,8 @@ return [
         'bot_username' => env('TELEGRAM_BOT_USERNAME', 'KhotwtkBot'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
         'official_frontend_domain' => env('OFFICIAL_FRONTEND_DOMAIN', 'khotwtk.com'),
+        'admin_chat_id' => env('TELEGRAM_ADMIN_CHAT_ID'),
+        'admin_ids' => env('TELEGRAM_ADMIN_IDS'),
     ],
 
 ];
