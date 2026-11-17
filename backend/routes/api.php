@@ -52,6 +52,11 @@ Route::post('/auth/delete-rejected-account', [AuthController::class, 'deleteReje
 Route::post('/bunny/webhook', [\App\Http\Controllers\BunnyWebhookController::class, 'handle']);
 Route::get('/public/videos/{video}/status', [\App\Http\Controllers\TeacherController::class, 'getVideoStatus']);
 
+// Telegram Webhook and Public Recovery
+Route::post('/telegram/webhook', [\App\Http\Controllers\TelegramWebhookController::class, 'handleWebhook']);
+Route::post('/telegram/reset-password', [\App\Http\Controllers\TelegramAccountController::class, 'resetPassword']);
+Route::post('/telegram/verify-reset-token', [\App\Http\Controllers\TelegramAccountController::class, 'verifyResetToken']);
+
 /*
 |--------------------------------------------------------------------------
 | Authenticated Routes
@@ -66,6 +71,11 @@ Route::middleware(['auth:sanctum', 'verify_session'])->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/upload', [UploadController::class, 'upload']);
     Route::get('/subscription-plans', [SubscriptionController::class, 'listPlansPublic']);
+
+    // Telegram Account Management
+    Route::post('/telegram/link-token', [\App\Http\Controllers\TelegramAccountController::class, 'generateLinkToken']);
+    Route::post('/telegram/unlink', [\App\Http\Controllers\TelegramAccountController::class, 'unlinkAccount']);
+    Route::get('/telegram/status', [\App\Http\Controllers\TelegramAccountController::class, 'getLinkStatus']);
 
     // Routes that enforce must_change_password check
     Route::middleware('must_change_password')->group(function () {

@@ -66,6 +66,11 @@
     <priority>0.85</priority>
   </url>
   <url>
+    <loc>https://khotwtak.com/teacher/%D9%85%D8%AD%D9%85%D8%AF-%D8%A7%D8%AD%D9%85%D8%AF</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
     <loc>https://khotwtak.com/teacher/1102</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
@@ -76,12 +81,12 @@
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://khotwtak.com/teacher/%D9%85%D8%AD%D9%85%D8%AF-%D8%A3%D8%AD%D9%85%D8%AF</loc>
+    <loc>https://khotwtak.com/teacher/%D8%AA%D9%8A%D8%B3%D8%AA</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://khotwtak.com/teacher/%D8%AA%D9%8A%D8%B3%D8%AA</loc>
+    <loc>https://khotwtak.com/teacher/%D9%85%D8%AD%D9%85%D8%AF-%D8%A3%D8%AD%D9%85%D8%AF</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>
@@ -92,6 +97,11 @@
   </url>
   <url>
     <loc>https://khotwtak.com/teacher/diag-teacher</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://khotwtak.com/course/%D8%A7%D9%84%D8%A8%D8%A7%D8%A8-%D8%A7%D9%84%D8%A7%D9%88%D9%84</loc>
     <changefreq>weekly</changefreq>
     <priority>0.85</priority>
   </url>

@@ -272,4 +272,29 @@ class User extends Authenticatable
     {
         return $this->hasMany(StudentSession::class, 'student_id');
     }
+
+    public function telegramUser()
+    {
+        return $this->hasOne(TelegramUser::class, 'user_id');
+    }
+
+    public function guardianRelations()
+    {
+        return $this->hasMany(GuardianStudentRelation::class, 'student_user_id');
+    }
+
+    public function telegramPasswordResets()
+    {
+        return $this->hasMany(TelegramPasswordReset::class, 'user_id');
+    }
+
+    public function giftCodeRedemptions()
+    {
+        return $this->hasMany(GiftCodeRedemption::class, 'user_id');
+    }
+
+    public function telegramLinkTokens()
+    {
+        return $this->hasMany(TelegramLinkToken::class, 'user_id');
+    }
 }

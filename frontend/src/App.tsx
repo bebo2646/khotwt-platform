@@ -36,6 +36,7 @@ const DepartmentDetail = React.lazy(() => import('./pages/DepartmentDetail'))
 const Teachers = React.lazy(() => import('./pages/Teachers'))
 const TeacherProfile = React.lazy(() => import('./pages/TeacherProfile'))
 const ChangePassword = React.lazy(() => import('./pages/ChangePassword'))
+const ResetPassword = React.lazy(() => import('./pages/ResetPassword'))
 const NotFound = React.lazy(() => import('./pages/NotFound'))
 const ServerError = React.lazy(() => import('./pages/ServerError'))
 const Maintenance = React.lazy(() => import('./pages/Maintenance'))
@@ -388,6 +389,9 @@ function App() {
             <Layout><ChangePassword /></Layout>
           </ProtectedRoute>
         } />
+
+        {/* Telegram Password Recovery (Public) */}
+        <Route path="/reset-password" element={<Layout><ResetPassword /></Layout>} />
 
         {/* ==========================================================================
             Student Protected Scope Routes

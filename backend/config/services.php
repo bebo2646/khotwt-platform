@@ -45,4 +45,11 @@ return [
         'webhook_secret' => env('BUNNY_STREAM_WEBHOOK_SECRET'),
     ],
 
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN'),
+        'bot_username' => env('TELEGRAM_BOT_USERNAME', 'KhotwtkBot'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        'official_frontend_domain' => env('OFFICIAL_FRONTEND_DOMAIN', 'khotwtk.com'),
+    ],
+
 ];

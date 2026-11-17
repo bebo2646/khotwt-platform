@@ -32,5 +32,5 @@ RUN php artisan storage:link --force
 # Expose port
 EXPOSE 8000
 
-# Start script
-CMD php artisan migrate --force && php artisan optimize && php artisan serve --host=0.0.0.0 --port=$PORT
+# Start script (Web Server - Migrations separated for production safety)
+CMD php artisan optimize && php artisan serve --host=0.0.0.0 --port=$PORT
