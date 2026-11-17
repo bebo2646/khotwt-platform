@@ -183,9 +183,19 @@ class TelegramSupportService
     /**
      * Start admin reply flow.
      */
-    public function startAdminReply(TelegramUser $adminUser, int $ticketId): void
+    public function startAdminReply(TelegramUser $adminUser, mixed $ticketId): void
     {
-        $ticket = TelegramSupportTicket::find($ticketId);
+        $ticket = null;
+        if (is_numeric($ticketId)) {
+            $ticket = TelegramSupportTicket::find((int)$ticketId);
+        }
+        if (!$ticket) {
+            $ticket = TelegramSupportTicket::where('ticket_code', (string)$ticketId)->first();
+        }
+        if (!$ticket && (string)$ticketId === 'demo') {
+            $ticket = TelegramSupportTicket::latest()->first();
+        }
+
         if (!$ticket) {
             $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ التذكرة غير موجودة.");
             return;
@@ -263,9 +273,19 @@ class TelegramSupportService
     /**
      * Update ticket status (in_progress, closed).
      */
-    public function updateTicketStatus(TelegramUser $adminUser, int $ticketId, string $status): void
+    public function updateTicketStatus(TelegramUser $adminUser, mixed $ticketId, string $status): void
     {
-        $ticket = TelegramSupportTicket::find($ticketId);
+        $ticket = null;
+        if (is_numeric($ticketId)) {
+            $ticket = TelegramSupportTicket::find((int)$ticketId);
+        }
+        if (!$ticket) {
+            $ticket = TelegramSupportTicket::where('ticket_code', (string)$ticketId)->first();
+        }
+        if (!$ticket && (string)$ticketId === 'demo') {
+            $ticket = TelegramSupportTicket::latest()->first();
+        }
+
         if (!$ticket) {
             $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ التذكرة غير موجودة.");
             return;

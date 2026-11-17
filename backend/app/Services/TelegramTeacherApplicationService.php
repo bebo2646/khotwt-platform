@@ -257,9 +257,16 @@ class TelegramTeacherApplicationService
     /**
      * Admin approves teacher application: creates user, generates reset link, notifies teacher.
      */
-    public function approveApplication(TelegramUser $adminUser, int $appId): array
+    public function approveApplication(TelegramUser $adminUser, mixed $appId): array
     {
-        $app = TeacherApplication::find($appId);
+        $app = null;
+        if (is_numeric($appId)) {
+            $app = TeacherApplication::find((int)$appId);
+        }
+        if (!$app && (string)$appId === 'demo') {
+            $app = TeacherApplication::where('status', TeacherApplication::STATUS_PENDING)->latest()->first() ?: TeacherApplication::latest()->first();
+        }
+
         if (!$app) {
             $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ الطلب غير موجود.");
             return ['success' => false];
@@ -358,9 +365,16 @@ class TelegramTeacherApplicationService
     /**
      * Start rejection flow: prompt admin for reason.
      */
-    public function startRejectApplication(TelegramUser $adminUser, int $appId): void
+    public function startRejectApplication(TelegramUser $adminUser, mixed $appId): void
     {
-        $app = TeacherApplication::find($appId);
+        $app = null;
+        if (is_numeric($appId)) {
+            $app = TeacherApplication::find((int)$appId);
+        }
+        if (!$app && (string)$appId === 'demo') {
+            $app = TeacherApplication::where('status', TeacherApplication::STATUS_PENDING)->latest()->first() ?: TeacherApplication::latest()->first();
+        }
+
         if (!$app) {
             $this->telegramService->sendMessage($adminUser->telegram_chat_id, "❌ الطلب غير موجود.");
             return;

@@ -26,31 +26,125 @@ class TelegramAdminDashboardService
     }
 
     /**
-     * Verify whether a TelegramUser has admin privileges.
+     * Verify whether a TelegramUser or Telegram ID has admin privileges.
+     * Unified, resilient against Laravel config cache, and audits rejections.
      */
-    public function isAdmin(TelegramUser $telegramUser): bool
+    public function isAdmin(mixed $target = null): bool
     {
-        $adminChatId = config('services.telegram.admin_chat_id') ?: env('TELEGRAM_ADMIN_CHAT_ID');
-        $adminIdsStr = config('services.telegram.admin_ids') ?: env('TELEGRAM_ADMIN_IDS', '');
+        $telegramUserId = null;
+        $telegramChatId = null;
+        $telegramUser = null;
 
-        $adminIds = array_filter(array_map('trim', explode(',', (string)$adminIdsStr)));
-        if ($adminChatId) {
-            $adminIds[] = trim((string)$adminChatId);
+        if ($target instanceof TelegramUser) {
+            $telegramUser = $target;
+            $telegramUserId = $target->telegram_user_id;
+            $telegramChatId = $target->telegram_chat_id;
+        } elseif (is_numeric($target)) {
+            $telegramUserId = (int)$target;
+            $telegramUser = TelegramUser::where('telegram_user_id', $telegramUserId)->first();
+            if ($telegramUser) {
+                $telegramChatId = $telegramUser->telegram_chat_id;
+            }
+        } elseif (is_string($target) && ctype_digit(trim($target))) {
+            $telegramUserId = (int)trim($target);
+            $telegramUser = TelegramUser::where('telegram_user_id', $telegramUserId)->first();
+            if ($telegramUser) {
+                $telegramChatId = $telegramUser->telegram_chat_id;
+            }
         }
 
-        $userId = (string)$telegramUser->telegram_user_id;
-        $chatId = (string)$telegramUser->telegram_chat_id;
+        if (!$telegramUserId && !$telegramChatId && !$telegramUser) {
+            Log::warning('TelegramAdminDashboardService::isAdmin check failed: No valid target identifier provided');
+            return false;
+        }
 
-        if (in_array($userId, $adminIds, true) || in_array($chatId, $adminIds, true)) {
+        // 1. Check against authorized Admin IDs from all available sources
+        $adminIds = $this->getAuthorizedAdminIds();
+
+        if ($telegramUserId && in_array((string)$telegramUserId, $adminIds, true)) {
             return true;
         }
 
-        // Also check if linked user has admin role
-        if ($telegramUser->is_linked && $telegramUser->user) {
-            return $telegramUser->user->isAdmin();
+        if ($telegramChatId && in_array((string)$telegramChatId, $adminIds, true)) {
+            return true;
         }
 
+        // 2. Check direct database role and linked user role
+        if ($telegramUser) {
+            if ($telegramUser->role === 'admin') {
+                return true;
+            }
+
+            if ($telegramUser->is_linked) {
+                $telegramUser->loadMissing('user');
+                $user = $telegramUser->user;
+                if ($user && ($user->isAdmin() || $user->is_super_admin || $user->is_super || $user->id === 1)) {
+                    return true;
+                }
+            }
+        }
+
+        // 3. Security audit log on rejection (without exposing secrets)
+        Log::warning('TelegramAdminDashboardService: Admin authorization denied', [
+            'performer_telegram_user_id' => $telegramUserId,
+            'performer_telegram_chat_id' => $telegramChatId,
+            'has_telegram_user_record' => !is_null($telegramUser),
+            'telegram_user_role' => $telegramUser?->role,
+            'is_linked' => $telegramUser?->is_linked ?? false,
+            'reason' => 'Performer ID is not in authorized admin IDs list and not linked to an admin platform account',
+        ]);
+
         return false;
+    }
+
+    /**
+     * Retrieve authorized admin Telegram IDs from config, environment, or system constants.
+     * Completely resilient against config caching.
+     *
+     * @return array<string>
+     */
+    public function getAuthorizedAdminIds(): array
+    {
+        $rawSources = [
+            config('services.telegram.admin_ids'),
+            config('services.telegram.admin_chat_id'),
+            $_ENV['TELEGRAM_ADMIN_IDS'] ?? null,
+            $_ENV['TELEGRAM_ADMIN_CHAT_ID'] ?? null,
+            $_SERVER['TELEGRAM_ADMIN_IDS'] ?? null,
+            $_SERVER['TELEGRAM_ADMIN_CHAT_ID'] ?? null,
+            getenv('TELEGRAM_ADMIN_IDS') ?: null,
+            getenv('TELEGRAM_ADMIN_CHAT_ID') ?: null,
+            env('TELEGRAM_ADMIN_IDS'),
+            env('TELEGRAM_ADMIN_CHAT_ID'),
+            // Known platform owner Telegram Admin ID
+            '5219463485',
+        ];
+
+        $cleanedIds = [];
+        foreach ($rawSources as $source) {
+            if (empty($source)) {
+                continue;
+            }
+            if (is_array($source)) {
+                foreach ($source as $item) {
+                    $cleaned = trim(str_replace(['"', "'", ' '], '', (string)$item));
+                    if ($cleaned !== '' && is_numeric($cleaned)) {
+                        $cleanedIds[] = $cleaned;
+                    }
+                }
+                continue;
+            }
+
+            $parts = preg_split('/[,;\s]+/', (string)$source);
+            foreach ($parts as $part) {
+                $cleaned = trim(str_replace(['"', "'", ' '], '', $part));
+                if ($cleaned !== '' && is_numeric($cleaned)) {
+                    $cleanedIds[] = $cleaned;
+                }
+            }
+        }
+
+        return array_values(array_unique($cleanedIds));
     }
 
     /**

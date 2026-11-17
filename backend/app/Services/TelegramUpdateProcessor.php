@@ -191,6 +191,11 @@ class TelegramUpdateProcessor
         }
 
         if ($currentState === ConversationStateEngine::STATE_ADMIN_REPLYING_TICKET) {
+            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
+                $this->stateEngine->clearState($telegramUser);
+                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
+                return;
+            }
             $this->supportService->deliverAdminReply($telegramUser, $text);
             return;
         }
@@ -203,6 +208,11 @@ class TelegramUpdateProcessor
         }
 
         if ($currentState === ConversationStateEngine::STATE_ADMIN_REJECTING_TEACHER) {
+            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
+                $this->stateEngine->clearState($telegramUser);
+                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
+                return;
+            }
             $this->teacherAppService->submitRejection($telegramUser, $text);
             return;
         }
@@ -210,6 +220,10 @@ class TelegramUpdateProcessor
         // Admin User Search State
         if ($currentState === ConversationStateEngine::STATE_ADMIN_SEARCHING_USER) {
             $this->stateEngine->clearState($telegramUser);
+            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
+                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء.");
+                return;
+            }
             $this->adminDashboardService->searchUser($telegramUser, $text);
             return;
         }
@@ -713,18 +727,54 @@ class TelegramUpdateProcessor
         $id = $callbackQuery['id'] ?? '';
         $from = $callbackQuery['from'] ?? [];
         $data = $callbackQuery['data'] ?? '';
-        $fromId = $from['id'] ?? null;
-
+        
+        // Strictly extract performer Telegram ID from callback_query.from.id
+        $fromId = isset($from['id']) ? (int)$from['id'] : null;
         if (!$fromId) {
+            Log::warning('TelegramUpdateProcessor: Callback query received without valid from.id', [
+                'callback_id' => $id,
+                'data' => $data,
+            ]);
             return;
         }
 
         // Acknowledge callback immediately to dismiss Telegram spinner
         $this->telegramService->answerCallbackQuery($id);
 
-        $telegramUser = TelegramUser::where('telegram_user_id', $fromId)->first();
-        if (!$telegramUser) {
-            return;
+        $chatId = isset($callbackQuery['message']['chat']['id']) ? (int)$callbackQuery['message']['chat']['id'] : $fromId;
+
+        // Resolve or create TelegramUser record for the performer
+        $telegramUser = TelegramUser::firstOrCreate(
+            ['telegram_user_id' => $fromId],
+            [
+                'telegram_chat_id' => $chatId,
+                'telegram_username' => $from['username'] ?? null,
+                'first_name' => $from['first_name'] ?? null,
+                'last_name' => $from['last_name'] ?? null,
+                'role' => 'guest',
+                'is_linked' => false,
+            ]
+        );
+
+        $telegramUser->update([
+            'telegram_chat_id' => $chatId,
+            'telegram_username' => $from['username'] ?? $telegramUser->telegram_username,
+            'first_name' => $from['first_name'] ?? $telegramUser->first_name,
+            'last_name' => $from['last_name'] ?? $telegramUser->last_name,
+            'last_interaction_at' => Carbon::now(),
+        ]);
+
+        // Auto-link/sync admin role if verified
+        if ($this->adminDashboardService->isAdmin($telegramUser)) {
+            if ($telegramUser->role !== 'admin' || !$telegramUser->is_linked) {
+                $platformAdmin = User::where('id', 1)->orWhere('role', 'admin')->first();
+                $telegramUser->update([
+                    'role' => 'admin',
+                    'user_id' => $telegramUser->user_id ?: ($platformAdmin?->id ?? 1),
+                    'is_linked' => true,
+                    'linked_at' => $telegramUser->linked_at ?: Carbon::now(),
+                ]);
+            }
         }
 
         \App\Models\TelegramUserActivity::recordActivity($fromId, 'callback_query');
@@ -760,92 +810,102 @@ class TelegramUpdateProcessor
             return;
         }
 
-        // 3. Admin Protected Actions
-        if (!$this->adminDashboardService->isAdmin($telegramUser)) {
-            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "⛔️ غير مصرح لك بتنفيذ هذا الإجراء الإداري.");
-            return;
-        }
+        // 3. Admin Protected Actions (Unified Authorization)
+        if (str_starts_with($data, 'adm_')) {
+            if (!$this->adminDashboardService->isAdmin($telegramUser)) {
+                Log::warning('TelegramUpdateProcessor: Unauthorized admin action attempted on callback query', [
+                    'performer_telegram_id' => $fromId,
+                    'callback_data' => $data,
+                    'chat_id' => $telegramUser->telegram_chat_id,
+                ]);
+                $this->telegramService->sendMessage(
+                    $telegramUser->telegram_chat_id,
+                    "⛔️ <b>غير مصرح:</b> ليس لديك صلاحيات لتنفيذ هذا الإجراء الإداري."
+                );
+                return;
+            }
 
-        // Admin Support Tickets Callbacks
-        if (str_starts_with($data, 'adm_rep_tkt_')) {
-            $ticketId = (int)substr($data, 12);
-            $this->supportService->startAdminReply($telegramUser, $ticketId);
-            return;
-        }
+            // Admin Support Tickets Callbacks
+            if (str_starts_with($data, 'adm_rep_tkt_')) {
+                $ticketId = substr($data, 12);
+                $this->supportService->startAdminReply($telegramUser, $ticketId);
+                return;
+            }
 
-        if (str_starts_with($data, 'adm_prog_tkt_')) {
-            $ticketId = (int)substr($data, 13);
-            $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_IN_PROGRESS);
-            return;
-        }
+            if (str_starts_with($data, 'adm_prog_tkt_')) {
+                $ticketId = substr($data, 13);
+                $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_IN_PROGRESS);
+                return;
+            }
 
-        if (str_starts_with($data, 'adm_cls_tkt_')) {
-            $ticketId = (int)substr($data, 12);
-            $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_CLOSED);
-            return;
-        }
+            if (str_starts_with($data, 'adm_cls_tkt_')) {
+                $ticketId = substr($data, 12);
+                $this->supportService->updateTicketStatus($telegramUser, $ticketId, \App\Models\TelegramSupportTicket::STATUS_CLOSED);
+                return;
+            }
 
-        // Admin Teacher Applications Callbacks
-        if (str_starts_with($data, 'adm_app_teach_')) {
-            $appId = (int)substr($data, 14);
-            $this->teacherAppService->approveApplication($telegramUser, $appId);
-            return;
-        }
+            // Admin Teacher Applications Callbacks
+            if (str_starts_with($data, 'adm_app_teach_')) {
+                $appId = substr($data, 14);
+                $this->teacherAppService->approveApplication($telegramUser, $appId);
+                return;
+            }
 
-        if (str_starts_with($data, 'adm_rej_teach_')) {
-            $appId = (int)substr($data, 14);
-            $this->teacherAppService->startRejectApplication($telegramUser, $appId);
-            return;
-        }
+            if (str_starts_with($data, 'adm_rej_teach_')) {
+                $appId = substr($data, 14);
+                $this->teacherAppService->startRejectApplication($telegramUser, $appId);
+                return;
+            }
 
-        // Admin Navigation Callbacks
-        if ($data === 'adm_nav_stats') {
-            $text = $this->adminDashboardService->getAnalyticsText();
-            $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
-            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
-            return;
-        }
+            // Admin Navigation Callbacks
+            if ($data === 'adm_nav_stats') {
+                $text = $this->adminDashboardService->getAnalyticsText();
+                $buttons = [[['text' => '🔙 العودة للوحة الإدارة', 'callback_data' => 'adm_nav_main']]];
+                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, $text, ['inline_keyboard' => $buttons]);
+                return;
+            }
 
-        if ($data === 'adm_nav_teachers') {
-            $this->adminDashboardService->showTeacherApplications($telegramUser);
-            return;
-        }
+            if ($data === 'adm_nav_teachers') {
+                $this->adminDashboardService->showTeacherApplications($telegramUser);
+                return;
+            }
 
-        if ($data === 'adm_nav_tickets') {
-            $this->adminDashboardService->showSupportTickets($telegramUser);
-            return;
-        }
+            if ($data === 'adm_nav_tickets') {
+                $this->adminDashboardService->showSupportTickets($telegramUser);
+                return;
+            }
 
-        if ($data === 'adm_nav_search') {
-            $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_ADMIN_SEARCHING_USER);
-            $this->telegramService->sendMessage(
-                $telegramUser->telegram_chat_id,
-                "🔍 <b>البحث عن مستخدم:</b>\n\nأرسل رقم الهاتف، البريد الإلكتروني، أو معرف Telegram للبحث:\n<i>(أو أرسل /cancel للإلغاء)</i>"
-            );
-            return;
-        }
+            if ($data === 'adm_nav_search') {
+                $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_ADMIN_SEARCHING_USER);
+                $this->telegramService->sendMessage(
+                    $telegramUser->telegram_chat_id,
+                    "🔍 <b>البحث عن مستخدم:</b>\n\nأرسل رقم الهاتف، البريد الإلكتروني، أو معرف Telegram للبحث:\n<i>(أو أرسل /cancel للإلغاء)</i>"
+                );
+                return;
+            }
 
-        if ($data === 'adm_nav_broadcast') {
-            $this->telegramService->sendMessage(
-                $telegramUser->telegram_chat_id,
-                "📢 <b>الإشعارات والحملات الجماعية:</b>\n\nلإرسال حملة موجهة للطلاب أو المعلمين مع احترام خيارات الاشتراك التسويقي، يمكنك استخدام لوحة إدارة الحملات أو إرسال الأمر المخصص."
-            );
-            return;
-        }
+            if ($data === 'adm_nav_broadcast') {
+                $this->telegramService->sendMessage(
+                    $telegramUser->telegram_chat_id,
+                    "📢 <b>الإشعارات والحملات الجماعية:</b>\n\nلإرسال حملة موجهة للطلاب أو المعلمين مع احترام خيارات الاشتراك التسويقي، يمكنك استخدام لوحة إدارة الحملات أو إرسال الأمر المخصص."
+                );
+                return;
+            }
 
-        if ($data === 'adm_nav_settings') {
-            $this->adminDashboardService->showBotSettings($telegramUser);
-            return;
-        }
+            if ($data === 'adm_nav_settings') {
+                $this->adminDashboardService->showBotSettings($telegramUser);
+                return;
+            }
 
-        if ($data === 'adm_nav_main') {
-            $this->adminDashboardService->showAdminDashboard($telegramUser);
-            return;
-        }
+            if ($data === 'adm_nav_main') {
+                $this->adminDashboardService->showAdminDashboard($telegramUser);
+                return;
+            }
 
-        if ($data === 'adm_nav_close') {
-            $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "تم إغلاق لوحة الإدارة. يمكنك إعادة فتحها بأمر /admin في أي وقت.");
-            return;
+            if ($data === 'adm_nav_close') {
+                $this->telegramService->sendMessage($telegramUser->telegram_chat_id, "تم إغلاق لوحة الإدارة. يمكنك إعادة فتحها بأمر /admin في أي وقت.");
+                return;
+            }
         }
     }
 
