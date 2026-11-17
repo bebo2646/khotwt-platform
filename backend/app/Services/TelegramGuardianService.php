@@ -5,12 +5,36 @@ namespace App\Services;
 use App\Models\TelegramUser;
 use App\Models\GuardianStudentRelation;
 use App\Models\User;
+use App\Models\StudentExam;
+use App\Services\ExamResultVisibilityService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class TelegramGuardianService
 {
+    protected ?TelegramService $telegramService;
+    protected ?ExamResultVisibilityService $visibilityService;
+
+    public function __construct(
+        ?TelegramService $telegramService = null,
+        ?ExamResultVisibilityService $visibilityService = null
+    ) {
+        $this->telegramService = $telegramService;
+        $this->visibilityService = $visibilityService;
+    }
+
+    protected function getTelegramService(): TelegramService
+    {
+        return $this->telegramService ?: app(TelegramService::class);
+    }
+
+    protected function getVisibilityService(): ExamResultVisibilityService
+    {
+        return $this->visibilityService ?: app(ExamResultVisibilityService::class);
+    }
+
     /**
      * Link a guardian Telegram user to students whose parent_phone matches the verified contact.
      */
@@ -18,7 +42,6 @@ class TelegramGuardianService
     {
         $variants = TelegramPhoneService::getSearchVariants($phone);
 
-        // Find students registered with this parent_phone
         $students = User::where('role', 'student')
             ->where(function ($q) use ($variants) {
                 $q->whereIn('parent_phone', $variants);
@@ -38,7 +61,7 @@ class TelegramGuardianService
             $linkedStudents = collect();
 
             foreach ($students as $student) {
-                $relation = GuardianStudentRelation::updateOrCreate(
+                GuardianStudentRelation::updateOrCreate(
                     [
                         'guardian_telegram_account_id' => $guardianUser->id,
                         'student_user_id' => $student->id,
@@ -52,7 +75,6 @@ class TelegramGuardianService
                 $linkedStudents->push($student);
             }
 
-            // Update guardian role if not already student or teacher
             if ($guardianUser->role === 'guest' || $guardianUser->role === 'guardian') {
                 $guardianUser->update([
                     'role' => 'guardian',
@@ -107,7 +129,6 @@ class TelegramGuardianService
 
         $relation->update(['status' => 'revoked']);
 
-        // Check if any active student relations remain
         $hasRemainingActive = GuardianStudentRelation::where('guardian_telegram_account_id', $guardianUser->id)
             ->where('status', 'active')
             ->exists();
@@ -117,5 +138,110 @@ class TelegramGuardianService
         }
 
         return true;
+    }
+
+    /**
+     * Generate weekly performance report for a specific student.
+     */
+    public function getStudentWeeklyReportText(TelegramUser $guardianUser, int $studentId): string
+    {
+        if (!$this->canAccessStudent($guardianUser, $studentId)) {
+            return "⚠️ غير مصرح لك بالوصول لبيانات هذا الطالب.";
+        }
+
+        $student = User::find($studentId);
+        if (!$student) {
+            return "❌ الطالب غير موجود.";
+        }
+
+        $oneWeekAgo = Carbon::now()->subDays(7);
+
+        // Exams in past 7 days
+        $recentExams = StudentExam::with('exam')
+            ->where('student_id', $studentId)
+            ->where('created_at', '>=', $oneWeekAgo)
+            ->latest()
+            ->get();
+
+        $text = "📊 <b>التقرير الأسبوعي لأداء الطالب: {$student->name}</b>\n";
+        $text .= "الصف الدراسي: <b>" . ($student->grade ?: 'العام الحالي') . "</b>\n";
+        $text .= "الفترة: آخر 7 أيام\n\n";
+
+        if ($recentExams->isEmpty()) {
+            $text .= "ℹ️ لم يقم الطالب بأداء أي امتحانات خلال الأسبوع الماضي.\n";
+        } else {
+            $text .= "📝 <b>الامتحانات المكتملة:</b>\n";
+            $visibilityService = $this->getVisibilityService();
+
+            foreach ($recentExams as $idx => $attempt) {
+                $num = $idx + 1;
+                $exam = $attempt->exam;
+                $examTitle = $exam ? $exam->title : 'امتحان';
+                
+                $vis = $exam ? $visibilityService->resolveEffectiveVisibility($exam, $studentId) : ['show_score' => true];
+                
+                if ($vis['show_score'] && $attempt->score !== null) {
+                    $max = $exam ? $exam->total_score : $attempt->max_score;
+                    $scoreStr = "{$attempt->score} / {$max}";
+                } else {
+                    $scoreStr = "قيد التصحيح";
+                }
+
+                $text .= "{$num}. {$examTitle} — الدرجة: <b>{$scoreStr}</b>\n";
+            }
+        }
+
+        $text .= "\n🌟 استمر في تشجيع أبنائك لمواصلة التفوق الدراسي على منصة خطوتك.";
+        return $text;
+    }
+
+    /**
+     * Send immediate notification to guardian when a student finishes an exam.
+     */
+    public function notifyGuardianExamFinished(StudentExam $studentExam): void
+    {
+        $studentId = $studentExam->student_id;
+        $student = User::find($studentId);
+        if (!$student) return;
+
+        // Find active guardian relations with notifications enabled
+        $relations = GuardianStudentRelation::with('guardianTelegram')
+            ->where('student_user_id', $studentId)
+            ->where('status', 'active')
+            ->where('notifications_enabled', true)
+            ->get();
+
+        if ($relations->isEmpty()) return;
+
+        $exam = $studentExam->exam;
+        $examTitle = $exam ? $exam->title : 'امتحان';
+        
+        $vis = $exam ? $this->getVisibilityService()->resolveEffectiveVisibility($exam, $studentId) : ['show_score' => true];
+
+        if ($vis['show_score'] && $studentExam->score !== null) {
+            $max = $exam ? $exam->total_score : $studentExam->max_score;
+            $scoreText = "🎯 الدرجة المحققة: <b>{$studentExam->score} / {$max}</b>";
+        } else {
+            $scoreText = "🔒 النتيجة قيد المراجعة والاعتماد من قِبل المعلم.";
+        }
+
+        $msg = "🔔 <b>إشعار ولي الأمر — منصة خطوتك</b>\n\n" .
+            "قام الطالب <b>{$student->name}</b> للتو بإنهاء:\n" .
+            "📝 <b>{$examTitle}</b>\n" .
+            "{$scoreText}\n" .
+            "📅 الوقت: " . Carbon::now()->format('Y-m-d H:i') . "\n\n" .
+            "نتمنى له دوام التوفيق والنجاح! 🌟";
+
+        $tgService = $this->getTelegramService();
+        foreach ($relations as $rel) {
+            $guardianTg = $rel->guardianTelegram;
+            if ($guardianTg && $guardianTg->telegram_chat_id) {
+                try {
+                    $tgService->sendMessage($guardianTg->telegram_chat_id, $msg);
+                } catch (\Exception $e) {
+                    Log::warning("Failed to send guardian exam notification: " . $e->getMessage());
+                }
+            }
+        }
     }
 }

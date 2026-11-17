@@ -24,6 +24,7 @@ import {
   Wallet
 } from 'lucide-react'
 import { useTaxonomyStore } from '../../store/taxonomyStore'
+import TelegramLinkCard from '../../components/TelegramLinkCard'
 
 interface CourseProgress {
   id: number
@@ -811,6 +812,9 @@ export default function ProfileDashboard() {
 
           </form>
         </div>
+
+        {/* Telegram Assistant Linking Section */}
+        <TelegramLinkCard />
 
         {/* Change Password Section */}
         <div className="bg-brand-card border border-[var(--border-color)] rounded-3xl p-8 space-y-6 shadow-sm">

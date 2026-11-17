@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\TelegramUser;
 use App\Models\TelegramLinkToken;
 use App\Models\User;
+use App\Models\GiftCode;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -17,19 +18,25 @@ class TelegramUpdateProcessor
     protected ConversationStateEngine $stateEngine;
     protected TelegramPasswordRecoveryService $recoveryService;
     protected TelegramGuardianService $guardianService;
+    protected TelegramUserService $userService;
+    protected TelegramGiftCodeService $giftCodeService;
 
     public function __construct(
         TelegramService $telegramService,
         TelegramKeyboardService $keyboardService,
         ConversationStateEngine $stateEngine,
         ?TelegramPasswordRecoveryService $recoveryService = null,
-        ?TelegramGuardianService $guardianService = null
+        ?TelegramGuardianService $guardianService = null,
+        ?TelegramUserService $userService = null,
+        ?TelegramGiftCodeService $giftCodeService = null
     ) {
         $this->telegramService = $telegramService;
         $this->keyboardService = $keyboardService;
         $this->stateEngine = $stateEngine;
         $this->recoveryService = $recoveryService ?: app(TelegramPasswordRecoveryService::class);
         $this->guardianService = $guardianService ?: app(TelegramGuardianService::class);
+        $this->userService = $userService ?: app(TelegramUserService::class);
+        $this->giftCodeService = $giftCodeService ?: app(TelegramGiftCodeService::class);
     }
 
     /**
@@ -140,7 +147,12 @@ class TelegramUpdateProcessor
             return;
         }
 
-        // 4. Handle Menu Button Clicks
+        // 4. Check if text looks like a gift code submission
+        if ($this->tryHandleGiftCode($telegramUser, $text)) {
+            return;
+        }
+
+        // 5. Handle Menu Button Clicks
         $this->handleMenuNavigation($telegramUser, $text);
     }
 
@@ -321,7 +333,8 @@ class TelegramUpdateProcessor
             "• <b>/help</b>: استعراض هذه المساعدة.\n\n" .
             "🔐 <b>استعادة كلمة المرور</b>: استعادة حسابك بسرعة عبر التحقق الموثق برقم هاتفك.\n" .
             "🔗 <b>ربط الحساب</b>: لربط حسابك المسجل والحصول على إشعاراتك ودرجاتك.\n" .
-            "👨‍👩‍👧 <b>خدمات ولي الأمر</b>: لمتابعة أداء الأبناء والتقارير الأسبوعية.\n\n" .
+            "👨‍👩‍👧 <b>خدمات ولي الأمر</b>: لمتابعة أداء الأبناء والتقارير الأسبوعية.\n" .
+            "🎁 <b>أكواد الهدايا</b>: أرسل الكود مباشرة في المحادثة لتفعيله وشحن محفظتك.\n\n" .
             "إذا واجهتك أي مشكلة، تواصل معنا عبر قسم «🛠 الدعم الفني».";
 
         $this->telegramService->sendMessage(
@@ -346,19 +359,142 @@ class TelegramUpdateProcessor
     }
 
     /**
+     * Try to handle text as a gift code if it matches gift code pattern.
+     */
+    protected function tryHandleGiftCode(TelegramUser $telegramUser, string $text): bool
+    {
+        if (strlen($text) < 4 || strlen($text) > 30 || str_contains($text, ' ')) {
+            return false;
+        }
+
+        // Check if code exists in gift_codes table
+        $codeUpper = strtoupper($text);
+        if (GiftCode::where('code', $codeUpper)->exists()) {
+            if (!$telegramUser->is_linked || !$telegramUser->user) {
+                $this->telegramService->sendMessage(
+                    $telegramUser->telegram_chat_id,
+                    "⚠️ لتفعيل كود الهدية <b>{$codeUpper}</b>، يجب ربط حسابك بمنصة خطوتك أولاً عبر الضغط على «🔗 ربط حساب خطوتك».",
+                    $this->keyboardService->unlinkedGuestKeyboard()
+                );
+                return true;
+            }
+
+            $result = $this->giftCodeService->redeem($telegramUser->user, $codeUpper);
+            $this->telegramService->sendMessage(
+                $telegramUser->telegram_chat_id,
+                $result['message'],
+                $this->getKeyboardForUser($telegramUser)
+            );
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Handle menu buttons.
      */
     protected function handleMenuNavigation(TelegramUser $telegramUser, string $text): void
     {
         $chatId = $telegramUser->telegram_chat_id;
+        $user = $telegramUser->user;
 
         switch ($text) {
+            // Student Features (Phase 6)
+            case '📚 كورساتي المسجلة':
+                if (!$user) {
+                    $this->promptToLink($telegramUser);
+                    return;
+                }
+                $msg = $this->userService->getStudentCoursesText($user);
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            case '📝 الامتحانات والواجبات':
+                if (!$user) {
+                    $this->promptToLink($telegramUser);
+                    return;
+                }
+                $msg = $this->userService->getStudentExamsText($user);
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            case '📊 تقاريري ودرجاتي':
+                if (!$user) {
+                    $this->promptToLink($telegramUser);
+                    return;
+                }
+                $msg = $this->userService->getStudentResultsText($user);
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            case '🔔 التنبيهات التعليمية':
+                $this->telegramService->sendMessage(
+                    $chatId,
+                    "🔔 <b>التنبيهات التعليمية مفعلة ✅</b>\n\nستصلك إشعارات فورية بنزول المحاضرات الجديدة، ونتائج الامتحانات، وتنبيهات مواعيد البث المباشر هنا مباشرة.",
+                    $this->getKeyboardForUser($telegramUser)
+                );
+                break;
+
+            // Teacher & Doctor Features (Phase 6)
+            case '📊 تفاصيل اشتراكي والمساحة':
+            case '📊 باقة الدكتور والمساحة':
+            case '📈 إحصائيات سريعة':
+            case '📈 إحصائيات المقررات':
+                if (!$user) {
+                    $this->promptToLink($telegramUser);
+                    return;
+                }
+                $msg = $this->userService->getTeacherStatsText($user);
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            case '🔄 تجديد أو ترقية الباقة':
+                $frontendUrl = TelegramService::getFrontendUrl('teacher/plans');
+                $msg = "🔄 <b>تجديد أو ترقية باقة المعلم:</b>\n\nيمكنك ترقية باقتك وزيادة مساحة التخزين عبر صفحة الخطط الرسمية:\n<a href=\"{$frontendUrl}\">🔗 اضغط هنا لترقية الباقة على المنصة</a>";
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            case '🎟 أكواد الطلاب والتفعيل':
+            case '🎟 أكواد الطلاب والفرق':
+                $frontendUrl = TelegramService::getFrontendUrl('teacher/students');
+                $msg = "🎟 <b>أكواد اشتراك الطلاب:</b>\n\nيمكنك توليد أكواد تفعيل المقررات والفرق ومتابعة استخدامها من لوحة المعلم:\n<a href=\"{$frontendUrl}\">🔗 إدارة أكواد الطلاب على المنصة</a>";
+                $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
+                break;
+
+            // Guardian Features (Phase 5)
+            case '👨‍👩‍👧 خدمات ولي الأمر':
+            case '➕ ربط طالب إضافي':
+                $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_AWAITING_GUARDIAN_CONTACT);
+                $msg = "👨‍👩‍👧 <b>خدمات أولياء الأمور — منصة خطوتك ❤️</b>\n\n" .
+                    "لمتابعة نتائج الأبناء وتقاريرهم الأسبوعية، يرجى مشاركة رقم هاتف ولي الأمر المسجل في بيانات الطلاب بالضغط على الزر بالأسفل:";
+                $this->telegramService->sendMessage($chatId, $msg, $this->keyboardService->requestContactKeyboard('📱 مشاركة رقم هاتف ولي الأمر للتحقق'));
+                break;
+
+            case '👨‍🎓 استعراض تقارير الأبناء':
+            case '🔔 التقارير الأسبوعية':
+                $students = $this->guardianService->getLinkedStudents($telegramUser);
+                if ($students->isEmpty()) {
+                    $this->telegramService->sendMessage(
+                        $chatId,
+                        "ℹ️ لا يوجد أبناء مرتبطون بحسابك حالياً. اضغط على «➕ ربط طالب إضافي» للمزامنة برقم الهاتف.",
+                        $this->keyboardService->guardianKeyboard()
+                    );
+                } else {
+                    foreach ($students as $student) {
+                        $report = $this->guardianService->getStudentWeeklyReportText($telegramUser, $student->id);
+                        $this->telegramService->sendMessage($chatId, $report, $this->keyboardService->guardianKeyboard());
+                    }
+                }
+                break;
+
+            // Account Linking & Auth
             case '🔗 ربط حساب خطوتك':
                 $frontendUrl = TelegramService::getFrontendUrl();
                 $msg = "🔗 <b>كيفية ربط حسابك بمنصة خطوتك:</b>\n\n" .
                     "1. افتح موقع خطوتك: <b>{$frontendUrl}</b>\n" .
-                    "2. سجل دخولك إلى حسابك وافتح صفحة الملف الشخصي أو الإعدادات.\n" .
-                    "3. اضغط على زر «<b>ربط حساب Telegram</b>».\n" .
+                    "2. سجل دخولك وافتح الملف الشخصي.\n" .
+                    "3. اضغط على زر «<b>ربط حساب Telegram</b>» في بطاقة المساعد.\n" .
                     "4. سيتم فتح البوت تلقائياً وإتمام الربط الآمن خلال ثوانٍ.\n\n" .
                     "⚠️ لا تشارك أي كلمات مرور مع أي جهة، الربط يتم فقط عبر الرابط الرسمي الصادر من حسابك.";
                 $this->telegramService->sendMessage($chatId, $msg, $this->keyboardService->unlinkedGuestKeyboard());
@@ -372,34 +508,6 @@ class TelegramUpdateProcessor
                 $this->telegramService->sendMessage($chatId, $msg, $this->keyboardService->requestContactKeyboard());
                 break;
 
-            case '👨‍👩‍👧 خدمات ولي الأمر':
-            case '➕ ربط طالب إضافي':
-                $this->stateEngine->setState($telegramUser, ConversationStateEngine::STATE_AWAITING_GUARDIAN_CONTACT);
-                $msg = "👨‍👩‍👧 <b>خدمات أولياء الأمور — منصة خطوتك ❤️</b>\n\n" .
-                    "لمتابعة نتائج الأبناء وتقاريرهم الأسبوعية، يرجى مشاركة رقم هاتف ولي الأمر المسجل في بيانات الطلاب بالضغط على الزر بالأسفل:";
-                $this->telegramService->sendMessage($chatId, $msg, $this->keyboardService->requestContactKeyboard('📱 مشاركة رقم هاتف ولي الأمر للتحقق'));
-                break;
-
-            case '👨‍🎓 استعراض تقارير الأبناء':
-                $students = $this->guardianService->getLinkedStudents($telegramUser);
-                if ($students->isEmpty()) {
-                    $this->telegramService->sendMessage(
-                        $chatId,
-                        "ℹ️ لا يوجد أبناء مرتبطون بحسابك حالياً. اضغط على «➕ ربط طالب إضافي» للمزامنة برقم الهاتف.",
-                        $this->keyboardService->guardianKeyboard()
-                    );
-                } else {
-                    $listText = "👨‍👧‍👦 <b>الأبناء المرتبطون بحسابك:</b>\n\n";
-                    foreach ($students as $idx => $student) {
-                        $num = $idx + 1;
-                        $grade = $student->grade ?? 'غير محدد';
-                        $listText .= "{$num}. <b>{$student->name}</b> (الصف: {$grade})\n";
-                    }
-                    $listText .= "\n💡 ستصلك إشعارات فورية بالدرجات والتقارير الأسبوعية هنا مباشرة.";
-                    $this->telegramService->sendMessage($chatId, $listText, $this->keyboardService->guardianKeyboard());
-                }
-                break;
-
             case '⚙️ إعدادات الحساب':
                 $msg = "⚙️ <b>إعدادات الحساب والتنبيهات:</b>\n\nاختر الإجراء المطلوب من القائمة بالأسفل:";
                 $this->telegramService->sendMessage($chatId, $msg, $this->keyboardService->settingsKeyboard());
@@ -409,9 +517,13 @@ class TelegramUpdateProcessor
                 $this->sendRoleBasedWelcome($telegramUser);
                 break;
 
+            // Campaigns & Gift Codes (Phase 7)
             case '🎁 العروض وأكواد الهدايا':
-                $msg = "🎁 <b>العروض وأكواد الهدايا</b>\n\n" .
-                    "تابع أحدث العروض والخصومات المتاحة لحسابك، أو اكتب كود الهدية وسنقوم بفحصه وتفعيله فوراً على المنصة.";
+            case '🎁 أكواد الهدايا والعروض':
+            case '🎁 العروض والحملات':
+            case '🎁 العروض الجامعية':
+                $msg = "🎁 <b>أكواد الهدايا والعروض الترويجية:</b>\n\n" .
+                    "إذا كان لديك كود هدية أو كوبون خصم صادر من منصة خطوتك، يمكنك <b>كتابة الكود وإرساله في المحادثة مباشرة</b> وسيقوم البوت بالتحقق منه وتفعيله وإضافة الرصيد لمحفظتك فوراً!";
                 $this->telegramService->sendMessage($chatId, $msg, $this->getKeyboardForUser($telegramUser));
                 break;
 
@@ -433,6 +545,15 @@ class TelegramUpdateProcessor
         }
     }
 
+    protected function promptToLink(TelegramUser $telegramUser): void
+    {
+        $this->telegramService->sendMessage(
+            $telegramUser->telegram_chat_id,
+            "⚠️ هذه الخدمة تتطلب ربط حسابك في خطوتك بالبوت أولاً.\nاضغط على «🔗 ربط حساب خطوتك» لبدء الربط.",
+            $this->keyboardService->unlinkedGuestKeyboard()
+        );
+    }
+
     /**
      * Handle received contact payload for Password Recovery and Guardian linking.
      */
@@ -451,7 +572,6 @@ class TelegramUpdateProcessor
                     $this->keyboardService->unlinkedGuestKeyboard()
                 );
             }
-            // Note: If success, processRecoveryContact already sent the secure link
 
             $this->stateEngine->clearState($telegramUser);
             return;
@@ -459,7 +579,6 @@ class TelegramUpdateProcessor
 
         // Case 2: Guardian Linking
         if ($currentState === ConversationStateEngine::STATE_AWAITING_GUARDIAN_CONTACT) {
-            // Anti-spoofing check
             $senderId = $contact['user_id'] ?? null;
             if (!$senderId || (int)$senderId !== (int)$telegramUser->telegram_user_id) {
                 $this->telegramService->sendMessage(
